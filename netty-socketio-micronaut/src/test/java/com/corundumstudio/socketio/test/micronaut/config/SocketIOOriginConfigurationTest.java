@@ -67,7 +67,7 @@ public class SocketIOOriginConfigurationTest extends BaseMicronautApplicationTes
         assertEquals(nettySocketIOBasicConfigurationProperties.getTransports(), configuration.getTransports());
         assertEquals(nettySocketIOBasicConfigurationProperties.getBossThreads(), configuration.getBossThreads());
         assertEquals(nettySocketIOBasicConfigurationProperties.getWorkerThreads(), configuration.getWorkerThreads());
-        assertEquals(nettySocketIOBasicConfigurationProperties.getTransportType(), configuration.getTransportType());
+        assertEquals(nettySocketIOBasicConfigurationProperties.isUseLinuxNativeEpoll(), configuration.isUseLinuxNativeEpoll());
         assertEquals(nettySocketIOBasicConfigurationProperties.isAllowCustomRequests(), configuration.isAllowCustomRequests());
 
         // Timeout configurations

@@ -23,7 +23,6 @@ import com.corundumstudio.socketio.AckMode;
 import com.corundumstudio.socketio.BasicConfiguration;
 import com.corundumstudio.socketio.Transport;
 
-import com.corundumstudio.socketio.nativeio.TransportType;
 import io.quarkus.runtime.annotations.ConfigPhase;
 import io.quarkus.runtime.annotations.ConfigRoot;
 import io.smallrye.config.ConfigMapping;
@@ -67,31 +66,42 @@ public interface NettySocketIOBasicConfigMapping {
     int workerThreads();
 
     /**
-     * Specifies the I/O transport mechanism to use for handling network events.
+     * Enables use of the Linux native epoll transport when available.
      * <p>
-     * Supported transports:
-     * <ul>
-     *   <li>{@link TransportType#AUTO} – Automatically selects the best available transport
-     *       (io_uring → epoll → kqueue → NIO)</li>
-     *   <li>{@link TransportType#IO_URING} – Linux native io_uring transport (Linux 5.1+;
-     *       recommended 5.15+ for production stability)</li>
-     *   <li>{@link TransportType#EPOLL} – Linux native epoll transport</li>
-     *   <li>{@link TransportType#KQUEUE} – macOS / BSD native kqueue transport</li>
-     *   <li>{@link TransportType#NIO} – Standard JVM NIO transport</li>
-     * </ul>
-     * <p>
-     * The selected transport will only be used if it is supported and available on
-     * the current system; otherwise, the server automatically falls back to NIO.
-     * <p>
-     * Example:
-     * <pre>{@code
-     * transportType = TransportType.AUTO
-     * }</pre>
+     * Epoll provides low-latency, high-throughput I/O on Linux systems and is
+     * preferred over the NIO transport when supported. This option has no effect
+     * on non-Linux platforms.
      *
-     * @return the configured {@link TransportType}
+     * @return {@code true} to use the native epoll transport if available
+     * @see BasicConfiguration#isUseLinuxNativeEpoll()
      */
-    @WithDefault("AUTO")
-    TransportType transportType();
+    @WithDefault("false")
+    boolean useLinuxNativeEpoll();
+
+    /**
+     * Enables use of the Linux native io_uring transport when available.
+     * <p>
+     * io_uring is a modern Linux I/O interface that can provide significantly
+     * higher performance than epoll on supported kernels (Linux 5.10+). This
+     * option has no effect on non-Linux platforms.
+     *
+     * @return {@code true} to use the native io_uring transport if available
+     * @see BasicConfiguration#isUseLinuxNativeIoUring()
+     */
+    @WithDefault("false")
+    boolean useLinuxNativeIoUring();
+
+    /**
+     * Enables use of the native kqueue transport when available.
+     * <p>
+     * kqueue is the high-performance event notification system used on macOS and
+     * BSD-based operating systems. This option has no effect on Linux or Windows.
+     *
+     * @return {@code true} to use the native kqueue transport if available
+     * @see BasicConfiguration#isUseUnixNativeKqueue()
+     */
+    @WithDefault("false")
+    boolean useUnixNativeKqueue();
 
 
     /**
