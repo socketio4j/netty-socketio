@@ -8,11 +8,11 @@
   <name>NettySocketIO</name>
   <description>Socket.IO server implemented on Java</description>
   <inceptionYear>2012</inceptionYear>
-  <url>https://github.com/NeatGuyCoding/netty-socketio</url>
+  <url>https://github.com/socketio4j/netty-socketio</url>
 
   <scm>
-    <url>https://github.com/NeatGuyCoding/netty-socketio</url>
-    <connection>https://github.com/NeatGuyCoding/netty-socketio.git</connection>
+    <url>https://github.com/socketio4j/netty-socketio</url>
+    <connection>https://github.com/socketio4j/netty-socketio.git</connection>
     <tag>HEAD</tag>
   </scm>
 

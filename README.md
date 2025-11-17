@@ -1,10 +1,8 @@
 Netty-socketio Overview
 =============================
-This project is a fork of [netty-socketio](https://github.com/mrniko/netty-socketio), which is no longer actively maintained. The fork aims to keep the library up-to-date with the latest dependencies and improvements, ensuring continued support and functionality for users.
+This project is an active fork of [netty-socketio](https://github.com/mrniko/netty-socketio), which is no longer actively maintained. The fork aims to keep the library up-to-date with the latest dependencies and improvements, ensuring continued support and functionality for users.
 
- - There is a branch for merging the latest changes from the original repository: `merge-to-source-master`, and an Open PR: https://github.com/mrniko/netty-socketio/pull/1057
  - The main development branch is `main`, which contains the latest features and fixes.
- - The main stream version has a separate branch, for example `3.x`
  - This project is an open-source Java implementation of [Socket.IO](http://socket.io/) server. Based on [Netty](http://netty.io/) server framework.  
 
 Licensed under the Apache License 2.0.
