@@ -15,6 +15,7 @@
  */
 package com.corundumstudio.socketio.integration;
 
+import java.net.ServerSocket;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterEach;
@@ -137,16 +138,12 @@ public abstract class AbstractSocketIOIntegrationTest {
      * Find an available port with retry mechanism
      */
     private int findAvailablePort() throws Exception {
-        for (int attempt = 0; attempt < MAX_PORT_RETRIES; attempt++) {
-            int port = allocatePort();
-            if (isPortAvailable(port)) {
-                return port;
+
+            try (ServerSocket socket = new ServerSocket(0)) {
+                return socket.getLocalPort();
             }
-            // Wait a bit before retrying
-            Thread.sleep(1000);
-            log.info("Waiting for port {} to become available", port);
-        }
-        throw new RuntimeException("Could not find available port after " + MAX_PORT_RETRIES + " attempts");
+
+
     }
 
     /**
@@ -193,9 +190,10 @@ public abstract class AbstractSocketIOIntegrationTest {
         // Create and start server
         server = new SocketIOServer(serverConfig);
         server.start();
+        serverPort = server.getConfiguration().getPort();
 
         // Verify server started successfully
-        if (serverPort <= 0) {
+        if (serverPort < 0) {
             throw new RuntimeException("Failed to start server on port: " + serverPort);
         }
 

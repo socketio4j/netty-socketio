@@ -19,6 +19,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.net.HttpURLConnection;
 import java.net.ServerSocket;
 import java.net.URI;
@@ -238,20 +239,11 @@ public class HttpTransportTest {
    * @throws IllegalStateException if unable to find a free port
    */
   private static int findFreePort() {
-    ServerSocket socket = null;
-    try {
-      socket = new ServerSocket(0);
-      socket.setReuseAddress(true);
-      return socket.getLocalPort();
-    } catch (IOException ignored) {
-    } finally {
-      if (socket != null) {
-        try {
-          socket.close();
-        } catch (IOException ignored) {
-        }
+      try (ServerSocket socket = new ServerSocket(0)) {
+          socket.setReuseAddress(true);
+          return socket.getLocalPort();
+      } catch (IOException ignored) {
       }
-    }
     throw new IllegalStateException("Could not find a free TCP/IP port to start embedded SocketIO Server on");
   }
 
