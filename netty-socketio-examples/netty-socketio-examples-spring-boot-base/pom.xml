@@ -9,7 +9,7 @@
     <version>3.0.1</version>
   </parent>
 
-  <groupId>io.github.neatguycoding</groupId>
+  <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-examples-spring-boot-base</artifactId>
   <version>3.0.1</version>
   <description>NettySocketIO Spring Boot Examples</description>
@@ -20,7 +20,7 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.github.neatguycoding</groupId>
+      <groupId>com.socketio4j</groupId>
       <artifactId>netty-socketio-spring-boot-starter</artifactId>
       <version>3.0.1</version>
     </dependency>
