@@ -61,7 +61,7 @@ public class SocketIOServer implements ClientListeners {
 
     private static final Logger log = LoggerFactory.getLogger(SocketIOServer.class);
 
-    private final AtomicReference<ServerStatus> serverStatus = new AtomicReference<ServerStatus>(ServerStatus.INIT);
+    private final AtomicReference<ServerStatus> serverStatus = new AtomicReference<>(ServerStatus.INIT);
 
     private final Configuration configCopy;
     private final Configuration configuration;
@@ -179,19 +179,45 @@ public class SocketIOServer implements ClientListeners {
 
             pipelineFactory.start(configCopy, namespacesHub);
 
-            configCopy.validate();
-
             Class<? extends ServerChannel> channelClass = NioServerSocketChannel.class;
+            switch (configCopy.getTransportType()) {
 
-            if (configCopy.isUseLinuxNativeIoUring() && IoUring.isAvailable()) {
-                channelClass = IoUringServerSocketChannel.class;
-            } else if (configCopy.isUseLinuxNativeEpoll() && Epoll.isAvailable()) {
-                channelClass = EpollServerSocketChannel.class;
-            } else if (configCopy.isUseUnixNativeKqueue() && KQueue.isAvailable()) {
-                channelClass = KQueueServerSocketChannel.class;
-            } else {
-                log.warn("No selected native transport is available. Falling back to NIO");
+                case IO_URING:
+                    channelClass = IoUring.isAvailable()
+                            ? IoUringServerSocketChannel.class
+                            : fallback("IO_URING requested but unavailable.");
+                    break;
+
+                case EPOLL:
+                    channelClass = Epoll.isAvailable()
+                            ? EpollServerSocketChannel.class
+                            : fallback("EPOLL requested but unavailable.");
+                    break;
+
+                case KQUEUE:
+                    channelClass = KQueue.isAvailable()
+                            ? KQueueServerSocketChannel.class
+                            : fallback("KQUEUE requested but unavailable.");
+                    break;
+
+                case AUTO:
+                default:
+                    if (IoUring.isAvailable()) {
+                        channelClass = IoUringServerSocketChannel.class;
+                        break;
+                    }
+                    if (Epoll.isAvailable()) {
+                        channelClass = EpollServerSocketChannel.class;
+                        break;
+                    }
+                    if (KQueue.isAvailable()) {
+                        channelClass = KQueueServerSocketChannel.class;
+                        break;
+                    }
+                    log.warn("No native transport available. Using NIO.");
+                    break;
             }
+
 
 
             ServerBootstrap b = new ServerBootstrap();
@@ -205,16 +231,13 @@ public class SocketIOServer implements ClientListeners {
                 addr = new InetSocketAddress(configCopy.getHostname(), configCopy.getPort());
             }
 
-            return b.bind(addr).addListener(new FutureListener<Void>() {
-                @Override
-                public void operationComplete(Future<Void> future) throws Exception {
-                    if (future.isSuccess()) {
-                        serverStatus.set(ServerStatus.STARTED);
-                        log.info("SocketIO server started at port: {}", configCopy.getPort());
-                    } else {
-                        serverStatus.set(ServerStatus.INIT);
-                        log.error("SocketIO server start failed at port: {}!", configCopy.getPort());
-                    }
+            return b.bind(addr).addListener((FutureListener<Void>) future -> {
+                if (future.isSuccess()) {
+                    serverStatus.set(ServerStatus.STARTED);
+                    log.info("SocketIO server started at port: {}", configCopy.getPort());
+                } else {
+                    serverStatus.set(ServerStatus.INIT);
+                    log.error("SocketIO server start failed at port: {}!", configCopy.getPort());
                 }
             });
         } catch (Exception e) {
@@ -223,6 +246,17 @@ public class SocketIOServer implements ClientListeners {
             throw e;
         }
     }
+
+    private Class<? extends ServerChannel> fallback(String msg) {
+        log.warn("{} Falling back to NIO.", msg);
+        return NioServerSocketChannel.class;
+    }
+
+    private IoHandlerFactory fallbackFactory(String msg) {
+        log.warn("{} Falling back to NIOHandler.", msg);
+        return NioIoHandler.newFactory();
+    }
+
 
     protected void applyConnectionOptions(ServerBootstrap bootstrap) {
         SocketConfig config = configCopy.getSocketConfig();
@@ -250,22 +284,51 @@ public class SocketIOServer implements ClientListeners {
 
     protected void initGroups() {
 
-        configCopy.validate();
+        IoHandlerFactory ioHandler;
 
-        IoHandlerFactory ioHandler = NioIoHandler.newFactory(); // default
+        switch (configCopy.getTransportType()) {
 
-        if (configCopy.isUseLinuxNativeIoUring() && IoUring.isAvailable()) {
-            ioHandler = IoUringIoHandler.newFactory();
-        } else if (configCopy.isUseLinuxNativeEpoll() && Epoll.isAvailable()) {
-            ioHandler = EpollIoHandler.newFactory();
-        } else if (configCopy.isUseUnixNativeKqueue() && KQueue.isAvailable()) {
-            ioHandler = KQueueIoHandler.newFactory();
+            case IO_URING:
+                ioHandler = IoUring.isAvailable()
+                        ? IoUringIoHandler.newFactory()
+                        : fallbackFactory("IO_URING requested but unavailable.");
+                break;
+
+            case EPOLL:
+                ioHandler = Epoll.isAvailable()
+                        ? EpollIoHandler.newFactory()
+                        : fallbackFactory("EPOLL requested but unavailable.");
+                break;
+
+            case KQUEUE:
+                ioHandler = KQueue.isAvailable()
+                        ? KQueueIoHandler.newFactory()
+                        : fallbackFactory("KQUEUE requested but unavailable.");
+                break;
+
+            case NIO:
+                ioHandler = NioIoHandler.newFactory();
+                break;
+
+            case AUTO:
+            default:
+                if (IoUring.isAvailable()) {
+                    ioHandler = IoUringIoHandler.newFactory();
+                } else if (Epoll.isAvailable()) {
+                    ioHandler = EpollIoHandler.newFactory();
+                } else if (KQueue.isAvailable()) {
+                    ioHandler = KQueueIoHandler.newFactory();
+                } else {
+                    ioHandler = fallbackFactory("No native transport available.");
+                }
+                break;
         }
 
         bossGroup   = new MultiThreadIoEventLoopGroup(configCopy.getBossThreads(), ioHandler);
         workerGroup = new MultiThreadIoEventLoopGroup(configCopy.getWorkerThreads(), ioHandler);
-
     }
+
+
 
     /**
      * Stop server
