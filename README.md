@@ -25,7 +25,7 @@ Migration from original netty-socketio
 with new one:
 ```xml
 <dependency>
-  <groupId>io.github.neatguycoding</groupId>
+  <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-core</artifactId>
   <version>LATEST-VERSION</version>
 </dependency>
@@ -34,7 +34,7 @@ with new one:
 If you use Spring integration (Just one class: `SpringAnnotationScanner`), you should use the new dependency:
 ```xml
 <dependency>
-  <groupId>io.github.neatguycoding</groupId>
+  <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-spring</artifactId>
   <version>LATEST-VERSION</version>
 </dependency>
@@ -86,7 +86,7 @@ ARSnova: [arsnova.eu](https://arsnova.eu)
 
 Recent Releases
 ================================
-Refer to: https://mvnrepository.com/artifact/io.github.neatguycoding/netty-socketio
+Refer to: https://mvnrepository.com/artifact/com.socketio4j/netty-socketio
 
 #### 15-Oct-2025 - version 3.0.0 released
 Feature - Split to core, spring, quarkus, and micronaut modules
