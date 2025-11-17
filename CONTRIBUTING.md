@@ -84,7 +84,7 @@ mvn test -Dtest=*IntegrationTest
 
 ### Writing Tests
 
-- Use JUnit 5
+- Use JUnit 5 for new tests. JUnit 4 is also supported for legacy tests (both are available via Maven dependencies).
 - Use JMockit for mocking
 - Follow AAA pattern (Arrange, Act, Assert)
 - Include both positive and negative test cases
