@@ -200,6 +200,10 @@ public class SocketIOServer implements ClientListeners {
                             : fallback("KQUEUE requested but unavailable.");
                     break;
 
+                case NIO:
+                    channelClass = NioServerSocketChannel.class;
+                    break;
+
                 case AUTO:
                 default:
                     if (IoUring.isAvailable()) {
