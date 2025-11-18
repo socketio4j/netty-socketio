@@ -15,21 +15,16 @@
  */
 package com.corundumstudio.socketio.integration;
 
+import java.net.ServerSocket;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.redisson.Redisson;
-import org.redisson.api.RedissonClient;
-import org.redisson.config.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.corundumstudio.socketio.Configuration;
 import com.corundumstudio.socketio.SocketIOServer;
-import com.corundumstudio.socketio.store.CustomizedRedisContainer;
-import com.corundumstudio.socketio.store.RedissonStoreFactory;
 import com.github.javafaker.Faker;
 
 import io.socket.client.IO;
@@ -54,10 +49,6 @@ public abstract class AbstractSocketIOIntegrationTest {
     private int serverPort;
 
     private static final String SERVER_HOST = "localhost";
-    private static final int BASE_PORT = 9000;
-    private static final int PORT_RANGE = 2000; // Increased range for better distribution
-    private static final AtomicInteger PORT_COUNTER = new AtomicInteger(0);
-    private static final int MAX_PORT_RETRIES = 30;
 
     /**
      * Get the current server port for this test instance
@@ -103,44 +94,11 @@ public abstract class AbstractSocketIOIntegrationTest {
     }
 
     /**
-     * Allocate a unique port for this test instance.
-     * Uses atomic counter to ensure thread-safe port allocation.
-     */
-    private synchronized int allocatePort() {
-        int portIndex = PORT_COUNTER.getAndIncrement();
-        int port = BASE_PORT + (portIndex % PORT_RANGE);
-
-        // If we've used all ports in the range, reset counter
-        if (portIndex >= PORT_RANGE) {
-            PORT_COUNTER.set(0);
-        }
-        return port;
-    }
-
-    /**
      * Find an available port with retry mechanism
      */
     private int findAvailablePort() throws Exception {
-        for (int attempt = 0; attempt < MAX_PORT_RETRIES; attempt++) {
-            int port = allocatePort();
-            if (isPortAvailable(port)) {
-                return port;
-            }
-            // Wait a bit before retrying
-            Thread.sleep(1000);
-            log.info("Waiting for port {} to become available", port);
-        }
-        throw new RuntimeException("Could not find available port after " + MAX_PORT_RETRIES + " attempts");
-    }
-
-    /**
-     * Check if a port is available
-     */
-    private boolean isPortAvailable(int port) {
-        try (java.net.ServerSocket serverSocket = new java.net.ServerSocket(port)) {
-            return true;
-        } catch (Exception e) {
-            return false;
+        try (ServerSocket socket = new ServerSocket(0)) { // using zero will auto assign port
+            return socket.getLocalPort();
         }
     }
 
