@@ -169,11 +169,7 @@ public abstract class AbstractSocketIOIntegrationTest {
                 server.start();
 
                 // Verify server started successfully
-                if (serverPort <= 0) {
-                    continue;
-                } else {
-                    successful = true;
-                }
+                successful = true;
             } catch (Exception e) {
                 log.warn("Port {} is not available, retrying...", serverPort);
                 // If server failed to start, try again with a different port
