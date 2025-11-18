@@ -71,10 +71,20 @@ public class RoomBroadcastTest extends AbstractSocketIOIntegrationTest {
             //for polling args contains event, for websocket does not
             //https://github.com/socketio/socket.io-client-java/issues/793
             //https://github.com/socketio4j/netty-socketio/issues/6
-            receivedData1.set(Arrays.stream(args).map(Object::toString).collect(Collectors.joining()));
+            if (args != null && args.length > 0) {
+                receivedData1.set(
+                        Arrays.stream(args).map(Object::toString)
+                                .collect(Collectors.joining(","))
+                );
+            }
         });
         client2.on(testEvent, args -> {
-            receivedData2.set(Arrays.stream(args).map(Object::toString).collect(Collectors.joining()));
+            if (args != null && args.length > 0) {
+                receivedData2.set(
+                        Arrays.stream(args).map(Object::toString)
+                                .collect(Collectors.joining(","))
+                );
+            }
         });
 
         client1.connect();
