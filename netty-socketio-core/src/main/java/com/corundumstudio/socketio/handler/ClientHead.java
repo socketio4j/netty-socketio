@@ -118,10 +118,14 @@ public class ClientHead {
     }
 
     public void releasePollingChannel(Channel channel) {
-        TransportState state = channels.get(Transport.POLLING);
-        if (channel.equals(state.getChannel())) {
-            clientsBox.remove(channel);
-            state.update(null);
+        try {
+            TransportState state = channels.get(Transport.POLLING);
+            if (channel.equals(state.getChannel())) {
+                clientsBox.remove(channel);
+                state.update(null);
+            }
+        } catch (Throwable e) {
+            log.error("Failed to release polling channel for session: {}", sessionId, e);
         }
     }
 
@@ -134,12 +138,20 @@ public class ClientHead {
     }
 
     public void cancelPing() {
-        SchedulerKey key = new SchedulerKey(Type.PING, sessionId);
-        scheduler.cancel(key);
+        try {
+            SchedulerKey key = new SchedulerKey(Type.PING, sessionId);
+            scheduler.cancel(key);
+        } catch (Throwable e) {
+            log.error("Failed to cancel ping task for session: {}", sessionId, e);
+        }
     }
     public void cancelPingTimeout() {
-        SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, sessionId);
-        scheduler.cancel(key);
+        try {
+            SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, sessionId);
+            scheduler.cancel(key);
+        } catch (Throwable e) {
+            log.error("Failed to cancel ping timeout task for session: {}", sessionId, e);
+        }
     }
 
     public void schedulePing() {

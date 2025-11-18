@@ -72,6 +72,9 @@ public class ClientDisconnectionTest extends AbstractSocketIOIntegrationTest {
         // Verify client is connected
         assertEquals(1, getServer().getAllClients().size(), "Server should have one connected client");
 
+        // Wait for a moment to ensure connection stability and protocol upgrade
+        TimeUnit.SECONDS.sleep(3);
+
         // Disconnect client
         client.disconnect();
         client.close();
