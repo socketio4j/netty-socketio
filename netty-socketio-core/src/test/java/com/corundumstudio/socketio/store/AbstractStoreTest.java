@@ -230,9 +230,7 @@ public abstract class AbstractStoreTest {
 
         @Override
         public int hashCode() {
-            int result = name != null ? name.hashCode() : 0;
-            result = 31 * result + value;
-            return result;
+            return Objects.hash(name, value);
         }
     }
 }
