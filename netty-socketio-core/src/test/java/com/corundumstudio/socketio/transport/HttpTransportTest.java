@@ -176,9 +176,6 @@ public class HttpTransportTest {
         if (bodyForPost != null) {
           http.setRequestMethod("POST"); // PUT is another valid option
           http.setDoOutput(true);
-        }
-
-        if (bodyForPost != null) {
           byte[] out = bodyForPost.getBytes(StandardCharsets.UTF_8);
           http.setFixedLengthStreamingMode(out.length);
           http.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");

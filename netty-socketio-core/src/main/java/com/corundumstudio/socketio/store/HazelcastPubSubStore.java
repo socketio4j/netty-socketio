@@ -76,6 +76,9 @@ public class HazelcastPubSubStore implements PubSubStore {
     public void unsubscribe(PubSubType type) {
         String name = type.toString();
         Queue<UUID> regIds = map.remove(name);
+        if (regIds == null || regIds.isEmpty()) {
+            return;
+        }
         ITopic<Object> topic = hazelcastSub.getTopic(name);
         for (UUID id : regIds) {
             topic.removeMessageListener(id);

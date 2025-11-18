@@ -176,12 +176,16 @@ public class SocketIOServer implements ClientListeners {
                 default:
                     if (ioUringAvailable()) {
                         channelClass = loadChannelClass("io.netty.channel.uring.IoUringServerSocketChannel");
+                        log.info("AUTO selected IO_URING transport");
                     } else if (epollAvailable()) {
                         channelClass = loadChannelClass("io.netty.channel.epoll.EpollServerSocketChannel");
+                        log.info("AUTO selected EPOLL transport");
                     } else if (kqueueAvailable()) {
                         channelClass = loadChannelClass("io.netty.channel.kqueue.KQueueServerSocketChannel");
+                        log.info("AUTO selected KQUEUE transport");
                     } else {
                         channelClass = NioServerSocketChannel.class;
+                        log.info("AUTO selected NIO transport");
                     }
             }
 
