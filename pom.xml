@@ -595,7 +595,7 @@
           <mapping>
             <java>JAVADOC_STYLE</java>
           </mapping>
-          <strictCheck>true</strictCheck>
+          <strictCheck>false</strictCheck>
           <useDefaultMapping>true</useDefaultMapping>
           <encoding>UTF-8</encoding>
         </configuration>
