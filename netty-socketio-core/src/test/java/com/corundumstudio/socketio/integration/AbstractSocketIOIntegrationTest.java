@@ -177,7 +177,6 @@ public abstract class AbstractSocketIOIntegrationTest {
             }
         }
 
-
         // Allow subclasses to do additional setup
         additionalSetup();
     }
