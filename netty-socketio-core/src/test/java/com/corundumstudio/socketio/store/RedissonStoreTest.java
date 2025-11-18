@@ -57,6 +57,7 @@ public class RedissonStoreTest extends AbstractStoreTest {
     protected void cleanupStore() {
         if (redissonClient != null) {
             redissonClient.getKeys().flushall();
+            redissonClient.shutdown();
         }
     }
 

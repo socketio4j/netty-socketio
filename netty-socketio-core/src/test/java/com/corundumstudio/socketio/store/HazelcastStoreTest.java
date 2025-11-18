@@ -58,6 +58,9 @@ public class HazelcastStoreTest extends AbstractStoreTest {
         if (store != null) {
             store.destroy();
         }
+        if (hazelcastInstance != null) {
+            hazelcastInstance.shutdown();
+        }
     }
 
 
