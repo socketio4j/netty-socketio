@@ -125,7 +125,7 @@ public class ClientHead {
                 state.update(null);
             }
         } catch (Throwable e) {
-            log.error("Failed to release polling channel for session: " + sessionId, e);
+            log.error("Failed to release polling channel for session: {}", sessionId, e);
         }
     }
 
