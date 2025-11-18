@@ -20,6 +20,8 @@ jobs:
           java-version: ${{ inputs.javaVersion }}
           distribution: 'temurin'
           cache: 'maven'
+      - name: 'Enable Testcontainers Reuse'
+        run: echo 'testcontainers.reuse.enable=true' > ~/.testcontainers.properties
       - name: 'Build Project'
         run: |
           export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN"
