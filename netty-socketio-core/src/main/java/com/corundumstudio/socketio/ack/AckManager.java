@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -37,13 +38,11 @@ import com.corundumstudio.socketio.scheduler.CancelableScheduler;
 import com.corundumstudio.socketio.scheduler.SchedulerKey;
 import com.corundumstudio.socketio.scheduler.SchedulerKey.Type;
 
-import io.netty.util.internal.PlatformDependent;
-
 public class AckManager implements Disconnectable {
 
     static class AckEntry {
 
-        final Map<Long, AckCallback<?>> ackCallbacks = PlatformDependent.newConcurrentHashMap();
+        final Map<Long, AckCallback<?>> ackCallbacks = new ConcurrentHashMap<>();
         final AtomicLong ackIndex = new AtomicLong(-1);
 
         public long addAckCallback(AckCallback<?> callback) {
@@ -72,7 +71,7 @@ public class AckManager implements Disconnectable {
 
     private static final Logger log = LoggerFactory.getLogger(AckManager.class);
 
-    private final ConcurrentMap<UUID, AckEntry> ackEntries = PlatformDependent.newConcurrentHashMap();
+    private final ConcurrentMap<UUID, AckEntry> ackEntries = new ConcurrentHashMap<>();
 
     private final CancelableScheduler scheduler;
 

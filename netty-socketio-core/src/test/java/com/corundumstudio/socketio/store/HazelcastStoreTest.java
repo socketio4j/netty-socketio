@@ -36,7 +36,7 @@ public class HazelcastStoreTest extends AbstractStoreTest {
 
     @Override
     protected GenericContainer<?> createContainer() {
-        return new CustomizedHazelcastContainer();
+        return new CustomizedHazelcastContainer().withReuse(true);
     }
 
     @Override

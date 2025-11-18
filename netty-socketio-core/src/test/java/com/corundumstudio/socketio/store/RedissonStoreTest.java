@@ -38,7 +38,7 @@ public class RedissonStoreTest extends AbstractStoreTest {
 
     @Override
     protected GenericContainer<?> createContainer() {
-        return new CustomizedRedisContainer();
+        return new CustomizedRedisContainer().withReuse(true);
     }
 
     @Override

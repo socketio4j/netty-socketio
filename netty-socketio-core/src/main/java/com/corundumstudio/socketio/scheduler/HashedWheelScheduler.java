@@ -16,6 +16,7 @@
 package com.corundumstudio.socketio.scheduler;
 
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
@@ -23,11 +24,10 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
-import io.netty.util.internal.PlatformDependent;
 
 public class HashedWheelScheduler implements CancelableScheduler {
 
-    private final Map<SchedulerKey, Timeout> scheduledFutures = PlatformDependent.newConcurrentHashMap();
+    private final Map<SchedulerKey, Timeout> scheduledFutures = new ConcurrentHashMap<>();
     private final HashedWheelTimer executorService;
     
     public HashedWheelScheduler() {

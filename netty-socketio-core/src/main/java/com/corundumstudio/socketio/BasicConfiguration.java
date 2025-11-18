@@ -15,11 +15,11 @@
  */
 package com.corundumstudio.socketio;
 
+import java.util.Arrays;
+import java.util.List;
 
 import com.corundumstudio.socketio.nativeio.TransportType;
 
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * Basic configuration class, contains only primitive, String and enum types

@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,7 +65,6 @@ import com.fasterxml.jackson.databind.type.ArrayType;
 
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufOutputStream;
-import io.netty.util.internal.PlatformDependent;
 
 public class JacksonJsonSupport implements JsonSupport {
 
@@ -166,7 +166,7 @@ public class JacksonJsonSupport implements JsonSupport {
 
         private static final long serialVersionUID = 8178797221017768689L;
 
-        final Map<EventKey, List<Class<?>>> eventMapping = PlatformDependent.newConcurrentHashMap();
+        final Map<EventKey, List<Class<?>>> eventMapping = new ConcurrentHashMap<>();
 
 
         protected EventDeserializer() {

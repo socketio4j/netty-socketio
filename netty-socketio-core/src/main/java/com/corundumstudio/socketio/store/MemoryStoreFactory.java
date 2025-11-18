@@ -17,11 +17,10 @@ package com.corundumstudio.socketio.store;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.corundumstudio.socketio.store.pubsub.BaseStoreFactory;
 import com.corundumstudio.socketio.store.pubsub.PubSubStore;
-
-import io.netty.util.internal.PlatformDependent;
 
 public class MemoryStoreFactory extends BaseStoreFactory {
 
@@ -48,7 +47,7 @@ public class MemoryStoreFactory extends BaseStoreFactory {
 
     @Override
     public <K, V> Map<K, V> createMap(String name) {
-        return PlatformDependent.newConcurrentHashMap();
+        return new ConcurrentHashMap<>();
     }
 
 }

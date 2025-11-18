@@ -16,9 +16,11 @@
 package com.corundumstudio.socketio.store;
 
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.UUID;
+
 import com.corundumstudio.socketio.store.pubsub.PubSubListener;
 import com.corundumstudio.socketio.store.pubsub.PubSubMessage;
 import com.corundumstudio.socketio.store.pubsub.PubSubStore;
@@ -27,16 +29,13 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.topic.ITopic;
 
 
-import io.netty.util.internal.PlatformDependent;
-
-
 public class HazelcastPubSubStore implements PubSubStore {
 
     private final HazelcastInstance hazelcastPub;
     private final HazelcastInstance hazelcastSub;
     private final Long nodeId;
 
-    private final ConcurrentMap<String, Queue<UUID>> map = PlatformDependent.newConcurrentHashMap();
+    private final ConcurrentMap<String, Queue<UUID>> map = new ConcurrentHashMap<>();
 
     public HazelcastPubSubStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId) {
         this.hazelcastPub = hazelcastPub;

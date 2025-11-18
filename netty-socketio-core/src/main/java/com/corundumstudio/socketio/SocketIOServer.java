@@ -1,12 +1,12 @@
 /**
  * Copyright (c) 2012-2025 Nikita Koksharov
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  *    http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,14 +22,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
-import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.*;
-import io.netty.channel.nio.NioIoHandler;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.FutureListener;
-import io.netty.util.concurrent.SucceededFuture;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +35,22 @@ import com.corundumstudio.socketio.listener.PingListener;
 import com.corundumstudio.socketio.listener.PongListener;
 import com.corundumstudio.socketio.namespace.Namespace;
 import com.corundumstudio.socketio.namespace.NamespacesHub;
+
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.DefaultEventLoop;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.FixedRecvByteBufAllocator;
+import io.netty.channel.IoHandlerFactory;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.ServerChannel;
+import io.netty.channel.WriteBufferWaterMark;
+import io.netty.channel.nio.NioIoHandler;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.FutureListener;
+import io.netty.util.concurrent.SucceededFuture;
+
 
 /**
  * Fully thread-safe.
@@ -183,9 +191,12 @@ public class SocketIOServer implements ClientListeners {
 
             applyConnectionOptions(bootstrap);
 
-            InetSocketAddress address = configCopy.getHostname() == null
-                    ? new InetSocketAddress(configCopy.getPort())
-                    : new InetSocketAddress(configCopy.getHostname(), configCopy.getPort());
+            InetSocketAddress address;
+            if (configCopy.getHostname() == null) {
+                address = new InetSocketAddress(configCopy.getPort());
+            } else {
+                address = new InetSocketAddress(configCopy.getHostname(), configCopy.getPort());
+            }
 
             return bootstrap.bind(address).addListener((FutureListener<Void>) future -> {
                 if (future.isSuccess()) {
@@ -209,7 +220,7 @@ public class SocketIOServer implements ClientListeners {
             @SuppressWarnings("unchecked")
             Class<? extends ServerChannel> c = (Class<? extends ServerChannel>) Class.forName(name);
             return c;
-        } catch (Throwable t) {
+        } catch (Exception ignored) {
             log.warn("Unable to load native channel {}. Using NIO.", name);
             return NioServerSocketChannel.class;
         }
@@ -235,7 +246,7 @@ public class SocketIOServer implements ClientListeners {
         }
         if (config.getTcpReceiveBufferSize() != -1) {
             bootstrap.childOption(ChannelOption.SO_RCVBUF, config.getTcpReceiveBufferSize());
-            bootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, new FixedRecvByteBufAllocator(config.getTcpReceiveBufferSize()));
+            bootstrap.childOption(ChannelOption.RECVBUF_ALLOCATOR, new FixedRecvByteBufAllocator(config.getTcpReceiveBufferSize()));
         }
         //default value @see WriteBufferWaterMark.DEFAULT
         if (config.getWriteBufferWaterMarkLow() != -1 && config.getWriteBufferWaterMarkHigh() != -1) {
@@ -295,12 +306,10 @@ public class SocketIOServer implements ClientListeners {
             return fallbackFactory(className + " unavailable");
         }
         try {
-            @SuppressWarnings("unchecked")
-            IoHandlerFactory f = (IoHandlerFactory) Class.forName(className)
+            return (IoHandlerFactory) Class.forName(className)
                     .getMethod("newFactory")
                     .invoke(null);
-            return f;
-        } catch (Throwable t) {
+        } catch (Exception ignored) {
             return fallbackFactory("Failed to load " + className);
         }
     }
@@ -400,7 +409,7 @@ public class SocketIOServer implements ClientListeners {
         try {
             Class.forName(name, false, SocketIOServer.class.getClassLoader());
             return true;
-        } catch (Throwable ignored) {
+        } catch (Exception ignored) {
             return false;
         }
     }
@@ -409,7 +418,7 @@ public class SocketIOServer implements ClientListeners {
         try {
             Class<?> cls = Class.forName(className, false, SocketIOServer.class.getClassLoader());
             return (Boolean) cls.getMethod(method).invoke(null);
-        } catch (Throwable ignored) {
+        } catch (Exception ignored) {
             return false;
         }
     }

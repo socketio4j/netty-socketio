@@ -18,6 +18,7 @@ package com.corundumstudio.socketio.namespace;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import com.corundumstudio.socketio.Configuration;
@@ -25,11 +26,9 @@ import com.corundumstudio.socketio.SocketIOClient;
 import com.corundumstudio.socketio.SocketIONamespace;
 import com.corundumstudio.socketio.misc.CompositeIterable;
 
-import io.netty.util.internal.PlatformDependent;
-
 public class NamespacesHub {
 
-    private final ConcurrentMap<String, SocketIONamespace> namespaces = PlatformDependent.newConcurrentHashMap();
+    private final ConcurrentMap<String, SocketIONamespace> namespaces = new ConcurrentHashMap<>();
     private final Configuration configuration;
 
     public NamespacesHub(Configuration configuration) {

@@ -17,16 +17,16 @@ package com.corundumstudio.socketio.handler;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.corundumstudio.socketio.HandshakeData;
 
 import io.netty.channel.Channel;
-import io.netty.util.internal.PlatformDependent;
 
 public class ClientsBox {
 
-    private final Map<UUID, ClientHead> uuid2clients = PlatformDependent.newConcurrentHashMap();
-    private final Map<Channel, ClientHead> channel2clients = PlatformDependent.newConcurrentHashMap();
+    private final Map<UUID, ClientHead> uuid2clients = new ConcurrentHashMap<>();
+    private final Map<Channel, ClientHead> channel2clients = new ConcurrentHashMap<>();
 
     // TODO use storeFactory
     public HandshakeData getHandshakeData(UUID sessionId) {
