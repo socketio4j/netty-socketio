@@ -54,10 +54,11 @@ public class HazelcastStoreTest extends AbstractStoreTest {
 
     @Override
     protected void cleanupStore() {
-        if (hazelcastInstance != null) {
-            hazelcastInstance.shutdown();
+        if (store != null) {
+            store.destroy();
         }
     }
+
 
     @Test
     public void testHazelcastSpecificFeatures() {

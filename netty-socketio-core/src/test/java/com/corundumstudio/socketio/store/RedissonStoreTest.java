@@ -55,9 +55,10 @@ public class RedissonStoreTest extends AbstractStoreTest {
     @Override
     protected void cleanupStore() {
         if (redissonClient != null) {
-            redissonClient.shutdown();
+            redissonClient.getKeys().flushall();
         }
     }
+
 
     @Test
     public void testRedissonSpecificFeatures() {
