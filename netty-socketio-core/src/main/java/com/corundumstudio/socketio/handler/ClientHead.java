@@ -142,7 +142,7 @@ public class ClientHead {
             SchedulerKey key = new SchedulerKey(Type.PING, sessionId);
             scheduler.cancel(key);
         } catch (Throwable e) {
-            log.error("Failed to cancel ping task for session: " + sessionId, e);
+            log.error("Failed to cancel ping task for session: {}", sessionId, e);
         }
     }
     public void cancelPingTimeout() {
