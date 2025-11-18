@@ -125,7 +125,7 @@ public class ClientHead {
                 state.update(null);
             }
         } catch (Throwable e) {
-            log.error("Failed to release polling channel for session: " + sessionId, e);
+            log.error("Failed to release polling channel for session: {}", sessionId, e);
         }
     }
 
@@ -142,7 +142,7 @@ public class ClientHead {
             SchedulerKey key = new SchedulerKey(Type.PING, sessionId);
             scheduler.cancel(key);
         } catch (Throwable e) {
-            log.error("Failed to cancel ping task for session: " + sessionId, e);
+            log.error("Failed to cancel ping task for session: {}", sessionId, e);
         }
     }
     public void cancelPingTimeout() {
@@ -150,7 +150,7 @@ public class ClientHead {
             SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, sessionId);
             scheduler.cancel(key);
         } catch (Throwable e) {
-            log.error("Failed to cancel ping timeout task for session: " + sessionId, e);
+            log.error("Failed to cancel ping timeout task for session: {}", sessionId, e);
         }
     }
 
