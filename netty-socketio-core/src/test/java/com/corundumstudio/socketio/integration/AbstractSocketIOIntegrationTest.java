@@ -15,6 +15,7 @@
  */
 package com.corundumstudio.socketio.integration;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.AfterEach;
@@ -24,7 +25,6 @@ import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testcontainers.containers.GenericContainer;
 
 import com.corundumstudio.socketio.Configuration;
 import com.corundumstudio.socketio.SocketIOServer;
@@ -50,9 +50,7 @@ public abstract class AbstractSocketIOIntegrationTest {
     private static final Logger log = LoggerFactory.getLogger(AbstractSocketIOIntegrationTest.class);
     protected final Faker faker = new Faker();
 
-    private GenericContainer<?> redisContainer;
     private SocketIOServer server;
-    private RedissonClient redissonClient;
     private int serverPort;
 
     private static final String SERVER_HOST = "localhost";
@@ -80,20 +78,6 @@ public abstract class AbstractSocketIOIntegrationTest {
      */
     protected SocketIOServer getServer() {
         return server;
-    }
-
-    /**
-     * Get the Redisson client instance
-     */
-    protected RedissonClient getRedissonClient() {
-        return redissonClient;
-    }
-
-    /**
-     * Get the Redis container
-     */
-    protected GenericContainer<?> getRedisContainer() {
-        return redisContainer;
     }
 
     /**
@@ -166,38 +150,37 @@ public abstract class AbstractSocketIOIntegrationTest {
      */
     @BeforeEach
     public void setUp() throws Exception {
-        // Start Redis container
-        redisContainer = new CustomizedRedisContainer();
-        redisContainer.start();
-
-        // Configure Redisson client
-        CustomizedRedisContainer customizedRedisContainer = (CustomizedRedisContainer) redisContainer;
-        Config config = new Config();
-        config.useSingleServer()
-                .setAddress("redis://" + customizedRedisContainer.getHost() + ":" + customizedRedisContainer.getRedisPort());
-
-        redissonClient = Redisson.create(config);
-
         // Create SocketIO server configuration
         Configuration serverConfig = new Configuration();
         serverConfig.setHostname(SERVER_HOST);
 
-        // Find an available port for this test
-        serverPort = findAvailablePort();
-        serverConfig.setPort(serverPort);
-        serverConfig.setStoreFactory(new RedissonStoreFactory(redissonClient));
+        boolean successful = false;
+        while (!successful) {
+            try {
+                // Find an available port for this test
+                serverPort = findAvailablePort();
+                serverConfig.setPort(serverPort);
 
-        // Allow subclasses to customize configuration
-        configureServer(serverConfig);
+                // Allow subclasses to customize configuration
+                configureServer(serverConfig);
 
-        // Create and start server
-        server = new SocketIOServer(serverConfig);
-        server.start();
+                // Create and start server
+                server = new SocketIOServer(serverConfig);
+                server.start();
 
-        // Verify server started successfully
-        if (serverPort <= 0) {
-            throw new RuntimeException("Failed to start server on port: " + serverPort);
+                // Verify server started successfully
+                if (serverPort <= 0) {
+                    continue;
+                } else {
+                    successful = true;
+                }
+            } catch (Exception e) {
+                log.warn("Port {} is not available, retrying...", serverPort);
+                // If server failed to start, try again with a different port
+                TimeUnit.SECONDS.sleep(5);
+            }
         }
+
 
         // Allow subclasses to do additional setup
         additionalSetup();
@@ -219,26 +202,6 @@ public abstract class AbstractSocketIOIntegrationTest {
             } catch (Exception e) {
                 // Log but don't fail the test
                 System.err.println("Error stopping SocketIO server: " + e.getMessage());
-            }
-        }
-
-        // Shutdown Redisson client
-        if (redissonClient != null) {
-            try {
-                redissonClient.shutdown();
-            } catch (Exception e) {
-                // Log but don't fail the test
-                System.err.println("Error shutting down Redisson client: " + e.getMessage());
-            }
-        }
-
-        // Stop Redis container
-        if (redisContainer != null && redisContainer.isRunning()) {
-            try {
-                redisContainer.stop();
-            } catch (Exception e) {
-                // Log but don't fail the test
-                System.err.println("Error stopping Redis container: " + e.getMessage());
             }
         }
     }
