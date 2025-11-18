@@ -56,6 +56,8 @@ import com.corundumstudio.socketio.store.pubsub.PubSubType;
 import com.corundumstudio.socketio.transport.NamespaceClient;
 
 import io.netty.util.internal.PlatformDependent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Hub object for all clients in one namespace.
@@ -64,6 +66,8 @@ import io.netty.util.internal.PlatformDependent;
  * @see com.corundumstudio.socketio.transport.NamespaceClient
  */
 public class Namespace implements SocketIONamespace {
+
+    private static final Logger log = LoggerFactory.getLogger(Namespace.class);
 
     public static final String DEFAULT_NAME = "";
 
@@ -200,6 +204,7 @@ public class Namespace implements SocketIONamespace {
     }
 
     public void onDisconnect(SocketIOClient client) {
+        log.debug("Client disconnected: {} from namespace: {}", client.getSessionId(), getName());
         Set<String> joinedRooms = client.getAllRooms();        
         allClients.remove(client.getSessionId());
         final Set<String> roomsToLeave = new HashSet<>(joinedRooms);
