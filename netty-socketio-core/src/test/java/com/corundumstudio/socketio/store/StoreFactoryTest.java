@@ -30,12 +30,7 @@ import com.corundumstudio.socketio.namespace.NamespacesHub;
 import com.corundumstudio.socketio.protocol.JsonSupport;
 import com.corundumstudio.socketio.store.pubsub.PubSubStore;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test class for StoreFactory implementations
@@ -78,7 +73,7 @@ public abstract class StoreFactoryTest {
         Store store = storeFactory.createStore(sessionId);
         
         assertNotNull(store, "Store should not be null");
-        assertTrue(store instanceof Store, "Store should implement Store interface");
+        assertInstanceOf(Store.class, store, "Store should implement Store interface");
     }
 
     @Test
@@ -86,7 +81,7 @@ public abstract class StoreFactoryTest {
         PubSubStore pubSubStore = storeFactory.pubSubStore();
         
         assertNotNull(pubSubStore, "PubSubStore should not be null");
-        assertTrue(pubSubStore instanceof PubSubStore, "PubSubStore should implement PubSubStore interface");
+        assertInstanceOf(PubSubStore.class, pubSubStore, "PubSubStore should implement PubSubStore interface");
     }
 
     @Test
@@ -95,7 +90,7 @@ public abstract class StoreFactoryTest {
         Map<String, Object> map = storeFactory.createMap(mapName);
         
         assertNotNull(map, "Map should not be null");
-        assertTrue(map instanceof Map, "Map should implement Map interface");
+        assertInstanceOf(Map.class, map, "Map should implement Map interface");
     }
 
     @Test
@@ -128,7 +123,7 @@ public abstract class StoreFactoryTest {
         
         // Store1 should still have the data
         assertTrue(store1.has("isolatedKey"), "Store1 should have its data");
-        assertEquals(store1.get("isolatedKey"), "store1Value", "Store1 should return its data");
+        assertEquals("store1Value", store1.get("isolatedKey"), "Store1 should return its data");
     }
 
     @Test
