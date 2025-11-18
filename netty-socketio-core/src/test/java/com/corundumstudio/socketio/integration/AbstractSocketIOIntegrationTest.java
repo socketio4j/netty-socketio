@@ -173,7 +173,7 @@ public abstract class AbstractSocketIOIntegrationTest {
             } catch (Exception e) {
                 log.warn("Port {} is not available, retrying...", serverPort);
                 // If server failed to start, try again with a different port
-                TimeUnit.SECONDS.sleep(5);
+                TimeUnit.SECONDS.sleep(1);
             }
         }
 
