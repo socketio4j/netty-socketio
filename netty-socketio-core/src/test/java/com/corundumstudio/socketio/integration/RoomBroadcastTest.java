@@ -15,10 +15,12 @@
  */
 package com.corundumstudio.socketio.integration;
 
+import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -65,10 +67,24 @@ public class RoomBroadcastTest extends AbstractSocketIOIntegrationTest {
         Socket client2 = createClient();
 
         client1.on(testEvent, args -> {
-            receivedData1.set(args[0]);
+            //there is an issue in socket.io-java-client with polling and websocket callback differences
+            //for polling args contains event, for websocket does not
+            //https://github.com/socketio/socket.io-client-java/issues/793
+            //https://github.com/socketio4j/netty-socketio/issues/6
+            if (args != null && args.length > 0) {
+                receivedData1.set(
+                        Arrays.stream(args).map(Object::toString)
+                                .collect(Collectors.joining(","))
+                );
+            }
         });
         client2.on(testEvent, args -> {
-            receivedData2.set(args[0]);
+            if (args != null && args.length > 0) {
+                receivedData2.set(
+                        Arrays.stream(args).map(Object::toString)
+                                .collect(Collectors.joining(","))
+                );
+            }
         });
 
         client1.connect();
@@ -102,8 +118,8 @@ public class RoomBroadcastTest extends AbstractSocketIOIntegrationTest {
         // Wait for messages to be received
         await().atMost(5, TimeUnit.SECONDS)
                 .until(() -> receivedData1.get() != null && receivedData2.get() != null);
-        assertEquals(testData, receivedData1.get(), "Client 1 should receive the correct data");
-        assertEquals(testData, receivedData2.get(), "Client 2 should receive the correct data");
+        assertTrue(receivedData1.get().toString().contains(testData), "Client 1 should receive the correct data");
+        assertTrue(receivedData2.get().toString().contains(testData), "Client 2 should receive the correct data");
         // Cleanup
         client1.disconnect();
         client1.close();
