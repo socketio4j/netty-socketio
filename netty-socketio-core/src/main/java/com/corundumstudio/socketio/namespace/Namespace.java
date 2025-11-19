@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +25,12 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.corundumstudio.socketio.AckMode;
 import com.corundumstudio.socketio.AckRequest;
@@ -55,9 +60,6 @@ import com.corundumstudio.socketio.store.pubsub.JoinLeaveMessage;
 import com.corundumstudio.socketio.store.pubsub.PubSubType;
 import com.corundumstudio.socketio.transport.NamespaceClient;
 
-import io.netty.util.internal.PlatformDependent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Hub object for all clients in one namespace.
@@ -72,7 +74,7 @@ public class Namespace implements SocketIONamespace {
     public static final String DEFAULT_NAME = "";
 
     private final ScannerEngine engine = new ScannerEngine();
-    private final ConcurrentMap<String, EventEntry<?>> eventListeners = PlatformDependent.newConcurrentHashMap();
+    private final ConcurrentMap<String, EventEntry<?>> eventListeners = new ConcurrentHashMap<>();
     private final Queue<ConnectListener> connectListeners = new ConcurrentLinkedQueue<ConnectListener>();
     private final Queue<DisconnectListener> disconnectListeners = new ConcurrentLinkedQueue<DisconnectListener>();
     private final Queue<PingListener> pingListeners = new ConcurrentLinkedQueue<PingListener>();
@@ -81,9 +83,9 @@ public class Namespace implements SocketIONamespace {
 
     private final Queue<AuthTokenListener> authDataInterceptors = new ConcurrentLinkedQueue<>();
 
-    private final Map<UUID, SocketIOClient> allClients = PlatformDependent.newConcurrentHashMap();
-    private final ConcurrentMap<String, Set<UUID>> roomClients = PlatformDependent.newConcurrentHashMap();
-    private final ConcurrentMap<UUID, Set<String>> clientRooms = PlatformDependent.newConcurrentHashMap();
+    private final Map<UUID, SocketIOClient> allClients = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Set<UUID>> roomClients = new ConcurrentHashMap<>();
+    private final ConcurrentMap<UUID, Set<String>> clientRooms = new ConcurrentHashMap<>();
 
     private final String name;
     private final AckMode ackMode;
@@ -374,7 +376,7 @@ public class Namespace implements SocketIONamespace {
     private <K, V> void join(ConcurrentMap<K, Set<V>> map, K key, V value) {
         Set<V> clients = map.get(key);
         if (clients == null) {
-            clients = Collections.newSetFromMap(PlatformDependent.<V, Boolean>newConcurrentHashMap());
+            clients = Collections.newSetFromMap(new ConcurrentHashMap<>());
             Set<V> oldClients = map.putIfAbsent(key, clients);
             if (oldClients != null) {
                 clients = oldClients;

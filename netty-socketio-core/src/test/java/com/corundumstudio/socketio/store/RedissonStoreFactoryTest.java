@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +19,7 @@ package com.corundumstudio.socketio.store;
 import java.util.Map;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -41,13 +43,13 @@ import static org.mockito.Mockito.when;
  */
 public class RedissonStoreFactoryTest extends StoreFactoryTest {
 
-    private GenericContainer<?> container;
+    private static GenericContainer<?> container;
     private RedissonClient redissonClient;
     private AutoCloseable closeableMocks;
 
     @Override
     protected StoreFactory createStoreFactory() throws Exception {
-        container = new CustomizedRedisContainer();
+        container = new CustomizedRedisContainer().withReuse(true);
         container.start();
         
         CustomizedRedisContainer customizedRedisContainer = (CustomizedRedisContainer) container;
@@ -70,6 +72,11 @@ public class RedissonStoreFactoryTest extends StoreFactoryTest {
         if (redissonClient != null) {
             redissonClient.shutdown();
         }
+
+    }
+
+    @AfterAll
+    public static void afterAll() throws Exception {
         if (container != null && container.isRunning()) {
             container.stop();
         }

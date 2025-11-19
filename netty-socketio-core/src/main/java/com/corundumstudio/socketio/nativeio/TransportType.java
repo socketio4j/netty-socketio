@@ -14,13 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.corundumstudio.socketio.listener;
+package com.corundumstudio.socketio.nativeio;
 
-import com.corundumstudio.socketio.SocketIOClient;
-
-@Deprecated
-public interface PingListener {
-
-    void onPing(SocketIOClient client);
-
+public enum TransportType {
+    AUTO, // select the best available, io_uring -> epoll -> kqueue -> nio
+    NIO, // JVM default
+    EPOLL, // Linux
+    KQUEUE, // BSD / macOS
+    IO_URING; // Linux 5.1+, recommended production version 5.15+ (LTS)
 }

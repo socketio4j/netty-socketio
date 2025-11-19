@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,16 +23,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
-import io.netty.channel.*;
-import io.netty.channel.epoll.Epoll;
-import io.netty.channel.epoll.EpollIoHandler;
-import io.netty.channel.kqueue.KQueue;
-import io.netty.channel.kqueue.KQueueIoHandler;
-import io.netty.channel.kqueue.KQueueServerSocketChannel;
-import io.netty.channel.nio.NioIoHandler;
-import io.netty.channel.uring.IoUring;
-import io.netty.channel.uring.IoUringIoHandler;
-import io.netty.channel.uring.IoUringServerSocketChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,21 +38,29 @@ import com.corundumstudio.socketio.namespace.Namespace;
 import com.corundumstudio.socketio.namespace.NamespacesHub;
 
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.epoll.EpollServerSocketChannel;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.DefaultEventLoop;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.FixedRecvByteBufAllocator;
+import io.netty.channel.IoHandlerFactory;
+import io.netty.channel.MultiThreadIoEventLoopGroup;
+import io.netty.channel.ServerChannel;
+import io.netty.channel.WriteBufferWaterMark;
+import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.FutureListener;
 import io.netty.util.concurrent.SucceededFuture;
 
+
 /**
  * Fully thread-safe.
- *
  */
 public class SocketIOServer implements ClientListeners {
 
     private static final Logger log = LoggerFactory.getLogger(SocketIOServer.class);
 
-    private final AtomicReference<ServerStatus> serverStatus = new AtomicReference<ServerStatus>(ServerStatus.INIT);
+    private final AtomicReference<ServerStatus> serverStatus = new AtomicReference<>(ServerStatus.INIT);
 
     private final Configuration configCopy;
     private final Configuration configuration;
@@ -85,30 +84,14 @@ public class SocketIOServer implements ClientListeners {
         this.pipelineFactory = pipelineFactory;
     }
 
-    /**
-     * Get all clients connected to default namespace
-     *
-     * @return clients collection
-     */
     public Collection<SocketIOClient> getAllClients() {
         return namespacesHub.get(Namespace.DEFAULT_NAME).getAllClients();
     }
 
-    /**
-     * Get client by uuid from default namespace
-     *
-     * @param uuid - id of client
-     * @return client
-     */
     public SocketIOClient getClient(UUID uuid) {
         return namespacesHub.get(Namespace.DEFAULT_NAME).getClient(uuid);
     }
 
-    /**
-     * Get all namespaces
-     *
-     * @return namespaces collection
-     */
     public Collection<SocketIONamespace> getAllNamespaces() {
         return namespacesHub.getAllNamespaces();
     }
@@ -116,123 +99,159 @@ public class SocketIOServer implements ClientListeners {
     public BroadcastOperations getBroadcastOperations() {
         Collection<SocketIONamespace> namespaces = namespacesHub.getAllNamespaces();
         List<BroadcastOperations> list = new ArrayList<>();
-        BroadcastOperations broadcast = null;
-        if (namespaces != null && !namespaces.isEmpty()) {
+        if (namespaces != null) {
             for (SocketIONamespace n : namespaces) {
-                broadcast = n.getBroadcastOperations();
-                list.add(broadcast);
+                list.add(n.getBroadcastOperations());
             }
         }
         return new MultiRoomBroadcastOperations(list);
     }
 
-    /**
-     * Get broadcast operations for clients within
-     * rooms by <code>rooms'</code> names
-     *
-     * @param rooms rooms' names
-     * @return broadcast operations
-     */
     public BroadcastOperations getRoomOperations(String... rooms) {
         Collection<SocketIONamespace> namespaces = namespacesHub.getAllNamespaces();
-        List<BroadcastOperations> list = new ArrayList<BroadcastOperations>();
-        BroadcastOperations broadcast = null;
-        if (namespaces != null && !namespaces.isEmpty()) {
+        List<BroadcastOperations> list = new ArrayList<>();
+        if (namespaces != null) {
             for (SocketIONamespace n : namespaces) {
                 for (String room : rooms) {
-                    broadcast = n.getRoomOperations(room);
-                    list.add(broadcast);
+                    list.add(n.getRoomOperations(room));
                 }
             }
         }
         return new MultiRoomBroadcastOperations(list);
     }
 
-    /**
-     * Start server
-     */
     public void start() {
         startAsync().syncUninterruptibly();
     }
 
-    /**
-     * Returns true if server is started
-     */
     public boolean isStarted() {
         return serverStatus.get() == ServerStatus.STARTED;
     }
 
-    /**
-     * Start server asynchronously
-     *
-     * @return void
-     */
     public Future<Void> startAsync() {
         if (!serverStatus.compareAndSet(ServerStatus.INIT, ServerStatus.STARTING)) {
-            log.warn("Invalid server state: {}, should be: {}, ignoring start request", serverStatus.get(), ServerStatus.INIT);
-            return new SucceededFuture<Void>(new DefaultEventLoop(), null);
+            log.warn("Invalid server state: {}, should be: {}, ignoring start request",
+                    serverStatus.get(), ServerStatus.INIT);
+            return new SucceededFuture<>(new DefaultEventLoop(), null);
         }
 
         try {
-            log.info("Session store / pubsub factory used: {}", configCopy.getStoreFactory());
+            log.info("Session store / pubsub factory: {}", configCopy.getStoreFactory());
             initGroups();
-
             pipelineFactory.start(configCopy, namespacesHub);
 
-            configCopy.validate();
+            Class<? extends ServerChannel> channelClass;
 
-            Class<? extends ServerChannel> channelClass = NioServerSocketChannel.class;
+            switch (configCopy.getTransportType()) {
 
-            if (configCopy.isUseLinuxNativeIoUring() && IoUring.isAvailable()) {
-                channelClass = IoUringServerSocketChannel.class;
-            } else if (configCopy.isUseLinuxNativeEpoll() && Epoll.isAvailable()) {
-                channelClass = EpollServerSocketChannel.class;
-            } else if (configCopy.isUseUnixNativeKqueue() && KQueue.isAvailable()) {
-                channelClass = KQueueServerSocketChannel.class;
-            } else {
-                log.warn("No selected native transport is available. Falling back to NIO");
+                case IO_URING:
+                    if (ioUringAvailable()) {
+                        channelClass = loadChannelClass("io.netty.channel.uring.IoUringServerSocketChannel");
+                    } else {
+                        channelClass = fallback("IO_URING unavailable");
+                    }
+                    break;
+
+                case EPOLL:
+                    if (epollAvailable()) {
+                        channelClass = loadChannelClass("io.netty.channel.epoll.EpollServerSocketChannel");
+                    } else {
+                        channelClass = fallback("EPOLL unavailable");
+                    }
+                    break;
+
+                case KQUEUE:
+                    if (kqueueAvailable()) {
+                        channelClass = loadChannelClass("io.netty.channel.kqueue.KQueueServerSocketChannel");
+                    } else {
+                        channelClass = fallback("KQUEUE unavailable");
+                    }
+                    break;
+
+                case NIO:
+                    channelClass = NioServerSocketChannel.class;
+                    break;
+
+                case AUTO:
+                default:
+                    if (ioUringAvailable()) {
+                        channelClass = loadChannelClass("io.netty.channel.uring.IoUringServerSocketChannel");
+                        log.info("AUTO selected IO_URING transport");
+                    } else if (epollAvailable()) {
+                        channelClass = loadChannelClass("io.netty.channel.epoll.EpollServerSocketChannel");
+                        log.info("AUTO selected EPOLL transport");
+                    } else if (kqueueAvailable()) {
+                        channelClass = loadChannelClass("io.netty.channel.kqueue.KQueueServerSocketChannel");
+                        log.info("AUTO selected KQUEUE transport");
+                    } else {
+                        channelClass = NioServerSocketChannel.class;
+                        log.info("AUTO selected NIO transport");
+                    }
             }
 
-
-            ServerBootstrap b = new ServerBootstrap();
-            b.group(bossGroup, workerGroup)
+            ServerBootstrap bootstrap = new ServerBootstrap();
+            bootstrap.group(bossGroup, workerGroup)
                     .channel(channelClass)
                     .childHandler(pipelineFactory);
-            applyConnectionOptions(b);
 
-            InetSocketAddress addr = new InetSocketAddress(configCopy.getPort());
-            if (configCopy.getHostname() != null) {
-                addr = new InetSocketAddress(configCopy.getHostname(), configCopy.getPort());
+            applyConnectionOptions(bootstrap);
+
+            InetSocketAddress address;
+            if (configCopy.getHostname() == null) {
+                address = new InetSocketAddress(configCopy.getPort());
+            } else {
+                address = new InetSocketAddress(configCopy.getHostname(), configCopy.getPort());
             }
 
-            return b.bind(addr).addListener(new FutureListener<Void>() {
-                @Override
-                public void operationComplete(Future<Void> future) throws Exception {
-                    if (future.isSuccess()) {
-                        serverStatus.set(ServerStatus.STARTED);
-                        log.info("SocketIO server started at port: {}", configCopy.getPort());
-                    } else {
-                        serverStatus.set(ServerStatus.INIT);
-                        log.error("SocketIO server start failed at port: {}!", configCopy.getPort());
-                    }
+            return bootstrap.bind(address).addListener((FutureListener<Void>) future -> {
+                if (future.isSuccess()) {
+                    serverStatus.set(ServerStatus.STARTED);
+                    log.info("SocketIO server started on port {}", configCopy.getPort());
+                } else {
+                    serverStatus.set(ServerStatus.INIT);
+                    log.error("Failed to start server on port {}", configCopy.getPort());
                 }
             });
+
         } catch (Exception e) {
             serverStatus.set(ServerStatus.INIT);
-            log.error("SocketIO server start error at port: {}! {}", configCopy.getPort(), e.getMessage(), e);
+            log.error("Server start error on port {}: {}", configCopy.getPort(), e.getMessage(), e);
             throw e;
         }
     }
 
+    private Class<? extends ServerChannel> loadChannelClass(String name) {
+        try {
+            @SuppressWarnings("unchecked")
+            Class<? extends ServerChannel> c = (Class<? extends ServerChannel>) Class.forName(name);
+            return c;
+        } catch (Exception ignored) {
+            log.warn("Unable to load native channel {}. Using NIO.", name);
+            return NioServerSocketChannel.class;
+        }
+    }
+
+    private Class<? extends ServerChannel> fallback(String msg) {
+        log.warn("{} → Falling back to NIO.", msg);
+        return NioServerSocketChannel.class;
+    }
+
+    private IoHandlerFactory fallbackFactory(String msg) {
+        log.warn("{} → Falling back to NIO IoHandler.", msg);
+        return NioIoHandler.newFactory();
+    }
+
     protected void applyConnectionOptions(ServerBootstrap bootstrap) {
         SocketConfig config = configCopy.getSocketConfig();
+
         bootstrap.childOption(ChannelOption.TCP_NODELAY, config.isTcpNoDelay());
+
         if (config.getTcpSendBufferSize() != -1) {
             bootstrap.childOption(ChannelOption.SO_SNDBUF, config.getTcpSendBufferSize());
         }
         if (config.getTcpReceiveBufferSize() != -1) {
             bootstrap.childOption(ChannelOption.SO_RCVBUF, config.getTcpReceiveBufferSize());
-            bootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR, new FixedRecvByteBufAllocator(config.getTcpReceiveBufferSize()));
+            bootstrap.childOption(ChannelOption.RECVBUF_ALLOCATOR, new FixedRecvByteBufAllocator(config.getTcpReceiveBufferSize()));
         }
         //default value @see WriteBufferWaterMark.DEFAULT
         if (config.getWriteBufferWaterMarkLow() != -1 && config.getWriteBufferWaterMarkHigh() != -1) {
@@ -250,33 +269,62 @@ public class SocketIOServer implements ClientListeners {
 
     protected void initGroups() {
 
-        configCopy.validate();
+        IoHandlerFactory handler;
 
-        IoHandlerFactory ioHandler = NioIoHandler.newFactory(); // default
+        switch (configCopy.getTransportType()) {
 
-        if (configCopy.isUseLinuxNativeIoUring() && IoUring.isAvailable()) {
-            ioHandler = IoUringIoHandler.newFactory();
-        } else if (configCopy.isUseLinuxNativeEpoll() && Epoll.isAvailable()) {
-            ioHandler = EpollIoHandler.newFactory();
-        } else if (configCopy.isUseUnixNativeKqueue() && KQueue.isAvailable()) {
-            ioHandler = KQueueIoHandler.newFactory();
+            case IO_URING:
+                handler = createHandler("io.netty.channel.uring.IoUringIoHandler", ioUringAvailable());
+                break;
+
+            case EPOLL:
+                handler = createHandler("io.netty.channel.epoll.EpollIoHandler", epollAvailable());
+                break;
+
+            case KQUEUE:
+                handler = createHandler("io.netty.channel.kqueue.KQueueIoHandler", kqueueAvailable());
+                break;
+
+            case NIO:
+                handler = NioIoHandler.newFactory();
+                break;
+
+            case AUTO:
+            default:
+                if (ioUringAvailable()) {
+                    handler = createHandler("io.netty.channel.uring.IoUringIoHandler", true);
+                } else if (epollAvailable()) {
+                    handler = createHandler("io.netty.channel.epoll.EpollIoHandler", true);
+                } else if (kqueueAvailable()) {
+                    handler = createHandler("io.netty.channel.kqueue.KQueueIoHandler", true);
+                } else {
+                    handler = fallbackFactory("No native transport available.");
+                }
         }
 
-        bossGroup   = new MultiThreadIoEventLoopGroup(configCopy.getBossThreads(), ioHandler);
-        workerGroup = new MultiThreadIoEventLoopGroup(configCopy.getWorkerThreads(), ioHandler);
-
+        bossGroup = new MultiThreadIoEventLoopGroup(configCopy.getBossThreads(), handler);
+        workerGroup = new MultiThreadIoEventLoopGroup(configCopy.getWorkerThreads(), handler);
     }
 
-    /**
-     * Stop server
-     */
+    private IoHandlerFactory createHandler(String className, boolean available) {
+        if (!available) {
+            return fallbackFactory(className + " unavailable");
+        }
+        try {
+            return (IoHandlerFactory) Class.forName(className)
+                    .getMethod("newFactory")
+                    .invoke(null);
+        } catch (Exception ignored) {
+            return fallbackFactory("Failed to load " + className);
+        }
+    }
+
     public void stop() {
         if (!serverStatus.compareAndSet(ServerStatus.STARTED, ServerStatus.STOPPING)) {
-            log.warn("Invalid server state: {}, should be: {}, ignoring stop request", serverStatus.get(), ServerStatus.STARTED);
+            log.warn("Invalid server state {}, ignoring stop()", serverStatus.get());
             return;
         }
         try {
-            log.info("Stopping SocketIO server...");
             bossGroup.shutdownGracefully().syncUninterruptibly();
             workerGroup.shutdownGracefully().syncUninterruptibly();
             pipelineFactory.stop();
@@ -298,13 +346,6 @@ public class SocketIOServer implements ClientListeners {
         namespacesHub.remove(name);
     }
 
-    /**
-     * Allows to get configuration provided
-     * during server creation. Further changes on
-     * this object not affect server.
-     *
-     * @return Configuration object
-     */
     public Configuration getConfiguration() {
         return configuration;
     }
@@ -324,7 +365,6 @@ public class SocketIOServer implements ClientListeners {
         mainNamespace.addEventInterceptor(eventInterceptor);
 
     }
-
 
     @Override
     public void removeAllListeners(String eventName) {
@@ -362,9 +402,45 @@ public class SocketIOServer implements ClientListeners {
     }
 
     @Override
-    public void addListeners(Object listeners, Class<?> listenersClass) {
-        mainNamespace.addListeners(listeners, listenersClass);
+    public void addListeners(Object listeners, Class<?> clazz) {
+        mainNamespace.addListeners(listeners, clazz);
     }
 
+    /* ---------------------------------------------------------------------
+     * Native Transport Detection — Safe Reflection
+     * --------------------------------------------------------------------- */
+
+    private static boolean isClassPresent(String name) {
+        try {
+            Class.forName(name, false, SocketIOServer.class.getClassLoader());
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isNativeAvailable(String className, String method) {
+        try {
+            Class<?> cls = Class.forName(className, false, SocketIOServer.class.getClassLoader());
+            return (Boolean) cls.getMethod(method).invoke(null);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static boolean ioUringAvailable() {
+        return isClassPresent("io.netty.channel.uring.IoUring")
+                && isNativeAvailable("io.netty.channel.uring.IoUring", "isAvailable");
+    }
+
+    private static boolean epollAvailable() {
+        return isClassPresent("io.netty.channel.epoll.Epoll")
+                && isNativeAvailable("io.netty.channel.epoll.Epoll", "isAvailable");
+    }
+
+    private static boolean kqueueAvailable() {
+        return isClassPresent("io.netty.channel.kqueue.KQueue")
+                && isNativeAvailable("io.netty.channel.kqueue.KQueue", "isAvailable");
+    }
 
 }

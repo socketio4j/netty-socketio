@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +17,11 @@
 package com.corundumstudio.socketio.store;
 
 import java.util.Map;
-
-import io.netty.util.internal.PlatformDependent;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class MemoryStore implements Store {
 
-    private final Map<String, Object> store = PlatformDependent.newConcurrentHashMap();
+    private final Map<String, Object> store = new ConcurrentHashMap<>();
 
     @Override
     public void set(String key, Object value) {

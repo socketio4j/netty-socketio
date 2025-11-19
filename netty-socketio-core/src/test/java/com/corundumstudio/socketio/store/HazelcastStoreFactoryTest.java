@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +19,7 @@ package com.corundumstudio.socketio.store;
 import java.util.Map;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -31,9 +33,7 @@ import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
 
 /**
@@ -41,13 +41,13 @@ import static org.mockito.Mockito.when;
  */
 public class HazelcastStoreFactoryTest extends StoreFactoryTest {
 
-    private GenericContainer<?> container;
+    private static GenericContainer<?> container;
     private HazelcastInstance hazelcastInstance;
     private AutoCloseable closeableMocks;
 
     @Override
     protected StoreFactory createStoreFactory() throws Exception {
-        container = new CustomizedHazelcastContainer();
+        container = new CustomizedHazelcastContainer().withReuse(true);
         container.start();
         
         CustomizedHazelcastContainer customizedHazelcastContainer = (CustomizedHazelcastContainer) container;
@@ -72,6 +72,11 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
         if (hazelcastInstance != null) {
             hazelcastInstance.shutdown();
         }
+
+    }
+
+    @AfterAll
+    public static void afterAll() throws Exception {
         if (container != null && container.isRunning()) {
             container.stop();
         }
@@ -84,7 +89,7 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
         Store store = storeFactory.createStore(sessionId);
         
         assertNotNull(store, "Store should not be null");
-        assertTrue(store instanceof HazelcastStore, "Store should be HazelcastStore");
+        assertInstanceOf(HazelcastStore.class, store, "Store should be HazelcastStore");
         
         // Test that the store works with Hazelcast
         store.set("hazelcastKey", "hazelcastValue");
@@ -96,7 +101,7 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
         PubSubStore pubSubStore = storeFactory.pubSubStore();
         
         assertNotNull(pubSubStore, "PubSubStore should not be null");
-        assertTrue(pubSubStore instanceof HazelcastPubSubStore, "PubSubStore should be HazelcastStore");
+        assertInstanceOf(HazelcastPubSubStore.class, pubSubStore, "PubSubStore should be HazelcastStore");
     }
 
     @Test
@@ -142,6 +147,6 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
         // Verify the Hazelcast map is destroyed
         // After destroy, the map should be empty or not accessible
         IMap<String, Object> map = hazelcastInstance.getMap(sessionId.toString());
-        assertTrue(map.isEmpty() || map.size() == 0, "Map should be empty after destroy");
+        assertTrue(map.isEmpty(), "Map should be empty after destroy");
     }
 }

@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +37,7 @@ public class HazelcastStoreTest extends AbstractStoreTest {
 
     @Override
     protected GenericContainer<?> createContainer() {
-        return new CustomizedHazelcastContainer();
+        return new CustomizedHazelcastContainer().withReuse(true);
     }
 
     @Override
@@ -54,10 +55,14 @@ public class HazelcastStoreTest extends AbstractStoreTest {
 
     @Override
     protected void cleanupStore() {
+        if (store != null) {
+            store.destroy();
+        }
         if (hazelcastInstance != null) {
             hazelcastInstance.shutdown();
         }
     }
+
 
     @Test
     public void testHazelcastSpecificFeatures() {

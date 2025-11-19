@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +17,11 @@
 package com.corundumstudio.socketio.store;
 
 import java.io.Serializable;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,13 +40,18 @@ public abstract class AbstractStoreTest {
 
     protected Store store;
     protected UUID sessionId;
-    protected GenericContainer<?> container;
+    protected static GenericContainer<?> container;
 
     @BeforeEach
     public void setUp() throws Exception {
         sessionId = UUID.randomUUID();
-        container = createContainer();
-        container.start();
+        if (container == null) {
+            container = createContainer();
+        }
+        if (!container.isRunning()) {
+            container.start();
+        }
+
         store = createStore(sessionId);
     }
 
@@ -53,9 +61,14 @@ public abstract class AbstractStoreTest {
             // Clean up store data
             cleanupStore();
         }
-        if (container != null && container.isRunning()) {
-            container.stop();
+    }
+
+    @AfterAll
+    public static void cleanup() {
+        if (container != null) {
+            container.close();
         }
+
     }
 
     /**
@@ -72,6 +85,7 @@ public abstract class AbstractStoreTest {
      * Clean up store data after tests
      */
     protected abstract void cleanupStore();
+
 
     @Test
     public void testBasicOperations() {
@@ -173,6 +187,8 @@ public abstract class AbstractStoreTest {
         }
     }
 
+
+
     /**
      * Test object for complex object testing
      */
@@ -209,14 +225,12 @@ public abstract class AbstractStoreTest {
             if (this == obj) return true;
             if (obj == null || getClass() != obj.getClass()) return false;
             TestObject that = (TestObject) obj;
-            return value == that.value && (name != null ? name.equals(that.name) : that.name == null);
+            return value == that.value && (Objects.equals(name, that.name));
         }
 
         @Override
         public int hashCode() {
-            int result = name != null ? name.hashCode() : 0;
-            result = 31 * result + value;
-            return result;
+            return Objects.hash(name, value);
         }
     }
 }

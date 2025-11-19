@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,78 +16,61 @@
  */
 package com.corundumstudio.socketio.store;
 
-import java.util.concurrent.TimeUnit;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 
-import com.github.dockerjava.api.command.InspectContainerResponse;
+import java.time.Duration;
 
 /**
- * Customized Hazelcast container for testing purposes.
+ * Optimized Hazelcast container for testing.
+ *
+ * - No artificial sleeps
+ * - No polling loops
+ * - Uses Testcontainers' built-in readiness checks
+ * - Much faster test execution
  */
 public class CustomizedHazelcastContainer extends GenericContainer<CustomizedHazelcastContainer> {
+
     private static final Logger log = LoggerFactory.getLogger(CustomizedHazelcastContainer.class);
+
     public static final int HAZELCAST_PORT = 5701;
 
-    /**
-     * Default constructor that initializes the Hazelcast container with the official Hazelcast image.
-     */
     public CustomizedHazelcastContainer() {
         super("hazelcast/hazelcast:5.6.0");
     }
 
     @Override
     protected void configure() {
-        withExposedPorts(HAZELCAST_PORT);
-        withEnv("JVM_OPTS", "-Dhazelcast.config=/opt/hazelcast/config_ext/hazelcast.xml");
-        withClasspathResourceMapping("hazelcast-test-config.xml", 
-            "/opt/hazelcast/config_ext/hazelcast.xml", 
-            org.testcontainers.containers.BindMode.READ_ONLY);
-    }
 
-    @Override
-    protected void containerIsStarted(InspectContainerResponse containerInfo) {
-        try {
-            // Wait for Hazelcast to be ready
-            TimeUnit.SECONDS.sleep(15);
-            
-            // Check if Hazelcast is responding
-            ExecResult result = null;
-            int attempts = 0;
-            while (attempts < 20) {
-                try {
-                    result = execInContainer("sh", "-c", "netstat -an | grep " + HAZELCAST_PORT + " | grep LISTEN");
-                    if (result.getExitCode() == 0 && result.getStdout().contains("LISTEN")) {
-                        log.info("Hazelcast is ready and listening on port {}", HAZELCAST_PORT);
-                        break;
-                    }
-                } catch (Exception e) {
-                    // Ignore and retry
-                }
-                
-                attempts++;
-                TimeUnit.SECONDS.sleep(2);
-                log.info("Waiting for Hazelcast to be ready, attempt {}", attempts);
-            }
-            
-            if (attempts >= 20) {
-                log.info("Hazelcast container started but may not be fully ready");
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to start Hazelcast container", e);
-        }
+        withExposedPorts(HAZELCAST_PORT);
+
+        // Map custom test config file
+        withEnv("JVM_OPTS", "-Dhazelcast.config=/opt/hazelcast/config_ext/hazelcast.xml");
+        withClasspathResourceMapping(
+                "hazelcast-test-config.xml",
+                "/opt/hazelcast/config_ext/hazelcast.xml",
+                BindMode.READ_ONLY
+        );
+
+        // Proper readiness check (fast, reliable, no sleeps)
+        waitingFor(
+                Wait.forListeningPort()
+                        .withStartupTimeout(Duration.ofSeconds(300))
+        );
     }
 
     @Override
     public void start() {
         super.start();
-        log.info("Hazelcast started at port: {}", getHazelcastPort());
+        log.info("Hazelcast started at port {}", getHazelcastPort());
     }
 
     @Override
     public void stop() {
+        log.info("Hazelcast shutting down...");
         super.stop();
         log.info("Hazelcast stopped");
     }

@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +25,7 @@ import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -52,7 +54,6 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.util.AttributeKey;
-import io.netty.util.internal.PlatformDependent;
 
 public class ClientHead {
 
@@ -61,7 +62,7 @@ public class ClientHead {
     public static final AttributeKey<ClientHead> CLIENT = AttributeKey.<ClientHead>valueOf("client");
 
     private final AtomicBoolean disconnected = new AtomicBoolean();
-    private final Map<Namespace, NamespaceClient> namespaceClients = PlatformDependent.newConcurrentHashMap();
+    private final Map<Namespace, NamespaceClient> namespaceClients = new ConcurrentHashMap<>();
     private final Map<Transport, TransportState> channels = new HashMap<Transport, TransportState>(2);
     private final HandshakeData handshakeData;
     private final UUID sessionId;
@@ -124,7 +125,7 @@ public class ClientHead {
                 clientsBox.remove(channel);
                 state.update(null);
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             log.error("Failed to release polling channel for session: {}", sessionId, e);
         }
     }
@@ -141,7 +142,7 @@ public class ClientHead {
         try {
             SchedulerKey key = new SchedulerKey(Type.PING, sessionId);
             scheduler.cancel(key);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             log.error("Failed to cancel ping task for session: {}", sessionId, e);
         }
     }
@@ -149,7 +150,7 @@ public class ClientHead {
         try {
             SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, sessionId);
             scheduler.cancel(key);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             log.error("Failed to cancel ping timeout task for session: {}", sessionId, e);
         }
     }

@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,16 +18,16 @@ package com.corundumstudio.socketio.handler;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.corundumstudio.socketio.HandshakeData;
 
 import io.netty.channel.Channel;
-import io.netty.util.internal.PlatformDependent;
 
 public class ClientsBox {
 
-    private final Map<UUID, ClientHead> uuid2clients = PlatformDependent.newConcurrentHashMap();
-    private final Map<Channel, ClientHead> channel2clients = PlatformDependent.newConcurrentHashMap();
+    private final Map<UUID, ClientHead> uuid2clients = new ConcurrentHashMap<>();
+    private final Map<Channel, ClientHead> channel2clients = new ConcurrentHashMap<>();
 
     // TODO use storeFactory
     public HandshakeData getHandshakeData(UUID sessionId) {

@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +17,11 @@
 package com.corundumstudio.socketio.store;
 
 import java.util.Queue;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
-import java.util.UUID;
+
 import com.corundumstudio.socketio.store.pubsub.PubSubListener;
 import com.corundumstudio.socketio.store.pubsub.PubSubMessage;
 import com.corundumstudio.socketio.store.pubsub.PubSubStore;
@@ -27,16 +30,13 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.topic.ITopic;
 
 
-import io.netty.util.internal.PlatformDependent;
-
-
 public class HazelcastPubSubStore implements PubSubStore {
 
     private final HazelcastInstance hazelcastPub;
     private final HazelcastInstance hazelcastSub;
     private final Long nodeId;
 
-    private final ConcurrentMap<String, Queue<UUID>> map = PlatformDependent.newConcurrentHashMap();
+    private final ConcurrentMap<String, Queue<UUID>> map = new ConcurrentHashMap<>();
 
     public HazelcastPubSubStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId) {
         this.hazelcastPub = hazelcastPub;
@@ -76,6 +76,9 @@ public class HazelcastPubSubStore implements PubSubStore {
     public void unsubscribe(PubSubType type) {
         String name = type.toString();
         Queue<UUID> regIds = map.remove(name);
+        if (regIds == null || regIds.isEmpty()) {
+            return;
+        }
         ITopic<Object> topic = hazelcastSub.getTopic(name);
         for (UUID id : regIds) {
             topic.removeMessageListener(id);

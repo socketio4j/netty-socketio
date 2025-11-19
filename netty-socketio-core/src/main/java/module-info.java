@@ -12,7 +12,7 @@ module netty.socketio.core {
   exports com.corundumstudio.socketio.store;
   exports com.corundumstudio.socketio.store.pubsub;
   exports com.corundumstudio.socketio.transport;
-
+  exports com.corundumstudio.socketio.nativeio;
   requires com.fasterxml.jackson.core;
   requires com.fasterxml.jackson.annotation;
   requires com.fasterxml.jackson.databind;

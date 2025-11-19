@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +18,10 @@ package com.corundumstudio.socketio.store;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.corundumstudio.socketio.store.pubsub.BaseStoreFactory;
 import com.corundumstudio.socketio.store.pubsub.PubSubStore;
-
-import io.netty.util.internal.PlatformDependent;
 
 public class MemoryStoreFactory extends BaseStoreFactory {
 
@@ -48,7 +48,7 @@ public class MemoryStoreFactory extends BaseStoreFactory {
 
     @Override
     public <K, V> Map<K, V> createMap(String name) {
-        return PlatformDependent.newConcurrentHashMap();
+        return new ConcurrentHashMap<>();
     }
 
 }

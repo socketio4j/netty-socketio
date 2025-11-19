@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +39,7 @@ public class RedissonStoreTest extends AbstractStoreTest {
 
     @Override
     protected GenericContainer<?> createContainer() {
-        return new CustomizedRedisContainer();
+        return new CustomizedRedisContainer().withReuse(true);
     }
 
     @Override
@@ -55,9 +56,11 @@ public class RedissonStoreTest extends AbstractStoreTest {
     @Override
     protected void cleanupStore() {
         if (redissonClient != null) {
+            redissonClient.getKeys().flushall();
             redissonClient.shutdown();
         }
     }
+
 
     @Test
     public void testRedissonSpecificFeatures() {

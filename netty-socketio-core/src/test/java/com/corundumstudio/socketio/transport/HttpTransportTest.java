@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2012-2025 Nikita Koksharov
+ * Copyright (c) 2025 The Socketio4j Project
+ * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +32,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,25 +48,27 @@ import com.corundumstudio.socketio.listener.ExceptionListener;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.netty.channel.ChannelHandlerContext;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.netty.channel.ChannelHandlerContext;
+
 
 public class HttpTransportTest {
 
   private SocketIOServer server;
 
-  private ObjectMapper mapper = new ObjectMapper();
+  private final ObjectMapper mapper = new ObjectMapper();
 
-  private Pattern responseJsonMatcher = Pattern.compile("([0-9]+)(\\{.*\\})?");
+  private final Pattern responseJsonMatcher = Pattern.compile("([0-9]+)(\\{.*})?");
 
-  private Pattern multiResponsePattern = Pattern.compile("((?<type>[0-9])(?<id>[0-9]*)(?<body>.+)\\x{1E})*(?<lasttype>[0-9])(?<lastid>[0-9]*)(?<lastbody>.+)");
+  private final Pattern multiResponsePattern = Pattern.compile("((?<type>[0-9])(?<id>[0-9]*)(?<body>.+)\\x{1E})*(?<lasttype>[0-9])(?<lastid>[0-9]*)(?<lastbody>.+)");
 
   private final String packetSeparator = new String(new byte[] { 0x1e });
 
-  private Logger logger = LoggerFactory.getLogger(HttpTransportTest.class);
+  private final Logger logger = LoggerFactory.getLogger(HttpTransportTest.class);
 
   @BeforeEach
   public void createTestServer() {
@@ -125,29 +129,25 @@ public class HttpTransportTest {
 
   /**
    * Creates a test server URI with the specified query parameters.
-   * 
    * This method demonstrates how query parameters are passed to the Socket.IO server.
    * The query string will be parsed by netty-socketio and stored in HandshakeData.urlParams
    * for structured access during the handshake process.
-   * 
    * @param query the query string (e.g., "EIO=4&transport=polling&t=Oqd9eWh")
    * @return URI with the specified query parameters
    * @throws URISyntaxException if the URI is malformed
    */
   private URI createTestServerUri(final String query) throws URISyntaxException {
-    return new URI("http", null , "localhost",  server.getConfiguration().getPort(), server.getConfiguration().getContext() + "/",
+    return new URI("http", null, "localhost",  server.getConfiguration().getPort(), server.getConfiguration().getContext() + "/",
         query, null);
   }
 
   /**
    * Makes a Socket.IO HTTP request to the test server.
-   * 
    * This method demonstrates the complete handshake process including:
    * - Engine.IO version specification (EIO=4)
    * - Transport type specification (transport=polling)
    * - Session ID handling (sid parameter)
    * - Query parameter parsing by netty-socketio
-   * 
    * The query parameters in the request URI will be parsed and stored in HandshakeData.urlParams,
    * providing structured access to authentication tokens, user IDs, and other metadata.
    * 
@@ -160,33 +160,36 @@ public class HttpTransportTest {
    */
   private String makeSocketIoRequest(final String sessionId, final String bodyForPost)
       throws URISyntaxException, IOException, InterruptedException {
-    final URI uri = createTestServerUri("EIO=4&transport=polling&t=Oqd9eWh" + (sessionId == null ? "" : "&sid=" + sessionId));
+    final URI uri;
+      if (sessionId == null) uri = createTestServerUri("EIO=4&transport=polling&t=Oqd9eWh");
+      else uri = createTestServerUri("EIO=4&transport=polling&t=Oqd9eWh" + "&sid=" + sessionId);
 
-    URLConnection con = uri.toURL().openConnection();
-    HttpURLConnection http = (HttpURLConnection)con;
-    if (bodyForPost != null) {
-      http.setRequestMethod("POST"); // PUT is another valid option
-      http.setDoOutput(true);
-    }
+      URLConnection con = uri.toURL().openConnection();
+      HttpURLConnection http = getHttpURLConnection(bodyForPost, (HttpURLConnection) con);
 
-    if (bodyForPost != null) {
-      byte[] out = bodyForPost.toString().getBytes(StandardCharsets.UTF_8);
-      http.setFixedLengthStreamingMode(out.length);
-      http.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-      http.connect();
-      try (OutputStream os = http.getOutputStream()) {
-        os.write(out);
-      }
-    } else {
-      http.connect();
-    }
-
-    try (BufferedReader reader = new BufferedReader(new InputStreamReader(http.getInputStream(), StandardCharsets.UTF_8))) {
+      try (BufferedReader reader = new BufferedReader(new InputStreamReader(http.getInputStream(), StandardCharsets.UTF_8))) {
       return reader.lines().collect(Collectors.joining("\n"));
     }
   }
 
-  private void postMessage(final String sessionId, final String body)
+    private static @NotNull HttpURLConnection getHttpURLConnection(String bodyForPost, HttpURLConnection http) throws IOException {
+        if (bodyForPost != null) {
+          http.setRequestMethod("POST"); // PUT is another valid option
+          http.setDoOutput(true);
+          byte[] out = bodyForPost.getBytes(StandardCharsets.UTF_8);
+          http.setFixedLengthStreamingMode(out.length);
+          http.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+          http.connect();
+          try (OutputStream os = http.getOutputStream()) {
+            os.write(out);
+          }
+        } else {
+          http.connect();
+        }
+        return http;
+    }
+
+    private void postMessage(final String sessionId, final String body)
       throws URISyntaxException, IOException, InterruptedException {
     final String responseStr = makeSocketIoRequest(sessionId, body);
     assertEquals(responseStr, "ok");
@@ -203,7 +206,7 @@ public class HttpTransportTest {
     final String firstMessage = pollForListOfResponses(sessionId)[0];
     final Matcher jsonMatcher = responseJsonMatcher.matcher(firstMessage);
     assertTrue(jsonMatcher.find());
-    assertEquals(jsonMatcher.group(1), "0");
+    assertEquals("0", jsonMatcher.group(1));
     final JsonNode node = mapper.readTree(jsonMatcher.group(2));
     return node.get("sid").asText();
   }
@@ -223,14 +226,14 @@ public class HttpTransportTest {
     events.add("420[\"hello\", \"world\"]");
     events.add("421[\"hello\", \"socketio\"]");
     events.add("422[\"hello\", \"socketio\"]");
-    postMessage(sessionId, events.stream().collect(Collectors.joining(packetSeparator)));
+    postMessage(sessionId, String.join(packetSeparator, events));
     final String[] responses = pollForListOfResponses(sessionId);
-    assertEquals(responses.length, 3);
+    assertEquals(3, responses.length);
   }
 
   /**
    * Returns a free port number on localhost.
-   *
+   * <p>
    * Heavily inspired from org.eclipse.jdt.launching.SocketUtil (to avoid a dependency to JDT just because of this).
    * Slightly improved with close() missing in JDT. And throws exception instead of returning -1.
    *
@@ -238,20 +241,11 @@ public class HttpTransportTest {
    * @throws IllegalStateException if unable to find a free port
    */
   private static int findFreePort() {
-    ServerSocket socket = null;
-    try {
-      socket = new ServerSocket(0);
-      socket.setReuseAddress(true);
-      return socket.getLocalPort();
-    } catch (IOException ignored) {
-    } finally {
-      if (socket != null) {
-        try {
-          socket.close();
-        } catch (IOException ignored) {
-        }
+      try (ServerSocket socket = new ServerSocket(0)) {
+          socket.setReuseAddress(true);
+          return socket.getLocalPort();
+      } catch (IOException ignored) {
       }
-    }
     throw new IllegalStateException("Could not find a free TCP/IP port to start embedded SocketIO Server on");
   }
 
