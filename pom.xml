@@ -3,7 +3,7 @@
 
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-parent</artifactId>
-  <version>3.0.2-SNAPSHOT</version>
+  <version>4.0.0-SNAPSHOT</version>
   <packaging>pom</packaging>
   <name>NettySocketIO</name>
   <description>Socket.IO server implemented on Java</description>
@@ -542,10 +542,10 @@
             <!--For Java 25 support of byte-buddy. Byte-buddy is currently only used in mockito on unit tests within this project, so mitigate this problem by enabling this property-->
             -Dnet.bytebuddy.experimental=true
             -javaagent:"${settings.localRepository}"/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
-            --add-opens netty.socketio/com.corundumstudio.socketio.store.pubsub=ALL-UNNAMED
-            --add-opens netty.socketio/com.corundumstudio.socketio.store=ALL-UNNAMED
-            --add-opens netty.socketio/com.corundumstudio.socketio.store.pubsub=redisson
-            --add-opens netty.socketio/com.corundumstudio.socketio.store=redisson
+            --add-opens netty.socketio/com.socketio4j.socketio.store.pubsub=ALL-UNNAMED
+            --add-opens netty.socketio/com.socketio4j.socketio.store=ALL-UNNAMED
+            --add-opens netty.socketio/com.socketio4j.socketio.store.pubsub=redisson
+            --add-opens netty.socketio/com.socketio4j.socketio.store=redisson
           </argLine>
           <includes>
             <include>**/*Test.java</include>
@@ -568,7 +568,7 @@
               org.springframework.*;resolution:=optional,com.hazelcast.*;resolution:=optional,org.redisson.*;resolution:=optional,*
             </Import-Package>
             <Export-Package>
-              com.corundumstudio.socketio.*;version="${project.version}"
+              com.socketio4j.socketio.*;version="${project.version}"
             </Export-Package>
           </instructions>
         </configuration>

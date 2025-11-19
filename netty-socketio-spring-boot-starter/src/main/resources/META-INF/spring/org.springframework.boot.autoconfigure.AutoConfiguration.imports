@@ -1,1 +1,1 @@
-com.corundumstudio.socketio.spring.boot.starter.auto.NettySocketIOAutoConfiguration
+com.socketio4j.socketio.spring.boot.starter.auto.NettySocketIOAutoConfiguration
