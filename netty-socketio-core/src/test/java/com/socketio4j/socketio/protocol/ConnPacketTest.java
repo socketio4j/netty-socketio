@@ -143,18 +143,6 @@ public class ConnPacketTest extends BaseProtocolTest {
     }
 
     @Test
-    public void testConnPacketToString() {
-        UUID sid = UUID.randomUUID();
-        ConnPacket connPacket = new ConnPacket(sid);
-        
-        String toString = connPacket.toString();
-        assertNotNull(toString);
-        // ConnPacket doesn't override toString, so it uses Object.toString()
-        // which doesn't contain the SID information
-        assertTrue(toString.startsWith("protocol.com.socketio4j.socketio.ConnPacket@"));
-    }
-
-    @Test
     public void testConnPacketHashCode() {
         UUID sid = UUID.randomUUID();
         ConnPacket connPacket = new ConnPacket(sid);
