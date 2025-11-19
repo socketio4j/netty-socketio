@@ -66,8 +66,7 @@ public class WebSocketTransportTest {
       /*
        * (non-Javadoc)
        * 
-       * @see
-       * transport.com.socketio4j.socketio.WebSocketTransport#channelInactive(io.netty.channel.
+       * @see com.socketio4j.socketio.transport.WebSocketTransport#channelInactive(io.netty.channel.
        * ChannelHandlerContext)
        */
       @Override
