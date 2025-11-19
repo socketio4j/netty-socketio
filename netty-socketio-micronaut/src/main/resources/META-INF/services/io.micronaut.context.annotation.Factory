@@ -1,1 +1,1 @@
-com.corundumstudio.socketio.micronaut.config.NettySocketIOConfigurationFactory
+com.socketio4j.socketio.micronaut.config.NettySocketIOConfigurationFactory

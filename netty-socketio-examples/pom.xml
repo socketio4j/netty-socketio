@@ -7,7 +7,7 @@
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-examples</artifactId>
   <description>NettySocketIO Examples</description>
-  <version>3.0.2-SNAPSHOT</version>
+  <version>4.0.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>

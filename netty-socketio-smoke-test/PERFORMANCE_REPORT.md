@@ -19,7 +19,7 @@ This report contains daily performance test results for Netty SocketIO.
 
 | Date | Java Version | OS | CPU Cores | Messages/sec | Avg Latency (ms) | P99 Latency (ms) | Error Rate (%) | Max Heap (MB) | JVM Args | Git Branch | Version | Test Duration (ms) |
 |------|-------------|----|-----------|--------------|------------------|------------------|----------------|---------------|-----------|------------|---------|-------------------|
-| 2025-11-18 18:52:27 | 23.0.1 | Mac OS X 26.1 | 8 | 373,412.99 | 369.91 | 591 | 0.0000 | 256 | -Xms256m -Xmx256m -XX:+UseG1GC -XX:+AlwaysPreTouch | auto-nativeio-transport | 3.0.2-SNAPSHOT | 1339 |
+| 2025-11-18 18:52:27 | 23.0.1 | Mac OS X 26.1 | 8 | 373,412.99 | 369.91 | 591 | 0.0000 | 256 | -Xms256m -Xmx256m -XX:+UseG1GC -XX:+AlwaysPreTouch | auto-nativeio-transport | 4.0.0-SNAPSHOT | 1339 |
 | 2025-11-11 07:46:28 | 25.0.1 | Linux 6.11.0-1018-azure | 4 | 220,264.32 | 1308.03 | 1911 | 0.0000 | 256 | -Xms256m -Xmx256m -XX:+UseG1GC -XX:+AlwaysPreTouch | v3.x | 3.0.1 | 2270 |
 | 2025-11-11 07:41:07 | 21.0.9 | Linux 6.11.0-1018-azure | 4 | 198,886.24 | 1399.18 | 1975 | 0.0000 | 256 | -Xms256m -Xmx256m -XX:+UseG1GC -XX:+AlwaysPreTouch | v3.x | 3.0.1 | 2514 |
 | 2025-11-11 07:31:13 | 17.0.17 | Linux 6.11.0-1018-azure | 4 | 202,593.19 | 1481.27 | 2159 | 0.0000 | 256 | -Xms256m -Xmx256m -XX:+UseG1GC -XX:+AlwaysPreTouch | v3.x | 3.0.1 | 2468 |

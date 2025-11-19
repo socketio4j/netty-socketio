@@ -6,7 +6,7 @@
   <parent>
     <groupId>com.socketio4j</groupId>
     <artifactId>netty-socketio-quarkus</artifactId>
-    <version>3.0.2-SNAPSHOT</version>
+    <version>4.0.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>netty-socketio-quarkus-deployment</artifactId>
@@ -16,7 +16,7 @@
     <dependency>
       <groupId>com.socketio4j</groupId>
       <artifactId>netty-socketio-quarkus-runtime</artifactId>
-      <version>3.0.2-SNAPSHOT</version>
+      <version>4.0.0-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
