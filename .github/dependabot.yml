@@ -1,0 +1,35 @@
+version: 2
+updates:
+  # Maven dependencies
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "maven"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    # You can add specific dependencies to ignore here if needed
+    # Example:
+    # ignore:
+    #   - dependency-name: "com.example:library"
+    #     update-types: ["version-update:semver-major"]
+
+  # Bundler dependencies for documentation
+  - package-ecosystem: "bundler"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "documentation"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+
