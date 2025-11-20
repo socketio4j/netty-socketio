@@ -1,0 +1,87 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - '.github/workflows/gh-pages.yml'
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Maven
+        uses: stCarolas/setup-maven@v4
+        with:
+          maven-version: '3.9.5'
+
+      - name: Generate Javadoc
+        run: |
+          mvn clean javadoc:javadoc -DskipTests
+          # Create javadoc directory in docs
+          mkdir -p docs/javadoc
+          # Copy Javadoc from each module
+          if [ -d "netty-socketio-core/target/site/apidocs" ]; then
+            cp -r netty-socketio-core/target/site/apidocs docs/javadoc/core
+          fi
+          if [ -d "netty-socketio-spring/target/site/apidocs" ]; then
+            cp -r netty-socketio-spring/target/site/apidocs docs/javadoc/spring
+          fi
+          if [ -d "netty-socketio-spring-boot-starter/target/site/apidocs" ]; then
+            cp -r netty-socketio-spring-boot-starter/target/site/apidocs docs/javadoc/spring-boot-starter
+          fi
+          if [ -d "netty-socketio-quarkus/netty-socketio-quarkus-runtime/target/site/apidocs" ]; then
+            cp -r netty-socketio-quarkus/netty-socketio-quarkus-runtime/target/site/apidocs docs/javadoc/quarkus
+          fi
+          if [ -d "netty-socketio-micronaut/target/site/apidocs" ]; then
+            cp -r netty-socketio-micronaut/target/site/apidocs docs/javadoc/micronaut
+          fi
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.1'
+
+      - name: Setup Jekyll
+        working-directory: ./docs
+        run: |
+          bundle install
+
+      - name: Build Jekyll site
+        working-directory: ./docs
+        run: |
+          bundle exec jekyll build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./docs/_site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+

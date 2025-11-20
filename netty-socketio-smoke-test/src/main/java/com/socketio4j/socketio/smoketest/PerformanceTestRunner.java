@@ -203,7 +203,7 @@ public class PerformanceTestRunner {
     }
     
     private void updateMarkdownReport(PerformanceResult result) throws IOException {
-        File reportFile = new File("PERFORMANCE_REPORT.md");
+        File reportFile = new File("../docs/PERFORMANCE_REPORT.md");
         StringBuilder report = new StringBuilder();
         
         if (reportFile.exists()) {
@@ -413,7 +413,7 @@ public class PerformanceTestRunner {
     }
     
     private void generateMarkdownReport(List<PerformanceResult> results) throws IOException {
-        File reportFile = new File("PERFORMANCE_REPORT.md");
+        File reportFile = new File("../docs/PERFORMANCE_REPORT.md");
         
         StringBuilder report = new StringBuilder();
         report.append("# Netty SocketIO Performance Test Report\n\n");
