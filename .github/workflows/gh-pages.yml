@@ -36,9 +36,18 @@ jobs:
         with:
           maven-version: '3.9.5'
 
+      - name: Build Project
+        run: |
+          mvn clean install -DskipTests
+
       - name: Generate Javadoc
         run: |
-          mvn clean javadoc:javadoc -DskipTests
+          # Generate Javadoc for each module individually to avoid aggregation issues
+          mvn javadoc:javadoc -pl netty-socketio-core -am -DskipTests || true
+          mvn javadoc:javadoc -pl netty-socketio-spring -am -DskipTests || true
+          mvn javadoc:javadoc -pl netty-socketio-spring-boot-starter -am -DskipTests || true
+          mvn javadoc:javadoc -pl netty-socketio-quarkus/netty-socketio-quarkus-runtime -am -DskipTests || true
+          mvn javadoc:javadoc -pl netty-socketio-micronaut -am -DskipTests || true
           # Create javadoc directory in docs
           mkdir -p docs/javadoc
           # Copy Javadoc from each module

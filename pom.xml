@@ -397,6 +397,7 @@
           <level>public</level>
           <doclint>none</doclint>
           <quiet>true</quiet>
+          <aggregate>false</aggregate>
         </configuration>
       </plugin>
 
