@@ -62,8 +62,6 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.1'
-          bundler-cache: true
-        working-directory: ./docs
 
       - name: Setup Jekyll
         working-directory: ./docs
