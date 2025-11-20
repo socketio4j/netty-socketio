@@ -12,8 +12,8 @@
 
 title: Netty-SocketIO
 description: Socket.IO server implementation for Java based on Netty framework
-url: https://socketio4j.github.io
-baseurl: /netty-socketio
+url: https://socketio4j.com
+baseurl: ""
 
 # Set a path/url to a logo that will be displayed instead of the title
 logo: "/assets/images/logo.svg"

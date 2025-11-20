@@ -20,16 +20,16 @@ Socket.IO server implementation for Java based on Netty framework.
 
 ## Documentation
 
-📚 **Full documentation is available at: [https://socketio4j.github.io/netty-socketio](https://socketio4j.github.io/netty-socketio)**
+📚 **Full documentation is available at: [https://socketio4j.com](https://socketio4j.com)**
 
 The documentation includes:
-- [Getting Started Guide](https://socketio4j.github.io/netty-socketio/getting-started/)
-- [Installation Instructions](https://socketio4j.github.io/netty-socketio/installation/)
-- [Configuration Options](https://socketio4j.github.io/netty-socketio/configuration/)
-- [Code Examples](https://socketio4j.github.io/netty-socketio/examples/)
-- [Integration Guides](https://socketio4j.github.io/netty-socketio/guides/)
-- [API Documentation](https://socketio4j.github.io/netty-socketio/api/)
-- [Performance Reports](https://socketio4j.github.io/netty-socketio/performance/)
+- [Getting Started Guide](https://socketio4j.com/getting-started/)
+- [Installation Instructions](https://socketio4j.com/installation/)
+- [Configuration Options](https://socketio4j.com/configuration/)
+- [Code Examples](https://socketio4j.com/examples/)
+- [Integration Guides](https://socketio4j.com/guides/)
+- [API Documentation](https://socketio4j.com/api/)
+- [Performance Reports](https://socketio4j.com/performance/)
 
 
 ## Migration from Original netty-socketio
