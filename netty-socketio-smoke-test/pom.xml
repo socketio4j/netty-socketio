@@ -13,7 +13,7 @@
   <description>NettySocketIO Smoke Test</description>
 
   <properties>
-    <commons-cli.version>1.10.0</commons-cli.version>
+    <commons-cli.version>1.11.0</commons-cli.version>
     <hdrhistogram.version>2.1.12</hdrhistogram.version>
   </properties>
 
