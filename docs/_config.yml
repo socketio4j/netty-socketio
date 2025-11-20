@@ -103,8 +103,8 @@ callouts:
 
 # Javadoc paths
 javadoc:
-  core: "/javadoc/core"
-  spring: "/javadoc/spring"
+  core: "/javadoc/core/netty.socketio.core"
+  spring: "/javadoc/spring/netty.socketio.spring"
   spring_boot_starter: "/javadoc/spring-boot-starter"
   quarkus: "/javadoc/quarkus"
   micronaut: "/javadoc/micronaut"
