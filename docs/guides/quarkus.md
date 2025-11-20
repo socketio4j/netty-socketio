@@ -23,7 +23,7 @@ Add the Quarkus integration to your `pom.xml`:
 <dependency>
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-quarkus</artifactId>
-  <version>3.0.1</version>
+  <version>{{ site.data.versions.project.latest_stable }}</version>
 </dependency>
 ```
 

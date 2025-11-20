@@ -20,7 +20,7 @@ Add the following dependency to your `pom.xml`:
 <dependency>
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-core</artifactId>
-  <version>3.0.1</version>
+  <version>{{ site.data.versions.project.latest_stable }}</version>
 </dependency>
 ```
 
@@ -32,7 +32,7 @@ If you're using Spring, add:
 <dependency>
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-spring</artifactId>
-  <version>3.0.1</version>
+  <version>{{ site.data.versions.project.latest_stable }}</version>
 </dependency>
 ```
 
@@ -44,7 +44,7 @@ For Spring Boot projects:
 <dependency>
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-spring-boot-starter</artifactId>
-  <version>3.0.1</version>
+  <version>{{ site.data.versions.project.latest_stable }}</version>
 </dependency>
 ```
 
@@ -56,7 +56,7 @@ For Quarkus projects:
 <dependency>
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-quarkus</artifactId>
-  <version>3.0.1</version>
+  <version>{{ site.data.versions.project.latest_stable }}</version>
 </dependency>
 ```
 
@@ -68,7 +68,7 @@ For Micronaut projects:
 <dependency>
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-micronaut</artifactId>
-  <version>3.0.1</version>
+  <version>{{ site.data.versions.project.latest_stable }}</version>
 </dependency>
 ```
 
@@ -77,30 +77,30 @@ For Micronaut projects:
 ### Core Module
 
 ```gradle
-implementation 'com.socketio4j:netty-socketio-core:3.0.1'
+implementation 'com.socketio4j:netty-socketio-core:{{ site.data.versions.project.latest_stable }}'
 ```
 
 ### Spring Boot Starter
 
 ```gradle
-implementation 'com.socketio4j:netty-socketio-spring-boot-starter:3.0.1'
+implementation 'com.socketio4j:netty-socketio-spring-boot-starter:{{ site.data.versions.project.latest_stable }}'
 ```
 
 ### Quarkus
 
 ```gradle
-implementation 'com.socketio4j:netty-socketio-quarkus:3.0.1'
+implementation 'com.socketio4j:netty-socketio-quarkus:{{ site.data.versions.project.latest_stable }}'
 ```
 
 ### Micronaut
 
 ```gradle
-implementation 'com.socketio4j:netty-socketio-micronaut:3.0.1'
+implementation 'com.socketio4j:netty-socketio-micronaut:{{ site.data.versions.project.latest_stable }}'
 ```
 
 ## Version Information
 
-The latest stable version is **3.0.1**.
+The latest stable version is **{{ site.data.versions.project.latest_stable }}**.
 
 You can find all available versions on [Maven Central](https://mvnrepository.com/artifact/com.socketio4j/netty-socketio-core).
 
@@ -113,7 +113,7 @@ Replace:
 <dependency>
   <groupId>com.corundumstudio.socketio</groupId>
   <artifactId>netty-socketio</artifactId>
-  <version>2.0.13</version>
+  <version>{{ site.data.versions.project.legacy_version }}</version>
 </dependency>
 ```
 
@@ -122,7 +122,7 @@ With:
 <dependency>
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-core</artifactId>
-  <version>3.0.1</version>
+  <version>{{ site.data.versions.project.latest_stable }}</version>
 </dependency>
 ```
 
@@ -136,7 +136,7 @@ The API is compatible, so no code changes are required.
 <dependency>
   <groupId>org.redisson</groupId>
   <artifactId>redisson</artifactId>
-  <version>3.45.1</version>
+  <version>{{ site.data.versions.dependencies.redisson.version }}</version>
 </dependency>
 ```
 
@@ -146,7 +146,7 @@ The API is compatible, so no code changes are required.
 <dependency>
   <groupId>com.hazelcast</groupId>
   <artifactId>hazelcast-client</artifactId>
-  <version>3.12.12</version>
+  <version>{{ site.data.versions.dependencies.hazelcast.version }}</version>
 </dependency>
 ```
 

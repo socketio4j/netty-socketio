@@ -1,8 +1,17 @@
 source "https://rubygems.org"
 
+# Documentation tool versions
+# These versions are managed centrally in docs/_data/versions.yml
+# Update versions there to keep documentation dependencies in sync
+# Note: For local development, use: bundle install --path vendor/bundle
+#
+# Version reference (see docs/_data/versions.yml):
+# - jekyll: ~> 4.3
+# - jekyll-sass-converter: ~> 2.0
+# - just-the-docs: ~> 0.8.0
+#
 # Use Jekyll 4.3 with just-the-docs
 # Force jekyll-sass-converter 2.x to avoid protobuf issues on macOS
-# Note: For local development, use: bundle install --path vendor/bundle
 gem "jekyll", "~> 4.3"
 gem "jekyll-sass-converter", "~> 2.0"
 gem "just-the-docs", "~> 0.8.0"

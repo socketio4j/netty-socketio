@@ -19,7 +19,7 @@ Add the Spring Boot Starter dependency:
 <dependency>
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-spring-boot-starter</artifactId>
-  <version>3.0.1</version>
+  <version>{{ site.data.versions.project.latest_stable }}</version>
 </dependency>
 ```
 

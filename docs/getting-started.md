@@ -24,14 +24,14 @@ Add the dependency to your `pom.xml`:
 <dependency>
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-core</artifactId>
-  <version>3.0.1</version>
+  <version>{{ site.data.versions.project.latest_stable }}</version>
 </dependency>
 ```
 
 For Gradle:
 
 ```gradle
-implementation 'com.socketio4j:netty-socketio-core:3.0.1'
+implementation 'com.socketio4j:netty-socketio-core:{{ site.data.versions.project.latest_stable }}'
 ```
 
 ## Basic Server Setup

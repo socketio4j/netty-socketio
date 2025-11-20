@@ -23,7 +23,7 @@ Licensed under the Apache License 2.0.
 <dependency>
   <groupId>com.corundumstudio.socketio</groupId>
   <artifactId>netty-socketio</artifactId>
-  <version>2.0.13</version>
+  <version>{{ site.data.versions.project.legacy_version }}</version>
 </dependency>
 ```
 
@@ -32,7 +32,7 @@ with new one:
 <dependency>
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-core</artifactId>
-  <version>LATEST-VERSION</version>
+  <version>{{ site.data.versions.project.latest_stable }}</version>
 </dependency>
 ```
 
@@ -41,7 +41,7 @@ If you use Spring integration (Just one class: `SpringAnnotationScanner`), you s
 <dependency>
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-spring</artifactId>
-  <version>LATEST-VERSION</version>
+  <version>{{ site.data.versions.project.latest_stable }}</version>
 </dependency>
 ```
 

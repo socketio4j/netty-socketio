@@ -36,7 +36,7 @@ Get started with Netty-SocketIO in minutes:
 <dependency>
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-core</artifactId>
-  <version>3.0.1</version>
+  <version>{{ site.data.versions.project.latest_stable }}</version>
 </dependency>
 ```
 
