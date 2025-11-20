@@ -28,7 +28,7 @@
   <licenses>
     <license>
       <name>Apache v2</name>
-      <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.html</url>
     </license>
   </licenses>
 
@@ -51,6 +51,14 @@
         <role>Developer</role>
       </roles>
     </developer>
+      <developer>
+          <id>sanjomo</id>
+          <name>Santhosh Mohan</name>
+          <roles>
+              <role>Maintainer</role>
+              <role>Developer</role>
+          </roles>
+      </developer>
   </developers>
 
   <distributionManagement>
@@ -76,7 +84,7 @@
     <slf4j.version>2.0.16</slf4j.version>
     <jackson.version>2.18.3</jackson.version>
     <redisson.version>3.45.1</redisson.version>
-    <hazelcast.version>3.12.12</hazelcast.version>
+    <hazelcast.version>5.6.0</hazelcast.version>
     <awaitility.version>4.2.0</awaitility.version>
     <assertj.version>3.24.2</assertj.version>
     <mockito.version>5.7.0</mockito.version>
@@ -301,7 +309,7 @@
       </dependency>
       <dependency>
         <groupId>com.hazelcast</groupId>
-        <artifactId>hazelcast-client</artifactId>
+        <artifactId>hazelcast</artifactId>
         <version>${hazelcast.version}</version>
         <scope>provided</scope>
       </dependency>
