@@ -40,6 +40,6 @@ java -Xms256m -Xmx256m $GC_OPTS -XX:+AlwaysPreTouch \
 
 echo "Performance test completed!"
 echo "Results saved in: netty-socketio-smoke-test/performance-results/"
-echo "Report updated: netty-socketio-smoke-test/PERFORMANCE_REPORT.md"
+echo "Report updated: docs/PERFORMANCE_REPORT.md"
 
 
