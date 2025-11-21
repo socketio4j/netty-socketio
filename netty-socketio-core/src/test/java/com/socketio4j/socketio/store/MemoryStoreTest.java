@@ -18,8 +18,11 @@ package com.socketio4j.socketio.store;
 
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -49,12 +52,14 @@ public class MemoryStoreTest extends AbstractStoreTest {
     }
 
     @Override
+    @BeforeEach
     public void setUp() throws Exception {
         sessionId = UUID.randomUUID();
         store = createStore(sessionId);
     }
 
     @Override
+    @AfterEach
     public void tearDown() throws Exception {
         if (store != null) {
             cleanupStore();

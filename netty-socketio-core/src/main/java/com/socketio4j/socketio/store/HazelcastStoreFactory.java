@@ -19,10 +19,10 @@ package com.socketio4j.socketio.store;
 import java.util.Map;
 import java.util.UUID;
 
-import com.socketio4j.socketio.store.pubsub.BaseStoreFactory;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.core.HazelcastInstance;
+import com.socketio4j.socketio.store.pubsub.BaseStoreFactory;
+import com.socketio4j.socketio.store.pubsub.PubSubStore;
 
 /**
  * WARN: It's necessary to add netty-socketio.jar in hazelcast server classpath.
