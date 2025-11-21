@@ -91,6 +91,7 @@
     <logback.version>1.5.21</logback.version>
     <socketio.version>2.1.0</socketio.version>
     <javafaker.version>1.0.2</javafaker.version>
+    <commons-lang3.version>3.20.0</commons-lang3.version>
   </properties>
 
   <profiles>
@@ -381,6 +382,13 @@
         <groupId>com.github.javafaker</groupId>
         <artifactId>javafaker</artifactId>
         <version>${javafaker.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <!-- https://mvnrepository.com/artifact/org.apache.commons/commons-lang3 -->
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-lang3</artifactId>
+        <version>${commons-lang3.version}</version>
         <scope>test</scope>
       </dependency>
     </dependencies>
