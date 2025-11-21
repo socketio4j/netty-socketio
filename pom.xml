@@ -28,7 +28,7 @@
   <licenses>
     <license>
       <name>Apache v2</name>
-      <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.html</url>
     </license>
   </licenses>
 
@@ -51,6 +51,14 @@
         <role>Developer</role>
       </roles>
     </developer>
+      <developer>
+          <id>sanjomo</id>
+          <name>Santhosh Mohan</name>
+          <roles>
+              <role>Maintainer</role>
+              <role>Developer</role>
+          </roles>
+      </developer>
   </developers>
 
   <distributionManagement>
@@ -69,18 +77,18 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <testcontainers.version>1.21.3</testcontainers.version>
     <netty.version>4.2.7.Final</netty.version>
-    <jmockit.version>1.49</jmockit.version>
+    <jmockit.version>1.50</jmockit.version>
     <byte-buddy.version>1.18.1</byte-buddy.version>
     <junit.version>6.0.1</junit.version>
     <junit-platform-launcher.version>1.10.1</junit-platform-launcher.version>
-    <slf4j.version>2.0.16</slf4j.version>
-    <jackson.version>2.18.3</jackson.version>
-    <redisson.version>3.45.1</redisson.version>
-    <hazelcast.version>3.12.12</hazelcast.version>
-    <awaitility.version>4.2.0</awaitility.version>
+    <slf4j.version>2.0.17</slf4j.version>
+    <jackson.version>2.20.1</jackson.version>
+    <redisson.version>3.52.0</redisson.version>
+    <hazelcast.version>5.2.5</hazelcast.version>
+    <awaitility.version>4.3.0</awaitility.version>
     <assertj.version>3.24.2</assertj.version>
     <mockito.version>5.7.0</mockito.version>
-    <logback.version>1.5.18</logback.version>
+    <logback.version>1.5.21</logback.version>
     <socketio.version>2.1.0</socketio.version>
     <javafaker.version>1.0.2</javafaker.version>
   </properties>
@@ -301,7 +309,7 @@
       </dependency>
       <dependency>
         <groupId>com.hazelcast</groupId>
-        <artifactId>hazelcast-client</artifactId>
+        <artifactId>hazelcast</artifactId>
         <version>${hazelcast.version}</version>
         <scope>provided</scope>
       </dependency>
@@ -375,6 +383,12 @@
         <version>${javafaker.version}</version>
         <scope>test</scope>
       </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-pkitesting</artifactId>
+        <version>${netty.version}</version>
+        <scope>test</scope>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -437,7 +451,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-pmd-plugin</artifactId>
-        <version>3.11.0</version>
+        <version>3.28.0</version>
         <executions>
           <execution>
             <phase>verify</phase>
@@ -481,7 +495,7 @@
         https://maven.apache.org/plugins/maven-compiler-plugin/examples/module-info.html-->
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.13.0</version>
+        <version>3.14.1</version>
         <executions>
           <execution>
             <id>default-compile</id>
@@ -536,7 +550,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.2.5</version>
+        <version>3.5.4</version>
         <configuration>
           <argLine>
             -javaagent:"${settings.localRepository}"/org/jmockit/jmockit/${jmockit.version}/jmockit-${jmockit.version}.jar
@@ -560,7 +574,7 @@
       <plugin>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
-        <version>5.1.9</version>
+        <version>6.0.0</version>
         <extensions>true</extensions>
         <configuration>
           <instructions>

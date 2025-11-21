@@ -15,7 +15,7 @@
   <description>Socket.IO server Micronaut integration</description>
 
   <properties>
-    <micronaut.version>4.8.1</micronaut.version>
+    <micronaut.version>4.10.2</micronaut.version>
   </properties>
 
   <dependencyManagement>
@@ -97,6 +97,11 @@
       <artifactId>awaitility</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-pkitesting</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -104,7 +109,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.13.0</version>
+        <version>3.14.1</version>
         <configuration>
           <annotationProcessorPaths>
             <path>

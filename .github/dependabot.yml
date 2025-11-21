@@ -13,11 +13,11 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
-    # You can add specific dependencies to ignore here if needed
-    # Example:
-    # ignore:
-    #   - dependency-name: "com.example:library"
-    #     update-types: ["version-update:semver-major"]
+    ignore:
+      # Restrict Hazelcast to 5.2.x versions only (for Java 8 compatibility)
+      # Allow patch updates within 5.2.x, but block upgrades to 5.3+
+      - dependency-name: "com.hazelcast:hazelcast"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   # Bundler dependencies for documentation
   - package-ecosystem: "bundler"
