@@ -23,8 +23,8 @@ import java.util.Optional;
 import com.socketio4j.socketio.AckMode;
 import com.socketio4j.socketio.BasicConfiguration;
 import com.socketio4j.socketio.Transport;
-
 import com.socketio4j.socketio.nativeio.TransportType;
+
 import io.quarkus.runtime.annotations.ConfigPhase;
 import io.quarkus.runtime.annotations.ConfigRoot;
 import io.smallrye.config.ConfigMapping;
