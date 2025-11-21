@@ -32,9 +32,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.socketio4j.socketio.AckCallback;
-import com.socketio4j.socketio.MultiTypeAckCallback;
-import com.socketio4j.socketio.namespace.Namespace;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -63,6 +60,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.fasterxml.jackson.databind.type.ArrayType;
+import com.socketio4j.socketio.AckCallback;
+import com.socketio4j.socketio.MultiTypeAckCallback;
+import com.socketio4j.socketio.namespace.Namespace;
 
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufOutputStream;
