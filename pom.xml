@@ -77,7 +77,7 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <testcontainers.version>1.21.3</testcontainers.version>
     <netty.version>4.2.7.Final</netty.version>
-    <jmockit.version>1.49</jmockit.version>
+    <jmockit.version>1.50</jmockit.version>
     <byte-buddy.version>1.18.1</byte-buddy.version>
     <junit.version>5.10.1</junit.version>
     <junit-platform-launcher.version>1.10.1</junit-platform-launcher.version>
