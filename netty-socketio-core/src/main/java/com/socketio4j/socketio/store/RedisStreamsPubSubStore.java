@@ -110,8 +110,8 @@ log.debug("starting worker thread");
                                     groupName,
                                     consumerName,
                                     StreamReadGroupArgs.neverDelivered()
-                                            .count(20)
-                                            .timeout(Duration.ofSeconds(5)));
+                                            .count(50)
+                                            .timeout(Duration.ofSeconds(1)));
 
                     if (messages == null || messages.isEmpty()) {
                         log.debug("No messages found for group {}", groupName);
@@ -123,7 +123,6 @@ log.debug("starting worker thread");
                     for (Map.Entry<StreamMessageId, Map<String, PubSubMessage>> entry : messages.entrySet()) {
                         StreamMessageId id = entry.getKey();
                         Map<String, PubSubMessage> fields = entry.getValue();
-// Each stream entry contains exactly 1 field: {"TYPE": msg}
                         Map.Entry<String, PubSubMessage> field = fields.entrySet().iterator().next();
                         String typeString = field.getKey();
                         PubSubMessage msg = field.getValue();

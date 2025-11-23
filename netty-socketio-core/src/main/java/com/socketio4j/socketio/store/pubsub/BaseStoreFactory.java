@@ -40,90 +40,67 @@ public abstract class BaseStoreFactory implements StoreFactory {
     }
 
     @Override
-    public void init(final NamespacesHub namespacesHub, final AuthorizeHandler authorizeHandler, JsonSupport jsonSupport) {
-        pubSubStore().subscribe(PubSubType.DISCONNECT, new PubSubListener<DisconnectMessage>() {
-            @Override
-            public void onMessage(DisconnectMessage msg) {
-                log.debug("{} sessionId: {}", PubSubType.DISCONNECT, msg.getSessionId());
-            }
-        }, DisconnectMessage.class);
+    public void init(final NamespacesHub namespacesHub,
+                     final AuthorizeHandler authorizeHandler,
+                     JsonSupport jsonSupport) {
 
-        pubSubStore().subscribe(PubSubType.CONNECT, new PubSubListener<ConnectMessage>() {
-            @Override
-            public void onMessage(ConnectMessage msg) {
-                authorizeHandler.connect(msg.getSessionId());
-                log.debug("{} sessionId: {}", PubSubType.CONNECT, msg.getSessionId());
-            }
+        // 1) CONNECT — establish session before anything else
+        pubSubStore().subscribe(PubSubType.CONNECT, msg -> {
+            authorizeHandler.connect(msg.getSessionId());
+            log.debug("[PUBSUB] CONNECT sessionId={}", msg.getSessionId());
         }, ConnectMessage.class);
 
-        pubSubStore().subscribe(PubSubType.DISPATCH, new PubSubListener<DispatchMessage>() {
-            @Override
-            public void onMessage(DispatchMessage msg) {
-                String name = msg.getRoom();
-
-                Namespace n = namespacesHub.get(msg.getNamespace());
-                if (n != null) {
-                    n.dispatch(name, msg.getPacket());
-                }
-                log.debug("{} packet: {}", PubSubType.DISPATCH, msg.getPacket());
+        // 2) JOIN — add to room before dispatch
+        pubSubStore().subscribe(PubSubType.JOIN, msg -> {
+            Namespace n = namespacesHub.get(msg.getNamespace());
+            if (n != null) {
+                n.join(msg.getRoom(), msg.getSessionId());
             }
+            log.debug("[PUBSUB] JOIN room={} sessionId={}", msg.getRoom(), msg.getSessionId());
+        }, JoinLeaveMessage.class);
+
+        // 3) BULK_JOIN — batched room additions
+        pubSubStore().subscribe(PubSubType.BULK_JOIN, msg -> {
+            Namespace n = namespacesHub.get(msg.getNamespace());
+            if (n != null) {
+                for (String room : msg.getRooms()) {
+                    n.join(room, msg.getSessionId());
+                }
+            }
+            log.debug("[PUBSUB] BULK_JOIN rooms={} sessionId={}", msg.getRooms(), msg.getSessionId());
+        }, BulkJoinLeaveMessage.class);
+
+        // 4) DISPATCH — deliver packets after membership is valid
+        pubSubStore().subscribe(PubSubType.DISPATCH, msg -> {
+            Namespace n = namespacesHub.get(msg.getNamespace());
+            if (n != null) {
+                n.dispatch(msg.getRoom(), msg.getPacket());
+            }
+            log.debug("[PUBSUB] DISPATCH packet={} namespace={}", msg.getPacket(), msg.getNamespace());
         }, DispatchMessage.class);
 
-        pubSubStore().subscribe(PubSubType.JOIN, new PubSubListener<JoinLeaveMessage>() {
-            @Override
-            public void onMessage(JoinLeaveMessage msg) {
-                String name = msg.getRoom();
-
-                Namespace n = namespacesHub.get(msg.getNamespace());
-                if (n != null) {
-                    n.join(name, msg.getSessionId());
-                }
-                log.debug("{} sessionId: {}", PubSubType.JOIN, msg.getSessionId());
+        // 5) LEAVE — clean up room state
+        pubSubStore().subscribe(PubSubType.LEAVE, msg -> {
+            Namespace n = namespacesHub.get(msg.getNamespace());
+            if (n != null) {
+                n.leave(msg.getRoom(), msg.getSessionId());
             }
+            log.debug("[PUBSUB] LEAVE room={} sessionId={}", msg.getRoom(), msg.getSessionId());
         }, JoinLeaveMessage.class);
 
-        pubSubStore().subscribe(PubSubType.BULK_JOIN, new PubSubListener<BulkJoinLeaveMessage>() {
-            @Override
-            public void onMessage(BulkJoinLeaveMessage msg) {
-                Set<String> rooms = msg.getRooms();
-
-                for (String room : rooms) {
-                    Namespace n = namespacesHub.get(msg.getNamespace());
-                    if (n != null) {
-                        n.join(room, msg.getSessionId());
-                    }
+        // 6) BULK_LEAVE — batched leave
+        pubSubStore().subscribe(PubSubType.BULK_LEAVE, msg -> {
+            Namespace n = namespacesHub.get(msg.getNamespace());
+            if (n != null) {
+                for (String room : msg.getRooms()) {
+                    n.leave(room, msg.getSessionId());
                 }
-                log.debug("{} sessionId: {}", PubSubType.BULK_JOIN, msg.getSessionId());
             }
+            log.debug("[PUBSUB] BULK_LEAVE rooms={} sessionId={}", msg.getRooms(), msg.getSessionId());
         }, BulkJoinLeaveMessage.class);
 
-        pubSubStore().subscribe(PubSubType.LEAVE, new PubSubListener<JoinLeaveMessage>() {
-            @Override
-            public void onMessage(JoinLeaveMessage msg) {
-                String name = msg.getRoom();
-
-                Namespace n = namespacesHub.get(msg.getNamespace());
-                if (n != null) {
-                    n.leave(name, msg.getSessionId());
-                }
-                log.debug("{} sessionId: {}", PubSubType.LEAVE, msg.getSessionId());
-            }
-        }, JoinLeaveMessage.class);
-
-        pubSubStore().subscribe(PubSubType.BULK_LEAVE, new PubSubListener<BulkJoinLeaveMessage>() {
-            @Override
-            public void onMessage(BulkJoinLeaveMessage msg) {
-                Set<String> rooms = msg.getRooms();
-
-                for (String room : rooms) {
-                    Namespace n = namespacesHub.get(msg.getNamespace());
-                    if (n != null) {
-                        n.leave(room, msg.getSessionId());
-                    }
-                }
-                log.debug("{} sessionId: {}", PubSubType.BULK_LEAVE, msg.getSessionId());
-            }
-        }, BulkJoinLeaveMessage.class);
+        // 7) DISCONNECT — final, after leaving rooms
+        pubSubStore().subscribe(PubSubType.DISCONNECT, msg -> log.debug("[PUBSUB] DISCONNECT sessionId={}", msg.getSessionId()), DisconnectMessage.class);
     }
 
     @Override
