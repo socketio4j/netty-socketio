@@ -116,6 +116,8 @@ log.debug("starting worker thread");
                     if (messages == null || messages.isEmpty()) {
                         log.debug("No messages found for group {}", groupName);
                         continue;
+                    } else {
+                        log.debug("Found {} messages for group {}", messages.size(), groupName);
                     }
 
                     for (Map.Entry<StreamMessageId, Map<String, PubSubMessage>> entry : messages.entrySet()) {

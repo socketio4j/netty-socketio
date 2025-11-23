@@ -33,7 +33,7 @@ public class RedisStreamsStoreFactory extends BaseStoreFactory {
     @Override
     public Store createStore(UUID sessionId) {
         // One Store per session (correct)
-        return new MemoryStore();
+        return new RedissonStore(sessionId, this.redis);
     }
 
     @Override
