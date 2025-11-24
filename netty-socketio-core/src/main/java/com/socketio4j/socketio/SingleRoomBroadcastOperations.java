@@ -49,13 +49,12 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
 
     private void dispatch(Packet packet) {
         this.storeFactory.pubSubStore().publish(
-                PubSubType.DISPATCH,
                 new DispatchMessage(this.room, packet, this.namespace));
     }
 
     @Override
     public Collection<SocketIOClient> getClients() {
-        return new IterableCollection<SocketIOClient>(clients);
+        return new IterableCollection<>(clients);
     }
 
     @Override

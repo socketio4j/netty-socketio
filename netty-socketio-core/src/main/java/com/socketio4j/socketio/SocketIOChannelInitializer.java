@@ -228,7 +228,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         authorizeHandler.onDisconnect(client);
         configuration.getStoreFactory().onDisconnect(client);
 
-        configuration.getStoreFactory().pubSubStore().publish(PubSubType.DISCONNECT, new DisconnectMessage(client.getSessionId()));
+        configuration.getStoreFactory().pubSubStore().publish(new DisconnectMessage(client.getSessionId()));
 
         log.debug("Client with sessionId: {} disconnected", client.getSessionId());
     }

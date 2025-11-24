@@ -18,18 +18,18 @@ package com.socketio4j.socketio.store.pubsub;
 
 import java.util.UUID;
 
-public class JoinLeaveMessage extends PubSubMessage {
+public class LeaveMessage extends PubSubMessage {
 
-    private static final long serialVersionUID = -944515928988033174L;
+    private static final long serialVersionUID = -2125889196589368835L;
 
     private UUID sessionId;
     private String namespace;
     private String room;
 
-    public JoinLeaveMessage() {
+    public LeaveMessage() {
     }
 
-    public JoinLeaveMessage(UUID id, String room, String namespace) {
+    public LeaveMessage(UUID id, String room, String namespace) {
         super();
         this.sessionId = id;
         this.room = room;

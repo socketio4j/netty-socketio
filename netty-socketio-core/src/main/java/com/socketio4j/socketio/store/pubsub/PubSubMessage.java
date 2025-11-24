@@ -24,16 +24,6 @@ public abstract class PubSubMessage implements Serializable {
 
     private Long nodeId;
 
-    public PubSubType getType() {
-        return type;
-    }
-
-    public void setType(PubSubType type) {
-        this.type = type;
-    }
-
-    private PubSubType type;
-
     public Long getNodeId() {
         return nodeId;
     }

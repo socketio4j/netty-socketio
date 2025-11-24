@@ -40,16 +40,15 @@ public class HazelcastPubSubStore implements PubSubStore {
     }
 
     @Override
-    public void publish(PubSubType type, PubSubMessage msg) {
+    public void publish(PubSubMessage msg) {
         msg.setNodeId(nodeId);
-        msg.setType(type);
         hazelcastPub.getTopic(PubSubConstants.TOPIC_NAME).publish(msg);
     }
 
     @Override
-    public <T extends PubSubMessage> void subscribe(final PubSubListener<T> listener) {
+    public void subscribe(final PubSubListener<PubSubMessage> listener) {
         String name = PubSubConstants.TOPIC_NAME;
-        ITopic<T> topic = hazelcastSub.getTopic(name);
+        ITopic<PubSubMessage> topic = hazelcastSub.getTopic(name);
         UUID regId = topic.addMessageListener(message -> {
             PubSubMessage msg = message.getMessageObject();
             if (!nodeId.equals(msg.getNodeId())) {
@@ -64,8 +63,8 @@ public class HazelcastPubSubStore implements PubSubStore {
         String name = PubSubConstants.TOPIC_NAME;
 
         ITopic<Object> topic = hazelcastSub.getTopic(name);
-            topic.removeMessageListener(map.get());
-            map.set(null);
+        topic.removeMessageListener(map.get());
+        map.set(null);
     }
 
     @Override

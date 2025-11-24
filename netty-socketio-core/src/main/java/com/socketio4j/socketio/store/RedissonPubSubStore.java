@@ -45,23 +45,18 @@ public class RedissonPubSubStore implements PubSubStore {
     }
 
     @Override
-    public void publish(PubSubType type, PubSubMessage msg) {
+    public void publish(PubSubMessage msg) {
         msg.setNodeId(nodeId);
-        msg.setType(type);
         redissonPub.getTopic(PubSubConstants.TOPIC_NAME).publish(msg);
     }
 
     @Override
-    public <T extends PubSubMessage> void subscribe(final PubSubListener<T> listener) {
+    public void subscribe(final PubSubListener<PubSubMessage> listener) {
         String name = PubSubConstants.TOPIC_NAME;
         RTopic topic = redissonSub.getTopic(name);
-        int regId = topic.addListener(PubSubMessage.class, new MessageListener<PubSubMessage>() {
-            @Override
-            public void onMessage(CharSequence channel, PubSubMessage msg) {
-                log.trace(">>>>>>>>>>>>>>>>>> {}", msg);
-                if (!nodeId.equals(msg.getNodeId())) {
-                    listener.onMessage((T) msg);
-                }
+        int regId = topic.addListener(PubSubMessage.class, (channel, msg) -> {
+            if (!nodeId.equals(msg.getNodeId())) {
+                listener.onMessage(msg);
             }
         });
 map.set(regId);

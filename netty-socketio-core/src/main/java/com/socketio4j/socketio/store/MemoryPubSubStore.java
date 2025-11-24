@@ -24,11 +24,11 @@ import com.socketio4j.socketio.store.pubsub.PubSubType;
 public class MemoryPubSubStore implements PubSubStore {
 
     @Override
-    public void publish(PubSubType type, PubSubMessage msg) {
+    public void publish(PubSubMessage msg) {
     }
 
     @Override
-    public <T extends PubSubMessage> void subscribe(PubSubListener<T> listener) {
+    public void subscribe(PubSubListener<PubSubMessage> listener) {
     }
 
     @Override
