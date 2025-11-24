@@ -1,6 +1,7 @@
 
 package com.socketio4j.socketio.store;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Collections;
@@ -9,6 +10,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
@@ -41,7 +43,8 @@ public class RedisStreamsPubSubStore implements PubSubStore {
     private final ConcurrentMap<PubSubType, List<PubSubListener<?>>> listeners = new ConcurrentHashMap<>();
 
     // worker thread for the only stream
-    private Thread worker;
+    private final AtomicReference<Thread> worker = new AtomicReference<>();
+
 
     public RedisStreamsPubSubStore(Long nodeId, RedissonClient redisson) {
         this.nodeId = nodeId;
@@ -75,13 +78,14 @@ public class RedisStreamsPubSubStore implements PubSubStore {
                 .computeIfAbsent(type, t -> new CopyOnWriteArrayList<>())
                 .add(listener);
 
-        // Start worker once
-        if (worker == null) {
-            log.debug("worker is null");
-            worker = startWorker();
-        } else {
-            log.debug("worker is already started");
+        if (worker.get() == null) {
+            Thread newWorker = startWorker();
+            if (!worker.compareAndSet(null, newWorker)) {
+                // another thread installed one → stop the newly created worker
+                newWorker.interrupt();
+            }
         }
+
 
     }
 
@@ -156,9 +160,12 @@ log.debug("starting worker thread");
                         Thread.currentThread().interrupt();
                     }
                 }
-            }
 
+
+            }
             log.info("Redis Streams worker stopped");
+            // On exit, allow recreation, no zombie
+            worker.compareAndSet(Thread.currentThread(), null);
         };
 
         return createVirtualOrPlatformThread(task, "redis-stream-worker-" + nodeId);
@@ -169,6 +176,7 @@ log.debug("starting worker thread");
     // =========================================================================
 
     private Thread createVirtualOrPlatformThread(Runnable task, String name) {
+        Thread vt = null;
         try {
             // Virtual threads (Java 21+) via reflection: Thread.ofVirtual().name(name).unstarted(task)
             Method ofVirtual = Thread.class.getMethod("ofVirtual");
@@ -176,11 +184,14 @@ log.debug("starting worker thread");
             Method nameMethod = builder.getClass().getMethod("name", String.class);
             Object named = nameMethod.invoke(builder, name);
             Method unstarted = named.getClass().getMethod("unstarted", Runnable.class);
-            Thread vt = (Thread) unstarted.invoke(named, task);
+            vt = (Thread) unstarted.invoke(named, task);
             vt.setDaemon(true);
             vt.start();
             return vt;
         } catch (Exception ignore) {
+            if (vt != null && vt.isAlive()) {
+                vt.interrupt();
+            }
             // Fallback for Java 8–20
             Thread t = new Thread(task, name);
             t.setDaemon(true);
@@ -198,10 +209,14 @@ log.debug("starting worker thread");
         listeners.remove(type);
 
         // stop worker if no listeners remain
-        if (listeners.isEmpty() && worker != null) {
-            worker.interrupt();
-            worker = null;
+        if (listeners.isEmpty()) {
+            Thread w = worker.getAndSet(null);
+            if (w != null) {
+                w.interrupt();
+            }
         }
+
+
     }
 
     // =========================================================================
@@ -212,10 +227,11 @@ log.debug("starting worker thread");
     public void shutdown() {
         listeners.clear();
 
-        if (worker != null) {
-            worker.interrupt();
-            worker = null;
+        Thread w = worker.getAndSet(null);
+        if (w != null) {
+            w.interrupt();
         }
+
 
         try {
             String groupName = CONSUMER_GROUP_BASE + "-" + nodeId;
