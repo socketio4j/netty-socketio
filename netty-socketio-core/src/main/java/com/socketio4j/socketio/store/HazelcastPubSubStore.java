@@ -43,7 +43,7 @@ public class HazelcastPubSubStore implements PubSubStore {
     public void publish(PubSubType type, PubSubMessage msg) {
         msg.setNodeId(nodeId);
         msg.setType(type);
-        hazelcastPub.getTopic(type.toString()).publish(msg);
+        hazelcastPub.getTopic(PubSubConstants.TOPIC_NAME).publish(msg);
     }
 
     @Override
