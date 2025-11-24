@@ -52,7 +52,7 @@ public class RedissonPubSubStore implements PubSubStore {
     }
 
     @Override
-    public <T extends PubSubMessage> void subscribe(final PubSubListener<T> listener, Class<T> clazz) {
+    public <T extends PubSubMessage> void subscribe(final PubSubListener<T> listener) {
         String name = PubSubConstants.TOPIC_NAME;
         RTopic topic = redissonSub.getTopic(name);
         int regId = topic.addListener(PubSubMessage.class, new MessageListener<PubSubMessage>() {

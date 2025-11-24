@@ -47,7 +47,7 @@ public class HazelcastPubSubStore implements PubSubStore {
     }
 
     @Override
-    public <T extends PubSubMessage> void subscribe(final PubSubListener<T> listener, Class<T> clazz) {
+    public <T extends PubSubMessage> void subscribe(final PubSubListener<T> listener) {
         String name = PubSubConstants.TOPIC_NAME;
         ITopic<T> topic = hazelcastSub.getTopic(name);
         UUID regId = topic.addMessageListener(message -> {

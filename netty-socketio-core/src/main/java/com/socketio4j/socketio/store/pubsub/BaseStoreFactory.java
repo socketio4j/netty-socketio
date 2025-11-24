@@ -103,7 +103,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     break;
             }
 
-        }, PubSubMessage.class);
+        });
 
 
     }
