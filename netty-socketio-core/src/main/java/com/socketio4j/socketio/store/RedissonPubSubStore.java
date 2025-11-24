@@ -20,23 +20,23 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 
+import com.socketio4j.socketio.store.pubsub.*;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.listener.MessageListener;
-
-import com.socketio4j.socketio.store.pubsub.PubSubListener;
-import com.socketio4j.socketio.store.pubsub.PubSubMessage;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
-import com.socketio4j.socketio.store.pubsub.PubSubType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class RedissonPubSubStore implements PubSubStore {
+    private final Logger log = LoggerFactory.getLogger(getClass());
 
     private final RedissonClient redissonPub;
     private final RedissonClient redissonSub;
     private final Long nodeId;
 
-    private final ConcurrentMap<String, Queue<Integer>> map = new ConcurrentHashMap<>();
+    private final AtomicReference<Integer> map = new AtomicReference<>();
 
     public RedissonPubSubStore(RedissonClient redissonPub, RedissonClient redissonSub, Long nodeId) {
         this.redissonPub = redissonPub;
@@ -47,41 +47,33 @@ public class RedissonPubSubStore implements PubSubStore {
     @Override
     public void publish(PubSubType type, PubSubMessage msg) {
         msg.setNodeId(nodeId);
-        redissonPub.getTopic(type.toString()).publish(msg);
+        msg.setType(type);
+        redissonPub.getTopic(PubSubConstants.TOPIC_NAME).publish(msg);
     }
 
     @Override
-    public <T extends PubSubMessage> void subscribe(PubSubType type, final PubSubListener<T> listener, Class<T> clazz) {
-        String name = type.toString();
+    public <T extends PubSubMessage> void subscribe(final PubSubListener<T> listener, Class<T> clazz) {
+        String name = PubSubConstants.TOPIC_NAME;
         RTopic topic = redissonSub.getTopic(name);
         int regId = topic.addListener(PubSubMessage.class, new MessageListener<PubSubMessage>() {
             @Override
             public void onMessage(CharSequence channel, PubSubMessage msg) {
+                log.trace(">>>>>>>>>>>>>>>>>> {}", msg);
                 if (!nodeId.equals(msg.getNodeId())) {
                     listener.onMessage((T) msg);
                 }
             }
         });
+map.set(regId);
 
-        Queue<Integer> list = map.get(name);
-        if (list == null) {
-            list = new ConcurrentLinkedQueue<Integer>();
-            Queue<Integer> oldList = map.putIfAbsent(name, list);
-            if (oldList != null) {
-                list = oldList;
-            }
-        }
-        list.add(regId);
     }
 
     @Override
-    public void unsubscribe(PubSubType type) {
-        String name = type.toString();
-        Queue<Integer> regIds = map.remove(name);
+    public void unsubscribe() {
+        String name = PubSubConstants.TOPIC_NAME;
         RTopic topic = redissonSub.getTopic(name);
-        for (Integer id : regIds) {
-            topic.removeListener(id);
-        }
+        topic.removeListener(map.get());
+        map.set(null);
     }
 
     @Override

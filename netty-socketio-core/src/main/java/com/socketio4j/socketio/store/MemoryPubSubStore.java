@@ -28,11 +28,11 @@ public class MemoryPubSubStore implements PubSubStore {
     }
 
     @Override
-    public <T extends PubSubMessage> void subscribe(PubSubType type, PubSubListener<T> listener, Class<T> clazz) {
+    public <T extends PubSubMessage> void subscribe(PubSubListener<T> listener, Class<T> clazz) {
     }
 
     @Override
-    public void unsubscribe(PubSubType type) {
+    public void unsubscribe() {
     }
 
     @Override

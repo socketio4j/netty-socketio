@@ -16,18 +16,13 @@
  */
 package com.socketio4j.socketio.store;
 
-import java.util.Queue;
+
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.topic.ITopic;
-import com.socketio4j.socketio.store.pubsub.PubSubListener;
-import com.socketio4j.socketio.store.pubsub.PubSubMessage;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
-import com.socketio4j.socketio.store.pubsub.PubSubType;
+import com.socketio4j.socketio.store.pubsub.*;
 
 
 public class HazelcastPubSubStore implements PubSubStore {
@@ -36,7 +31,7 @@ public class HazelcastPubSubStore implements PubSubStore {
     private final HazelcastInstance hazelcastSub;
     private final Long nodeId;
 
-    private final ConcurrentMap<String, Queue<UUID>> map = new ConcurrentHashMap<>();
+    private final AtomicReference<UUID> map = new AtomicReference<>();
 
     public HazelcastPubSubStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId) {
         this.hazelcastPub = hazelcastPub;
@@ -47,12 +42,13 @@ public class HazelcastPubSubStore implements PubSubStore {
     @Override
     public void publish(PubSubType type, PubSubMessage msg) {
         msg.setNodeId(nodeId);
+        msg.setType(type);
         hazelcastPub.getTopic(type.toString()).publish(msg);
     }
 
     @Override
-    public <T extends PubSubMessage> void subscribe(PubSubType type, final PubSubListener<T> listener, Class<T> clazz) {
-        String name = type.toString();
+    public <T extends PubSubMessage> void subscribe(final PubSubListener<T> listener, Class<T> clazz) {
+        String name = PubSubConstants.TOPIC_NAME;
         ITopic<T> topic = hazelcastSub.getTopic(name);
         UUID regId = topic.addMessageListener(message -> {
             PubSubMessage msg = message.getMessageObject();
@@ -60,29 +56,16 @@ public class HazelcastPubSubStore implements PubSubStore {
                 listener.onMessage(message.getMessageObject());
             }
         });
-
-        Queue<UUID> list = map.get(name);
-        if (list == null) {
-            list = new ConcurrentLinkedQueue<>();
-            Queue<UUID> oldList = map.putIfAbsent(name, list);
-            if (oldList != null) {
-                list = oldList;
-            }
-        }
-        list.add(regId);
+        map.set(regId);
     }
 
     @Override
-    public void unsubscribe(PubSubType type) {
-        String name = type.toString();
-        Queue<UUID> regIds = map.remove(name);
-        if (regIds == null || regIds.isEmpty()) {
-            return;
-        }
+    public void unsubscribe() {
+        String name = PubSubConstants.TOPIC_NAME;
+
         ITopic<Object> topic = hazelcastSub.getTopic(name);
-        for (UUID id : regIds) {
-            topic.removeMessageListener(id);
-        }
+            topic.removeMessageListener(map.get());
+            map.set(null);
     }
 
     @Override
