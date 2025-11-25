@@ -17,7 +17,22 @@
 package com.socketio4j.socketio.store.pubsub;
 
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
 public interface PubSubStore {
+
+    default PubSubStoreMode getMode(){
+        return  PubSubStoreMode.MULTI_CHANNEL;
+    }
+
+    default List<PubSubType> getEnabledTypes() {
+        return Arrays.stream(PubSubType.values())
+                .filter(t -> t != PubSubType.ALL)
+                .collect(Collectors.toList());
+    }
+
 
     void publish(PubSubType type, PubSubMessage msg);
 
