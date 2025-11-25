@@ -53,6 +53,14 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.pubSubStore = new RedissonPubSubStore(redisPub, redisSub, getNodeId());
     }
 
+    public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, RedissonPubSubStore pubSubStore) {
+        this.redisClient = redisClient;
+        this.redisPub = redisPub;
+        this.redisSub = redisSub;
+
+        this.pubSubStore = pubSubStore;
+    }
+
     @Override
     public Store createStore(UUID sessionId) {
         return new RedissonStore(sessionId, redisClient);

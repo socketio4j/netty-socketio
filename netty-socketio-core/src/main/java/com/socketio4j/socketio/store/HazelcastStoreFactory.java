@@ -55,6 +55,13 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
 
         this.pubSubStore = new HazelcastPubSubStore(hazelcastPub, hazelcastSub, getNodeId());
     }
+    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, HazelcastPubSubStore pubSubStore) {
+        this.hazelcastClient = hazelcastClient;
+        this.hazelcastPub = hazelcastPub;
+        this.hazelcastSub = hazelcastSub;
+
+        this.pubSubStore = pubSubStore;
+    }
 
     @Override
     public Store createStore(UUID sessionId) {
