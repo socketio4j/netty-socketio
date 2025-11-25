@@ -35,7 +35,8 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final ConcurrentHashMap<String, Integer> retryCount = new ConcurrentHashMap<>();
 
-
+    private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+    private final AtomicReference<PubSubListener<PubSubMessage>> listenerRef = new AtomicReference<>();
 
     private StreamMessageId offset; // "$"
     private final Duration readTimeout;
@@ -76,16 +77,29 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
                                                     Class<T> clazz) {
 
         ObjectUtil.checkNotNull(listener, "listener");
+        // Single-channel mode subscribes to ALL types
+        if (type != PubSubType.ALL) {
+                throw new UnsupportedOperationException(
+                         "Single-channel mode only supports PubSubType.ALL - no individual subscribes");
+        }
         log.debug("Starting async Redis Streams worker");
-        // Start the worker only once
-        if (running.compareAndSet(false, true)) {
-            pollAsync(stream, (PubSubListener<PubSubMessage>) listener);
+
+        // install listener only once
+        if (!listenerRef.compareAndSet(null, (PubSubListener<PubSubMessage>) listener)) {
+            log.warn("Ignoring additional subscribe() calls. Only one listener is allowed.");
+            return;
         }
 
+        // start worker only once
+        if (running.compareAndSet(false, true)) {
+            pollAsync(stream, listenerRef.get());
+        }
     }
 
 
-    private void pollAsync(final RStream<String, PubSubMessage> stream, final PubSubListener<PubSubMessage> listener) {
+
+    private void pollAsync(final RStream<String, PubSubMessage> stream,
+                           final PubSubListener<PubSubMessage> listener) {
         if (!running.get()) {
             log.debug("Polling stopped");
             return;
@@ -104,67 +118,88 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
                     }
 
                     if (messages != null && !messages.isEmpty()) {
+
                         for (Map.Entry<StreamMessageId, Map<String, PubSubMessage>> entry : messages.entrySet()) {
 
                             StreamMessageId id = entry.getKey();
-                            Map<String, PubSubMessage> fields = entry.getValue();
-                            Map.Entry<String, PubSubMessage> field = fields.entrySet().iterator().next();
-
-                            String typeString = field.getKey();
-                            PubSubMessage msg = field.getValue();
-                            PubSubType type = PubSubType.valueOf(typeString.toUpperCase());
+                            PubSubMessage msg =
+                                    entry.getValue().entrySet().iterator().next().getValue();
 
                             if (!nodeId.equals(msg.getNodeId())) {
-                                // Get existing retry count or 0
-                                int attempts = retryCount.getOrDefault(id.toString(), 0);
-                                try {
-                                    listener.onMessage(msg);
-                                    // Success → cleanup retry entry
-                                    retryCount.remove(id.toString());
-                                } catch (Exception ex) {
-                                    log.error("Listener error for type {} (attempt {}/3)", type, attempts + 1, ex);
 
-                                    if (attempts < maxRetryCount-1) {
-                                        // Increment retry counter and retry later
-                                        retryCount.put(id.toString(), attempts + 1);
+                                boolean processed;
+                                do {
+                                    processed = processMessage(msg, listener, id);
+                                } while (!processed);
 
-                                        // DO NOT move offset → retry same message next poll
-                                        continue;
-                                    }
 
-                                    // Already tried 3 times → give up this message
-                                    log.error("Giving up message {} after 3 attempts ", id, ex);
-                                    retryCount.remove(id.toString());
-                                }
                             }
 
-
-                            offset = id;  // move forward safely
+                            // success or give-up → advance offset (as we use > )
+                            offset = id;
                         }
                     }
+
                     pollAsync(stream, listener);
                 });
     }
 
-    private void scheduleNextPoll(final RStream<String, PubSubMessage> stream, final PubSubListener<PubSubMessage> listener) {
 
-        ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
 
-        exec.schedule(() -> {
-            try {
-                pollAsync(stream, listener);
-            } finally {
-                exec.shutdown();
+    private boolean processMessage(PubSubMessage msg,
+                                   PubSubListener<PubSubMessage> listener,
+                                   StreamMessageId id) {
+
+        String key = id.toString();
+        int attempts = retryCount.getOrDefault(key, 0);
+
+        try {
+            listener.onMessage(msg);
+            retryCount.remove(key);
+            return true;  // success
+        } catch (Exception ex) {
+
+            int nextAttempt = attempts + 1;
+
+            if (nextAttempt < maxRetryCount) {
+                log.error("Listener failed for {} (attempt {}/{}) → will retry on next poll",
+                        id, nextAttempt, maxRetryCount, ex);
+
+                retryCount.put(key, nextAttempt);
+                return false;  // retry in next poll
             }
-        }, 1, TimeUnit.SECONDS);
+
+            // Max retries reached
+            log.error("Giving up message {} after {} attempts", id, maxRetryCount, ex);
+
+            retryCount.remove(key);
+
+            // TODO: DLQ here
+
+            return true; // "processed" (give up) → so offset moves
+        }
+    }
+
+
+
+    private void scheduleNextPoll(final RStream<String, PubSubMessage> stream, final PubSubListener<PubSubMessage> listener) {
+        if (running.get()) {
+            executorService.schedule(() -> pollAsync(stream, listener), 1, TimeUnit.SECONDS);
+        }
 
     }
 
 
     @Override
     public void unsubscribe(PubSubType type) {
+        // Single-channel mode subscribes to ALL types
+        if (type != PubSubType.ALL) {
+            throw new UnsupportedOperationException(
+                    "Single-channel mode only supports PubSubType.ALL - no individual un-subscribes");
+        }
         log.debug("Unsubscribing from Redis Streams");
         running.set(false);
+        listenerRef.set(null);
     }
 
     // =========================================================================
@@ -174,7 +209,8 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
     @Override
     public void shutdown() {
         log.debug("Shutting down Redis Streams");
-        running.set(false);
+        unsubscribe(PubSubType.ALL);
+        executorService.shutdownNow();
         redissonClient.shutdown();
     }
 
