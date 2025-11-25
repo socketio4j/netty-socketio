@@ -29,10 +29,6 @@ import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.StoreFactory;
 
-import io.netty.util.internal.ObjectUtil;
-
-
-
 public abstract class BaseStoreFactory implements StoreFactory {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
@@ -45,16 +41,24 @@ public abstract class BaseStoreFactory implements StoreFactory {
 
     @Override
     public void init(final NamespacesHub namespacesHub, final AuthorizeHandler authorizeHandler, JsonSupport jsonSupport) {
-        ObjectUtil.checkNotNull(pubSubStore().getMode(), "mode");
-        if (pubSubStore().getMode().equals(PubSubStoreMode.MULTI_CHANNEL)) {
-            pubSubStore().subscribe(PubSubType.DISCONNECT, msg -> log.debug("{} sessionId: {}", PubSubType.DISCONNECT, msg.getSessionId()), DisconnectMessage.class);
+        pubSubStore().subscribe(PubSubType.DISCONNECT, new PubSubListener<DisconnectMessage>() {
+            @Override
+            public void onMessage(DisconnectMessage msg) {
+                log.debug("{} sessionId: {}", PubSubType.DISCONNECT, msg.getSessionId());
+            }
+        }, DisconnectMessage.class);
 
-            pubSubStore().subscribe(PubSubType.CONNECT, msg -> {
+        pubSubStore().subscribe(PubSubType.CONNECT, new PubSubListener<ConnectMessage>() {
+            @Override
+            public void onMessage(ConnectMessage msg) {
                 authorizeHandler.connect(msg.getSessionId());
                 log.debug("{} sessionId: {}", PubSubType.CONNECT, msg.getSessionId());
-            }, ConnectMessage.class);
+            }
+        }, ConnectMessage.class);
 
-            pubSubStore().subscribe(PubSubType.DISPATCH, msg -> {
+        pubSubStore().subscribe(PubSubType.DISPATCH, new PubSubListener<DispatchMessage>() {
+            @Override
+            public void onMessage(DispatchMessage msg) {
                 String name = msg.getRoom();
 
                 Namespace n = namespacesHub.get(msg.getNamespace());
@@ -62,9 +66,12 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     n.dispatch(name, msg.getPacket());
                 }
                 log.debug("{} packet: {}", PubSubType.DISPATCH, msg.getPacket());
-            }, DispatchMessage.class);
+            }
+        }, DispatchMessage.class);
 
-            pubSubStore().subscribe(PubSubType.JOIN, msg -> {
+        pubSubStore().subscribe(PubSubType.JOIN, new PubSubListener<JoinLeaveMessage>() {
+            @Override
+            public void onMessage(JoinLeaveMessage msg) {
                 String name = msg.getRoom();
 
                 Namespace n = namespacesHub.get(msg.getNamespace());
@@ -72,9 +79,12 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     n.join(name, msg.getSessionId());
                 }
                 log.debug("{} sessionId: {}", PubSubType.JOIN, msg.getSessionId());
-            }, JoinLeaveMessage.class);
+            }
+        }, JoinLeaveMessage.class);
 
-            pubSubStore().subscribe(PubSubType.BULK_JOIN, msg -> {
+        pubSubStore().subscribe(PubSubType.BULK_JOIN, new PubSubListener<BulkJoinLeaveMessage>() {
+            @Override
+            public void onMessage(BulkJoinLeaveMessage msg) {
                 Set<String> rooms = msg.getRooms();
 
                 for (String room : rooms) {
@@ -84,9 +94,12 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     }
                 }
                 log.debug("{} sessionId: {}", PubSubType.BULK_JOIN, msg.getSessionId());
-            }, BulkJoinLeaveMessage.class);
+            }
+        }, BulkJoinLeaveMessage.class);
 
-            pubSubStore().subscribe(PubSubType.LEAVE, msg -> {
+        pubSubStore().subscribe(PubSubType.LEAVE, new PubSubListener<JoinLeaveMessage>() {
+            @Override
+            public void onMessage(JoinLeaveMessage msg) {
                 String name = msg.getRoom();
 
                 Namespace n = namespacesHub.get(msg.getNamespace());
@@ -94,9 +107,12 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     n.leave(name, msg.getSessionId());
                 }
                 log.debug("{} sessionId: {}", PubSubType.LEAVE, msg.getSessionId());
-            }, JoinLeaveMessage.class);
+            }
+        }, JoinLeaveMessage.class);
 
-            pubSubStore().subscribe(PubSubType.BULK_LEAVE, msg -> {
+        pubSubStore().subscribe(PubSubType.BULK_LEAVE, new PubSubListener<BulkJoinLeaveMessage>() {
+            @Override
+            public void onMessage(BulkJoinLeaveMessage msg) {
                 Set<String> rooms = msg.getRooms();
 
                 for (String room : rooms) {
@@ -106,60 +122,8 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     }
                 }
                 log.debug("{} sessionId: {}", PubSubType.BULK_LEAVE, msg.getSessionId());
-            }, BulkJoinLeaveMessage.class);
-        } else if (pubSubStore().getMode().equals(PubSubStoreMode.SINGLE_CHANNEL)) {
-            pubSubStore().subscribe(PubSubType.ALL, message -> {
-                log.debug("Received message via stream : {}", message);
-                if (message instanceof ConnectMessage) {
-                    ConnectMessage connectMessage = (ConnectMessage) message;
-                    authorizeHandler.connect(connectMessage.getSessionId());
-                    log.debug("[PUBSUB] CONNECT sessionId={}", connectMessage.getSessionId());
-                } else if (message instanceof DisconnectMessage) {
-                    DisconnectMessage disconnectMessage = (DisconnectMessage) message;
-                    log.debug("{} sessionId: {}", PubSubType.DISCONNECT, disconnectMessage.getSessionId());
-                } else if (message instanceof JoinLeaveMessage) {
-                    JoinLeaveMessage joinMessage = (JoinLeaveMessage) message;
-                    Namespace n = namespacesHub.get(joinMessage.getNamespace());
-                    if (n != null) {
-                        n.join(joinMessage.getRoom(), joinMessage.getSessionId());
-                    }
-                    log.debug("[PUBSUB] JOIN room={} sessionId={}", joinMessage.getRoom(), joinMessage.getSessionId());
-                } else if (message instanceof JoinLeaveMessage) {
-                    JoinLeaveMessage leaveMessage = (JoinLeaveMessage) message;
-                    Namespace n1 = namespacesHub.get(leaveMessage.getNamespace());
-                    if (n1 != null) {
-                        n1.leave(leaveMessage.getRoom(), leaveMessage.getSessionId());
-                    }
-                    log.debug("[PUBSUB] LEAVE room={} sessionId={}", leaveMessage.getRoom(), leaveMessage.getSessionId());
-                } else if (message instanceof DispatchMessage) {
-                    DispatchMessage dispatchMessage = (DispatchMessage) message;
-                    Namespace n2 = namespacesHub.get(dispatchMessage.getNamespace());
-                    if (n2 != null) {
-                        n2.dispatch(dispatchMessage.getRoom(), dispatchMessage.getPacket());
-                    }
-                    log.debug("[PUBSUB] DISPATCH packet={} namespace={}", dispatchMessage.getPacket(), dispatchMessage.getNamespace());
-                } else if (message instanceof BulkJoinLeaveMessage) {
-                    BulkJoinLeaveMessage bulkJoinMessage = (BulkJoinLeaveMessage) message;
-                    Namespace n3 = namespacesHub.get(bulkJoinMessage.getNamespace());
-                    if (n3 != null) {
-                        for (String room : bulkJoinMessage.getRooms()) {
-                            n3.join(room, bulkJoinMessage.getSessionId());
-                        }
-                    }
-                    log.debug("[PUBSUB] BULK_JOIN rooms={} sessionId={}", bulkJoinMessage.getRooms(), bulkJoinMessage.getSessionId());
-                } else if (message instanceof BulkJoinLeaveMessage) {
-                    BulkJoinLeaveMessage bulkLeaveMessage = (BulkJoinLeaveMessage) message;
-                    Namespace n4 = namespacesHub.get(bulkLeaveMessage.getNamespace());
-                    if (n4 != null) {
-                        for (String room : bulkLeaveMessage.getRooms()) {
-                            n4.leave(room, bulkLeaveMessage.getSessionId());
-                        }
-                    }
-                    log.debug("[PUBSUB] BULK_LEAVE rooms={} sessionId={}", bulkLeaveMessage.getRooms(), bulkLeaveMessage.getSessionId());
-                }
-            }, PubSubMessage.class);
-        }
-
+            }
+        }, BulkJoinLeaveMessage.class);
     }
 
     @Override
