@@ -16,20 +16,37 @@
  */
 package com.socketio4j.socketio.store.pubsub;
 
-public enum PubSubType {
+import java.util.Set;
+import java.util.UUID;
 
-    CONNECT,
-    DISCONNECT,
-    JOIN,
-    BULK_JOIN,
-    LEAVE,
-    BULK_LEAVE,
-    DISPATCH,
-    ALL;
+public class BulkLeaveMessage extends PubSubMessage {
 
-    @Override
-    public String toString() {
-        return name().toLowerCase();
+    private static final long serialVersionUID = 7506016762607624388L;
+
+    private UUID sessionId;
+    private String namespace;
+    private Set<String> rooms;
+
+    public BulkLeaveMessage() {
+    }
+
+    public BulkLeaveMessage(UUID id, Set<String> rooms, String namespace) {
+        super();
+        this.sessionId = id;
+        this.rooms = rooms;
+        this.namespace = namespace;
+    }
+
+    public String getNamespace() {
+        return namespace;
+    }
+
+    public UUID getSessionId() {
+        return sessionId;
+    }
+
+    public Set<String> getRooms() {
+        return rooms;
     }
 
 }
