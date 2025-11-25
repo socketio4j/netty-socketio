@@ -72,7 +72,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     n.join(name, msg.getSessionId());
                 }
                 log.debug("{} sessionId: {}", PubSubType.JOIN, msg.getSessionId());
-            }, JoinLeaveMessage.class);
+            }, JoinMessage.class);
 
             pubSubStore().subscribe(PubSubType.BULK_JOIN, msg -> {
                 Set<String> rooms = msg.getRooms();
@@ -84,7 +84,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     }
                 }
                 log.debug("{} sessionId: {}", PubSubType.BULK_JOIN, msg.getSessionId());
-            }, BulkJoinLeaveMessage.class);
+            }, BulkJoinMessage.class);
 
             pubSubStore().subscribe(PubSubType.LEAVE, msg -> {
                 String name = msg.getRoom();
@@ -94,7 +94,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     n.leave(name, msg.getSessionId());
                 }
                 log.debug("{} sessionId: {}", PubSubType.LEAVE, msg.getSessionId());
-            }, JoinLeaveMessage.class);
+            }, JoinMessage.class);
 
             pubSubStore().subscribe(PubSubType.BULK_LEAVE, msg -> {
                 Set<String> rooms = msg.getRooms();
@@ -106,7 +106,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     }
                 }
                 log.debug("{} sessionId: {}", PubSubType.BULK_LEAVE, msg.getSessionId());
-            }, BulkJoinLeaveMessage.class);
+            }, BulkJoinMessage.class);
         } else if (pubSubStore().getMode().equals(PubSubStoreMode.SINGLE_CHANNEL)) {
             pubSubStore().subscribe(PubSubType.ALL, message -> {
                 log.debug("Received message via stream : {}", message);
@@ -117,15 +117,15 @@ public abstract class BaseStoreFactory implements StoreFactory {
                 } else if (message instanceof DisconnectMessage) {
                     DisconnectMessage disconnectMessage = (DisconnectMessage) message;
                     log.debug("{} sessionId: {}", PubSubType.DISCONNECT, disconnectMessage.getSessionId());
-                } else if (message instanceof JoinLeaveMessage) {
-                    JoinLeaveMessage joinMessage = (JoinLeaveMessage) message;
+                } else if (message instanceof JoinMessage) {
+                    JoinMessage joinMessage = (JoinMessage) message;
                     Namespace n = namespacesHub.get(joinMessage.getNamespace());
                     if (n != null) {
                         n.join(joinMessage.getRoom(), joinMessage.getSessionId());
                     }
                     log.debug("[PUBSUB] JOIN room={} sessionId={}", joinMessage.getRoom(), joinMessage.getSessionId());
-                } else if (message instanceof JoinLeaveMessage) {
-                    JoinLeaveMessage leaveMessage = (JoinLeaveMessage) message;
+                } else if (message instanceof LeaveMessage) {
+                    LeaveMessage leaveMessage = (LeaveMessage) message;
                     Namespace n1 = namespacesHub.get(leaveMessage.getNamespace());
                     if (n1 != null) {
                         n1.leave(leaveMessage.getRoom(), leaveMessage.getSessionId());
@@ -138,8 +138,8 @@ public abstract class BaseStoreFactory implements StoreFactory {
                         n2.dispatch(dispatchMessage.getRoom(), dispatchMessage.getPacket());
                     }
                     log.debug("[PUBSUB] DISPATCH packet={} namespace={}", dispatchMessage.getPacket(), dispatchMessage.getNamespace());
-                } else if (message instanceof BulkJoinLeaveMessage) {
-                    BulkJoinLeaveMessage bulkJoinMessage = (BulkJoinLeaveMessage) message;
+                } else if (message instanceof BulkJoinMessage) {
+                    BulkJoinMessage bulkJoinMessage = (BulkJoinMessage) message;
                     Namespace n3 = namespacesHub.get(bulkJoinMessage.getNamespace());
                     if (n3 != null) {
                         for (String room : bulkJoinMessage.getRooms()) {
@@ -147,8 +147,8 @@ public abstract class BaseStoreFactory implements StoreFactory {
                         }
                     }
                     log.debug("[PUBSUB] BULK_JOIN rooms={} sessionId={}", bulkJoinMessage.getRooms(), bulkJoinMessage.getSessionId());
-                } else if (message instanceof BulkJoinLeaveMessage) {
-                    BulkJoinLeaveMessage bulkLeaveMessage = (BulkJoinLeaveMessage) message;
+                } else if (message instanceof BulkLeaveMessage) {
+                    BulkLeaveMessage bulkLeaveMessage = (BulkLeaveMessage) message;
                     Namespace n4 = namespacesHub.get(bulkLeaveMessage.getNamespace());
                     if (n4 != null) {
                         for (String room : bulkLeaveMessage.getRooms()) {
