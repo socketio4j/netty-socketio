@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 
+import com.socketio4j.socketio.store.pubsub.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,9 +56,6 @@ import com.socketio4j.socketio.listener.PongListener;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.store.StoreFactory;
-import com.socketio4j.socketio.store.pubsub.BulkJoinMessage;
-import com.socketio4j.socketio.store.pubsub.JoinMessage;
-import com.socketio4j.socketio.store.pubsub.PubSubType;
 import com.socketio4j.socketio.transport.NamespaceClient;
 
 
@@ -216,7 +214,7 @@ public class Namespace implements SocketIONamespace {
             leave(roomClients, joinedRoom, client.getSessionId());
         }
         clientRooms.remove(client.getSessionId());
-        storeFactory.pubSubStore().publish(PubSubType.BULK_LEAVE, new BulkJoinMessage(client.getSessionId(), roomsToLeave, getName()));
+        storeFactory.pubSubStore().publish(PubSubType.BULK_LEAVE, new BulkLeaveMessage(client.getSessionId(), roomsToLeave, getName()));
 
         try {
             for (DisconnectListener listener : disconnectListeners) {
@@ -397,14 +395,14 @@ public class Namespace implements SocketIONamespace {
 
     public void leaveRoom(String room, UUID sessionId) {
         leave(room, sessionId);
-        storeFactory.pubSubStore().publish(PubSubType.LEAVE, new JoinMessage(sessionId, room, getName()));
+        storeFactory.pubSubStore().publish(PubSubType.LEAVE, new LeaveMessage(sessionId, room, getName()));
     }
 
     public void leaveRooms(Set<String> rooms, final UUID sessionId) {
         for (String room : rooms) {
             leave(room, sessionId);
         }
-        storeFactory.pubSubStore().publish(PubSubType.BULK_LEAVE, new BulkJoinMessage(sessionId, rooms, getName()));
+        storeFactory.pubSubStore().publish(PubSubType.BULK_LEAVE, new BulkLeaveMessage(sessionId, rooms, getName()));
     }
 
     private <K, V> void leave(ConcurrentMap<K, Set<V>> map, K room, V sessionId) {
