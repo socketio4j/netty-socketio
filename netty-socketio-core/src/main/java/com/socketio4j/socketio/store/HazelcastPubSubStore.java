@@ -55,9 +55,9 @@ public class HazelcastPubSubStore implements PubSubStore {
 
         ITopic<T> topic = hazelcastSub.getTopic(type.toString());
 
-        UUID regId = topic.addMessageListener(message -> {
-            if (!nodeId.equals(message.getMessageObject().getNodeId())) {
-                listener.onMessage(message.getMessageObject());
+        UUID regId = topic.addMessageListener(msg -> {
+            if (!nodeId.equals(msg.getMessageObject().getNodeId())) {
+                listener.onMessage(msg.getMessageObject());
             }
         });
 
