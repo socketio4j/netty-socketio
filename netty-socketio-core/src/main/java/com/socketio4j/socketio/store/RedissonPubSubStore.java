@@ -52,26 +52,16 @@ public class RedissonPubSubStore implements PubSubStore {
 
     @Override
     public <T extends PubSubMessage> void subscribe(PubSubType type, final PubSubListener<T> listener, Class<T> clazz) {
-        String name = type.toString();
-        RTopic topic = redissonSub.getTopic(name);
-        int regId = topic.addListener(PubSubMessage.class, new MessageListener<PubSubMessage>() {
-            @Override
-            public void onMessage(CharSequence channel, PubSubMessage msg) {
-                if (!nodeId.equals(msg.getNodeId())) {
-                    listener.onMessage((T) msg);
-                }
+
+        RTopic topic = redissonSub.getTopic(type.toString());
+
+        int regId = topic.addListener(PubSubMessage.class, (channel, msg) -> {
+            if (!nodeId.equals(msg.getNodeId())) {
+                listener.onMessage((T) msg);
             }
         });
 
-        Queue<Integer> list = map.get(name);
-        if (list == null) {
-            list = new ConcurrentLinkedQueue<Integer>();
-            Queue<Integer> oldList = map.putIfAbsent(name, list);
-            if (oldList != null) {
-                list = oldList;
-            }
-        }
-        list.add(regId);
+        map.computeIfAbsent(type.toString(), k -> new ConcurrentLinkedQueue<>()).add(regId);
     }
 
     @Override

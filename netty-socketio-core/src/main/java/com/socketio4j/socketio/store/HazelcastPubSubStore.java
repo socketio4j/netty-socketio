@@ -52,24 +52,17 @@ public class HazelcastPubSubStore implements PubSubStore {
 
     @Override
     public <T extends PubSubMessage> void subscribe(PubSubType type, final PubSubListener<T> listener, Class<T> clazz) {
-        String name = type.toString();
-        ITopic<T> topic = hazelcastSub.getTopic(name);
+
+        ITopic<T> topic = hazelcastSub.getTopic(type.toString());
+
         UUID regId = topic.addMessageListener(message -> {
-            PubSubMessage msg = message.getMessageObject();
-            if (!nodeId.equals(msg.getNodeId())) {
+            if (!nodeId.equals(message.getMessageObject().getNodeId())) {
                 listener.onMessage(message.getMessageObject());
             }
         });
 
-        Queue<UUID> list = map.get(name);
-        if (list == null) {
-            list = new ConcurrentLinkedQueue<>();
-            Queue<UUID> oldList = map.putIfAbsent(name, list);
-            if (oldList != null) {
-                list = oldList;
-            }
-        }
-        list.add(regId);
+        map.computeIfAbsent(type.toString(), k -> new ConcurrentLinkedQueue<>())
+                .add(regId);
     }
 
     @Override
