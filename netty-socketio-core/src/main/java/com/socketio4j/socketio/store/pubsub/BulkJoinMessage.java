@@ -16,30 +16,37 @@
  */
 package com.socketio4j.socketio.store.pubsub;
 
+import java.util.Set;
+import java.util.UUID;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
+public class BulkJoinMessage extends PubSubMessage {
 
-public interface PubSubStore {
+    private static final long serialVersionUID = 7506016762607624388L;
 
-    default PubSubStoreMode getMode(){
-        return  PubSubStoreMode.MULTI_CHANNEL;
+    private UUID sessionId;
+    private String namespace;
+    private Set<String> rooms;
+
+    public BulkJoinMessage() {
     }
 
-    default List<PubSubType> getEnabledTypes() {
-        return Arrays.stream(PubSubType.values())
-                .filter(t -> t != PubSubType.ALL_SINGLE_CHANNEL)
-                .collect(Collectors.toList());
+    public BulkJoinMessage(UUID id, Set<String> rooms, String namespace) {
+        super();
+        this.sessionId = id;
+        this.rooms = rooms;
+        this.namespace = namespace;
     }
 
+    public String getNamespace() {
+        return namespace;
+    }
 
-    void publish(PubSubType type, PubSubMessage msg);
+    public UUID getSessionId() {
+        return sessionId;
+    }
 
-    <T extends PubSubMessage> void subscribe(PubSubType type, PubSubListener<T> listener, Class<T> clazz);
-
-    void unsubscribe(PubSubType type);
-
-    void shutdown();
+    public Set<String> getRooms() {
+        return rooms;
+    }
 
 }

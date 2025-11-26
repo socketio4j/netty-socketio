@@ -16,24 +16,23 @@
  */
 package com.socketio4j.socketio.store.pubsub;
 
-import java.util.Set;
 import java.util.UUID;
 
-public class BulkJoinLeaveMessage extends PubSubMessage {
+public class JoinMessage extends PubSubMessage {
 
-    private static final long serialVersionUID = 7506016762607624388L;
+    private static final long serialVersionUID = -944515928988033174L;
 
     private UUID sessionId;
     private String namespace;
-    private Set<String> rooms;
+    private String room;
 
-    public BulkJoinLeaveMessage() {
+    public JoinMessage() {
     }
 
-    public BulkJoinLeaveMessage(UUID id, Set<String> rooms, String namespace) {
+    public JoinMessage(UUID id, String room, String namespace) {
         super();
         this.sessionId = id;
-        this.rooms = rooms;
+        this.room = room;
         this.namespace = namespace;
     }
 
@@ -45,8 +44,8 @@ public class BulkJoinLeaveMessage extends PubSubMessage {
         return sessionId;
     }
 
-    public Set<String> getRooms() {
-        return rooms;
+    public String getRoom() {
+        return room;
     }
 
 }

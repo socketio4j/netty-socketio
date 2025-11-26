@@ -18,7 +18,14 @@ package com.socketio4j.socketio.store.pubsub;
 
 public enum PubSubType {
 
-    CONNECT, DISCONNECT, JOIN, BULK_JOIN, LEAVE, BULK_LEAVE, DISPATCH;
+    CONNECT,
+    DISCONNECT,
+    JOIN,
+    BULK_JOIN,
+    LEAVE,
+    BULK_LEAVE,
+    DISPATCH,
+    ALL_SINGLE_CHANNEL;
 
     @Override
     public String toString() {

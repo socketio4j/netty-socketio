@@ -23,12 +23,8 @@ import java.util.concurrent.ConcurrentMap;
 
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
-import org.redisson.api.listener.MessageListener;
 
-import com.socketio4j.socketio.store.pubsub.PubSubListener;
-import com.socketio4j.socketio.store.pubsub.PubSubMessage;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
-import com.socketio4j.socketio.store.pubsub.PubSubType;
+import com.socketio4j.socketio.store.pubsub.*;
 
 public class RedissonPubSubStore implements PubSubStore {
 
@@ -54,18 +50,15 @@ public class RedissonPubSubStore implements PubSubStore {
     public <T extends PubSubMessage> void subscribe(PubSubType type, final PubSubListener<T> listener, Class<T> clazz) {
         String name = type.toString();
         RTopic topic = redissonSub.getTopic(name);
-        int regId = topic.addListener(PubSubMessage.class, new MessageListener<PubSubMessage>() {
-            @Override
-            public void onMessage(CharSequence channel, PubSubMessage msg) {
-                if (!nodeId.equals(msg.getNodeId())) {
-                    listener.onMessage((T) msg);
-                }
+        int regId = topic.addListener(PubSubMessage.class, (channel, msg) -> {
+            if (!nodeId.equals(msg.getNodeId())) {
+                listener.onMessage((T) msg);
             }
         });
 
         Queue<Integer> list = map.get(name);
         if (list == null) {
-            list = new ConcurrentLinkedQueue<Integer>();
+            list = new ConcurrentLinkedQueue<>();
             Queue<Integer> oldList = map.putIfAbsent(name, list);
             if (oldList != null) {
                 list = oldList;
