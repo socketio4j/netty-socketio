@@ -600,7 +600,7 @@
       <plugin>
         <groupId>com.mycila</groupId>
         <artifactId>license-maven-plugin</artifactId>
-        <version>2.6</version>
+        <version>5.0.0</version>
         <configuration>
           <basedir>${basedir}</basedir>
           <header>${maven.multiModuleProjectDirectory}/header.txt</header>
