@@ -183,10 +183,22 @@ public class JacksonJsonSupport implements JsonSupport {
             EventKey ek = new EventKey(namespaceClass.get(), eventName);
             if (!eventMapping.containsKey(ek)) {
                 ek = new EventKey(Namespace.DEFAULT_NAME, eventName);
+
+                // STILL no mapping → fallback: parse raw args generically
                 if (!eventMapping.containsKey(ek)) {
-                    return new Event(eventName, Collections.emptyList());
+                    // Parse all remaining tokens as generic JSON values
+                    List<Object> genericArgs = new ArrayList<>();
+
+                    while (jp.nextToken() != JsonToken.END_ARRAY) {
+                        // read JSON into generic Object (Map/List/String/Number)
+                        Object value = mapper.readValue(jp, Object.class);
+                        genericArgs.add(value);
+                    }
+
+                    return new Event(eventName, genericArgs);
                 }
             }
+
 
             List<Object> eventArgs = new ArrayList<Object>();
             Event event = new Event(eventName, eventArgs);

@@ -378,6 +378,11 @@ public class SocketIOServer implements ClientListeners {
     }
 
     @Override
+    public void onAny(CatchAllEventListener listener) {
+        onAnyEvent(listener);
+    }
+
+    @Override
     public void addDisconnectListener(DisconnectListener listener) {
         mainNamespace.addDisconnectListener(listener);
     }

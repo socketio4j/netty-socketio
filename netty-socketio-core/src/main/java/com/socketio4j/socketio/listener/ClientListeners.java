@@ -50,4 +50,6 @@ public interface ClientListeners {
 
     void onAnyEvent(CatchAllEventListener listener);
 
+    //alias of onAnyEvent
+    void onAny(CatchAllEventListener listener);
 }

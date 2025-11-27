@@ -141,6 +141,10 @@ public class Namespace implements SocketIONamespace {
         catchAllEventListeners.add(listener);
     }
 
+    @Override
+    public void onAny(CatchAllEventListener listener) {
+        onAnyEvent(listener);
+    }
 
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
