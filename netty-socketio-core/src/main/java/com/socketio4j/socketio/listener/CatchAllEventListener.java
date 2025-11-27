@@ -3,7 +3,7 @@ package com.socketio4j.socketio.listener;
 import java.util.List;
 
 import com.socketio4j.socketio.AckRequest;
-import com.socketio4j.socketio.SocketIOClient;
+// import com.socketio4j.socketio.SocketIOClient; // Removed as not needed after parameter removal
 
 
 /**
@@ -12,5 +12,5 @@ import com.socketio4j.socketio.SocketIOClient;
  */
 @FunctionalInterface
 public interface CatchAllEventListener {
-    void onEvent(SocketIOClient client, String eventName, List<Object> args, AckRequest ackRequest);
+    void onEvent(String eventName, List<Object> args, AckRequest ackRequest);
 }
