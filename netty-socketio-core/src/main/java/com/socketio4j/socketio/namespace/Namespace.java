@@ -49,6 +49,7 @@ import com.socketio4j.socketio.listener.ConnectListener;
 import com.socketio4j.socketio.listener.DataListener;
 import com.socketio4j.socketio.listener.DisconnectListener;
 import com.socketio4j.socketio.listener.EventInterceptor;
+import com.socketio4j.socketio.listener.ExceptionListener;
 import com.socketio4j.socketio.listener.MultiTypeEventListener;
 import com.socketio4j.socketio.listener.PingListener;
 import com.socketio4j.socketio.listener.PongListener;
