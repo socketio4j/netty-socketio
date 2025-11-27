@@ -48,8 +48,12 @@ public interface ClientListeners {
 
     void removeAllListeners(String eventName);
 
-    default void onAnyEvent(CatchAllEventListener listener) {
-        throw new UnsupportedOperationException("onAnyEvent is not implemented");
+    default void addOnAnyEventListener(CatchAllEventListener listener) {
+        throw new UnsupportedOperationException("addOnAnyEventListener is not implemented");
+    }
+
+    default void removeOnAnyEventListener(CatchAllEventListener listener) {
+        throw new UnsupportedOperationException("removeOnAnyEventListener is not implemented");
     }
 
 }

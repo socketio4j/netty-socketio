@@ -21,6 +21,6 @@ import java.util.List;
 import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.transport.NamespaceClient;
 
-public interface  EventInterceptor {
+public interface EventInterceptor {
     void onEvent(NamespaceClient client, String eventName, List<Object> args, AckRequest ackRequest);
 }

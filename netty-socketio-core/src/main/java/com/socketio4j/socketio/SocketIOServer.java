@@ -373,12 +373,23 @@ public class SocketIOServer implements ClientListeners {
     }
 
     @Override
-    public void onAnyEvent(CatchAllEventListener listener) {
-        mainNamespace.onAnyEvent(listener);
+    public void addOnAnyEventListener(CatchAllEventListener listener) {
+        mainNamespace.addOnAnyEventListener(listener);
     }
 
+    @Override
+    public void removeOnAnyEventListener(CatchAllEventListener listener) {
+        mainNamespace.removeOnAnyEventListener(listener);
+    }
+
+    //alias addOnAnyEventListener
     public void onAny(CatchAllEventListener listener) {
-        onAnyEvent(listener);
+        addOnAnyEventListener(listener);
+    }
+
+    //alias removeOnAnyEventListener
+    public void offAny(CatchAllEventListener listener) {
+        addOnAnyEventListener(listener);
     }
 
     @Override
