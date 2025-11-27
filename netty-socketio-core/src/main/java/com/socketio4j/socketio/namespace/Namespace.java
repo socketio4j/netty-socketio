@@ -149,11 +149,13 @@ public class Namespace implements SocketIONamespace {
     }
 
     //alias of addOnAnyEventListener
+    @Override
     public void onAny(CatchAllEventListener listener) {
         addOnAnyEventListener(listener);
     }
 
     //alias of removeOnAnyEventListener
+    @Override
     public void offAny(CatchAllEventListener listener) {
         removeOnAnyEventListener(listener);
     }

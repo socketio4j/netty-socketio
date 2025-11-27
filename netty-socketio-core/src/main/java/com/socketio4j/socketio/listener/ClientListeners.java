@@ -56,4 +56,11 @@ public interface ClientListeners {
         throw new UnsupportedOperationException("removeOnAnyEventListener is not implemented");
     }
 
+    default void onAny(CatchAllEventListener listener) {
+        addOnAnyEventListener(listener);
+    }
+    default void offAny(CatchAllEventListener listener) {
+        removeOnAnyEventListener(listener);
+    }
+
 }

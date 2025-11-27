@@ -383,11 +383,13 @@ public class SocketIOServer implements ClientListeners {
     }
 
     //alias addOnAnyEventListener
+    @Override
     public void onAny(CatchAllEventListener listener) {
         addOnAnyEventListener(listener);
     }
 
     //alias removeOnAnyEventListener
+    @Override
     public void offAny(CatchAllEventListener listener) {
         removeOnAnyEventListener(listener);
     }
