@@ -1,9 +1,10 @@
 package com.socketio4j.socketio.listener;
 
+import java.util.List;
+
 import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.SocketIOClient;
 
-import java.util.List;
 
 /**
  * @author https://github.com/sanjomo
