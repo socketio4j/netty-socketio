@@ -47,5 +47,7 @@ public interface ClientListeners {
     void addListeners(Object listeners, Class<?> listenersClass);
 
     void removeAllListeners(String eventName);
-    
+
+    void onAny(CatchAllEventListener listener);
+
 }

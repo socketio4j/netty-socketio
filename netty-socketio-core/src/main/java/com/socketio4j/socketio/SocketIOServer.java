@@ -23,17 +23,10 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.socketio4j.socketio.listener.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.socketio4j.socketio.listener.ClientListeners;
-import com.socketio4j.socketio.listener.ConnectListener;
-import com.socketio4j.socketio.listener.DataListener;
-import com.socketio4j.socketio.listener.DisconnectListener;
-import com.socketio4j.socketio.listener.EventInterceptor;
-import com.socketio4j.socketio.listener.MultiTypeEventListener;
-import com.socketio4j.socketio.listener.PingListener;
-import com.socketio4j.socketio.listener.PongListener;
 import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.namespace.NamespacesHub;
 
@@ -369,6 +362,11 @@ public class SocketIOServer implements ClientListeners {
     @Override
     public void removeAllListeners(String eventName) {
         mainNamespace.removeAllListeners(eventName);
+    }
+
+    @Override
+    public void onAny(CatchAllEventListener listener) {
+        mainNamespace.onAny(listener);
     }
 
     @Override

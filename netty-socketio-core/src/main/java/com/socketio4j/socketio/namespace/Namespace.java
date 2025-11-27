@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 
+import com.socketio4j.socketio.listener.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,14 +45,6 @@ import com.socketio4j.socketio.SingleRoomBroadcastOperations;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIONamespace;
 import com.socketio4j.socketio.annotation.ScannerEngine;
-import com.socketio4j.socketio.listener.ConnectListener;
-import com.socketio4j.socketio.listener.DataListener;
-import com.socketio4j.socketio.listener.DisconnectListener;
-import com.socketio4j.socketio.listener.EventInterceptor;
-import com.socketio4j.socketio.listener.ExceptionListener;
-import com.socketio4j.socketio.listener.MultiTypeEventListener;
-import com.socketio4j.socketio.listener.PingListener;
-import com.socketio4j.socketio.listener.PongListener;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.store.StoreFactory;
@@ -75,6 +68,7 @@ public class Namespace implements SocketIONamespace {
 
     private final ScannerEngine engine = new ScannerEngine();
     private final ConcurrentMap<String, EventEntry<?>> eventListeners = new ConcurrentHashMap<>();
+    private final Queue<CatchAllEventListener> catchAllEventListeners = new ConcurrentLinkedQueue<>();
     private final Queue<ConnectListener> connectListeners = new ConcurrentLinkedQueue<ConnectListener>();
     private final Queue<DisconnectListener> disconnectListeners = new ConcurrentLinkedQueue<DisconnectListener>();
     private final Queue<PingListener> pingListeners = new ConcurrentLinkedQueue<PingListener>();
@@ -135,6 +129,12 @@ public class Namespace implements SocketIONamespace {
     }
 
     @Override
+    public void onAny(CatchAllEventListener listener) {
+        catchAllEventListeners.add(listener);
+    }
+
+
+    @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <T> void addEventListener(String eventName, Class<T> eventClass, DataListener<T> listener) {
         EventEntry entry = eventListeners.get(eventName);
@@ -157,19 +157,21 @@ public class Namespace implements SocketIONamespace {
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void onEvent(NamespaceClient client, String eventName, List<Object> args, AckRequest ackRequest) {
         EventEntry entry = eventListeners.get(eventName);
-        if (entry == null) {
-            return;
-        }
 
         try {
-            Queue<DataListener> listeners = entry.getListeners();
-            for (DataListener dataListener : listeners) {
-                Object data = getEventData(args, dataListener);
-                dataListener.onData(client, data, ackRequest);
+            if (entry != null) {
+                Queue<DataListener> listeners = entry.getListeners();
+                for (DataListener dataListener : listeners) {
+                    Object data = getEventData(args, dataListener);
+                    dataListener.onData(client, data, ackRequest);
+                }
             }
 
             for (EventInterceptor eventInterceptor : eventInterceptors) {
                 eventInterceptor.onEvent(client, eventName, args, ackRequest);
+            }
+            for (CatchAllEventListener catchAllEventInterceptor : catchAllEventListeners) {
+                catchAllEventInterceptor.onEvent(client, eventName, args, ackRequest);
             }
         } catch (Exception e) {
             exceptionListener.onEventException(e, args, client);
