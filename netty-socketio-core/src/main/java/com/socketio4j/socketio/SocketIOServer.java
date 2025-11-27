@@ -389,7 +389,7 @@ public class SocketIOServer implements ClientListeners {
 
     //alias removeOnAnyEventListener
     public void offAny(CatchAllEventListener listener) {
-        addOnAnyEventListener(listener);
+        removeOnAnyEventListener(listener);
     }
 
     @Override
