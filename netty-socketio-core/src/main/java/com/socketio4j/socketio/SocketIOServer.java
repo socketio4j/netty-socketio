@@ -377,7 +377,6 @@ public class SocketIOServer implements ClientListeners {
         mainNamespace.onAnyEvent(listener);
     }
 
-    @Override
     public void onAny(CatchAllEventListener listener) {
         onAnyEvent(listener);
     }
