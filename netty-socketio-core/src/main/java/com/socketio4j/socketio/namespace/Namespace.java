@@ -137,7 +137,7 @@ public class Namespace implements SocketIONamespace {
     }
 
     @Override
-    public void onAny(CatchAllEventListener listener) {
+    public void onAnyEvent(CatchAllEventListener listener) {
         catchAllEventListeners.add(listener);
     }
 

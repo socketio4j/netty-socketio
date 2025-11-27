@@ -48,6 +48,6 @@ public interface ClientListeners {
 
     void removeAllListeners(String eventName);
 
-    void onAny(CatchAllEventListener listener);
+    void onAnyEvent(CatchAllEventListener listener);
 
 }
