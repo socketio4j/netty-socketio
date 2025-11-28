@@ -328,9 +328,6 @@ public class SocketIOServer implements ClientListeners {
             bossGroup.shutdownGracefully().syncUninterruptibly();
             workerGroup.shutdownGracefully().syncUninterruptibly();
             pipelineFactory.stop();
-            if (configCopy.getStoreFactory() !=null) {
-                configCopy.getStoreFactory().shutdown();
-            }
             log.info("SocketIO server stopped");
         } finally {
             serverStatus.set(ServerStatus.INIT);
