@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentMap;
 
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
-import org.redisson.api.listener.MessageListener;
 
 import com.socketio4j.socketio.store.pubsub.PubSubListener;
 import com.socketio4j.socketio.store.pubsub.PubSubMessage;
