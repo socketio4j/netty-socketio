@@ -155,16 +155,22 @@ public class SocketIOServer implements ClientListeners {
                 case IO_URING:
                     if (IoUring.isAvailable()) {
                         channelClass = IoUringServerSocketChannel.class;
+                    } else {
+                        log.warn("IO_URING transport requested but not available, falling back to NIO");
                     }
                     break;
                 case EPOLL:
                     if (Epoll.isAvailable()) {
                         channelClass = EpollServerSocketChannel.class;
+                    } else {
+                        log.warn("EPOLL transport requested but not available, falling back to NIO");
                     }
                     break;
                 case KQUEUE:
                     if (KQueue.isAvailable()) {
                         channelClass = KQueueServerSocketChannel.class;
+                    } else {
+                        log.warn("KQUEUE transport requested but not available, falling back to NIO");
                     }
                     break;
                 case AUTO:
@@ -216,27 +222,6 @@ public class SocketIOServer implements ClientListeners {
         }
     }
 
-    private Class<? extends ServerChannel> loadChannelClass(String name) {
-        try {
-            @SuppressWarnings("unchecked")
-            Class<? extends ServerChannel> c = (Class<? extends ServerChannel>) Class.forName(name);
-            return c;
-        } catch (Exception ignored) {
-            log.warn("Unable to load native channel {}. Using NIO.", name);
-            return NioServerSocketChannel.class;
-        }
-    }
-
-    private Class<? extends ServerChannel> fallback(String msg) {
-        log.warn("{} → Falling back to NIO.", msg);
-        return NioServerSocketChannel.class;
-    }
-
-    private IoHandlerFactory fallbackFactory(String msg) {
-        log.warn("{} → Falling back to NIO IoHandler.", msg);
-        return NioIoHandler.newFactory();
-    }
-
     protected void applyConnectionOptions(ServerBootstrap bootstrap) {
         SocketConfig config = configCopy.getSocketConfig();
 
@@ -271,16 +256,22 @@ public class SocketIOServer implements ClientListeners {
             case IO_URING:
                 if (IoUring.isAvailable()) {
                     handler = IoUringIoHandler.newFactory();
+                } else {
+                    log.warn("IO_URING IoHandler requested but not available, falling back to NIO");
                 }
                 break;
             case EPOLL:
                 if (Epoll.isAvailable()) {
                     handler = EpollIoHandler.newFactory();
+                } else {
+                    log.warn("EPOLL IoHandler requested but not available, falling back to NIO");
                 }
                 break;
             case KQUEUE:
                 if (KQueue.isAvailable()) {
                     handler = KQueueIoHandler.newFactory();
+                } else {
+                    log.warn("KQUEUE IoHandler requested but not available, falling back to NIO");
                 }
                 break;
             case AUTO:
@@ -293,9 +284,11 @@ public class SocketIOServer implements ClientListeners {
                 } else {
                     handler = NioIoHandler.newFactory();
                 }
+                log.info(" AUTO selected transportType {}", handler);
                 break;
             default:
                 handler = IoUringIoHandler.newFactory();
+                log.info("default transportType {} is selected", handler);
                 break;
         }
 
