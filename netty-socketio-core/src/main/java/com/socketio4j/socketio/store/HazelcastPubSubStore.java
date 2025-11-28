@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.store;
 
+import java.util.Arrays;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -80,6 +81,9 @@ public class HazelcastPubSubStore implements PubSubStore {
 
     @Override
     public void shutdown() {
+        Arrays.stream(PubSubType.values()).forEach(this::unsubscribe);
+        map.clear();
+        //do not shut down client here
     }
 
 }

@@ -16,6 +16,8 @@
  */
 package com.socketio4j.socketio.store;
 
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -23,11 +25,14 @@ import java.util.concurrent.ConcurrentMap;
 
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.store.pubsub.PubSubListener;
 import com.socketio4j.socketio.store.pubsub.PubSubMessage;
 import com.socketio4j.socketio.store.pubsub.PubSubStore;
 import com.socketio4j.socketio.store.pubsub.PubSubType;
+
 
 public class RedissonPubSubStore implements PubSubStore {
 
@@ -37,7 +42,22 @@ public class RedissonPubSubStore implements PubSubStore {
 
     private final ConcurrentMap<String, Queue<Integer>> map = new ConcurrentHashMap<>();
 
+    private static final Logger log = LoggerFactory.getLogger(RedissonPubSubStore.class);
+
+    public RedissonPubSubStore(RedissonClient redisson, Long nodeId) {
+
+        Objects.requireNonNull(redisson, "redisson is null");
+
+        this.redissonPub = redisson;
+        this.redissonSub = redisson;
+        this.nodeId = nodeId;
+    }
+
     public RedissonPubSubStore(RedissonClient redissonPub, RedissonClient redissonSub, Long nodeId) {
+
+        Objects.requireNonNull(redissonPub, "redissonPub is null");
+        Objects.requireNonNull(redissonSub, "redissonSub is null");
+
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
         this.nodeId = nodeId;
@@ -65,19 +85,39 @@ public class RedissonPubSubStore implements PubSubStore {
 
     @Override
     public void unsubscribe(PubSubType type) {
+
         String name = type.toString();
+
         Queue<Integer> regIds = map.remove(name);
         if (regIds == null || regIds.isEmpty()) {
             return;
         }
+
         RTopic topic = redissonSub.getTopic(name);
+        if (topic == null) {
+            return;
+        }
+
         for (Integer id : regIds) {
-            topic.removeListener(id);
+            try {
+                topic.removeListener(id);
+            } catch (Exception ex) {
+                log.warn("Failed to remove listener {} from topic {}", id, name, ex);
+            }
         }
     }
 
     @Override
     public void shutdown() {
+
+        // Stop all pub/sub listeners for all types
+        Arrays.stream(PubSubType.values())
+                .forEach(this::unsubscribe);
+
+        map.clear();
+
+        // do not shut down redis clients here
     }
+
 
 }
