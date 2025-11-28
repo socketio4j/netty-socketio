@@ -54,9 +54,9 @@ public class RedissonPubSubStore implements PubSubStore {
 
         RTopic topic = redissonSub.getTopic(type.toString());
 
-        int regId = topic.addListener(PubSubMessage.class, (channel, msg) -> {
+        int regId = topic.addListener(clazz, (channel, msg) -> {
             if (!nodeId.equals(msg.getNodeId())) {
-                listener.onMessage((T) msg);
+                listener.onMessage(msg);
             }
         });
 
