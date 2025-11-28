@@ -95,6 +95,8 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     @Override
     public void shutdown() {
 
+        pubSubStore.shutdown();
+
         // Ordered hash: preserves order, no duplicates
         Set<HazelcastInstance> ordered = new LinkedHashSet<>();
 

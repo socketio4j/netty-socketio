@@ -23,12 +23,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.topic.ITopic;
 import com.socketio4j.socketio.store.pubsub.PubSubListener;
 import com.socketio4j.socketio.store.pubsub.PubSubMessage;
 import com.socketio4j.socketio.store.pubsub.PubSubStore;
 import com.socketio4j.socketio.store.pubsub.PubSubType;
+
 
 
 public class HazelcastPubSubStore implements PubSubStore {
@@ -38,6 +42,7 @@ public class HazelcastPubSubStore implements PubSubStore {
     private final Long nodeId;
 
     private final ConcurrentMap<String, Queue<UUID>> map = new ConcurrentHashMap<>();
+    private static final Logger log = LoggerFactory.getLogger(HazelcastPubSubStore.class);
 
     public HazelcastPubSubStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId) {
         this.hazelcastPub = hazelcastPub;
@@ -75,7 +80,11 @@ public class HazelcastPubSubStore implements PubSubStore {
         }
         ITopic<Object> topic = hazelcastSub.getTopic(name);
         for (UUID id : regIds) {
-            topic.removeMessageListener(id);
+            try {
+                topic.removeMessageListener(id);
+            } catch (Exception e) {
+                 log.warn("Failed to remove listener {} from topic {}", id, name, e);
+            }
         }
     }
 

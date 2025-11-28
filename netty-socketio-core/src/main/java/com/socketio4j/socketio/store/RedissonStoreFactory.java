@@ -109,6 +109,8 @@ public class RedissonStoreFactory extends BaseStoreFactory {
     @Override
     public void shutdown() {
 
+        pubSubStore.shutdown();
+
         // Ordered hash: preserves order, no duplicates
         Set<RedissonClient> ordered = new LinkedHashSet<>();
 
