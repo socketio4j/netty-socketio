@@ -67,6 +67,9 @@ public class RedissonPubSubStore implements PubSubStore {
     public void unsubscribe(PubSubType type) {
         String name = type.toString();
         Queue<Integer> regIds = map.remove(name);
+        if (regIds == null || regIds.isEmpty()) {
+            return;
+        }
         RTopic topic = redissonSub.getTopic(name);
         for (Integer id : regIds) {
             topic.removeListener(id);
