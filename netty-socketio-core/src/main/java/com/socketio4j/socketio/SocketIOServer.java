@@ -23,6 +23,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
+import io.netty.channel.epoll.EpollServerSocketChannel;
+import io.netty.channel.kqueue.KQueueServerSocketChannel;
+import io.netty.channel.uring.IoUringServerSocketChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -147,53 +150,40 @@ public class SocketIOServer implements ClientListeners {
             initGroups();
             pipelineFactory.start(configCopy, namespacesHub);
 
-            Class<? extends ServerChannel> channelClass;
+            Class<? extends ServerChannel> channelClass = NioServerSocketChannel.class;
 
             switch (configCopy.getTransportType()) {
-
                 case IO_URING:
-                    if (ioUringAvailable()) {
-                        channelClass = loadChannelClass("io.netty.channel.uring.IoUringServerSocketChannel");
-                    } else {
-                        channelClass = fallback("IO_URING unavailable");
+                    if (IoUring.isAvailable()) {
+                        channelClass = IoUringServerSocketChannel.class;
                     }
                     break;
-
                 case EPOLL:
-                    if (epollAvailable()) {
-                        channelClass = loadChannelClass("io.netty.channel.epoll.EpollServerSocketChannel");
-                    } else {
-                        channelClass = fallback("EPOLL unavailable");
+                    if (Epoll.isAvailable()) {
+                        channelClass = EpollServerSocketChannel.class;
                     }
                     break;
-
                 case KQUEUE:
-                    if (kqueueAvailable()) {
-                        channelClass = loadChannelClass("io.netty.channel.kqueue.KQueueServerSocketChannel");
-                    } else {
-                        channelClass = fallback("KQUEUE unavailable");
+                    if (KQueue.isAvailable()) {
+                        channelClass = KQueueServerSocketChannel.class;
                     }
                     break;
-
-                case NIO:
-                    channelClass = NioServerSocketChannel.class;
-                    break;
-
                 case AUTO:
-                default:
-                    if (ioUringAvailable()) {
-                        channelClass = loadChannelClass("io.netty.channel.uring.IoUringServerSocketChannel");
+                    if (IoUring.isAvailable()) {
+                        channelClass = IoUringServerSocketChannel.class;
                         log.info("AUTO selected IO_URING transport");
-                    } else if (epollAvailable()) {
-                        channelClass = loadChannelClass("io.netty.channel.epoll.EpollServerSocketChannel");
+                    } else if (Epoll.isAvailable()) {
+                        channelClass = EpollServerSocketChannel.class;
                         log.info("AUTO selected EPOLL transport");
-                    } else if (kqueueAvailable()) {
-                        channelClass = loadChannelClass("io.netty.channel.kqueue.KQueueServerSocketChannel");
+                    } else if (KQueue.isAvailable()) {
+                        channelClass = KQueueServerSocketChannel.class;
                         log.info("AUTO selected KQUEUE transport");
                     } else {
-                        channelClass = NioServerSocketChannel.class;
                         log.info("AUTO selected NIO transport");
                     }
+                    break;
+                default:
+                    log.info("NIO transport as default transport");
             }
 
             ServerBootstrap bootstrap = new ServerBootstrap();
