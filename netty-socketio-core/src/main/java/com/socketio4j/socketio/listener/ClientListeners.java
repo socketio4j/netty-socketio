@@ -47,5 +47,20 @@ public interface ClientListeners {
     void addListeners(Object listeners, Class<?> listenersClass);
 
     void removeAllListeners(String eventName);
-    
+
+    default void addOnAnyEventListener(CatchAllEventListener listener) {
+        throw new UnsupportedOperationException("addOnAnyEventListener is not implemented");
+    }
+
+    default void removeOnAnyEventListener(CatchAllEventListener listener) {
+        throw new UnsupportedOperationException("removeOnAnyEventListener is not implemented");
+    }
+
+    default void onAny(CatchAllEventListener listener) {
+        addOnAnyEventListener(listener);
+    }
+    default void offAny(CatchAllEventListener listener) {
+        removeOnAnyEventListener(listener);
+    }
+
 }

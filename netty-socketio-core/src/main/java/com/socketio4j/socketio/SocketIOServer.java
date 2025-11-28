@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.listener.CatchAllEventListener;
 import com.socketio4j.socketio.listener.ClientListeners;
 import com.socketio4j.socketio.listener.ConnectListener;
 import com.socketio4j.socketio.listener.DataListener;
@@ -369,6 +370,28 @@ public class SocketIOServer implements ClientListeners {
     @Override
     public void removeAllListeners(String eventName) {
         mainNamespace.removeAllListeners(eventName);
+    }
+
+    @Override
+    public void addOnAnyEventListener(CatchAllEventListener listener) {
+        mainNamespace.addOnAnyEventListener(listener);
+    }
+
+    @Override
+    public void removeOnAnyEventListener(CatchAllEventListener listener) {
+        mainNamespace.removeOnAnyEventListener(listener);
+    }
+
+    //alias addOnAnyEventListener
+    @Override
+    public void onAny(CatchAllEventListener listener) {
+        addOnAnyEventListener(listener);
+    }
+
+    //alias removeOnAnyEventListener
+    @Override
+    public void offAny(CatchAllEventListener listener) {
+        removeOnAnyEventListener(listener);
     }
 
     @Override
