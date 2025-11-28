@@ -47,8 +47,14 @@ import io.netty.channel.IoHandlerFactory;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.WriteBufferWaterMark;
+import io.netty.channel.epoll.Epoll;
+import io.netty.channel.epoll.EpollIoHandler;
+import io.netty.channel.kqueue.KQueue;
+import io.netty.channel.kqueue.KQueueIoHandler;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.channel.uring.IoUring;
+import io.netty.channel.uring.IoUringIoHandler;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.FutureListener;
 import io.netty.util.concurrent.SucceededFuture;
@@ -270,55 +276,45 @@ public class SocketIOServer implements ClientListeners {
 
     protected void initGroups() {
 
-        IoHandlerFactory handler;
+        IoHandlerFactory handler = NioIoHandler.newFactory();
 
         switch (configCopy.getTransportType()) {
-
             case IO_URING:
-                handler = createHandler("io.netty.channel.uring.IoUringIoHandler", ioUringAvailable());
-                break;
-
-            case EPOLL:
-                handler = createHandler("io.netty.channel.epoll.EpollIoHandler", epollAvailable());
-                break;
-
-            case KQUEUE:
-                handler = createHandler("io.netty.channel.kqueue.KQueueIoHandler", kqueueAvailable());
-                break;
-
-            case NIO:
-                handler = NioIoHandler.newFactory();
-                break;
-
-            case AUTO:
-            default:
-                if (ioUringAvailable()) {
-                    handler = createHandler("io.netty.channel.uring.IoUringIoHandler", true);
-                } else if (epollAvailable()) {
-                    handler = createHandler("io.netty.channel.epoll.EpollIoHandler", true);
-                } else if (kqueueAvailable()) {
-                    handler = createHandler("io.netty.channel.kqueue.KQueueIoHandler", true);
-                } else {
-                    handler = fallbackFactory("No native transport available.");
+                if (IoUring.isAvailable()) {
+                    handler = IoUringIoHandler.newFactory();
                 }
+                break;
+            case EPOLL:
+                if (Epoll.isAvailable()) {
+                    handler = EpollIoHandler.newFactory();
+                }
+                break;
+            case KQUEUE:
+                if (KQueue.isAvailable()) {
+                    handler = KQueueIoHandler.newFactory();
+                }
+                break;
+            case AUTO:
+                if (IoUring.isAvailable()) {
+                    handler = IoUringIoHandler.newFactory();
+                } else if (Epoll.isAvailable()) {
+                    handler = EpollIoHandler.newFactory();
+                } else if (KQueue.isAvailable()) {
+                    handler = KQueueIoHandler.newFactory();
+                } else {
+                    handler = NioIoHandler.newFactory();
+                }
+                break;
+            default:
+                handler = IoUringIoHandler.newFactory();
+                break;
         }
 
         bossGroup = new MultiThreadIoEventLoopGroup(configCopy.getBossThreads(), handler);
         workerGroup = new MultiThreadIoEventLoopGroup(configCopy.getWorkerThreads(), handler);
     }
 
-    private IoHandlerFactory createHandler(String className, boolean available) {
-        if (!available) {
-            return fallbackFactory(className + " unavailable");
-        }
-        try {
-            return (IoHandlerFactory) Class.forName(className)
-                    .getMethod("newFactory")
-                    .invoke(null);
-        } catch (Exception ignored) {
-            return fallbackFactory("Failed to load " + className);
-        }
-    }
+
 
     public void stop() {
         if (!serverStatus.compareAndSet(ServerStatus.STARTED, ServerStatus.STOPPING)) {
@@ -429,41 +425,5 @@ public class SocketIOServer implements ClientListeners {
         mainNamespace.addListeners(listeners, clazz);
     }
 
-    /* ---------------------------------------------------------------------
-     * Native Transport Detection — Safe Reflection
-     * --------------------------------------------------------------------- */
-
-    private static boolean isClassPresent(String name) {
-        try {
-            Class.forName(name, false, SocketIOServer.class.getClassLoader());
-            return true;
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private static boolean isNativeAvailable(String className, String method) {
-        try {
-            Class<?> cls = Class.forName(className, false, SocketIOServer.class.getClassLoader());
-            return (Boolean) cls.getMethod(method).invoke(null);
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private static boolean ioUringAvailable() {
-        return isClassPresent("io.netty.channel.uring.IoUring")
-                && isNativeAvailable("io.netty.channel.uring.IoUring", "isAvailable");
-    }
-
-    private static boolean epollAvailable() {
-        return isClassPresent("io.netty.channel.epoll.Epoll")
-                && isNativeAvailable("io.netty.channel.epoll.Epoll", "isAvailable");
-    }
-
-    private static boolean kqueueAvailable() {
-        return isClassPresent("io.netty.channel.kqueue.KQueue")
-                && isNativeAvailable("io.netty.channel.kqueue.KQueue", "isAvailable");
-    }
 
 }
