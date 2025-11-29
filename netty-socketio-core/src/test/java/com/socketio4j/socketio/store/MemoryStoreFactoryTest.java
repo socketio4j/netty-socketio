@@ -24,7 +24,7 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.socketio4j.socketio.handler.ClientHead;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
+import com.socketio4j.socketio.store.event.EventStore;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -59,10 +59,10 @@ public class MemoryStoreFactoryTest extends StoreFactoryTest {
 
     @Test
     public void testMemoryPubSubStore() {
-        PubSubStore pubSubStore = storeFactory.pubSubStore();
+        EventStore eventStore = storeFactory.pubSubStore();
         
-        assertNotNull(pubSubStore, "PubSubStore should not be null");
-        assertTrue(pubSubStore instanceof MemoryPubSubStore, "PubSubStore should be MemoryPubSubStore");
+        assertNotNull(eventStore, "PubSubStore should not be null");
+        assertTrue(eventStore instanceof MemoryEventStore, "PubSubStore should be MemoryPubSubStore");
     }
 
     @Test

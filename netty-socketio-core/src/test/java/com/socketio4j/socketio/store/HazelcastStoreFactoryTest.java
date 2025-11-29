@@ -19,6 +19,9 @@ package com.socketio4j.socketio.store;
 import java.util.Map;
 import java.util.UUID;
 
+import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
+import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
+import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -27,7 +30,7 @@ import org.mockito.MockitoAnnotations;
 import org.testcontainers.containers.GenericContainer;
 
 import com.socketio4j.socketio.handler.ClientHead;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
+import com.socketio4j.socketio.store.event.EventStore;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.HazelcastInstance;
@@ -98,10 +101,10 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
 
     @Test
     public void testHazelcastPubSubStore() {
-        PubSubStore pubSubStore = storeFactory.pubSubStore();
+        EventStore eventStore = storeFactory.pubSubStore();
         
-        assertNotNull(pubSubStore, "PubSubStore should not be null");
-        assertInstanceOf(HazelcastPubSubStore.class, pubSubStore, "PubSubStore should be HazelcastStore");
+        assertNotNull(eventStore, "PubSubStore should not be null");
+        assertInstanceOf(HazelcastEventStore.class, eventStore, "PubSubStore should be HazelcastStore");
     }
 
     @Test

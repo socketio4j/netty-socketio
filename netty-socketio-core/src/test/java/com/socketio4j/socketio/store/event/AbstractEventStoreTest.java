@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store.event;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -34,10 +34,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Abstract base class for PubSub store tests
  */
-public abstract class AbstractPubSubStoreTest {
+public abstract class AbstractEventStoreTest {
 
-    protected PubSubStore publisherStore;  // store for publishing messages
-    protected PubSubStore subscriberStore; // store for subscribing to messages
+    protected EventStore publisherStore;  // store for publishing messages
+    protected EventStore subscriberStore; // store for subscribing to messages
     protected GenericContainer<?> container;
     protected Long publisherNodeId = 2L;   // publisher's nodeId
     protected Long subscriberNodeId = 1L;  // subscriber's nodeId
@@ -73,7 +73,7 @@ public abstract class AbstractPubSubStoreTest {
     /**
      * Create the PubSub store instance for testing with specified nodeId
      */
-    protected abstract PubSubStore createPubSubStore(Long nodeId) throws Exception;
+    protected abstract EventStore createPubSubStore(Long nodeId) throws Exception;
 
     @Test
     public void testBasicPublishSubscribe() throws InterruptedException {
@@ -81,7 +81,7 @@ public abstract class AbstractPubSubStoreTest {
         AtomicReference<TestMessage> receivedMessage = new AtomicReference<>();
 
         // Subscribe to a topic using subscriber store
-        subscriberStore.subscribe(PubSubType.DISPATCH, new PubSubListener<TestMessage>() {
+        subscriberStore.subscribe(EventType.DISPATCH, new EventListener<TestMessage>() {
             @Override
             public void onMessage(TestMessage message) {
                 // Should receive messages from different nodes
@@ -96,7 +96,7 @@ public abstract class AbstractPubSubStoreTest {
         TestMessage testMessage = new TestMessage();
         testMessage.setContent("test content from different node");
         
-        publisherStore.publish(PubSubType.DISPATCH, testMessage);
+        publisherStore.publish(EventType.DISPATCH, testMessage);
 
         // Wait for message to be received
         assertTrue(latch.await(5, TimeUnit.SECONDS), "Message should be received within 5 seconds");
@@ -113,7 +113,7 @@ public abstract class AbstractPubSubStoreTest {
         AtomicReference<TestMessage> receivedMessage = new AtomicReference<>();
 
         // Subscribe to a topic using subscriber store
-        subscriberStore.subscribe(PubSubType.DISPATCH, new PubSubListener<TestMessage>() {
+        subscriberStore.subscribe(EventType.DISPATCH, new EventListener<TestMessage>() {
             @Override
             public void onMessage(TestMessage message) {
                 // Should not receive messages from the same node
@@ -128,7 +128,7 @@ public abstract class AbstractPubSubStoreTest {
         TestMessage testMessage = new TestMessage();
         testMessage.setContent("test content from different node");
         
-        publisherStore.publish(PubSubType.DISPATCH, testMessage);
+        publisherStore.publish(EventType.DISPATCH, testMessage);
 
         // Wait for message to be received
         assertTrue(latch.await(5, TimeUnit.SECONDS), "Message should be received within 5 seconds");
@@ -145,7 +145,7 @@ public abstract class AbstractPubSubStoreTest {
         AtomicReference<TestMessage> receivedMessage = new AtomicReference<>();
 
         // Subscribe to a topic using subscriber store
-        subscriberStore.subscribe(PubSubType.DISPATCH, new PubSubListener<TestMessage>() {
+        subscriberStore.subscribe(EventType.DISPATCH, new EventListener<TestMessage>() {
             @Override
             public void onMessage(TestMessage message) {
                 // Should receive messages from different nodes
@@ -157,13 +157,13 @@ public abstract class AbstractPubSubStoreTest {
         }, TestMessage.class);
 
         // Unsubscribe immediately
-        subscriberStore.unsubscribe(PubSubType.DISPATCH);
+        subscriberStore.unsubscribe(EventType.DISPATCH);
 
         // Publish a message using publisher store (different nodeId)
         TestMessage testMessage = new TestMessage();
         testMessage.setContent("test content");
         
-        publisherStore.publish(PubSubType.DISPATCH, testMessage);
+        publisherStore.publish(EventType.DISPATCH, testMessage);
 
         // Message should not be received
         assertFalse(latch.await(2, TimeUnit.SECONDS), "Message should not be received after unsubscribe");
@@ -178,7 +178,7 @@ public abstract class AbstractPubSubStoreTest {
         AtomicReference<TestMessage> connectMessage = new AtomicReference<>();
 
         // Subscribe to multiple topics using subscriber store
-        subscriberStore.subscribe(PubSubType.DISPATCH, new PubSubListener<TestMessage>() {
+        subscriberStore.subscribe(EventType.DISPATCH, new EventListener<TestMessage>() {
             @Override
             public void onMessage(TestMessage message) {
                 // Should receive messages from different nodes
@@ -189,7 +189,7 @@ public abstract class AbstractPubSubStoreTest {
             }
         }, TestMessage.class);
 
-        subscriberStore.subscribe(PubSubType.CONNECT, new PubSubListener<TestMessage>() {
+        subscriberStore.subscribe(EventType.CONNECT, new EventListener<TestMessage>() {
             @Override
             public void onMessage(TestMessage message) {
                 // Should receive messages from different nodes
@@ -207,8 +207,8 @@ public abstract class AbstractPubSubStoreTest {
         TestMessage connectMsg = new TestMessage();
         connectMsg.setContent("connect message");
 
-        publisherStore.publish(PubSubType.DISPATCH, dispatchMsg);
-        publisherStore.publish(PubSubType.CONNECT, connectMsg);
+        publisherStore.publish(EventType.DISPATCH, dispatchMsg);
+        publisherStore.publish(EventType.CONNECT, connectMsg);
 
         // Wait for both messages
         assertTrue(dispatchLatch.await(5, TimeUnit.SECONDS), "Dispatch message should be received");

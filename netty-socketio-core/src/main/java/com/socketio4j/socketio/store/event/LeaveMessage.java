@@ -14,32 +14,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store.event;
 
+import java.util.UUID;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
+public class LeaveMessage extends EventMessage {
 
-public interface PubSubStore {
+    private static final long serialVersionUID = -944515928988033174L;
 
-    default PubSubStoreMode getMode(){
-        return  PubSubStoreMode.MULTI_CHANNEL;
+    private UUID sessionId;
+    private String namespace;
+    private String room;
+
+    public LeaveMessage() {
     }
 
-    default List<PubSubType> getEnabledTypes() {
-        return Arrays.stream(PubSubType.values())
-                .filter(t -> t != PubSubType.ALL_SINGLE_CHANNEL)
-                .collect(Collectors.toList());
+    public LeaveMessage(UUID id, String room, String namespace) {
+        super();
+        this.sessionId = id;
+        this.room = room;
+        this.namespace = namespace;
     }
 
+    public String getNamespace() {
+        return namespace;
+    }
 
-    void publish(PubSubType type, PubSubMessage msg);
+    public UUID getSessionId() {
+        return sessionId;
+    }
 
-    <T extends PubSubMessage> void subscribe(PubSubType type, PubSubListener<T> listener, Class<T> clazz);
-
-    void unsubscribe(PubSubType type);
-
-    void shutdown();
+    public String getRoom() {
+        return room;
+    }
 
 }

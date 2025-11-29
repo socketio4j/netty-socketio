@@ -36,7 +36,7 @@ import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.store.StoreFactory;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
+import com.socketio4j.socketio.store.event.EventStore;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -62,7 +62,7 @@ class NamespaceRoomManagementTest extends BaseNamespaceTest {
     private StoreFactory storeFactory;
 
     @Mock
-    private PubSubStore pubSubStore;
+    private EventStore eventStore;
 
     @Mock
     private SocketIOClient mockClient1;
@@ -88,7 +88,7 @@ class NamespaceRoomManagementTest extends BaseNamespaceTest {
         when(configuration.getAckMode()).thenReturn(com.socketio4j.socketio.AckMode.AUTO);
         when(configuration.getExceptionListener())
                 .thenReturn(new com.socketio4j.socketio.listener.DefaultExceptionListener());
-        when(storeFactory.pubSubStore()).thenReturn(pubSubStore);
+        when(storeFactory.pubSubStore()).thenReturn(eventStore);
 
         namespace = new Namespace(NAMESPACE_NAME, configuration);
 

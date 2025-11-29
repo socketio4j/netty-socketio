@@ -49,8 +49,8 @@ import com.socketio4j.socketio.scheduler.SchedulerKey;
 import com.socketio4j.socketio.scheduler.SchedulerKey.Type;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.StoreFactory;
-import com.socketio4j.socketio.store.pubsub.ConnectMessage;
-import com.socketio4j.socketio.store.pubsub.PubSubType;
+import com.socketio4j.socketio.store.event.ConnectMessage;
+import com.socketio4j.socketio.store.event.EventType;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
@@ -351,7 +351,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
                 client.send(packet);
             }
 
-            configuration.getStoreFactory().pubSubStore().publish(PubSubType.CONNECT, new ConnectMessage(client.getSessionId()));
+            configuration.getStoreFactory().pubSubStore().publish(EventType.CONNECT, new ConnectMessage(client.getSessionId()));
 
             SocketIOClient nsClient = client.addNamespaceClient(ns);
             ns.onConnect(nsClient);

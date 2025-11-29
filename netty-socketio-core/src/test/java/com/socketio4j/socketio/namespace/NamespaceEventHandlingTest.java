@@ -47,7 +47,7 @@ import com.socketio4j.socketio.listener.PingListener;
 import com.socketio4j.socketio.listener.PongListener;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.store.StoreFactory;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
+import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.transport.NamespaceClient;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -78,7 +78,7 @@ class NamespaceEventHandlingTest extends BaseNamespaceTest {
     private StoreFactory storeFactory;
 
     @Mock
-    private PubSubStore pubSubStore;
+    private EventStore eventStore;
 
     @Mock
     private NamespaceClient mockNamespaceClient;
@@ -100,7 +100,7 @@ class NamespaceEventHandlingTest extends BaseNamespaceTest {
         when(configuration.getStoreFactory()).thenReturn(storeFactory);
         when(configuration.getAckMode()).thenReturn(AckMode.AUTO);
         when(configuration.getExceptionListener()).thenReturn(new DefaultExceptionListener());
-        when(storeFactory.pubSubStore()).thenReturn(pubSubStore);
+        when(storeFactory.pubSubStore()).thenReturn(eventStore);
 
         namespace = new Namespace(NAMESPACE_NAME, configuration);
 

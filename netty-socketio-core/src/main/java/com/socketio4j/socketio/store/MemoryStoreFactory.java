@@ -20,12 +20,12 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.socketio4j.socketio.store.pubsub.BaseStoreFactory;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
+import com.socketio4j.socketio.store.event.BaseStoreFactory;
+import com.socketio4j.socketio.store.event.EventStore;
 
 public class MemoryStoreFactory extends BaseStoreFactory {
 
-    private final MemoryPubSubStore pubSubMemoryStore = new MemoryPubSubStore();
+    private final MemoryEventStore pubSubMemoryStore = new MemoryEventStore();
 
     @Override
     public Store createStore(UUID sessionId) {
@@ -33,7 +33,7 @@ public class MemoryStoreFactory extends BaseStoreFactory {
     }
 
     @Override
-    public PubSubStore pubSubStore() {
+    public EventStore pubSubStore() {
         return pubSubMemoryStore;
     }
 

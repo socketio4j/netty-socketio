@@ -23,7 +23,7 @@ import com.socketio4j.socketio.Disconnectable;
 import com.socketio4j.socketio.handler.AuthorizeHandler;
 import com.socketio4j.socketio.namespace.NamespacesHub;
 import com.socketio4j.socketio.protocol.JsonSupport;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
+import com.socketio4j.socketio.store.event.EventStore;
 
 /**
  *
@@ -32,7 +32,7 @@ import com.socketio4j.socketio.store.pubsub.PubSubStore;
  */
 public interface StoreFactory extends Disconnectable {
 
-    PubSubStore pubSubStore();
+    EventStore pubSubStore();
 
     <K, V> Map<K, V> createMap(String name);
 

@@ -18,6 +18,7 @@ package com.socketio4j.socketio.store;
 
 import java.util.UUID;
 
+import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
 

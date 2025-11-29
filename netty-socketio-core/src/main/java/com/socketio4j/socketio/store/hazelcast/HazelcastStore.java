@@ -14,12 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store;
+package com.socketio4j.socketio.store.hazelcast;
 
 import java.util.UUID;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
+import com.socketio4j.socketio.store.Store;
 
 
 public class HazelcastStore implements Store {

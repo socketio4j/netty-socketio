@@ -14,11 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store.event;
 
 import java.util.UUID;
 
-public class ConnectMessage extends PubSubMessage {
+public class ConnectMessage extends EventMessage {
 
     private static final long serialVersionUID = 3108918714495865101L;
 

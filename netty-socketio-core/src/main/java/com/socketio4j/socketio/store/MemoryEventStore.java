@@ -14,22 +14,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store;
 
-public enum PubSubType {
+import com.socketio4j.socketio.store.event.EventListener;
+import com.socketio4j.socketio.store.event.EventMessage;
+import com.socketio4j.socketio.store.event.EventStore;
+import com.socketio4j.socketio.store.event.EventType;
 
-    CONNECT,
-    DISCONNECT,
-    JOIN,
-    BULK_JOIN,
-    LEAVE,
-    BULK_LEAVE,
-    DISPATCH,
-    ALL_SINGLE_CHANNEL;
+public class MemoryEventStore implements EventStore {
 
     @Override
-    public String toString() {
-        return name().toLowerCase();
+    public void publish(EventType type, EventMessage msg) {
+    }
+
+    @Override
+    public <T extends EventMessage> void subscribe(EventType type, EventListener<T> listener, Class<T> clazz) {
+    }
+
+    @Override
+    public void unsubscribe(EventType type) {
+    }
+
+    @Override
+    public void shutdown() {
     }
 
 }

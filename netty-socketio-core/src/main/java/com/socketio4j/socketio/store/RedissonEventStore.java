@@ -24,9 +24,9 @@ import java.util.concurrent.ConcurrentMap;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 
-import com.socketio4j.socketio.store.pubsub.*;
+import com.socketio4j.socketio.store.event.*;
 
-public class RedissonPubSubStore implements PubSubStore {
+public class RedissonEventStore implements EventStore {
 
     private final RedissonClient redissonPub;
     private final RedissonClient redissonSub;
@@ -34,23 +34,23 @@ public class RedissonPubSubStore implements PubSubStore {
 
     private final ConcurrentMap<String, Queue<Integer>> map = new ConcurrentHashMap<>();
 
-    public RedissonPubSubStore(RedissonClient redissonPub, RedissonClient redissonSub, Long nodeId) {
+    public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub, Long nodeId) {
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
         this.nodeId = nodeId;
     }
 
     @Override
-    public void publish(PubSubType type, PubSubMessage msg) {
+    public void publish(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
         redissonPub.getTopic(type.toString()).publish(msg);
     }
 
     @Override
-    public <T extends PubSubMessage> void subscribe(PubSubType type, final PubSubListener<T> listener, Class<T> clazz) {
+    public <T extends EventMessage> void subscribe(EventType type, final EventListener<T> listener, Class<T> clazz) {
         String name = type.toString();
         RTopic topic = redissonSub.getTopic(name);
-        int regId = topic.addListener(PubSubMessage.class, (channel, msg) -> {
+        int regId = topic.addListener(EventMessage.class, (channel, msg) -> {
             if (!nodeId.equals(msg.getNodeId())) {
                 listener.onMessage((T) msg);
             }
@@ -68,7 +68,7 @@ public class RedissonPubSubStore implements PubSubStore {
     }
 
     @Override
-    public void unsubscribe(PubSubType type) {
+    public void unsubscribe(EventType type) {
         String name = type.toString();
         Queue<Integer> regIds = map.remove(name);
         RTopic topic = redissonSub.getTopic(name);

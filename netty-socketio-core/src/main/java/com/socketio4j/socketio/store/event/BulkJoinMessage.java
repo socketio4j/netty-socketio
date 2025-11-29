@@ -14,12 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store.event;
 
 import java.util.Set;
 import java.util.UUID;
 
-public class BulkJoinMessage extends PubSubMessage {
+public class BulkJoinMessage extends EventMessage {
 
     private static final long serialVersionUID = 7506016762607624388L;
 

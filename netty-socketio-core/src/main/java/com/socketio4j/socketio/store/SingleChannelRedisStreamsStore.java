@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import com.socketio4j.socketio.store.event.*;
 import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.StreamMessageId;
@@ -21,20 +22,14 @@ import org.redisson.api.stream.StreamReadArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.socketio4j.socketio.store.pubsub.PubSubListener;
-import com.socketio4j.socketio.store.pubsub.PubSubMessage;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
-import com.socketio4j.socketio.store.pubsub.PubSubStoreMode;
-import com.socketio4j.socketio.store.pubsub.PubSubType;
-
 import io.netty.util.internal.ObjectUtil;
 
-public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
+public class SingleChannelRedisStreamsStore implements EventStore {
 
-    private static final Logger log = LoggerFactory.getLogger(SingleChannelRedisStreamsPubSubStore.class);
+    private static final Logger log = LoggerFactory.getLogger(SingleChannelRedisStreamsStore.class);
 
 
-    private final RStream<String, PubSubMessage> stream;
+    private final RStream<String, EventMessage> stream;
     private final Long nodeId;
     private final RedissonClient redissonClient;
     private final int maxRetryCount;
@@ -42,14 +37,14 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
     private final ConcurrentHashMap<String, Integer> retryCount = new ConcurrentHashMap<>();
 
     private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
-    private final AtomicReference<PubSubListener<PubSubMessage>> listenerRef = new AtomicReference<>();
+    private final AtomicReference<EventListener<EventMessage>> listenerRef = new AtomicReference<>();
 
     private StreamMessageId offset; // "$"
     private final Duration readTimeout;
     private final int readBatchSize;
-    private final List<PubSubType> enabledTypes;
+    private final List<EventType> enabledTypes;
 
-    public SingleChannelRedisStreamsPubSubStore(String streamName, Long nodeId, RedissonClient redissonClient, int maxRetryCount, StreamMessageId offset, Duration readTimeout, int readBatchSize, List<PubSubType> enabledTypes) {
+    public SingleChannelRedisStreamsStore(String streamName, Long nodeId, RedissonClient redissonClient, int maxRetryCount, StreamMessageId offset, Duration readTimeout, int readBatchSize, List<EventType> enabledTypes) {
         this.nodeId = nodeId;
         this.redissonClient = redissonClient;
         this.maxRetryCount = maxRetryCount;
@@ -57,9 +52,9 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
         this.readTimeout = readTimeout;
         this.readBatchSize = readBatchSize;
         this.stream = redissonClient.getStream(streamName);
-        if (enabledTypes.contains(PubSubType.ALL_SINGLE_CHANNEL)) {
-            this.enabledTypes =  Arrays.stream(PubSubType.values())
-                    .filter(t -> t != PubSubType.ALL_SINGLE_CHANNEL)
+        if (enabledTypes.contains(EventType.ALL_SINGLE_CHANNEL)) {
+            this.enabledTypes =  Arrays.stream(EventType.values())
+                    .filter(t -> t != EventType.ALL_SINGLE_CHANNEL)
                     .collect(Collectors.toList());
         } else {
             this.enabledTypes = enabledTypes;
@@ -68,20 +63,25 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
     }
 
     @Override
-    public PubSubStoreMode getMode() {
-        return PubSubStoreMode.SINGLE_CHANNEL;
+    public EventStoreMode getMode() {
+        return EventStoreMode.SINGLE_CHANNEL;
     }
 
     @Override
-    public List<PubSubType> getEnabledTypes() {
+    public List<EventType> getEnabledTypes() {
         return enabledTypes;
+    }
+
+    @Override
+    public EventStoreType getStoreType() {
+        return EventStoreType.STREAM;
     }
     // =========================================================================
     // PUBLISH
     // =========================================================================
 
     @Override
-    public void publish(PubSubType type, PubSubMessage msg) {
+    public void publish(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
         // Stream auto-creates on first add
         stream.add(StreamAddArgs.entry(type.toString(), msg));
@@ -92,20 +92,20 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
     // =========================================================================
 
     @Override
-    public <T extends PubSubMessage> void subscribe(PubSubType type,
-                                                    PubSubListener<T> listener,
-                                                    Class<T> clazz) {
+    public <T extends EventMessage> void subscribe(EventType type,
+                                                   EventListener<T> listener,
+                                                   Class<T> clazz) {
 
         ObjectUtil.checkNotNull(listener, "listener");
         // Single-channel mode subscribes to ALL types
-        if (type != PubSubType.ALL_SINGLE_CHANNEL) {
+        if (type != EventType.ALL_SINGLE_CHANNEL) {
                 throw new UnsupportedOperationException(
                          "Single-channel mode only supports PubSubType.ALL_SINGLE_CHANNEL - no individual subscribes");
         }
         log.debug("Starting async Redis Streams worker");
 
         // install listener only once
-        if (!listenerRef.compareAndSet(null, (PubSubListener<PubSubMessage>) listener)) {
+        if (!listenerRef.compareAndSet(null, (EventListener<EventMessage>) listener)) {
             log.warn("Ignoring additional subscribe() calls. Only one listener is allowed.");
             return;
         }
@@ -118,8 +118,8 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
 
 
 
-    private void pollAsync(final RStream<String, PubSubMessage> stream,
-                           final PubSubListener<PubSubMessage> listener) {
+    private void pollAsync(final RStream<String, EventMessage> stream,
+                           final EventListener<EventMessage> listener) {
         if (!running.get()) {
             log.debug("Polling stopped");
             return;
@@ -139,10 +139,10 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
 
                     if (messages != null && !messages.isEmpty()) {
 
-                        for (Map.Entry<StreamMessageId, Map<String, PubSubMessage>> entry : messages.entrySet()) {
+                        for (Map.Entry<StreamMessageId, Map<String, EventMessage>> entry : messages.entrySet()) {
 
                             StreamMessageId id = entry.getKey();
-                            PubSubMessage msg =
+                            EventMessage msg =
                                     entry.getValue().entrySet().iterator().next().getValue();
 
                             if (!nodeId.equals(msg.getNodeId())) {
@@ -166,13 +166,13 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
 
 
 
-    private boolean processMessage(PubSubMessage msg,
-                                   PubSubListener<PubSubMessage> listener,
+    private boolean processMessage(EventMessage msg,
+                                   EventListener<EventMessage> listener,
                                    StreamMessageId id) {
 
         String key = id.toString();
         int attempts = retryCount.getOrDefault(key, 0);
-
+        msg.setOffset(key);
         try {
             listener.onMessage(msg);
             retryCount.remove(key);
@@ -202,7 +202,7 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
 
 
 
-    private void scheduleNextPoll(final RStream<String, PubSubMessage> stream, final PubSubListener<PubSubMessage> listener) {
+    private void scheduleNextPoll(final RStream<String, EventMessage> stream, final EventListener<EventMessage> listener) {
         if (running.get()) {
             executorService.schedule(() -> pollAsync(stream, listener), 1, TimeUnit.SECONDS);
         }
@@ -211,9 +211,9 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
 
 
     @Override
-    public void unsubscribe(PubSubType type) {
+    public void unsubscribe(EventType type) {
         // Single-channel mode subscribes to ALL types
-        if (type != PubSubType.ALL_SINGLE_CHANNEL) {
+        if (type != EventType.ALL_SINGLE_CHANNEL) {
             throw new UnsupportedOperationException(
                     "Single-channel mode only supports PubSubType.ALL_SINGLE_CHANNEL - no individual un-subscribes");
         }
@@ -229,7 +229,7 @@ public class SingleChannelRedisStreamsPubSubStore implements PubSubStore {
     @Override
     public void shutdown() {
         log.debug("Shutting down Redis Streams");
-        unsubscribe(PubSubType.ALL_SINGLE_CHANNEL);
+        unsubscribe(EventType.ALL_SINGLE_CHANNEL);
         executorService.shutdownNow();
         redissonClient.shutdown();
     }

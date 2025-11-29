@@ -23,6 +23,7 @@ import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.store.MemoryStoreFactory;
 import com.socketio4j.socketio.store.StoreFactory;
 
+import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 import io.netty.handler.codec.http.HttpDecoderConfig;
 
 public class Configuration extends BasicConfiguration {
@@ -108,7 +109,7 @@ public class Configuration extends BasicConfiguration {
      *
      * @see com.socketio4j.socketio.store.MemoryStoreFactory
      * @see com.socketio4j.socketio.store.RedissonStoreFactory
-     * @see com.socketio4j.socketio.store.HazelcastStoreFactory
+     * @see HazelcastStoreFactory
      */
     public void setStoreFactory(StoreFactory clientStoreFactory) {
         this.storeFactory = clientStoreFactory;

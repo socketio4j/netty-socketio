@@ -14,15 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store;
+package com.socketio4j.socketio.store.hazelcast;
 
 import java.util.Map;
 import java.util.UUID;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.core.HazelcastInstance;
-import com.socketio4j.socketio.store.pubsub.BaseStoreFactory;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
+import com.socketio4j.socketio.store.Store;
+import com.socketio4j.socketio.store.event.BaseStoreFactory;
+import com.socketio4j.socketio.store.event.EventStore;
 
 /**
  * WARN: It's necessary to add netty-socketio.jar in hazelcast server classpath.
@@ -34,7 +35,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     private final HazelcastInstance hazelcastPub;
     private final HazelcastInstance hazelcastSub;
 
-    private final PubSubStore pubSubStore;
+    private final EventStore eventStore;
 
     public HazelcastStoreFactory() {
         this(HazelcastClient.newHazelcastClient());
@@ -45,7 +46,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
         this.hazelcastPub = instance;
         this.hazelcastSub = instance;
 
-        this.pubSubStore = new HazelcastPubSubStore(hazelcastPub, hazelcastSub, getNodeId());
+        this.eventStore = new HazelcastEventStore(hazelcastPub, hazelcastSub, getNodeId());
     }
 
     public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub) {
@@ -53,14 +54,14 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
 
-        this.pubSubStore = new HazelcastPubSubStore(hazelcastPub, hazelcastSub, getNodeId());
+        this.eventStore = new HazelcastEventStore(hazelcastPub, hazelcastSub, getNodeId());
     }
-    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, HazelcastPubSubStore pubSubStore) {
+    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, HazelcastEventStore pubSubStore) {
         this.hazelcastClient = hazelcastClient;
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
 
-        this.pubSubStore = pubSubStore;
+        this.eventStore = pubSubStore;
     }
 
     @Override
@@ -76,8 +77,8 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     }
 
     @Override
-    public PubSubStore pubSubStore() {
-        return pubSubStore;
+    public EventStore pubSubStore() {
+        return eventStore;
     }
 
     @Override

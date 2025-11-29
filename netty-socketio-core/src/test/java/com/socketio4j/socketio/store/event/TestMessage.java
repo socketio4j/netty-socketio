@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store.event;
 
 import java.io.Serializable;
 
@@ -22,7 +22,7 @@ import java.io.Serializable;
  * Test message for testing purposes
  * This class is created as a separate file to avoid module access restrictions
  */
-public class TestMessage extends PubSubMessage implements Serializable {
+public class TestMessage extends EventMessage implements Serializable {
     private static final long serialVersionUID = 1L;
     
     private String content;

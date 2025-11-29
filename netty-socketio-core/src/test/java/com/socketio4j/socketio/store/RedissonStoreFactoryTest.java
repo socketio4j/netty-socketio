@@ -31,7 +31,7 @@ import org.redisson.config.Config;
 import org.testcontainers.containers.GenericContainer;
 
 import com.socketio4j.socketio.handler.ClientHead;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
+import com.socketio4j.socketio.store.event.EventStore;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -98,10 +98,10 @@ public class RedissonStoreFactoryTest extends StoreFactoryTest {
 
     @Test
     public void testRedissonPubSubStore() {
-        PubSubStore pubSubStore = storeFactory.pubSubStore();
+        EventStore eventStore = storeFactory.pubSubStore();
         
-        assertNotNull(pubSubStore, "PubSubStore should not be null");
-        assertTrue(pubSubStore instanceof RedissonPubSubStore, "PubSubStore should be RedissonPubSubStore");
+        assertNotNull(eventStore, "PubSubStore should not be null");
+        assertTrue(eventStore instanceof RedissonEventStore, "PubSubStore should be RedissonPubSubStore");
     }
 
     @Test

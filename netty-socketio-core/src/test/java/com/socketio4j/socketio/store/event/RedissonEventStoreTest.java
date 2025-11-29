@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store.event;
 
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
@@ -22,12 +22,12 @@ import org.redisson.config.Config;
 import org.testcontainers.containers.GenericContainer;
 
 import com.socketio4j.socketio.store.CustomizedRedisContainer;
-import com.socketio4j.socketio.store.RedissonPubSubStore;
+import com.socketio4j.socketio.store.RedissonEventStore;
 
 /**
  * Test class for RedissonPubSubStore using testcontainers
  */
-public class RedissonPubSubStoreTest extends AbstractPubSubStoreTest {
+public class RedissonEventStoreTest extends AbstractEventStoreTest {
 
     private RedissonClient redissonPub;
     private RedissonClient redissonSub;
@@ -38,7 +38,7 @@ public class RedissonPubSubStoreTest extends AbstractPubSubStoreTest {
     }
 
     @Override
-    protected PubSubStore createPubSubStore(Long nodeId) throws Exception {
+    protected EventStore createPubSubStore(Long nodeId) throws Exception {
         CustomizedRedisContainer customizedRedisContainer = (CustomizedRedisContainer) container;
         Config config = new Config();
         config.useSingleServer()
@@ -46,7 +46,7 @@ public class RedissonPubSubStoreTest extends AbstractPubSubStoreTest {
         
         redissonPub = Redisson.create(config);
         redissonSub = Redisson.create(config);
-        return new RedissonPubSubStore(redissonPub, redissonSub, nodeId);
+        return new RedissonEventStore(redissonPub, redissonSub, nodeId);
     }
 
     @Override
