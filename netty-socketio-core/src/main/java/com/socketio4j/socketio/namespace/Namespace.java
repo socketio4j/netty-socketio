@@ -161,19 +161,6 @@ public class Namespace implements SocketIONamespace {
     }
 
 
-    public void onAny(BiConsumer<String, List<Object>> listener) {
-        catchAllEventListeners.add((client, event, args, ack) ->
-                listener.accept(event, args)
-        );
-    }
-
-    public void onAny(Consumer<String> listener) {
-        catchAllEventListeners.add((client, event, args, ack) ->
-                listener.accept(event)
-        );
-    }
-
-
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <T> void addEventListener(String eventName, Class<T> eventClass, DataListener<T> listener) {
@@ -211,7 +198,7 @@ public class Namespace implements SocketIONamespace {
                 eventInterceptor.onEvent(client, eventName, args, ackRequest);
             }
             for (CatchAllEventListener catchAllEventListener : catchAllEventListeners) {
-                catchAllEventListener.onEvent(client, eventName, args, ackRequest);
+                catchAllEventListener.onEvent(client, eventName, new MultiTypeArgs(args), ackRequest);
             }
         } catch (Exception e) {
             exceptionListener.onEventException(e, args, client);
