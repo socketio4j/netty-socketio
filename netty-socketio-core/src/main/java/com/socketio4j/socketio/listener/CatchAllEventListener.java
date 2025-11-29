@@ -29,6 +29,7 @@ import com.socketio4j.socketio.SocketIOClient;
  */
 @FunctionalInterface
 public interface CatchAllEventListener {
-
+    
     void onEvent(SocketIOClient client, String event, MultiTypeArgs args, AckRequest ackRequest);
+
 }
