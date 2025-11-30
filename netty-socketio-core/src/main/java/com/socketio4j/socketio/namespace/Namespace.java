@@ -205,11 +205,11 @@ public class Namespace implements SocketIONamespace {
                     Object data = getEventData(args, dataListener);
                     dataListener.onData(client, data, ackRequest);
                 }
+                for (EventInterceptor eventInterceptor : eventInterceptors) {
+                    eventInterceptor.onEvent(client, eventName, args, ackRequest);
+                }
             }
-
-            for (EventInterceptor eventInterceptor : eventInterceptors) {
-                eventInterceptor.onEvent(client, eventName, args, ackRequest);
-            }
+            
             for (CatchAllEventListener catchAllEventListener : catchAllEventListeners) {
                 catchAllEventListener.onEvent(client, eventName, args, ackRequest);
             }
