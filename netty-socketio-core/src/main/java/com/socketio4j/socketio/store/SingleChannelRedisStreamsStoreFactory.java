@@ -1,14 +1,18 @@
 package com.socketio4j.socketio.store;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
+import java.util.UUID;
 
-import com.socketio4j.socketio.store.event.EventType;
 import org.redisson.api.RedissonClient;
+import org.redisson.api.StreamMessageId;
 
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
-import org.redisson.api.StreamMessageId;
+import com.socketio4j.socketio.store.event.EventType;
+
+
 
 public class SingleChannelRedisStreamsStoreFactory extends BaseStoreFactory {
 

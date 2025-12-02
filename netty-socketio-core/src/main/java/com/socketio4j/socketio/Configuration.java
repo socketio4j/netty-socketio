@@ -22,8 +22,8 @@ import com.socketio4j.socketio.listener.ExceptionListener;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.store.MemoryStoreFactory;
 import com.socketio4j.socketio.store.StoreFactory;
-
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
+
 import io.netty.handler.codec.http.HttpDecoderConfig;
 
 public class Configuration extends BasicConfiguration {

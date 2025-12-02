@@ -19,7 +19,6 @@ package com.socketio4j.socketio.store.event;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.socketio4j.socketio.protocol.Packet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,6 +27,7 @@ import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.namespace.NamespacesHub;
 import com.socketio4j.socketio.protocol.JsonSupport;
+import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.StoreFactory;
 

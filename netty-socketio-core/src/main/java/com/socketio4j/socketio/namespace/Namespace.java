@@ -31,7 +31,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import com.socketio4j.socketio.store.event.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,6 +58,11 @@ import com.socketio4j.socketio.listener.PongListener;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.store.StoreFactory;
+import com.socketio4j.socketio.store.event.BulkJoinMessage;
+import com.socketio4j.socketio.store.event.BulkLeaveMessage;
+import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.event.JoinMessage;
+import com.socketio4j.socketio.store.event.LeaveMessage;
 import com.socketio4j.socketio.transport.NamespaceClient;
 
 
