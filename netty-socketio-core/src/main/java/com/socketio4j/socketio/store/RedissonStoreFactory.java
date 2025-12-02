@@ -16,16 +16,25 @@
  */
 package com.socketio4j.socketio.store;
 
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+
 
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
 
+
 public class RedissonStoreFactory extends BaseStoreFactory {
+
+    private static final Logger log = LoggerFactory.getLogger(RedissonStoreFactory.class);
 
     private final RedissonClient redisClient;
     private final RedissonClient redisPub;
@@ -38,6 +47,9 @@ public class RedissonStoreFactory extends BaseStoreFactory {
     }
 
     public RedissonStoreFactory(RedissonClient redisson) {
+
+        Objects.requireNonNull(redisson, "redisson cannot be null");
+
         this.redisClient = redisson;
         this.redisPub = redisson;
         this.redisSub = redisson;
@@ -45,7 +57,24 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.eventStore = new RedissonEventStore(redisPub, redisSub, getNodeId());
     }
 
+    public RedissonStoreFactory(RedissonClient redisson, RedissonPubSubStore pubSubStore) {
+
+        Objects.requireNonNull(redisson, "redisson cannot be null");
+        Objects.requireNonNull(pubSubStore, "pubSubStore cannot be null");
+
+        this.redisClient = redisson;
+        this.redisPub = redisson;
+        this.redisSub = redisson;
+
+        this.pubSubStore = pubSubStore;
+    }
+
     public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub) {
+
+        Objects.requireNonNull(redisClient, "redisClient cannot be null");
+        Objects.requireNonNull(redisPub, "redisPub cannot be null");
+        Objects.requireNonNull(redisSub, "redisSub cannot be null");
+
         this.redisClient = redisClient;
         this.redisPub = redisPub;
         this.redisSub = redisSub;
@@ -61,6 +90,20 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.eventStore = pubSubStore;
     }
 
+    public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, RedissonPubSubStore pubSubStore) {
+
+        Objects.requireNonNull(redisClient, "redisClient cannot be null");
+        Objects.requireNonNull(redisPub, "redisPub cannot be null");
+        Objects.requireNonNull(redisSub, "redisSub cannot be null");
+        Objects.requireNonNull(pubSubStore, "pubSubStore cannot be null");
+
+        this.redisClient = redisClient;
+        this.redisPub = redisPub;
+        this.redisSub = redisSub;
+
+        this.pubSubStore = pubSubStore;
+    }
+
     @Override
     public Store createStore(UUID sessionId) {
         return new RedissonStore(sessionId, redisClient);
@@ -73,10 +116,28 @@ public class RedissonStoreFactory extends BaseStoreFactory {
 
     @Override
     public void shutdown() {
-        redisClient.shutdown();
-        redisPub.shutdown();
-        redisSub.shutdown();
+
+        pubSubStore.shutdown();
+
+        // Ordered hash: preserves order, no duplicates
+        Set<RedissonClient> ordered = new LinkedHashSet<>();
+
+        ordered.add(redisSub);
+        ordered.add(redisPub);
+        ordered.add(redisClient);
+
+        for (RedissonClient c : ordered) {
+            if (c != null) {
+                try {
+                    c.shutdown();
+                    log.info("Shutdown: {}", c.getClass().getSimpleName());
+                } catch (Exception e) {
+                    log.warn("Shutdown failed: {}", c.getClass().getSimpleName(), e);
+                }
+            }
+        }
     }
+
 
     @Override
     public <K, V> Map<K, V> createMap(String name) {

@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.listener.CatchAllEventListener;
 import com.socketio4j.socketio.listener.ClientListeners;
 import com.socketio4j.socketio.listener.ConnectListener;
 import com.socketio4j.socketio.listener.DataListener;
@@ -46,12 +47,20 @@ import io.netty.channel.IoHandlerFactory;
 import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.ServerChannel;
 import io.netty.channel.WriteBufferWaterMark;
+import io.netty.channel.epoll.Epoll;
+import io.netty.channel.epoll.EpollIoHandler;
+import io.netty.channel.epoll.EpollServerSocketChannel;
+import io.netty.channel.kqueue.KQueue;
+import io.netty.channel.kqueue.KQueueIoHandler;
+import io.netty.channel.kqueue.KQueueServerSocketChannel;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.channel.uring.IoUring;
+import io.netty.channel.uring.IoUringIoHandler;
+import io.netty.channel.uring.IoUringServerSocketChannel;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.FutureListener;
 import io.netty.util.concurrent.SucceededFuture;
-
 
 /**
  * Fully thread-safe.
@@ -140,53 +149,46 @@ public class SocketIOServer implements ClientListeners {
             initGroups();
             pipelineFactory.start(configCopy, namespacesHub);
 
-            Class<? extends ServerChannel> channelClass;
+            Class<? extends ServerChannel> channelClass = NioServerSocketChannel.class;
 
             switch (configCopy.getTransportType()) {
-
                 case IO_URING:
-                    if (ioUringAvailable()) {
-                        channelClass = loadChannelClass("io.netty.channel.uring.IoUringServerSocketChannel");
+                    if (IoUring.isAvailable()) {
+                        channelClass = IoUringServerSocketChannel.class;
                     } else {
-                        channelClass = fallback("IO_URING unavailable");
+                        log.warn("IO_URING transport requested but not available, falling back to NIO");
                     }
                     break;
-
                 case EPOLL:
-                    if (epollAvailable()) {
-                        channelClass = loadChannelClass("io.netty.channel.epoll.EpollServerSocketChannel");
+                    if (Epoll.isAvailable()) {
+                        channelClass = EpollServerSocketChannel.class;
                     } else {
-                        channelClass = fallback("EPOLL unavailable");
+                        log.warn("EPOLL transport requested but not available, falling back to NIO");
                     }
                     break;
-
                 case KQUEUE:
-                    if (kqueueAvailable()) {
-                        channelClass = loadChannelClass("io.netty.channel.kqueue.KQueueServerSocketChannel");
+                    if (KQueue.isAvailable()) {
+                        channelClass = KQueueServerSocketChannel.class;
                     } else {
-                        channelClass = fallback("KQUEUE unavailable");
+                        log.warn("KQUEUE transport requested but not available, falling back to NIO");
                     }
                     break;
-
-                case NIO:
-                    channelClass = NioServerSocketChannel.class;
-                    break;
-
                 case AUTO:
-                default:
-                    if (ioUringAvailable()) {
-                        channelClass = loadChannelClass("io.netty.channel.uring.IoUringServerSocketChannel");
+                    if (IoUring.isAvailable()) {
+                        channelClass = IoUringServerSocketChannel.class;
                         log.info("AUTO selected IO_URING transport");
-                    } else if (epollAvailable()) {
-                        channelClass = loadChannelClass("io.netty.channel.epoll.EpollServerSocketChannel");
+                    } else if (Epoll.isAvailable()) {
+                        channelClass = EpollServerSocketChannel.class;
                         log.info("AUTO selected EPOLL transport");
-                    } else if (kqueueAvailable()) {
-                        channelClass = loadChannelClass("io.netty.channel.kqueue.KQueueServerSocketChannel");
+                    } else if (KQueue.isAvailable()) {
+                        channelClass = KQueueServerSocketChannel.class;
                         log.info("AUTO selected KQUEUE transport");
                     } else {
-                        channelClass = NioServerSocketChannel.class;
                         log.info("AUTO selected NIO transport");
                     }
+                    break;
+                default:
+                    log.info("NIO transport as default transport");
             }
 
             ServerBootstrap bootstrap = new ServerBootstrap();
@@ -220,27 +222,6 @@ public class SocketIOServer implements ClientListeners {
         }
     }
 
-    private Class<? extends ServerChannel> loadChannelClass(String name) {
-        try {
-            @SuppressWarnings("unchecked")
-            Class<? extends ServerChannel> c = (Class<? extends ServerChannel>) Class.forName(name);
-            return c;
-        } catch (Exception ignored) {
-            log.warn("Unable to load native channel {}. Using NIO.", name);
-            return NioServerSocketChannel.class;
-        }
-    }
-
-    private Class<? extends ServerChannel> fallback(String msg) {
-        log.warn("{} → Falling back to NIO.", msg);
-        return NioServerSocketChannel.class;
-    }
-
-    private IoHandlerFactory fallbackFactory(String msg) {
-        log.warn("{} → Falling back to NIO IoHandler.", msg);
-        return NioIoHandler.newFactory();
-    }
-
     protected void applyConnectionOptions(ServerBootstrap bootstrap) {
         SocketConfig config = configCopy.getSocketConfig();
 
@@ -269,55 +250,53 @@ public class SocketIOServer implements ClientListeners {
 
     protected void initGroups() {
 
-        IoHandlerFactory handler;
+        IoHandlerFactory handler = NioIoHandler.newFactory();
 
         switch (configCopy.getTransportType()) {
-
             case IO_URING:
-                handler = createHandler("io.netty.channel.uring.IoUringIoHandler", ioUringAvailable());
-                break;
-
-            case EPOLL:
-                handler = createHandler("io.netty.channel.epoll.EpollIoHandler", epollAvailable());
-                break;
-
-            case KQUEUE:
-                handler = createHandler("io.netty.channel.kqueue.KQueueIoHandler", kqueueAvailable());
-                break;
-
-            case NIO:
-                handler = NioIoHandler.newFactory();
-                break;
-
-            case AUTO:
-            default:
-                if (ioUringAvailable()) {
-                    handler = createHandler("io.netty.channel.uring.IoUringIoHandler", true);
-                } else if (epollAvailable()) {
-                    handler = createHandler("io.netty.channel.epoll.EpollIoHandler", true);
-                } else if (kqueueAvailable()) {
-                    handler = createHandler("io.netty.channel.kqueue.KQueueIoHandler", true);
+                if (IoUring.isAvailable()) {
+                    handler = IoUringIoHandler.newFactory();
                 } else {
-                    handler = fallbackFactory("No native transport available.");
+                    log.warn("IO_URING IoHandler requested but not available, falling back to NIO");
                 }
+                break;
+            case EPOLL:
+                if (Epoll.isAvailable()) {
+                    handler = EpollIoHandler.newFactory();
+                } else {
+                    log.warn("EPOLL IoHandler requested but not available, falling back to NIO");
+                }
+                break;
+            case KQUEUE:
+                if (KQueue.isAvailable()) {
+                    handler = KQueueIoHandler.newFactory();
+                } else {
+                    log.warn("KQUEUE IoHandler requested but not available, falling back to NIO");
+                }
+                break;
+            case AUTO:
+                if (IoUring.isAvailable()) {
+                    handler = IoUringIoHandler.newFactory();
+                } else if (Epoll.isAvailable()) {
+                    handler = EpollIoHandler.newFactory();
+                } else if (KQueue.isAvailable()) {
+                    handler = KQueueIoHandler.newFactory();
+                } else {
+                    handler = NioIoHandler.newFactory();
+                }
+                log.info(" AUTO selected transportType {}", handler);
+                break;
+            default:
+                handler = IoUringIoHandler.newFactory();
+                log.info("default transportType {} is selected", handler);
+                break;
         }
 
         bossGroup = new MultiThreadIoEventLoopGroup(configCopy.getBossThreads(), handler);
         workerGroup = new MultiThreadIoEventLoopGroup(configCopy.getWorkerThreads(), handler);
     }
 
-    private IoHandlerFactory createHandler(String className, boolean available) {
-        if (!available) {
-            return fallbackFactory(className + " unavailable");
-        }
-        try {
-            return (IoHandlerFactory) Class.forName(className)
-                    .getMethod("newFactory")
-                    .invoke(null);
-        } catch (Exception ignored) {
-            return fallbackFactory("Failed to load " + className);
-        }
-    }
+
 
     public void stop() {
         if (!serverStatus.compareAndSet(ServerStatus.STARTED, ServerStatus.STOPPING)) {
@@ -372,6 +351,28 @@ public class SocketIOServer implements ClientListeners {
     }
 
     @Override
+    public void addOnAnyEventListener(CatchAllEventListener listener) {
+        mainNamespace.addOnAnyEventListener(listener);
+    }
+
+    @Override
+    public void removeOnAnyEventListener(CatchAllEventListener listener) {
+        mainNamespace.removeOnAnyEventListener(listener);
+    }
+
+    //alias addOnAnyEventListener
+    @Override
+    public void onAny(CatchAllEventListener listener) {
+        addOnAnyEventListener(listener);
+    }
+
+    //alias removeOnAnyEventListener
+    @Override
+    public void offAny(CatchAllEventListener listener) {
+        removeOnAnyEventListener(listener);
+    }
+
+    @Override
     public void addDisconnectListener(DisconnectListener listener) {
         mainNamespace.addDisconnectListener(listener);
     }
@@ -406,41 +407,5 @@ public class SocketIOServer implements ClientListeners {
         mainNamespace.addListeners(listeners, clazz);
     }
 
-    /* ---------------------------------------------------------------------
-     * Native Transport Detection — Safe Reflection
-     * --------------------------------------------------------------------- */
-
-    private static boolean isClassPresent(String name) {
-        try {
-            Class.forName(name, false, SocketIOServer.class.getClassLoader());
-            return true;
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private static boolean isNativeAvailable(String className, String method) {
-        try {
-            Class<?> cls = Class.forName(className, false, SocketIOServer.class.getClassLoader());
-            return (Boolean) cls.getMethod(method).invoke(null);
-        } catch (Exception ignored) {
-            return false;
-        }
-    }
-
-    private static boolean ioUringAvailable() {
-        return isClassPresent("io.netty.channel.uring.IoUring")
-                && isNativeAvailable("io.netty.channel.uring.IoUring", "isAvailable");
-    }
-
-    private static boolean epollAvailable() {
-        return isClassPresent("io.netty.channel.epoll.Epoll")
-                && isNativeAvailable("io.netty.channel.epoll.Epoll", "isAvailable");
-    }
-
-    private static boolean kqueueAvailable() {
-        return isClassPresent("io.netty.channel.kqueue.KQueue")
-                && isNativeAvailable("io.netty.channel.kqueue.KQueue", "isAvailable");
-    }
 
 }

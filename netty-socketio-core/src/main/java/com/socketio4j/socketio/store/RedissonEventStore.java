@@ -16,6 +16,8 @@
  */
 package com.socketio4j.socketio.store;
 
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -23,7 +25,8 @@ import java.util.concurrent.ConcurrentMap;
 
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.socketio4j.socketio.store.event.*;
 
 public class RedissonEventStore implements EventStore {
@@ -34,7 +37,22 @@ public class RedissonEventStore implements EventStore {
 
     private final ConcurrentMap<String, Queue<Integer>> map = new ConcurrentHashMap<>();
 
+    private static final Logger log = LoggerFactory.getLogger(RedissonEventStore.class);
+
+    public RedissonEventStore(RedissonClient redisson, Long nodeId) {
+
+        Objects.requireNonNull(redisson, "redisson is null");
+
+        this.redissonPub = redisson;
+        this.redissonSub = redisson;
+        this.nodeId = nodeId;
+    }
+
     public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub, Long nodeId) {
+
+        Objects.requireNonNull(redissonPub, "redissonPub is null");
+        Objects.requireNonNull(redissonSub, "redissonSub is null");
+
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
         this.nodeId = nodeId;
@@ -48,37 +66,56 @@ public class RedissonEventStore implements EventStore {
 
     @Override
     public <T extends EventMessage> void subscribe(EventType type, final EventListener<T> listener, Class<T> clazz) {
-        String name = type.toString();
-        RTopic topic = redissonSub.getTopic(name);
-        int regId = topic.addListener(EventMessage.class, (channel, msg) -> {
+
+        RTopic topic = redissonSub.getTopic(type.toString());
+
+        int regId = topic.addListener(clazz, (channel, msg) -> {
             if (!nodeId.equals(msg.getNodeId())) {
-                listener.onMessage((T) msg);
+                listener.onMessage(msg);
             }
         });
 
-        Queue<Integer> list = map.get(name);
-        if (list == null) {
-            list = new ConcurrentLinkedQueue<>();
-            Queue<Integer> oldList = map.putIfAbsent(name, list);
-            if (oldList != null) {
-                list = oldList;
-            }
-        }
-        list.add(regId);
+        map.computeIfAbsent(type.toString(), k -> new ConcurrentLinkedQueue<>()).add(regId);
+
     }
+
+
 
     @Override
     public void unsubscribe(EventType type) {
+
         String name = type.toString();
+
         Queue<Integer> regIds = map.remove(name);
+        if (regIds == null || regIds.isEmpty()) {
+            return;
+        }
+
         RTopic topic = redissonSub.getTopic(name);
+        if (topic == null) {
+            return;
+        }
+
         for (Integer id : regIds) {
-            topic.removeListener(id);
+            try {
+                topic.removeListener(id);
+            } catch (Exception ex) {
+                log.warn("Failed to remove listener {} from topic {}", id, name, ex);
+            }
         }
     }
 
     @Override
     public void shutdown() {
+
+        // Stop all pub/sub listeners for all types
+        Arrays.stream(PubSubType.values())
+                .forEach(this::unsubscribe);
+
+        map.clear();
+
+        // do not shut down redis clients here
     }
+
 
 }

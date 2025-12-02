@@ -55,6 +55,37 @@ server.addEventListener("eventName", EventData.class, (client, data, ackRequest)
     // Handle event
 });
 ```
+### Listening to Any Event (`onAny` / `addOnAnyEventListener`)
+
+SocketIO4j provides two APIs to listen to **all events** emitted by clients:
+
+- `server.addOnAnyEventListener(...)` OR
+- `server.onAny(...)` 
+
+
+## Example: `onAny`
+
+```java
+server.addOnAnyEventListener((client, event, args, ackRequest) -> {
+
+    System.out.println("Client: " + client.getSessionId());
+    System.out.println("Event: " + event);
+    System.out.println("Args count: " + args.size());
+
+    for (Object arg : args) {
+        System.out.println(arg);
+    }
+
+    if (ackRequest.isAckRequested()) {
+        ackRequest.sendAckData("OK");
+    }
+});
+```
+## Acknowledgement Rules
+
+- If the client sends an event with a callback, `ackRequest.isAckRequested()` will be `true`.
+- Only the **first** call to `ackRequest.sendAckData(...)` is delivered to the client.
+- Additional ack attempts from other listeners are ignored (Socket.IO allows only one ack per event).
 
 ### Broadcasting Messages
 

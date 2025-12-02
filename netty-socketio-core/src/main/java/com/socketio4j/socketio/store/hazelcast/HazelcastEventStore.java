@@ -16,11 +16,15 @@
  */
 package com.socketio4j.socketio.store.hazelcast;
 
+import java.util.Arrays;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.topic.ITopic;
@@ -37,6 +41,7 @@ public class HazelcastEventStore implements EventStore {
     private final Long nodeId;
 
     private final ConcurrentMap<String, Queue<UUID>> map = new ConcurrentHashMap<>();
+    private static final Logger log = LoggerFactory.getLogger(HazelcastEventStore.class);
 
     public HazelcastEventStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId) {
         this.hazelcastPub = hazelcastPub;
@@ -52,24 +57,17 @@ public class HazelcastEventStore implements EventStore {
 
     @Override
     public <T extends EventMessage> void subscribe(EventType type, final EventListener<T> listener, Class<T> clazz) {
-        String name = type.toString();
-        ITopic<T> topic = hazelcastSub.getTopic(name);
-        UUID regId = topic.addMessageListener(message -> {
-            EventMessage msg = message.getMessageObject();
-            if (!nodeId.equals(msg.getNodeId())) {
-                listener.onMessage(message.getMessageObject());
+
+        ITopic<T> topic = hazelcastSub.getTopic(type.toString());
+
+        UUID regId = topic.addMessageListener(msg -> {
+            if (!nodeId.equals(msg.getMessageObject().getNodeId())) {
+                listener.onMessage(msg.getMessageObject());
             }
         });
 
-        Queue<UUID> list = map.get(name);
-        if (list == null) {
-            list = new ConcurrentLinkedQueue<>();
-            Queue<UUID> oldList = map.putIfAbsent(name, list);
-            if (oldList != null) {
-                list = oldList;
-            }
-        }
-        list.add(regId);
+        map.computeIfAbsent(type.toString(), k -> new ConcurrentLinkedQueue<>())
+                .add(regId);
     }
 
     @Override
@@ -81,12 +79,19 @@ public class HazelcastEventStore implements EventStore {
         }
         ITopic<Object> topic = hazelcastSub.getTopic(name);
         for (UUID id : regIds) {
-            topic.removeMessageListener(id);
+            try {
+                topic.removeMessageListener(id);
+            } catch (Exception e) {
+                 log.warn("Failed to remove listener {} from topic {}", id, name, e);
+            }
         }
     }
 
     @Override
     public void shutdown() {
+        Arrays.stream(EventType.values()).forEach(this::unsubscribe);
+        map.clear();
+        //do not shut down client here
     }
 
 }

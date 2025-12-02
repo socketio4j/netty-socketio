@@ -16,8 +16,14 @@
  */
 package com.socketio4j.socketio.store.hazelcast;
 
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.core.HazelcastInstance;
@@ -25,11 +31,14 @@ import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
 
+
 /**
  * WARN: It's necessary to add netty-socketio.jar in hazelcast server classpath.
  *
  */
 public class HazelcastStoreFactory extends BaseStoreFactory {
+
+    private static final Logger log = LoggerFactory.getLogger(HazelcastStoreFactory.class);
 
     private final HazelcastInstance hazelcastClient;
     private final HazelcastInstance hazelcastPub;
@@ -42,6 +51,9 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     }
 
     public HazelcastStoreFactory(HazelcastInstance instance) {
+
+        Objects.requireNonNull(instance, "instance cannot be null");
+
         this.hazelcastClient = instance;
         this.hazelcastPub = instance;
         this.hazelcastSub = instance;
@@ -50,6 +62,11 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     }
 
     public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub) {
+
+        Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
+        Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
+        Objects.requireNonNull(hazelcastSub, "hazelcastSub cannot be null");
+
         this.hazelcastClient = hazelcastClient;
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
@@ -64,6 +81,20 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
         this.eventStore = pubSubStore;
     }
 
+    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, HazelcastPubSubStore pubSubStore) {
+
+        Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
+        Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
+        Objects.requireNonNull(hazelcastSub, "hazelcastSub cannot be null");
+        Objects.requireNonNull(pubSubStore, "pubSubStore cannot be null");
+
+        this.hazelcastClient = hazelcastClient;
+        this.hazelcastPub = hazelcastPub;
+        this.hazelcastSub = hazelcastSub;
+
+        this.pubSubStore = pubSubStore;
+    }
+
     @Override
     public Store createStore(UUID sessionId) {
         return new HazelcastStore(sessionId, hazelcastClient);
@@ -71,10 +102,28 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
 
     @Override
     public void shutdown() {
-        hazelcastClient.shutdown();
-        hazelcastPub.shutdown();
-        hazelcastSub.shutdown();
+
+        pubSubStore.shutdown();
+
+        // Ordered hash: preserves order, no duplicates
+        Set<HazelcastInstance> ordered = new LinkedHashSet<>();
+
+        ordered.add(hazelcastSub);
+        ordered.add(hazelcastPub);
+        ordered.add(hazelcastClient);
+
+        for (HazelcastInstance c : ordered) {
+            if (c != null) {
+                try {
+                    c.shutdown();
+                    log.info("Shutdown: {}", c.getClass().getSimpleName());
+                } catch (Exception e) {
+                    log.warn("Shutdown failed: {}", c.getClass().getSimpleName(), e);
+                }
+            }
+        }
     }
+
 
     @Override
     public EventStore pubSubStore() {

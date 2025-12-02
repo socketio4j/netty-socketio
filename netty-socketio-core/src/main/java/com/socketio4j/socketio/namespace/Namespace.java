@@ -28,6 +28,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import com.socketio4j.socketio.store.event.*;
 import org.slf4j.Logger;
@@ -45,6 +47,7 @@ import com.socketio4j.socketio.SingleRoomBroadcastOperations;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIONamespace;
 import com.socketio4j.socketio.annotation.ScannerEngine;
+import com.socketio4j.socketio.listener.CatchAllEventListener;
 import com.socketio4j.socketio.listener.ConnectListener;
 import com.socketio4j.socketio.listener.DataListener;
 import com.socketio4j.socketio.listener.DisconnectListener;
@@ -73,6 +76,7 @@ public class Namespace implements SocketIONamespace {
 
     private final ScannerEngine engine = new ScannerEngine();
     private final ConcurrentMap<String, EventEntry<?>> eventListeners = new ConcurrentHashMap<>();
+    private final Queue<CatchAllEventListener> catchAllEventListeners = new ConcurrentLinkedQueue<>();
     private final Queue<ConnectListener> connectListeners = new ConcurrentLinkedQueue<ConnectListener>();
     private final Queue<DisconnectListener> disconnectListeners = new ConcurrentLinkedQueue<DisconnectListener>();
     private final Queue<PingListener> pingListeners = new ConcurrentLinkedQueue<PingListener>();
@@ -133,6 +137,42 @@ public class Namespace implements SocketIONamespace {
     }
 
     @Override
+    public void addOnAnyEventListener(CatchAllEventListener listener) {
+        catchAllEventListeners.add(listener);
+    }
+
+    @Override
+    public void removeOnAnyEventListener(CatchAllEventListener listener) {
+        catchAllEventListeners.remove(listener);
+    }
+
+    //alias of addOnAnyEventListener
+    @Override
+    public void onAny(CatchAllEventListener listener) {
+        addOnAnyEventListener(listener);
+    }
+
+    //alias of removeOnAnyEventListener
+    @Override
+    public void offAny(CatchAllEventListener listener) {
+        removeOnAnyEventListener(listener);
+    }
+
+
+    public void onAny(BiConsumer<String, List<Object>> listener) {
+        catchAllEventListeners.add((client, event, args, ack) ->
+                listener.accept(event, args)
+        );
+    }
+
+    public void onAny(Consumer<String> listener) {
+        catchAllEventListeners.add((client, event, args, ack) ->
+                listener.accept(event)
+        );
+    }
+
+
+    @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <T> void addEventListener(String eventName, Class<T> eventClass, DataListener<T> listener) {
         EventEntry entry = eventListeners.get(eventName);
@@ -155,19 +195,21 @@ public class Namespace implements SocketIONamespace {
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void onEvent(NamespaceClient client, String eventName, List<Object> args, AckRequest ackRequest) {
         EventEntry entry = eventListeners.get(eventName);
-        if (entry == null) {
-            return;
-        }
 
         try {
-            Queue<DataListener> listeners = entry.getListeners();
-            for (DataListener dataListener : listeners) {
-                Object data = getEventData(args, dataListener);
-                dataListener.onData(client, data, ackRequest);
+            if (entry != null) {
+                Queue<DataListener> listeners = entry.getListeners();
+                for (DataListener dataListener : listeners) {
+                    Object data = getEventData(args, dataListener);
+                    dataListener.onData(client, data, ackRequest);
+                }
+                for (EventInterceptor eventInterceptor : eventInterceptors) {
+                    eventInterceptor.onEvent(client, eventName, args, ackRequest);
+                }
             }
-
-            for (EventInterceptor eventInterceptor : eventInterceptors) {
-                eventInterceptor.onEvent(client, eventName, args, ackRequest);
+            
+            for (CatchAllEventListener catchAllEventListener : catchAllEventListeners) {
+                catchAllEventListener.onEvent(client, eventName, args, ackRequest);
             }
         } catch (Exception e) {
             exceptionListener.onEventException(e, args, client);
