@@ -73,15 +73,9 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
 
         this.eventStore = new HazelcastEventStore(hazelcastPub, hazelcastSub, getNodeId());
     }
+
+
     public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, HazelcastEventStore pubSubStore) {
-        this.hazelcastClient = hazelcastClient;
-        this.hazelcastPub = hazelcastPub;
-        this.hazelcastSub = hazelcastSub;
-
-        this.eventStore = pubSubStore;
-    }
-
-    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, HazelcastPubSubStore pubSubStore) {
 
         Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
         Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
@@ -92,7 +86,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
 
-        this.pubSubStore = pubSubStore;
+        this.eventStore = pubSubStore;
     }
 
     @Override
@@ -103,7 +97,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     @Override
     public void shutdown() {
 
-        pubSubStore.shutdown();
+        eventStore.shutdown();
 
         // Ordered hash: preserves order, no duplicates
         Set<HazelcastInstance> ordered = new LinkedHashSet<>();

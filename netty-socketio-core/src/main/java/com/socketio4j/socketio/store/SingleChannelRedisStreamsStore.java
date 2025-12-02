@@ -100,7 +100,7 @@ public class SingleChannelRedisStreamsStore implements EventStore {
         // Single-channel mode subscribes to ALL types
         if (type != EventType.ALL_SINGLE_CHANNEL) {
                 throw new UnsupportedOperationException(
-                         "Single-channel mode only supports PubSubType.ALL_SINGLE_CHANNEL - no individual subscribes");
+                         "Single-channel mode only supports EventType.ALL_SINGLE_CHANNEL - no individual subscribes");
         }
         log.debug("Starting async Redis Streams worker");
 

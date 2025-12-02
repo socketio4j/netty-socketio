@@ -57,7 +57,7 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.eventStore = new RedissonEventStore(redisPub, redisSub, getNodeId());
     }
 
-    public RedissonStoreFactory(RedissonClient redisson, RedissonPubSubStore pubSubStore) {
+    public RedissonStoreFactory(RedissonClient redisson, RedissonEventStore pubSubStore) {
 
         Objects.requireNonNull(redisson, "redisson cannot be null");
         Objects.requireNonNull(pubSubStore, "pubSubStore cannot be null");
@@ -66,7 +66,7 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.redisPub = redisson;
         this.redisSub = redisson;
 
-        this.pubSubStore = pubSubStore;
+        this.eventStore = pubSubStore;
     }
 
     public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub) {
@@ -83,14 +83,6 @@ public class RedissonStoreFactory extends BaseStoreFactory {
     }
 
     public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, RedissonEventStore pubSubStore) {
-        this.redisClient = redisClient;
-        this.redisPub = redisPub;
-        this.redisSub = redisSub;
-
-        this.eventStore = pubSubStore;
-    }
-
-    public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, RedissonPubSubStore pubSubStore) {
 
         Objects.requireNonNull(redisClient, "redisClient cannot be null");
         Objects.requireNonNull(redisPub, "redisPub cannot be null");
@@ -101,7 +93,7 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.redisPub = redisPub;
         this.redisSub = redisSub;
 
-        this.pubSubStore = pubSubStore;
+        this.eventStore = pubSubStore;
     }
 
     @Override
@@ -117,7 +109,7 @@ public class RedissonStoreFactory extends BaseStoreFactory {
     @Override
     public void shutdown() {
 
-        pubSubStore.shutdown();
+        eventStore.shutdown();
 
         // Ordered hash: preserves order, no duplicates
         Set<RedissonClient> ordered = new LinkedHashSet<>();

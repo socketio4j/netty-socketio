@@ -91,7 +91,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
             } else if (msg instanceof DispatchMessage && enabled.contains(EventType.DISPATCH)) {
                 DispatchMessage m = (DispatchMessage) msg;
                 Namespace n = hub.get(m.getNamespace());
-                if (!msg.getOffset().isEmpty()) {
+                if (msg.getOffset() != null && !msg.getOffset().isEmpty()) {
                     attachOffset(m.getPacket(), m.getOffset());
                 }
                 if (n != null) {

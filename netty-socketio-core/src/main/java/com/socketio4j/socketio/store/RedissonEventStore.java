@@ -27,7 +27,11 @@ import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.socketio4j.socketio.store.event.*;
+
+import com.socketio4j.socketio.store.event.EventListener;
+import com.socketio4j.socketio.store.event.EventMessage;
+import com.socketio4j.socketio.store.event.EventStore;
+import com.socketio4j.socketio.store.event.EventType;
 
 public class RedissonEventStore implements EventStore {
 
@@ -109,7 +113,7 @@ public class RedissonEventStore implements EventStore {
     public void shutdown() {
 
         // Stop all pub/sub listeners for all types
-        Arrays.stream(PubSubType.values())
+        Arrays.stream(EventType.values())
                 .forEach(this::unsubscribe);
 
         map.clear();
