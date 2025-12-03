@@ -87,6 +87,38 @@ public class SingleChannelRedisStreamsStore implements EventStore {
 
     }
 
+    public SingleChannelRedisStreamsStore(RedissonClient redissonClient, Long nodeId) {
+        this.nodeId = nodeId;
+        this.redissonClient = redissonClient;
+        this.maxRetryCount = 3;
+        this.offset = StreamMessageId.NEWEST;
+        this.readTimeout = Duration.ofSeconds(1);
+        this.readBatchSize = 100;
+        this.stream = redissonClient.getStream("socketio4j");
+
+            this.enabledTypes =  Arrays.stream(EventType.values())
+                    .filter(t -> t != EventType.ALL_SINGLE_CHANNEL)
+                    .collect(Collectors.toList());
+
+
+    }
+
+    public SingleChannelRedisStreamsStore(RedissonClient redissonClient) {
+        this.nodeId = getNodeId();
+        this.redissonClient = redissonClient;
+        this.maxRetryCount = 3;
+        this.offset = StreamMessageId.NEWEST;
+        this.readTimeout = Duration.ofSeconds(1);
+        this.readBatchSize = 100;
+        this.stream = redissonClient.getStream("socketio4j");
+
+        this.enabledTypes =  Arrays.stream(EventType.values())
+                .filter(t -> t != EventType.ALL_SINGLE_CHANNEL)
+                .collect(Collectors.toList());
+
+
+    }
+
     @Override
     public EventStoreMode getMode() {
         return EventStoreMode.SINGLE_CHANNEL;
@@ -256,7 +288,6 @@ public class SingleChannelRedisStreamsStore implements EventStore {
         log.debug("Shutting down Redis Streams");
         unsubscribe(EventType.ALL_SINGLE_CHANNEL);
         executorService.shutdownNow();
-        redissonClient.shutdown();
     }
 
 }

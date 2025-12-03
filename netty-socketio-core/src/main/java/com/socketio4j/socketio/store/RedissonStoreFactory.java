@@ -65,7 +65,6 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.redisClient = redisson;
         this.redisPub = redisson;
         this.redisSub = redisson;
-
         this.eventStore = pubSubStore;
     }
 

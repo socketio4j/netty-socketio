@@ -20,7 +20,7 @@ import java.util.UUID;
 
 public class LeaveMessage extends EventMessage {
 
-    private static final long serialVersionUID = -944515928988033174L;
+    private static final long serialVersionUID = -6179894660576075280L;
 
     private UUID sessionId;
     private String namespace;

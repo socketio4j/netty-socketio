@@ -21,7 +21,7 @@ import java.util.UUID;
 
 public class BulkLeaveMessage extends EventMessage {
 
-    private static final long serialVersionUID = 7506016762607624388L;
+    private static final long serialVersionUID = 4084111480148299012L;
 
     private UUID sessionId;
     private String namespace;

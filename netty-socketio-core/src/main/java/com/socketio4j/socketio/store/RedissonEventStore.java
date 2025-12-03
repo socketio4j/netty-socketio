@@ -40,11 +40,13 @@ public class RedissonEventStore implements EventStore {
     private final Long nodeId;
 
     private final ConcurrentMap<String, Queue<Integer>> map = new ConcurrentHashMap<>();
-
     private static final Logger log = LoggerFactory.getLogger(RedissonEventStore.class);
 
-    public RedissonEventStore(RedissonClient redisson, Long nodeId) {
+    // ----------------------------------------------------------------------
+    // Constructors
+    // ----------------------------------------------------------------------
 
+    public RedissonEventStore(RedissonClient redisson, Long nodeId) {
         Objects.requireNonNull(redisson, "redisson is null");
 
         this.redissonPub = redisson;
@@ -53,14 +55,23 @@ public class RedissonEventStore implements EventStore {
     }
 
     public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub, Long nodeId) {
+        Objects.requireNonNull(redissonPub, "redissonPub is null");
+        Objects.requireNonNull(redissonSub, "redissonSub is null");
+        Objects.requireNonNull(nodeId, "node is null");
+        this.redissonPub = redissonPub;
+        this.redissonSub = redissonSub;
+        this.nodeId = nodeId;
+    }
 
+    public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub) {
         Objects.requireNonNull(redissonPub, "redissonPub is null");
         Objects.requireNonNull(redissonSub, "redissonSub is null");
 
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
-        this.nodeId = nodeId;
+        this.nodeId = getNodeId();
     }
+
 
     @Override
     public void publish(EventType type, EventMessage msg) {
@@ -70,7 +81,6 @@ public class RedissonEventStore implements EventStore {
 
     @Override
     public <T extends EventMessage> void subscribe(EventType type, final EventListener<T> listener, Class<T> clazz) {
-
         RTopic topic = redissonSub.getTopic(type.toString());
 
         int regId = topic.addListener(clazz, (channel, msg) -> {
@@ -80,14 +90,10 @@ public class RedissonEventStore implements EventStore {
         });
 
         map.computeIfAbsent(type.toString(), k -> new ConcurrentLinkedQueue<>()).add(regId);
-
     }
-
-
 
     @Override
     public void unsubscribe(EventType type) {
-
         String name = type.toString();
 
         Queue<Integer> regIds = map.remove(name);
@@ -111,15 +117,7 @@ public class RedissonEventStore implements EventStore {
 
     @Override
     public void shutdown() {
-
-        // Stop all pub/sub listeners for all types
-        Arrays.stream(EventType.values())
-                .forEach(this::unsubscribe);
-
+        Arrays.stream(EventType.values()).forEach(this::unsubscribe);
         map.clear();
-
-        // do not shut down redis clients here
     }
-
-
 }

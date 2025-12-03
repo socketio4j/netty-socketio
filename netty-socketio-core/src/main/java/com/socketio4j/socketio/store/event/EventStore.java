@@ -19,6 +19,7 @@ package com.socketio4j.socketio.store.event;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 public interface EventStore {
@@ -30,6 +31,11 @@ public interface EventStore {
     default EventStoreType getStoreType() {
         return EventStoreType.PUBSUB;
     }
+
+    default Long getNodeId() {
+        return ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
+    }
+
     default List<EventType> getEnabledTypes() {
         return Arrays.stream(EventType.values())
                 .filter(t -> t != EventType.ALL_SINGLE_CHANNEL)

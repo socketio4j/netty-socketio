@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 
+import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.StreamMessageId;
 
@@ -37,7 +38,7 @@ public class SingleChannelRedisStreamsStoreFactory extends BaseStoreFactory {
 
     public SingleChannelRedisStreamsStoreFactory(RedissonClient redissonClient) {
         this.redissonClient = redissonClient;
-        this.eventStore = new SingleChannelRedisStreamsStore("socketio", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, Collections.singletonList(EventType.ALL_SINGLE_CHANNEL)
+        this.eventStore = new SingleChannelRedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, Collections.singletonList(EventType.ALL_SINGLE_CHANNEL)
         );
     }
 
@@ -45,6 +46,13 @@ public class SingleChannelRedisStreamsStoreFactory extends BaseStoreFactory {
         this.redissonClient = redissonClient;
         this.eventStore = pubSubStore;
     }
+
+    public SingleChannelRedisStreamsStoreFactory() {
+        this.redissonClient = Redisson.create();
+        this.eventStore = new SingleChannelRedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, Collections.singletonList(EventType.ALL_SINGLE_CHANNEL)
+        );
+    }
+
 
     @Override
     public Store createStore(UUID sessionId) {

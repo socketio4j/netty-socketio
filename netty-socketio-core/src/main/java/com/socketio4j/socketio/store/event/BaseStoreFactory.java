@@ -18,6 +18,7 @@ package com.socketio4j.socketio.store.event;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +40,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
-    private Long nodeId = (long) (Math.random() * 1000000);
+    private final Long nodeId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
 
     protected Long getNodeId() {
         return nodeId;
