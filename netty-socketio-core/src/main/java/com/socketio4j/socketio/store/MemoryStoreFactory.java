@@ -33,7 +33,7 @@ public class MemoryStoreFactory extends BaseStoreFactory {
     }
 
     @Override
-    public EventStore pubSubStore() {
+    public EventStore eventStore() {
         return pubSubMemoryStore;
     }
 

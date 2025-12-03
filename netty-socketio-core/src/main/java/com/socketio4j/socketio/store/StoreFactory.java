@@ -32,7 +32,7 @@ import com.socketio4j.socketio.store.event.EventStore;
  */
 public interface StoreFactory extends Disconnectable {
 
-    EventStore pubSubStore();
+    EventStore eventStore();
 
     <K, V> Map<K, V> createMap(String name);
 

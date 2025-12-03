@@ -42,9 +42,9 @@ public class SingleChannelRedisStreamsStoreFactory extends BaseStoreFactory {
         );
     }
 
-    public SingleChannelRedisStreamsStoreFactory(RedissonClient redissonClient, SingleChannelRedisStreamsStore pubSubStore) {
+    public SingleChannelRedisStreamsStoreFactory(RedissonClient redissonClient, SingleChannelRedisStreamsStore eventStore) {
         this.redissonClient = redissonClient;
-        this.eventStore = pubSubStore;
+        this.eventStore = eventStore;
     }
 
     public SingleChannelRedisStreamsStoreFactory() {
@@ -60,7 +60,7 @@ public class SingleChannelRedisStreamsStoreFactory extends BaseStoreFactory {
     }
 
     @Override
-    public EventStore pubSubStore() {
+    public EventStore eventStore() {
         return eventStore;
     }
 

@@ -100,7 +100,7 @@ class NamespaceEventHandlingTest extends BaseNamespaceTest {
         when(configuration.getStoreFactory()).thenReturn(storeFactory);
         when(configuration.getAckMode()).thenReturn(AckMode.AUTO);
         when(configuration.getExceptionListener()).thenReturn(new DefaultExceptionListener());
-        when(storeFactory.pubSubStore()).thenReturn(eventStore);
+        when(storeFactory.eventStore()).thenReturn(eventStore);
 
         namespace = new Namespace(NAMESPACE_NAME, configuration);
 

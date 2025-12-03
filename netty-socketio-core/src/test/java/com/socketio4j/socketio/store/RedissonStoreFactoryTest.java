@@ -97,8 +97,8 @@ public class RedissonStoreFactoryTest extends StoreFactoryTest {
     }
 
     @Test
-    public void testRedissonPubSubStore() {
-        EventStore eventStore = storeFactory.pubSubStore();
+    public void testRedissonEventStore() {
+        EventStore eventStore = storeFactory.eventStore();
         
         assertNotNull(eventStore, "PubSubStore should not be null");
         assertTrue(eventStore instanceof RedissonEventStore, "PubSubStore should be RedissonPubSubStore");

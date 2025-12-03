@@ -48,7 +48,7 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
     }
 
     private void dispatch(Packet packet) {
-        this.storeFactory.pubSubStore().publish(
+        this.storeFactory.eventStore().publish(
                 EventType.DISPATCH,
                 new DispatchMessage(this.room, packet, this.namespace));
     }

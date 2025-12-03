@@ -58,8 +58,8 @@ public class MemoryStoreFactoryTest extends StoreFactoryTest {
     }
 
     @Test
-    public void testMemoryPubSubStore() {
-        EventStore eventStore = storeFactory.pubSubStore();
+    public void testMemoryEventStore() {
+        EventStore eventStore = storeFactory.eventStore();
         
         assertNotNull(eventStore, "PubSubStore should not be null");
         assertTrue(eventStore instanceof MemoryEventStore, "PubSubStore should be MemoryPubSubStore");

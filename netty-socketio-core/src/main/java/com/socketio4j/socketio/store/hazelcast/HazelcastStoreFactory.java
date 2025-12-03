@@ -80,7 +80,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
         Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
         Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
         Objects.requireNonNull(hazelcastSub, "hazelcastSub cannot be null");
-        Objects.requireNonNull(pubSubStore, "pubSubStore cannot be null");
+        Objects.requireNonNull(pubSubStore, "eventStore cannot be null");
 
         this.hazelcastClient = hazelcastClient;
         this.hazelcastPub = hazelcastPub;
@@ -120,7 +120,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
 
 
     @Override
-    public EventStore pubSubStore() {
+    public EventStore eventStore() {
         return eventStore;
     }
 

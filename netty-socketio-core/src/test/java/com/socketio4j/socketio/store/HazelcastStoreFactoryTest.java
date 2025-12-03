@@ -100,8 +100,8 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
     }
 
     @Test
-    public void testHazelcastPubSubStore() {
-        EventStore eventStore = storeFactory.pubSubStore();
+    public void testHazelcastEventStore() {
+        EventStore eventStore = storeFactory.eventStore();
         
         assertNotNull(eventStore, "PubSubStore should not be null");
         assertInstanceOf(HazelcastEventStore.class, eventStore, "PubSubStore should be HazelcastStore");

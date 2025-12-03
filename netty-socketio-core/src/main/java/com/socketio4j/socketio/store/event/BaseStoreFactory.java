@@ -48,13 +48,13 @@ public abstract class BaseStoreFactory implements StoreFactory {
 
     @Override
     public void init(final NamespacesHub namespacesHub, final AuthorizeHandler authorizeHandler, JsonSupport jsonSupport) {
-        ObjectUtil.checkNotNull(pubSubStore().getMode(), "mode");
+        ObjectUtil.checkNotNull(eventStore().getMode(), "mode");
 
-        List<EventType> enabledTypes = pubSubStore().getEnabledTypes();
+        List<EventType> enabledTypes = eventStore().getEnabledTypes();
 
-        if (pubSubStore().getMode().equals(EventStoreMode.MULTI_CHANNEL)) {
+        if (eventStore().getMode().equals(EventStoreMode.MULTI_CHANNEL)) {
            handleMultiChannelSubscribe(namespacesHub, authorizeHandler, enabledTypes);
-        } else if (pubSubStore().getMode().equals(EventStoreMode.SINGLE_CHANNEL)) {
+        } else if (eventStore().getMode().equals(EventStoreMode.SINGLE_CHANNEL)) {
            handleSingleChannelSubscribe(namespacesHub, authorizeHandler, enabledTypes);
         }
 
@@ -66,7 +66,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
             final List<EventType> enabled
     ) {
 
-        pubSubStore().subscribe(EventType.ALL_SINGLE_CHANNEL, msg -> {
+        eventStore().subscribe(EventType.ALL_SINGLE_CHANNEL, msg -> {
 
             if (msg instanceof ConnectMessage && enabled.contains(EventType.CONNECT)) {
                 ConnectMessage m = (ConnectMessage) msg;
@@ -146,7 +146,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
             EventListener<T> listener
     ) {
         if (enabled.contains(type)) {
-            pubSubStore().subscribe(type, listener, clazz);
+            eventStore().subscribe(type, listener, clazz);
         }
     }
 
@@ -217,7 +217,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
 
 
     @Override
-    public abstract EventStore pubSubStore();
+    public abstract EventStore eventStore();
 
     /**
      * Handles client disconnection by destroying the associated store.

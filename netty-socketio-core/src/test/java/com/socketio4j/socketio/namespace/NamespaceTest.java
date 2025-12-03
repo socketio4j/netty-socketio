@@ -88,8 +88,8 @@ class NamespaceTest extends BaseNamespaceTest {
         when(mockClient.getAllRooms()).thenReturn(Collections.emptySet());
         when(mockNamespaceClient.getSessionId()).thenReturn(CLIENT_SESSION_ID);
 
-        // Mock StoreFactory pubSubStore to avoid NullPointerException
-        when(storeFactory.pubSubStore()).thenReturn(mock(EventStore.class));
+        // Mock StoreFactory eventStore to avoid NullPointerException
+        when(storeFactory.eventStore()).thenReturn(mock(EventStore.class));
     }
 
     @AfterEach

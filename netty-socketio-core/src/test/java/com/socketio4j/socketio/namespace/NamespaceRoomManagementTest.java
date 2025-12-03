@@ -88,7 +88,7 @@ class NamespaceRoomManagementTest extends BaseNamespaceTest {
         when(configuration.getAckMode()).thenReturn(com.socketio4j.socketio.AckMode.AUTO);
         when(configuration.getExceptionListener())
                 .thenReturn(new com.socketio4j.socketio.listener.DefaultExceptionListener());
-        when(storeFactory.pubSubStore()).thenReturn(eventStore);
+        when(storeFactory.eventStore()).thenReturn(eventStore);
 
         namespace = new Namespace(NAMESPACE_NAME, configuration);
 

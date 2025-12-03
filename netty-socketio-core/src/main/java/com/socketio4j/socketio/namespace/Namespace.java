@@ -260,7 +260,7 @@ public class Namespace implements SocketIONamespace {
             leave(roomClients, joinedRoom, client.getSessionId());
         }
         clientRooms.remove(client.getSessionId());
-        storeFactory.pubSubStore().publish(EventType.BULK_LEAVE, new BulkLeaveMessage(client.getSessionId(), roomsToLeave, getName()));
+        storeFactory.eventStore().publish(EventType.BULK_LEAVE, new BulkLeaveMessage(client.getSessionId(), roomsToLeave, getName()));
 
         try {
             for (DisconnectListener listener : disconnectListeners) {
@@ -283,7 +283,7 @@ public class Namespace implements SocketIONamespace {
         }
 
         join(getName(), client.getSessionId());
-        storeFactory.pubSubStore().publish(EventType.JOIN, new JoinMessage(client.getSessionId(), getName(), getName()));
+        storeFactory.eventStore().publish(EventType.JOIN, new JoinMessage(client.getSessionId(), getName(), getName()));
 
         try {
             for (ConnectListener listener : connectListeners) {
@@ -399,14 +399,14 @@ public class Namespace implements SocketIONamespace {
 
     public void joinRoom(String room, UUID sessionId) {
         join(room, sessionId);
-        storeFactory.pubSubStore().publish(EventType.JOIN, new JoinMessage(sessionId, room, getName()));
+        storeFactory.eventStore().publish(EventType.JOIN, new JoinMessage(sessionId, room, getName()));
     }
 
     public void joinRooms(Set<String> rooms, final UUID sessionId) {
         for (String room : rooms) {
             join(room, sessionId);
         }
-        storeFactory.pubSubStore().publish(EventType.BULK_JOIN, new BulkJoinMessage(sessionId, rooms, getName()));
+        storeFactory.eventStore().publish(EventType.BULK_JOIN, new BulkJoinMessage(sessionId, rooms, getName()));
     }
 
         public void dispatch(String room, Packet packet) {
@@ -441,14 +441,14 @@ public class Namespace implements SocketIONamespace {
 
     public void leaveRoom(String room, UUID sessionId) {
         leave(room, sessionId);
-        storeFactory.pubSubStore().publish(EventType.LEAVE, new LeaveMessage(sessionId, room, getName()));
+        storeFactory.eventStore().publish(EventType.LEAVE, new LeaveMessage(sessionId, room, getName()));
     }
 
     public void leaveRooms(Set<String> rooms, final UUID sessionId) {
         for (String room : rooms) {
             leave(room, sessionId);
         }
-        storeFactory.pubSubStore().publish(EventType.BULK_LEAVE, new BulkLeaveMessage(sessionId, rooms, getName()));
+        storeFactory.eventStore().publish(EventType.BULK_LEAVE, new BulkLeaveMessage(sessionId, rooms, getName()));
     }
 
     private <K, V> void leave(ConcurrentMap<K, Set<V>> map, K room, V sessionId) {

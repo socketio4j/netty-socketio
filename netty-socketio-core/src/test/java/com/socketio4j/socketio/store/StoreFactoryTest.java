@@ -77,8 +77,8 @@ public abstract class StoreFactoryTest {
     }
 
     @Test
-    public void testCreatePubSubStore() {
-        EventStore eventStore = storeFactory.pubSubStore();
+    public void testCreateEventStore() {
+        EventStore eventStore = storeFactory.eventStore();
         
         assertNotNull(eventStore, "PubSubStore should not be null");
         assertInstanceOf(EventStore.class, eventStore, "PubSubStore should implement PubSubStore interface");
@@ -131,7 +131,7 @@ public abstract class StoreFactoryTest {
         // Create some stores first
         UUID sessionId = UUID.randomUUID();
         Store store = storeFactory.createStore(sessionId);
-        EventStore eventStore = storeFactory.pubSubStore();
+        EventStore eventStore = storeFactory.eventStore();
         
         // Shutdown should not throw exception
         storeFactory.shutdown();
