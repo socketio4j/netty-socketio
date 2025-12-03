@@ -19,6 +19,7 @@ package com.socketio4j.socketio.store;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.redisson.Redisson;
@@ -37,12 +38,15 @@ public class SingleChannelRedisStreamsStoreFactory extends BaseStoreFactory {
     private final EventStore eventStore;
 
     public SingleChannelRedisStreamsStoreFactory(RedissonClient redissonClient) {
+        Objects.requireNonNull(redissonClient, "redisson client can not be null");
         this.redissonClient = redissonClient;
         this.eventStore = new SingleChannelRedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, Collections.singletonList(EventType.ALL_SINGLE_CHANNEL)
         );
     }
 
     public SingleChannelRedisStreamsStoreFactory(RedissonClient redissonClient, SingleChannelRedisStreamsStore eventStore) {
+        Objects.requireNonNull(redissonClient, "redisson client can not be null");
+        Objects.requireNonNull(eventStore, "SingleChannelRedisStreamsStore can not be null");
         this.redissonClient = redissonClient;
         this.eventStore = eventStore;
     }

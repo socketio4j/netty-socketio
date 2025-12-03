@@ -254,6 +254,8 @@ public class SingleChannelRedisStreamsStore implements EventStore {
             // TODO: DLQ here
 
             return true; // "processed" (give up) → so offset moves
+        } finally {
+            retryCount.remove(key);
         }
     }
 

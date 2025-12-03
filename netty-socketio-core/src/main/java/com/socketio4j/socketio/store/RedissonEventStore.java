@@ -57,7 +57,7 @@ public class RedissonEventStore implements EventStore {
     public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub, Long nodeId) {
         Objects.requireNonNull(redissonPub, "redissonPub is null");
         Objects.requireNonNull(redissonSub, "redissonSub is null");
-        Objects.requireNonNull(nodeId, "node is null");
+        Objects.requireNonNull(nodeId, "nodeId is null");
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
         this.nodeId = nodeId;
