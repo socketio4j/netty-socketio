@@ -194,7 +194,10 @@ public class DistributedSingleChannelRedisStreamTest {
         Socket b1 = createListAppendingClient(port2, latch, receivedMessages, 2);
         Socket b2 = createListAppendingClient(port2, latch, receivedMessages, 3);
 
-        a1.connect(); a2.connect(); b1.connect(); b2.connect();
+        a1.connect();
+        a2.connect();
+        b1.connect();
+        b2.connect();
         Thread.sleep(300);
 
         a1.emit("join-room", "room1");
@@ -216,7 +219,10 @@ public class DistributedSingleChannelRedisStreamTest {
             assertTrue(msgs.contains("m2"));
         }
 
-        a1.disconnect(); a2.disconnect(); b1.disconnect(); b2.disconnect();
+        a1.disconnect();
+        a2.disconnect();
+        b1.disconnect();
+        b2.disconnect();
     }
 
     // ===================================================================
@@ -514,10 +520,22 @@ public class DistributedSingleChannelRedisStreamTest {
         c4.off("room-event");
 
         // Attach new listeners for Phase 2
-        c1.on("room-event", args -> { msg2[0] = (String) args[0]; latch2.countDown(); });
-        c2.on("room-event", args -> { msg2[1] = (String) args[0]; latch2.countDown(); });
-        c3.on("room-event", args -> { msg2[2] = (String) args[0]; latch2.countDown(); });
-        c4.on("room-event", args -> { msg2[3] = (String) args[0]; latch2.countDown(); });
+        c1.on("room-event", args -> {
+            msg2[0] = (String) args[0];
+            latch2.countDown();
+        });
+        c2.on("room-event", args -> {
+            msg2[1] = (String) args[0];
+            latch2.countDown();
+        });
+        c3.on("room-event", args -> {
+            msg2[2] = (String) args[0];
+            latch2.countDown();
+        });
+        c4.on("room-event", args -> {
+            msg2[3] = (String) args[0];
+            latch2.countDown();
+        });
 
         node2.getBroadcastOperations().sendEvent("room-event", "m2");
 
