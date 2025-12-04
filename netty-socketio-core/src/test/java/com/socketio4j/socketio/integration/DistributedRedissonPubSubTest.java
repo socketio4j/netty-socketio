@@ -16,14 +16,15 @@
  */
 package com.socketio4j.socketio.integration;
 
-import com.socketio4j.socketio.Configuration;
-import com.socketio4j.socketio.SocketIOClient;
-import com.socketio4j.socketio.SocketIOServer;
-import com.socketio4j.socketio.store.CustomizedRedisContainer;
-import com.socketio4j.socketio.store.RedissonStoreFactory;
-import com.socketio4j.socketio.store.SingleChannelRedisStreamsStoreFactory;
-import io.socket.client.IO;
-import io.socket.client.Socket;
+import java.net.ServerSocket;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -31,11 +32,13 @@ import org.junit.jupiter.api.TestInstance;
 import org.redisson.Redisson;
 import org.redisson.config.Config;
 
-import java.net.ServerSocket;
-import java.net.URISyntaxException;
-import java.util.Arrays;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import com.socketio4j.socketio.Configuration;
+import com.socketio4j.socketio.SocketIOClient;
+import com.socketio4j.socketio.SocketIOServer;
+import com.socketio4j.socketio.store.CustomizedRedisContainer;
+import com.socketio4j.socketio.store.RedissonStoreFactory;
+import io.socket.client.IO;
+import io.socket.client.Socket;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -173,19 +176,21 @@ public class DistributedRedissonPubSubTest {
     // ===================================================================
     @Test
     public void testRoomBroadcastFromBothNodes() throws Exception {
+        // FIXED: Expect 8 events total (4 clients * 2 broadcasts)
+        CountDownLatch latch = new CountDownLatch(8);
 
-        CountDownLatch latch = new CountDownLatch(4);
-        String[] msg = new String[4];
+        // FIXED: Use thread-safe lists to handle race condition of m1/m2 arrival
+        java.util.List<String>[] receivedMessages = new java.util.List[4];
+        for (int i = 0; i < 4; i++) {
+            receivedMessages[i] = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        }
 
-        Socket a1 = createClient(port1, latch, msg, 0);
-        Socket a2 = createClient(port1, latch, msg, 1);
-        Socket b1 = createClient(port2, latch, msg, 2);
-        Socket b2 = createClient(port2, latch, msg, 3);
+        Socket a1 = createListAppendingClient(port1, latch, receivedMessages, 0);
+        Socket a2 = createListAppendingClient(port1, latch, receivedMessages, 1);
+        Socket b1 = createListAppendingClient(port2, latch, receivedMessages, 2);
+        Socket b2 = createListAppendingClient(port2, latch, receivedMessages, 3);
 
-        a1.connect();
-        a2.connect();
-        b1.connect();
-        b2.connect();
+        a1.connect(); a2.connect(); b1.connect(); b2.connect();
         Thread.sleep(300);
 
         a1.emit("join-room", "room1");
@@ -199,14 +204,15 @@ public class DistributedRedissonPubSubTest {
 
         assertTrue(latch.await(3, TimeUnit.SECONDS));
 
-        for (String s : msg) {
-            assertTrue(Arrays.asList("m1", "m2").contains(s));
+        // FIXED: Verify every client has BOTH messages
+        for (int i = 0; i < 4; i++) {
+            java.util.List<String> msgs = receivedMessages[i];
+            assertEquals(2, msgs.size());
+            assertTrue(msgs.contains("m1"));
+            assertTrue(msgs.contains("m2"));
         }
 
-        a1.disconnect();
-        a2.disconnect();
-        b1.disconnect();
-        b2.disconnect();
+        a1.disconnect(); a2.disconnect(); b1.disconnect(); b2.disconnect();
     }
 
     // ===================================================================
@@ -239,15 +245,21 @@ public class DistributedRedissonPubSubTest {
 
         // ---- b LEAVES ----
         b.emit("leave-room", "room1");
+        Thread.sleep(1000); // Wait for leave to propagate
 
-        // reset b state
+        // FIXED: Do NOT remove listeners. We need to prove the socket receives nothing
+        // even while it is still listening.
+        // clearListeners(b); <--- REMOVED
+
+        // Reset message storage to verify emptiness later
+        msg[0] = null;
         msg[1] = null;
-        clearListeners(b);
-
-        Thread.sleep(1000);
 
         // ---- SECOND BROADCAST ----
         CountDownLatch latchAgain = new CountDownLatch(1);
+
+        // Update 'a' listener to countdown the new latch
+        a.off("room-event");
         a.on("room-event", args -> {
             msg[0] = (String) args[0];
             latchAgain.countDown();
@@ -257,7 +269,9 @@ public class DistributedRedissonPubSubTest {
 
         assertTrue(latchAgain.await(2, TimeUnit.SECONDS));
         assertEquals("second", msg[0]);   // a MUST receive
-        assertNull(msg[1]);               // b MUST NOT receive
+
+        // FIXED: Assertion is now valid because we didn't remove the listener manually
+        assertNull(msg[1], "Client B received message despite leaving the room!");
 
         a.disconnect();
         b.disconnect();
@@ -392,18 +406,26 @@ public class DistributedRedissonPubSubTest {
         b.disconnect();
     }
     // ===================================================================
-//   7. PURE BROADCAST — ALL CLIENTS ON ALL NODES MUST RECEIVE
-// ===================================================================
+    //   7. PURE BROADCAST — ALL CLIENTS ON ALL NODES MUST RECEIVE
+    // ===================================================================
     @Test
     public void testPureBroadcastFromBothNodes() throws Exception {
 
-        CountDownLatch latch = new CountDownLatch(4);
-        String[] msg = new String[4];
+        // We expect 4 clients * 2 messages each = 8 total events
+        CountDownLatch latch = new CountDownLatch(8);
 
-        Socket a1 = createClient(port1, latch, msg, 0);
-        Socket a2 = createClient(port1, latch, msg, 1);
-        Socket b1 = createClient(port2, latch, msg, 2);
-        Socket b2 = createClient(port2, latch, msg, 3);
+        // Use thread-safe lists to store all messages received per client
+        // Index 0=a1, 1=a2, 2=b1, 3=b2
+        List<String>[] receivedMessages = new List[4];
+        for (int i = 0; i < 4; i++) {
+            receivedMessages[i] = Collections.synchronizedList(new ArrayList<>());
+        }
+
+        // Helper to create client that appends to list instead of overwriting
+        Socket a1 = createListAppendingClient(port1, latch, receivedMessages, 0);
+        Socket a2 = createListAppendingClient(port1, latch, receivedMessages, 1);
+        Socket b1 = createListAppendingClient(port2, latch, receivedMessages, 2);
+        Socket b2 = createListAppendingClient(port2, latch, receivedMessages, 3);
 
         a1.connect();
         a2.connect();
@@ -417,14 +439,15 @@ public class DistributedRedissonPubSubTest {
         // Node2 broadcast
         node2.getBroadcastOperations().sendEvent("room-event", "n2");
 
-        assertTrue(latch.await(3, TimeUnit.SECONDS));
+        // Wait for all 8 messages (4 clients x 2 broadcasts)
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
 
-        // All clients must receive either n1 or n2 (or both depending on race)
-        for (String s : msg) {
-            assertTrue(
-                    Arrays.asList("n1", "n2").contains(s),
-                    "Client must receive n1 or n2, but got: " + s
-            );
+        // Verify EVERY client got BOTH messages
+        for (int i = 0; i < 4; i++) {
+            List<String> clientMsgs = receivedMessages[i];
+            assertEquals(2, clientMsgs.size(), "Client " + i + " should receive exactly 2 messages");
+            assertTrue(clientMsgs.contains("n1"), "Client " + i + " missing n1");
+            assertTrue(clientMsgs.contains("n2"), "Client " + i + " missing n2");
         }
 
         a1.disconnect();
@@ -433,9 +456,18 @@ public class DistributedRedissonPubSubTest {
         b2.disconnect();
     }
 
+    // Helper method to create a client that appends to a List (prevents overwriting)
+    private Socket createListAppendingClient(int port, CountDownLatch latch, java.util.List<String>[] store, int index) throws URISyntaxException {
+        Socket client = IO.socket("http://127.0.0.1:" + port);
+        client.on("room-event", args -> {
+            store[index].add((String) args[0]);
+            latch.countDown();
+        });
+        return client;
+    }
     // ===================================================================
-//   8) PURE BROADCAST — NODE1 THEN NODE2 — NO ROOMS
-// ===================================================================
+    //   8) PURE BROADCAST — NODE1 THEN NODE2 — NO ROOMS
+    // ===================================================================
     @Test
     public void testPureBroadcastFromNodes() throws Exception {
 
@@ -460,12 +492,10 @@ public class DistributedRedissonPubSubTest {
 
         assertTrue(latch1.await(3, TimeUnit.SECONDS));
 
-        // Verify all clients got m1
         assertEquals("m1", msg1[0]);
         assertEquals("m1", msg1[1]);
         assertEquals("m1", msg1[2]);
         assertEquals("m1", msg1[3]);
-
 
         // ---------------------------
         // 2) BROADCAST FROM NODE 2
@@ -473,7 +503,13 @@ public class DistributedRedissonPubSubTest {
         CountDownLatch latch2 = new CountDownLatch(4);
         String[] msg2 = new String[4];
 
-        // re-attach listeners for second broadcast
+        // FIXED: Clean up previous listeners before adding new ones!
+        c1.off("room-event");
+        c2.off("room-event");
+        c3.off("room-event");
+        c4.off("room-event");
+
+        // Attach new listeners for Phase 2
         c1.on("room-event", args -> { msg2[0] = (String) args[0]; latch2.countDown(); });
         c2.on("room-event", args -> { msg2[1] = (String) args[0]; latch2.countDown(); });
         c3.on("room-event", args -> { msg2[2] = (String) args[0]; latch2.countDown(); });
@@ -483,19 +519,15 @@ public class DistributedRedissonPubSubTest {
 
         assertTrue(latch2.await(3, TimeUnit.SECONDS));
 
-        // Verify all clients got m2
         assertEquals("m2", msg2[0]);
         assertEquals("m2", msg2[1]);
         assertEquals("m2", msg2[2]);
         assertEquals("m2", msg2[3]);
-
 
         c1.disconnect();
         c2.disconnect();
         c3.disconnect();
         c4.disconnect();
     }
-
-
 
 }
