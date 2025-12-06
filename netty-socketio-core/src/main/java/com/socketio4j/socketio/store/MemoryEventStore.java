@@ -18,10 +18,22 @@ package com.socketio4j.socketio.store;
 
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
-import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.event.EventStore;
+import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.event.EventStoreType;
 
 public class MemoryEventStore implements EventStore {
+
+    @Override
+    public EventStoreMode getMode() {
+        return EventStoreMode.SINGLE_CHANNEL; // No effect as local client will be sent first and then publish via adapter , for local no need to publish
+    }
+
+    @Override
+    public EventStoreType getStoreType() {
+        return EventStoreType.LOCAL;
+    }
 
     @Override
     public void publish(EventType type, EventMessage msg) {

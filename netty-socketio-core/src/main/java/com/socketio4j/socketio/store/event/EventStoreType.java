@@ -21,6 +21,8 @@ package com.socketio4j.socketio.store.event;
  * @date 29/11/25 2:12 pm
  */
 public enum EventStoreType {
-    PUBSUB,
-    STREAM
+    LOCAL,   // Single-node, in-memory
+    PUBSUB,  // Broadcast, non-durable
+    STREAM,  // Broadcast, durable/replayable
+    BROKER   // Queue-based, point-to-point
 }
