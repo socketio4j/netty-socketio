@@ -42,8 +42,8 @@ import com.socketio4j.socketio.protocol.PacketEncoder;
 import com.socketio4j.socketio.scheduler.CancelableScheduler;
 import com.socketio4j.socketio.scheduler.HashedWheelTimeoutScheduler;
 import com.socketio4j.socketio.store.StoreFactory;
-import com.socketio4j.socketio.store.pubsub.DisconnectMessage;
-import com.socketio4j.socketio.store.pubsub.PubSubType;
+import com.socketio4j.socketio.store.event.DisconnectMessage;
+import com.socketio4j.socketio.store.event.EventType;
 import com.socketio4j.socketio.transport.PollingTransport;
 import com.socketio4j.socketio.transport.WebSocketTransport;
 
@@ -228,7 +228,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         authorizeHandler.onDisconnect(client);
         configuration.getStoreFactory().onDisconnect(client);
 
-        configuration.getStoreFactory().pubSubStore().publish(PubSubType.DISCONNECT, new DisconnectMessage(client.getSessionId()));
+        configuration.getStoreFactory().eventStore().publish(EventType.DISCONNECT, new DisconnectMessage(client.getSessionId()));
 
         log.debug("Client with sessionId: {} disconnected", client.getSessionId());
     }

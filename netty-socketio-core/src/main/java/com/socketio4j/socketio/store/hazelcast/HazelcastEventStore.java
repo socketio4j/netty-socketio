@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store;
+package com.socketio4j.socketio.store.hazelcast;
 
 import java.util.Arrays;
 import java.util.Queue;
@@ -28,36 +28,35 @@ import org.slf4j.LoggerFactory;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.topic.ITopic;
-import com.socketio4j.socketio.store.pubsub.PubSubListener;
-import com.socketio4j.socketio.store.pubsub.PubSubMessage;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
-import com.socketio4j.socketio.store.pubsub.PubSubType;
+import com.socketio4j.socketio.store.event.EventListener;
+import com.socketio4j.socketio.store.event.EventMessage;
+import com.socketio4j.socketio.store.event.EventStore;
+import com.socketio4j.socketio.store.event.EventType;
 
 
-
-public class HazelcastPubSubStore implements PubSubStore {
+public class HazelcastEventStore implements EventStore {
 
     private final HazelcastInstance hazelcastPub;
     private final HazelcastInstance hazelcastSub;
     private final Long nodeId;
 
     private final ConcurrentMap<String, Queue<UUID>> map = new ConcurrentHashMap<>();
-    private static final Logger log = LoggerFactory.getLogger(HazelcastPubSubStore.class);
+    private static final Logger log = LoggerFactory.getLogger(HazelcastEventStore.class);
 
-    public HazelcastPubSubStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId) {
+    public HazelcastEventStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId) {
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
         this.nodeId = nodeId;
     }
 
     @Override
-    public void publish(PubSubType type, PubSubMessage msg) {
+    public void publish(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
         hazelcastPub.getTopic(type.toString()).publish(msg);
     }
 
     @Override
-    public <T extends PubSubMessage> void subscribe(PubSubType type, final PubSubListener<T> listener, Class<T> clazz) {
+    public <T extends EventMessage> void subscribe(EventType type, final EventListener<T> listener, Class<T> clazz) {
 
         ITopic<T> topic = hazelcastSub.getTopic(type.toString());
 
@@ -72,7 +71,7 @@ public class HazelcastPubSubStore implements PubSubStore {
     }
 
     @Override
-    public void unsubscribe(PubSubType type) {
+    public void unsubscribe(EventType type) {
         String name = type.toString();
         Queue<UUID> regIds = map.remove(name);
         if (regIds == null || regIds.isEmpty()) {
@@ -90,7 +89,7 @@ public class HazelcastPubSubStore implements PubSubStore {
 
     @Override
     public void shutdown() {
-        Arrays.stream(PubSubType.values()).forEach(this::unsubscribe);
+        Arrays.stream(EventType.values()).forEach(this::unsubscribe);
         map.clear();
         //do not shut down client here
     }

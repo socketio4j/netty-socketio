@@ -14,26 +14,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store.event;
 
 import java.util.UUID;
 
-public class DisconnectMessage extends PubSubMessage {
+public class LeaveMessage extends EventMessage {
 
-    private static final long serialVersionUID = -2763553673397520368L;
+    private static final long serialVersionUID = -6179894660576075280L;
 
     private UUID sessionId;
+    private String namespace;
+    private String room;
 
-    public DisconnectMessage() {
+    public LeaveMessage() {
     }
 
-    public DisconnectMessage(UUID sessionId) {
+    public LeaveMessage(UUID id, String room, String namespace) {
         super();
-        this.sessionId = sessionId;
+        this.sessionId = id;
+        this.room = room;
+        this.namespace = namespace;
+    }
+
+    public String getNamespace() {
+        return namespace;
     }
 
     public UUID getSessionId() {
         return sessionId;
+    }
+
+    public String getRoom() {
+        return room;
     }
 
 }

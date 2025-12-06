@@ -14,11 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store.event;
 
+public enum EventType {
 
-public interface PubSubListener<T> {
+    CONNECT,
+    DISCONNECT,
+    JOIN,
+    BULK_JOIN,
+    LEAVE,
+    BULK_LEAVE,
+    DISPATCH,
+    ALL_SINGLE_CHANNEL;
 
-    void onMessage(T data);
+    @Override
+    public String toString() {
+        return name().toLowerCase();
+    }
 
 }

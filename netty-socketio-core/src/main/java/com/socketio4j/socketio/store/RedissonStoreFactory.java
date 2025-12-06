@@ -28,8 +28,8 @@ import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.socketio4j.socketio.store.pubsub.BaseStoreFactory;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
+import com.socketio4j.socketio.store.event.BaseStoreFactory;
+import com.socketio4j.socketio.store.event.EventStore;
 
 
 public class RedissonStoreFactory extends BaseStoreFactory {
@@ -40,7 +40,7 @@ public class RedissonStoreFactory extends BaseStoreFactory {
     private final RedissonClient redisPub;
     private final RedissonClient redisSub;
 
-    private final PubSubStore pubSubStore;
+    private final EventStore eventStore;
 
     public RedissonStoreFactory() {
         this(Redisson.create());
@@ -54,19 +54,18 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.redisPub = redisson;
         this.redisSub = redisson;
 
-        this.pubSubStore = new RedissonPubSubStore(redisPub, redisSub, getNodeId());
+        this.eventStore = new RedissonEventStore(redisPub, redisSub, getNodeId());
     }
 
-    public RedissonStoreFactory(RedissonClient redisson, RedissonPubSubStore pubSubStore) {
+    public RedissonStoreFactory(RedissonClient redisson, RedissonEventStore pubSubStore) {
 
         Objects.requireNonNull(redisson, "redisson cannot be null");
-        Objects.requireNonNull(pubSubStore, "pubSubStore cannot be null");
+        Objects.requireNonNull(pubSubStore, "eventStore cannot be null");
 
         this.redisClient = redisson;
         this.redisPub = redisson;
         this.redisSub = redisson;
-
-        this.pubSubStore = pubSubStore;
+        this.eventStore = pubSubStore;
     }
 
     public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub) {
@@ -79,21 +78,21 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.redisPub = redisPub;
         this.redisSub = redisSub;
 
-        this.pubSubStore = new RedissonPubSubStore(redisPub, redisSub, getNodeId());
+        this.eventStore = new RedissonEventStore(redisPub, redisSub, getNodeId());
     }
 
-    public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, RedissonPubSubStore pubSubStore) {
+    public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, RedissonEventStore pubSubStore) {
 
         Objects.requireNonNull(redisClient, "redisClient cannot be null");
         Objects.requireNonNull(redisPub, "redisPub cannot be null");
         Objects.requireNonNull(redisSub, "redisSub cannot be null");
-        Objects.requireNonNull(pubSubStore, "pubSubStore cannot be null");
+        Objects.requireNonNull(pubSubStore, "eventStore cannot be null");
 
         this.redisClient = redisClient;
         this.redisPub = redisPub;
         this.redisSub = redisSub;
 
-        this.pubSubStore = pubSubStore;
+        this.eventStore = pubSubStore;
     }
 
     @Override
@@ -102,14 +101,14 @@ public class RedissonStoreFactory extends BaseStoreFactory {
     }
 
     @Override
-    public PubSubStore pubSubStore() {
-        return pubSubStore;
+    public EventStore eventStore() {
+        return eventStore;
     }
 
     @Override
     public void shutdown() {
 
-        pubSubStore.shutdown();
+        eventStore.shutdown();
 
         // Ordered hash: preserves order, no duplicates
         Set<RedissonClient> ordered = new LinkedHashSet<>();

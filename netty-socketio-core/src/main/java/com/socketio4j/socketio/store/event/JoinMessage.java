@@ -14,22 +14,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store.event;
 
-import java.io.Serializable;
+import java.util.UUID;
 
-public abstract class PubSubMessage implements Serializable {
+public class JoinMessage extends EventMessage {
 
-    private static final long serialVersionUID = -8789343104393884987L;
+    private static final long serialVersionUID = -944515928988033174L;
 
-    private Long nodeId;
+    private UUID sessionId;
+    private String namespace;
+    private String room;
 
-    public Long getNodeId() {
-        return nodeId;
+    public JoinMessage() {
     }
 
-    public void setNodeId(Long nodeId) {
-        this.nodeId = nodeId;
+    public JoinMessage(UUID id, String room, String namespace) {
+        super();
+        this.sessionId = id;
+        this.room = room;
+        this.namespace = namespace;
+    }
+
+    public String getNamespace() {
+        return namespace;
+    }
+
+    public UUID getSessionId() {
+        return sessionId;
+    }
+
+    public String getRoom() {
+        return room;
     }
 
 }

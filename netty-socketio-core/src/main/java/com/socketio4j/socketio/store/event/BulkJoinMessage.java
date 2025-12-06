@@ -14,32 +14,39 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store;
+package com.socketio4j.socketio.store.event;
 
-import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
-import com.socketio4j.socketio.Disconnectable;
-import com.socketio4j.socketio.handler.AuthorizeHandler;
-import com.socketio4j.socketio.namespace.NamespacesHub;
-import com.socketio4j.socketio.protocol.JsonSupport;
-import com.socketio4j.socketio.store.event.EventStore;
+public class BulkJoinMessage extends EventMessage {
 
-/**
- *
- * Creates a client Store and PubSubStore
- *
- */
-public interface StoreFactory extends Disconnectable {
+    private static final long serialVersionUID = 7506016762607624388L;
 
-    EventStore eventStore();
+    private UUID sessionId;
+    private String namespace;
+    private Set<String> rooms;
 
-    <K, V> Map<K, V> createMap(String name);
+    public BulkJoinMessage() {
+    }
 
-    Store createStore(UUID sessionId);
+    public BulkJoinMessage(UUID id, Set<String> rooms, String namespace) {
+        super();
+        this.sessionId = id;
+        this.rooms = rooms;
+        this.namespace = namespace;
+    }
 
-    void init(NamespacesHub namespacesHub, AuthorizeHandler authorizeHandler, JsonSupport jsonSupport);
+    public String getNamespace() {
+        return namespace;
+    }
 
-    void shutdown();
+    public UUID getSessionId() {
+        return sessionId;
+    }
+
+    public Set<String> getRooms() {
+        return rooms;
+    }
 
 }

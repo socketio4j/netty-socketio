@@ -14,29 +14,37 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store;
+package com.socketio4j.socketio.store.event;
 
-import com.socketio4j.socketio.store.pubsub.PubSubListener;
-import com.socketio4j.socketio.store.pubsub.PubSubMessage;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
-import com.socketio4j.socketio.store.pubsub.PubSubType;
+import com.socketio4j.socketio.protocol.Packet;
 
-public class MemoryPubSubStore implements PubSubStore {
+public class DispatchMessage extends EventMessage {
 
-    @Override
-    public void publish(PubSubType type, PubSubMessage msg) {
+    private static final long serialVersionUID = 6692047718303934349L;
+
+    private String room;
+    private String namespace;
+    private Packet packet;
+
+    public DispatchMessage() {
     }
 
-    @Override
-    public <T extends PubSubMessage> void subscribe(PubSubType type, PubSubListener<T> listener, Class<T> clazz) {
+    public DispatchMessage(String room, Packet packet, String namespace) {
+        this.room = room;
+        this.packet = packet;
+        this.namespace = namespace;
     }
 
-    @Override
-    public void unsubscribe(PubSubType type) {
+    public String getNamespace() {
+        return namespace;
     }
 
-    @Override
-    public void shutdown() {
+    public Packet getPacket() {
+        return packet;
+    }
+
+    public String getRoom() {
+        return room;
     }
 
 }

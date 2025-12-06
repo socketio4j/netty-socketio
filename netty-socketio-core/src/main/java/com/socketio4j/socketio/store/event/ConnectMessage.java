@@ -14,39 +14,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store.event;
 
-import java.util.Set;
 import java.util.UUID;
 
-public class BulkJoinLeaveMessage extends PubSubMessage {
+public class ConnectMessage extends EventMessage {
 
-    private static final long serialVersionUID = 7506016762607624388L;
+    private static final long serialVersionUID = 3108918714495865101L;
 
     private UUID sessionId;
-    private String namespace;
-    private Set<String> rooms;
 
-    public BulkJoinLeaveMessage() {
+    public ConnectMessage() {
     }
 
-    public BulkJoinLeaveMessage(UUID id, Set<String> rooms, String namespace) {
+    public ConnectMessage(UUID sessionId) {
         super();
-        this.sessionId = id;
-        this.rooms = rooms;
-        this.namespace = namespace;
-    }
-
-    public String getNamespace() {
-        return namespace;
+        this.sessionId = sessionId;
     }
 
     public UUID getSessionId() {
         return sessionId;
-    }
-
-    public Set<String> getRooms() {
-        return rooms;
     }
 
 }

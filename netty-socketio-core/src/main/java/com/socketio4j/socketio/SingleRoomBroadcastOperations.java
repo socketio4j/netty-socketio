@@ -26,8 +26,8 @@ import com.socketio4j.socketio.protocol.EngineIOVersion;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketType;
 import com.socketio4j.socketio.store.StoreFactory;
-import com.socketio4j.socketio.store.pubsub.DispatchMessage;
-import com.socketio4j.socketio.store.pubsub.PubSubType;
+import com.socketio4j.socketio.store.event.DispatchMessage;
+import com.socketio4j.socketio.store.event.EventType;
 
 /**
  * Author: liangjiaqi
@@ -48,8 +48,8 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
     }
 
     private void dispatch(Packet packet) {
-        this.storeFactory.pubSubStore().publish(
-                PubSubType.DISPATCH,
+        this.storeFactory.eventStore().publish(
+                EventType.DISPATCH,
                 new DispatchMessage(this.room, packet, this.namespace));
     }
 

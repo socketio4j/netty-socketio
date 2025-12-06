@@ -14,17 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store.event;
 
 
-public interface PubSubStore {
+public interface EventListener<T> {
 
-    void publish(PubSubType type, PubSubMessage msg);
-
-    <T extends PubSubMessage> void subscribe(PubSubType type, PubSubListener<T> listener, Class<T> clazz);
-
-    void unsubscribe(PubSubType type);
-
-    void shutdown();
+    void onMessage(T data);
 
 }

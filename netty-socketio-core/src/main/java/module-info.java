@@ -10,10 +10,11 @@ module netty.socketio.core {
   exports com.socketio4j.socketio.protocol;
   exports com.socketio4j.socketio.scheduler;
   exports com.socketio4j.socketio.store;
-  exports com.socketio4j.socketio.store.pubsub;
+  exports com.socketio4j.socketio.store.event;
   exports com.socketio4j.socketio.transport;
   exports com.socketio4j.socketio.nativeio;
-  requires com.fasterxml.jackson.core;
+    exports com.socketio4j.socketio.store.hazelcast;
+    requires com.fasterxml.jackson.core;
   requires com.fasterxml.jackson.annotation;
   requires com.fasterxml.jackson.databind;
 

@@ -14,12 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.pubsub;
+package com.socketio4j.socketio.store.event;
 
 import org.testcontainers.containers.GenericContainer;
 
 import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
-import com.socketio4j.socketio.store.HazelcastPubSubStore;
+import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.HazelcastInstance;
@@ -27,7 +27,7 @@ import com.hazelcast.core.HazelcastInstance;
 /**
  * Test class for HazelcastPubSubStore using testcontainers
  */
-public class HazelcastPubSubStoreTest extends AbstractPubSubStoreTest {
+public class HazelcastEventStoreTest extends AbstractEventStoreTest {
 
     private HazelcastInstance hazelcastPub;
     private HazelcastInstance hazelcastSub;
@@ -38,7 +38,7 @@ public class HazelcastPubSubStoreTest extends AbstractPubSubStoreTest {
     }
 
     @Override
-    protected PubSubStore createPubSubStore(Long nodeId) throws Exception {
+    protected EventStore createPubSubStore(Long nodeId) throws Exception {
         CustomizedHazelcastContainer customizedHazelcastContainer = (CustomizedHazelcastContainer) container;
         ClientConfig clientConfig = new ClientConfig();
         //clientConfig.getGroupConfig().setName("dev").setPassword("dev-pass");
@@ -49,7 +49,7 @@ public class HazelcastPubSubStoreTest extends AbstractPubSubStoreTest {
         hazelcastPub = HazelcastClient.newHazelcastClient(clientConfig);
         hazelcastSub = HazelcastClient.newHazelcastClient(clientConfig);
         
-        return new HazelcastPubSubStore(hazelcastPub, hazelcastSub, nodeId);
+        return new HazelcastEventStore(hazelcastPub, hazelcastSub, nodeId);
     }
 
     @Override
