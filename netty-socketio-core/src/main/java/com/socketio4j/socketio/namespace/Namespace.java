@@ -28,7 +28,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
@@ -161,21 +160,7 @@ public class Namespace implements SocketIONamespace {
     public void offAny(CatchAllEventListener listener) {
         removeOnAnyEventListener(listener);
     }
-
-
-    public void onAny(BiConsumer<String, List<Object>> listener) {
-        catchAllEventListeners.add((client, event, args, ack) ->
-                listener.accept(event, args)
-        );
-    }
-
-    public void onAny(Consumer<String> listener) {
-        catchAllEventListeners.add((client, event, args, ack) ->
-                listener.accept(event)
-        );
-    }
-
-
+    
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <T> void addEventListener(String eventName, Class<T> eventClass, DataListener<T> listener) {

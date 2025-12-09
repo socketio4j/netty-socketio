@@ -59,7 +59,7 @@ public class ScannerEngine {
                         if (m != null) {
                             annotationScanner.addListener(namespace, object, m, ann);
                         } else {
-                            log.warn("Method similar to " + method.getName() + " can't be found in " + object.getClass());
+                            log.warn("Method similar to {} can't be found in {}", method.getName(), object.getClass());
                         }
                     }
                 }
