@@ -31,9 +31,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import com.socketio4j.socketio.AckMode;
 import com.socketio4j.socketio.BroadcastOperations;
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOClient;
+import com.socketio4j.socketio.listener.DefaultExceptionListener;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.store.StoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -85,9 +87,9 @@ class NamespaceRoomManagementTest extends BaseNamespaceTest {
         closeableMocks = MockitoAnnotations.openMocks(this);
         when(configuration.getJsonSupport()).thenReturn(jsonSupport);
         when(configuration.getStoreFactory()).thenReturn(storeFactory);
-        when(configuration.getAckMode()).thenReturn(com.socketio4j.socketio.AckMode.AUTO);
+        when(configuration.getAckMode()).thenReturn(AckMode.AUTO);
         when(configuration.getExceptionListener())
-                .thenReturn(new com.socketio4j.socketio.listener.DefaultExceptionListener());
+                .thenReturn(new DefaultExceptionListener());
         when(storeFactory.eventStore()).thenReturn(eventStore);
 
         namespace = new Namespace(NAMESPACE_NAME, configuration);
