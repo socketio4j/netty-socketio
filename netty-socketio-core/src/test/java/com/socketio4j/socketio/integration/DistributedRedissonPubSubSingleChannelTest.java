@@ -36,7 +36,7 @@ import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommonTest {
 
-    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer();
+    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(true);
 
     // -------------------------------------------
     // Utility: find dynamic free port

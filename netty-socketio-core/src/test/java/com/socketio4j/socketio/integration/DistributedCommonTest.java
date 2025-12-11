@@ -49,8 +49,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public abstract class DistributedCommonTest {
 
-    protected SocketIOServer node1;
-    protected SocketIOServer node2;
+    protected static SocketIOServer node1;
+    protected static SocketIOServer node2;
 
     protected int port1;
     protected int port2;
