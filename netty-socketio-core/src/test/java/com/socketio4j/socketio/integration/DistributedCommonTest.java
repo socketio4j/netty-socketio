@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author https://github.com/sanjomo
  * @date 11/12/25 3:53 pm
  */
-public class DistributedCommonTest {
+public abstract class DistributedCommonTest {
 
     protected SocketIOServer node1;
     protected SocketIOServer node2;
@@ -103,6 +103,7 @@ public class DistributedCommonTest {
 
         a.emit("join-room", "room1");
         b.emit("join-room", "room1");
+        Thread.sleep(1000);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
         Thread.sleep(500); // Buffer for Redis adapter sync
@@ -227,7 +228,7 @@ public class DistributedCommonTest {
         CountDownLatch joinLatch = new CountDownLatch(clientCount);
         CountDownLatch msgLatch = new CountDownLatch(clientCount * expectedBroadcasts); // 8 total
 
-        // FIXED: Use List of Lists instead of Array of Lists for type safety
+
         List<List<String>> receivedMessages = new ArrayList<>();
         for (int i = 0; i < clientCount; i++) {
             receivedMessages.add(new CopyOnWriteArrayList<>());
@@ -574,7 +575,7 @@ public class DistributedCommonTest {
         CountDownLatch connectLatch = new CountDownLatch(clientCount);
         CountDownLatch msgLatch = new CountDownLatch(clientCount * expectedBroadcasts); // 8 total
 
-        // FIXED: Use List of Lists instead of Array of Lists for type safety
+
         List<List<String>> receivedMessages = new ArrayList<>();
         for (int i = 0; i < clientCount; i++) {
             receivedMessages.add(new CopyOnWriteArrayList<>());

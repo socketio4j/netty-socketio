@@ -22,13 +22,12 @@ import com.socketio4j.socketio.listener.DefaultExceptionListener;
 import com.socketio4j.socketio.listener.ExceptionListener;
 import com.socketio4j.socketio.protocol.JacksonJsonSupport;
 import com.socketio4j.socketio.protocol.JsonSupport;
-import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 import com.socketio4j.socketio.store.StoreFactory;
+import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 
 import io.quarkus.arc.DefaultBean;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
-import jakarta.inject.Singleton;
 
 @ApplicationScoped
 public class DefaultSocketIOBeans {

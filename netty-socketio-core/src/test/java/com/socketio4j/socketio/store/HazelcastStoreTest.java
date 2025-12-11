@@ -18,6 +18,10 @@ package com.socketio4j.socketio.store;
 
 import java.util.UUID;
 
+import com.socketio4j.socketio.store.event.EventStore;
+import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.event.PublishConfig;
+import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
@@ -43,16 +47,22 @@ public class HazelcastStoreTest extends AbstractStoreTest {
 
     @Override
     protected Store createStore(UUID sessionId) throws Exception {
-        CustomizedHazelcastContainer customizedHazelcastContainer = (CustomizedHazelcastContainer) container;
-        ClientConfig clientConfig = new ClientConfig();
-        //clientConfig.getGroupConfig().setName("dev").setPassword("dev-pass");
-        clientConfig.getNetworkConfig().addAddress(
-            customizedHazelcastContainer.getHost() + ":" + customizedHazelcastContainer.getHazelcastPort()
+        CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
+
+        ClientConfig config = new ClientConfig();
+        config.getNetworkConfig()
+                .setSmartRouting(false)                   // never try unreachable members inside container
+                .setRedoOperation(true)
+                .addAddress(hz.getHazelcastAddress());   // ALWAYS localhost:mappedPort
+
+        hazelcastInstance = HazelcastClient.newHazelcastClient(config);
+
+
+        return new HazelcastStore(
+              sessionId, hazelcastInstance
         );
-        
-        hazelcastInstance = HazelcastClient.newHazelcastClient(clientConfig);
-        return new HazelcastStore(sessionId, hazelcastInstance);
     }
+
 
     @Override
     protected void cleanupStore() {

@@ -61,6 +61,9 @@ public class CustomizedHazelcastContainer extends GenericContainer<CustomizedHaz
                         .withStartupTimeout(Duration.ofSeconds(300))
         );
     }
+    public String getHazelcastAddress() {
+        return getHost() + ":" + getMappedPort(HAZELCAST_PORT);
+    }
 
     @Override
     public void start() {

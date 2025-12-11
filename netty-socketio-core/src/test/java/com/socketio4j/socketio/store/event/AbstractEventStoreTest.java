@@ -81,14 +81,11 @@ public abstract class AbstractEventStoreTest {
         AtomicReference<TestMessage> receivedMessage = new AtomicReference<>();
 
         // Subscribe to a topic using subscriber store
-        subscriberStore.subscribe(EventType.DISPATCH, new EventListener<TestMessage>() {
-            @Override
-            public void onMessage(TestMessage message) {
-                // Should receive messages from different nodes
-                if (!subscriberNodeId.equals(message.getNodeId())) {
-                    receivedMessage.set(message);
-                    latch.countDown();
-                }
+        subscriberStore.subscribe(EventType.DISPATCH, message -> {
+            // Should receive messages from different nodes
+            if (!subscriberNodeId.equals(message.getNodeId())) {
+                receivedMessage.set(message);
+                latch.countDown();
             }
         }, TestMessage.class);
 
@@ -113,14 +110,11 @@ public abstract class AbstractEventStoreTest {
         AtomicReference<TestMessage> receivedMessage = new AtomicReference<>();
 
         // Subscribe to a topic using subscriber store
-        subscriberStore.subscribe(EventType.DISPATCH, new EventListener<TestMessage>() {
-            @Override
-            public void onMessage(TestMessage message) {
-                // Should not receive messages from the same node
-                if (!subscriberNodeId.equals(message.getNodeId())) {
-                    receivedMessage.set(message);
-                    latch.countDown();
-                }
+        subscriberStore.subscribe(EventType.DISPATCH, message -> {
+            // Should not receive messages from the same node
+            if (!subscriberNodeId.equals(message.getNodeId())) {
+                receivedMessage.set(message);
+                latch.countDown();
             }
         }, TestMessage.class);
 
@@ -145,14 +139,11 @@ public abstract class AbstractEventStoreTest {
         AtomicReference<TestMessage> receivedMessage = new AtomicReference<>();
 
         // Subscribe to a topic using subscriber store
-        subscriberStore.subscribe(EventType.DISPATCH, new EventListener<TestMessage>() {
-            @Override
-            public void onMessage(TestMessage message) {
-                // Should receive messages from different nodes
-                if (!subscriberNodeId.equals(message.getNodeId())) {
-                    receivedMessage.set(message);
-                    latch.countDown();
-                }
+        subscriberStore.subscribe(EventType.DISPATCH, message -> {
+            // Should receive messages from different nodes
+            if (!subscriberNodeId.equals(message.getNodeId())) {
+                receivedMessage.set(message);
+                latch.countDown();
             }
         }, TestMessage.class);
 
@@ -178,25 +169,19 @@ public abstract class AbstractEventStoreTest {
         AtomicReference<TestMessage> connectMessage = new AtomicReference<>();
 
         // Subscribe to multiple topics using subscriber store
-        subscriberStore.subscribe(EventType.DISPATCH, new EventListener<TestMessage>() {
-            @Override
-            public void onMessage(TestMessage message) {
-                // Should receive messages from different nodes
-                if (!subscriberNodeId.equals(message.getNodeId())) {
-                    dispatchMessage.set(message);
-                    dispatchLatch.countDown();
-                }
+        subscriberStore.subscribe(EventType.DISPATCH, message -> {
+            // Should receive messages from different nodes
+            if (!subscriberNodeId.equals(message.getNodeId())) {
+                dispatchMessage.set(message);
+                dispatchLatch.countDown();
             }
         }, TestMessage.class);
 
-        subscriberStore.subscribe(EventType.CONNECT, new EventListener<TestMessage>() {
-            @Override
-            public void onMessage(TestMessage message) {
-                // Should receive messages from different nodes
-                if (!subscriberNodeId.equals(message.getNodeId())) {
-                    connectMessage.set(message);
-                    connectLatch.countDown();
-                }
+        subscriberStore.subscribe(EventType.CONNECT, message -> {
+            // Should receive messages from different nodes
+            if (!subscriberNodeId.equals(message.getNodeId())) {
+                connectMessage.set(message);
+                connectLatch.countDown();
             }
         }, TestMessage.class);
 

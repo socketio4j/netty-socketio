@@ -16,13 +16,14 @@
  */
 package com.socketio4j.socketio.store.event;
 
+import org.junit.jupiter.api.TestInstance;
 import org.testcontainers.containers.GenericContainer;
 
-import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
-import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.HazelcastInstance;
+import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
+import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
 
 /**
  * Test class for HazelcastPubSubStore using testcontainers
@@ -34,34 +35,35 @@ public class HazelcastEventStoreTest extends AbstractEventStoreTest {
 
     @Override
     protected GenericContainer<?> createContainer() {
-        return new CustomizedHazelcastContainer();
+        return new CustomizedHazelcastContainer().withReuse(true);  // This is now single-server safe
     }
 
     @Override
     protected EventStore createPubSubStore(Long nodeId) throws Exception {
-        CustomizedHazelcastContainer customizedHazelcastContainer = (CustomizedHazelcastContainer) container;
-        ClientConfig clientConfig = new ClientConfig();
-        //clientConfig.getGroupConfig().setName("dev").setPassword("dev-pass");
-        clientConfig.getNetworkConfig().addAddress(
-            customizedHazelcastContainer.getHost() + ":" + customizedHazelcastContainer.getHazelcastPort()
+        CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
+
+        ClientConfig config = new ClientConfig();
+        config.getNetworkConfig()
+                .setSmartRouting(false)                   // never try unreachable members inside container
+                .setRedoOperation(true)
+                .addAddress(hz.getHazelcastAddress());   // ALWAYS localhost:mappedPort
+
+        hazelcastPub = HazelcastClient.newHazelcastClient(config);
+        hazelcastSub = HazelcastClient.newHazelcastClient(config);
+
+        return new HazelcastEventStore(
+                hazelcastPub,
+                hazelcastSub,
+                nodeId,
+                PublishConfig.allUnreliable(),
+                EventStoreMode.MULTI_CHANNEL
         );
-        
-        hazelcastPub = HazelcastClient.newHazelcastClient(clientConfig);
-        hazelcastSub = HazelcastClient.newHazelcastClient(clientConfig);
-        
-        return new HazelcastEventStore(hazelcastPub, hazelcastSub, nodeId, PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
     }
 
     @Override
     public void tearDown() throws Exception {
-        if (hazelcastPub != null) {
-            hazelcastPub.shutdown();
-        }
-        if (hazelcastSub != null) {
-            hazelcastSub.shutdown();
-        }
-        if (container != null && container.isRunning()) {
-            container.stop();
-        }
+        if (hazelcastPub != null) hazelcastPub.shutdown();
+        if (hazelcastSub != null) hazelcastSub.shutdown();
+        if (container != null && container.isRunning()) container.stop();
     }
 }

@@ -55,15 +55,16 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
     protected StoreFactory createStoreFactory() throws Exception {
         container = new CustomizedHazelcastContainer().withReuse(true);
         container.start();
-        
-        CustomizedHazelcastContainer customizedHazelcastContainer = (CustomizedHazelcastContainer) container;
-        ClientConfig clientConfig = new ClientConfig();
-        //clientConfig.getGroupConfig().setName("dev").setPassword("dev-pass");
-        clientConfig.getNetworkConfig().addAddress(
-            customizedHazelcastContainer.getHost() + ":" + customizedHazelcastContainer.getHazelcastPort()
-        );
-        
-        hazelcastInstance = HazelcastClient.newHazelcastClient(clientConfig);
+        CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
+
+        ClientConfig config = new ClientConfig();
+        config.getNetworkConfig()
+                .setSmartRouting(false)                   // never try unreachable members inside container
+                .setRedoOperation(true)
+                .addAddress(hz.getHazelcastAddress());   // ALWAYS localhost:mappedPort
+
+        hazelcastInstance = HazelcastClient.newHazelcastClient(config);
+
         return new HazelcastStoreFactory(hazelcastInstance, PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
     }
 
