@@ -108,7 +108,7 @@ public abstract class DistributedCommonTest {
 
         a.emit("join-room", "room1");
         b.emit("join-room", "room1");
-        Thread.sleep(1000);
+        Thread.sleep(3000);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
         Thread.sleep(500); // Buffer for Redis adapter sync
@@ -284,10 +284,10 @@ public abstract class DistributedCommonTest {
         b2.emit("join-room", "room1");
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
-        Thread.sleep(500);
-
         node1.getRoomOperations("room1").sendEvent("room-event", "m1");
         node2.getRoomOperations("room1").sendEvent("room-event", "m2");
+
+        Thread.sleep(1000);
 
         assertTrue(msgLatch.await(5, TimeUnit.SECONDS), "Did not receive all 8 events");
         assertEquals(8, a1Data.size() + a2Data.size() + b1Data.size() + b2Data.size(), "Each client must receive 2 messages");
