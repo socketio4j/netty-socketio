@@ -22,7 +22,7 @@ import org.redisson.config.Config;
 import org.testcontainers.containers.GenericContainer;
 
 import com.socketio4j.socketio.store.CustomizedRedisContainer;
-import com.socketio4j.socketio.store.RedissonEventStore;
+import com.socketio4j.socketio.store.redis_pubsub.RedissonEventStore;
 
 /**
  * Test class for RedissonPubSubStore using testcontainers
@@ -46,7 +46,7 @@ public class RedissonEventStoreTest extends AbstractEventStoreTest {
         
         redissonPub = Redisson.create(config);
         redissonSub = Redisson.create(config);
-        return new RedissonEventStore(redissonPub, redissonSub, nodeId);
+        return new RedissonEventStore(redissonPub, redissonSub, nodeId,  PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
     }
 
     @Override

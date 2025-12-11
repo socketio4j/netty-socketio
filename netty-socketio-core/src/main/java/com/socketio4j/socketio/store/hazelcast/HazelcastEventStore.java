@@ -17,6 +17,7 @@
 package com.socketio4j.socketio.store.hazelcast;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,7 +32,10 @@ import com.hazelcast.topic.ITopic;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
+import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.event.PublishConfig;
+import com.socketio4j.socketio.store.event.PublishMode;
 
 
 public class HazelcastEventStore implements EventStore {
@@ -39,24 +43,48 @@ public class HazelcastEventStore implements EventStore {
     private final HazelcastInstance hazelcastPub;
     private final HazelcastInstance hazelcastSub;
     private final Long nodeId;
+    private final PublishConfig publishConfig;
+    private final EventStoreMode eventStoreMode;
 
     private final ConcurrentMap<String, Queue<UUID>> map = new ConcurrentHashMap<>();
     private static final Logger log = LoggerFactory.getLogger(HazelcastEventStore.class);
 
-    public HazelcastEventStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId) {
+    public HazelcastEventStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
+
+        Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
+        Objects.requireNonNull(hazelcastSub, "hazelcastSub cannot be null");
+        Objects.requireNonNull(nodeId, "nodeId cannot be null");
+        if (publishConfig == null){
+            publishConfig = PublishConfig.allUnreliable();
+        }
+        if (eventStoreMode == null){
+            eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        }
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
         this.nodeId = nodeId;
+        this.publishConfig = publishConfig;
+        this.eventStoreMode = eventStoreMode;
     }
 
     @Override
-    public void publish(EventType type, EventMessage msg) {
+    public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        hazelcastPub.getTopic(type.toString()).publish(msg);
+        if (PublishMode.UNRELIABLE.equals(publishConfig.get(type))) {
+            hazelcastPub.getTopic(type.toString()).publish(msg);
+        } else {
+            hazelcastSub.getReliableTopic(type.toString()).publish(msg);
+        }
+
     }
 
     @Override
-    public <T extends EventMessage> void subscribe(EventType type, final EventListener<T> listener, Class<T> clazz) {
+    public EventStoreMode getMode(){
+        return this.eventStoreMode;
+    }
+
+    @Override
+    public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
 
         ITopic<T> topic = hazelcastSub.getTopic(type.toString());
 
@@ -71,7 +99,7 @@ public class HazelcastEventStore implements EventStore {
     }
 
     @Override
-    public void unsubscribe(EventType type) {
+    public void unsubscribe0(EventType type) {
         String name = type.toString();
         Queue<UUID> regIds = map.remove(name);
         if (regIds == null || regIds.isEmpty()) {
@@ -88,7 +116,7 @@ public class HazelcastEventStore implements EventStore {
     }
 
     @Override
-    public void shutdown() {
+    public void shutdown0() {
         Arrays.stream(EventType.values()).forEach(this::unsubscribe);
         map.clear();
         //do not shut down client here

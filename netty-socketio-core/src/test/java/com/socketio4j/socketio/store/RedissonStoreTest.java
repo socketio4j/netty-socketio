@@ -18,6 +18,7 @@ package com.socketio4j.socketio.store;
 
 import java.util.UUID;
 
+import com.socketio4j.socketio.store.redis_pubsub.RedissonStore;
 import org.junit.jupiter.api.Test;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;

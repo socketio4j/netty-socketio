@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store;
+package com.socketio4j.socketio.store.redis_pubsub;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -31,13 +31,18 @@ import org.slf4j.LoggerFactory;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
+import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.event.PublishConfig;
+import com.socketio4j.socketio.store.event.PublishMode;
 
 public class RedissonEventStore implements EventStore {
 
     private final RedissonClient redissonPub;
     private final RedissonClient redissonSub;
     private final Long nodeId;
+    private final PublishConfig publishConfig;
+    private final EventStoreMode eventStoreMode;
 
     private final ConcurrentMap<String, Queue<Integer>> map = new ConcurrentHashMap<>();
     private static final Logger log = LoggerFactory.getLogger(RedissonEventStore.class);
@@ -46,54 +51,96 @@ public class RedissonEventStore implements EventStore {
     // Constructors
     // ----------------------------------------------------------------------
 
-    public RedissonEventStore(RedissonClient redisson, Long nodeId) {
+    public RedissonEventStore(RedissonClient redisson, Long nodeId, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
+
         Objects.requireNonNull(redisson, "redisson is null");
 
         this.redissonPub = redisson;
         this.redissonSub = redisson;
         this.nodeId = nodeId;
+        if (publishConfig == null){
+            publishConfig = PublishConfig.allUnreliable();
+        }
+        this.publishConfig = publishConfig;
+        if (eventStoreMode == null){
+            eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        }
+        this.eventStoreMode = eventStoreMode;
     }
 
-    public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub, Long nodeId) {
+    public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub, Long nodeId, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
+
         Objects.requireNonNull(redissonPub, "redissonPub is null");
         Objects.requireNonNull(redissonSub, "redissonSub is null");
         Objects.requireNonNull(nodeId, "nodeId is null");
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
         this.nodeId = nodeId;
+        if (publishConfig == null){
+            publishConfig = PublishConfig.allUnreliable();
+        }
+        this.publishConfig = publishConfig;
+        if (eventStoreMode == null){
+            eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        }
+        this.eventStoreMode = eventStoreMode;
     }
 
-    public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub) {
+    public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
+
+
         Objects.requireNonNull(redissonPub, "redissonPub is null");
         Objects.requireNonNull(redissonSub, "redissonSub is null");
 
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
         this.nodeId = getNodeId();
+        if (publishConfig == null){
+            publishConfig = PublishConfig.allUnreliable();
+        }
+        this.publishConfig = publishConfig;
+        if (eventStoreMode == null){
+            eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        }
+        this.eventStoreMode = eventStoreMode;
     }
 
-
     @Override
-    public void publish(EventType type, EventMessage msg) {
+    public EventStoreMode getMode(){
+        return this.eventStoreMode;
+    }
+    @Override
+    public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        redissonPub.getTopic(type.toString()).publish(msg);
+        if (PublishMode.UNRELIABLE.equals(publishConfig.get(type))) {
+            if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
+                redissonPub.getTopic(EventType.ALL_SINGLE_CHANNEL.toString()).publish(msg);
+            } else {
+                redissonSub.getTopic(type.toString()).publish(msg);
+            }
+
+        } else  {
+            if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
+                redissonPub.getReliableTopic(EventType.ALL_SINGLE_CHANNEL.toString()).publish(msg);
+            } else {
+                redissonSub.getReliableTopic(type.toString()).publish(msg);
+            }
+        }
     }
 
     @Override
-    public <T extends EventMessage> void subscribe(EventType type, final EventListener<T> listener, Class<T> clazz) {
+    public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
         RTopic topic = redissonSub.getTopic(type.toString());
-
         int regId = topic.addListener(clazz, (channel, msg) -> {
             if (!nodeId.equals(msg.getNodeId())) {
                 listener.onMessage(msg);
             }
         });
-
         map.computeIfAbsent(type.toString(), k -> new ConcurrentLinkedQueue<>()).add(regId);
     }
 
     @Override
-    public void unsubscribe(EventType type) {
+    public void unsubscribe0(EventType type) {
         String name = type.toString();
 
         Queue<Integer> regIds = map.remove(name);
@@ -116,7 +163,7 @@ public class RedissonEventStore implements EventStore {
     }
 
     @Override
-    public void shutdown() {
+    public void shutdown0() {
         Arrays.stream(EventType.values()).forEach(this::unsubscribe);
         map.clear();
     }

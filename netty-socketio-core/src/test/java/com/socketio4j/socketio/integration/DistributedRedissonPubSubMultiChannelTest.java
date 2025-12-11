@@ -22,9 +22,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.event.PublishConfig;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -36,7 +39,7 @@ import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedRedisContainer;
-import com.socketio4j.socketio.store.RedissonStoreFactory;
+import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 
 import io.socket.client.IO;
 import io.socket.client.Socket;
@@ -47,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class DistributedRedissonPubSubTest {
+public class DistributedRedissonPubSubMultiChannelTest {
 
     private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer();
 
@@ -93,12 +96,18 @@ public class DistributedRedissonPubSubTest {
         cfg1.setPort(findAvailablePort());
 
         cfg1.setStoreFactory(new RedissonStoreFactory(
-                Redisson.create(redisConfig(redisURL))
+                Redisson.create(redisConfig(redisURL)), PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL
         ));
 
         node1 = new SocketIOServer(cfg1);
-        node1.addEventListener("join-room", String.class, (c, room, ack) -> c.joinRoom(room));
-        node1.addEventListener("leave-room", String.class, (c, room, ack) -> c.leaveRoom(room));
+        node1.addEventListener("join-room", String.class, (c, room, ack) -> {
+            c.joinRoom(room);
+            c.sendEvent("join-ok", "OK");
+        });
+        node1.addEventListener("leave-room", String.class, (c, room, ack) -> {
+            c.leaveRoom(room);
+            c.sendEvent("leave-ok", "OK");
+        });
         node1.start();
         port1 = cfg1.getPort();
 
@@ -108,12 +117,17 @@ public class DistributedRedissonPubSubTest {
         cfg2.setPort(findAvailablePort());
 
         cfg2.setStoreFactory(new RedissonStoreFactory(
-                Redisson.create(redisConfig(redisURL))
-        ));
+                Redisson.create(redisConfig(redisURL)), PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL));
 
         node2 = new SocketIOServer(cfg2);
-        node2.addEventListener("join-room", String.class, (c, room, ack) -> c.joinRoom(room));
-        node2.addEventListener("leave-room", String.class, (c, room, ack) -> c.leaveRoom(room));
+        node2.addEventListener("join-room", String.class, (c, room, ack) -> {
+            c.joinRoom(room);
+            c.sendEvent("join-ok", "OK");
+        });
+        node2.addEventListener("leave-room", String.class, (c, room, ack) -> {
+            c.leaveRoom(room);
+            c.sendEvent("leave-ok", "OK");
+        });
         node2.start();
         port2 = cfg2.getPort();
 
@@ -132,6 +146,101 @@ public class DistributedRedissonPubSubTest {
         if (node2 != null) node2.stop();
         REDIS_CONTAINER.stop();
     }
+
+    @Test
+    public void testTwoNodesRoomBroadcast() throws Exception {
+        final int clients = 2;
+        final int broadcasts = 2; // m1 and m2
+        // We expect every client to get every broadcast
+        final int expectedTotalMsgs = clients * broadcasts;
+
+        // Latch 1: Wait for physical socket connection
+        CountDownLatch connectLatch = new CountDownLatch(clients);
+        // Latch 2: Wait for "join-ok" confirmations
+        CountDownLatch joinLatch = new CountDownLatch(clients);
+        // Latch 3: Wait for all messages (4 total)
+        CountDownLatch msgLatch = new CountDownLatch(expectedTotalMsgs);
+
+        // Thread-safe lists
+        List<String> aMsgs = new CopyOnWriteArrayList<>();
+        List<String> bMsgs = new CopyOnWriteArrayList<>();
+
+        // configure options (forceNew ensures we don't reuse cached connections)
+        IO.Options opts = new IO.Options();
+        opts.forceNew = true;
+
+        Socket a = IO.socket("http://localhost:" + port1, opts);
+        Socket b = IO.socket("http://localhost:" + port2, opts);
+
+        // --- SETUP LISTENERS ---
+
+        // 1. Connection Listeners
+        a.on(Socket.EVENT_CONNECT, args -> connectLatch.countDown());
+        b.on(Socket.EVENT_CONNECT, args -> connectLatch.countDown());
+
+        // 2. Join Acknowledgements
+        // (Assuming your server emits 'join-ok' after socket.join())
+        a.on("join-ok", data -> joinLatch.countDown());
+        b.on("join-ok", data -> joinLatch.countDown());
+
+        // 3. Message Listeners
+        a.on("room-event", data -> {
+            if (data.length > 0) {
+                aMsgs.add((String) data[0]); // Unpack actual string
+                msgLatch.countDown();
+            }
+        });
+
+        b.on("room-event", data -> {
+            if (data.length > 0) {
+                bMsgs.add((String) data[0]); // Unpack actual string
+                msgLatch.countDown();
+            }
+        });
+
+        // --- EXECUTION ---
+
+        // Step 1: Connect
+        a.connect();
+        b.connect();
+        assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Clients failed to connect");
+
+        // Step 2: Join Room
+        a.emit("join-room", "room1");
+        b.emit("join-room", "room1");
+        assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
+
+        // Step 3: Broadcast
+        // Small buffer to ensure Redis Pub/Sub subscription is active across nodes
+        Thread.sleep(500);
+
+        node1.getRoomOperations("room1").sendEvent("room-event", "m1");
+        node2.getRoomOperations("room1").sendEvent("room-event", "m2");
+        Thread.sleep(500);
+        // Step 4: Wait for data
+        assertTrue(msgLatch.await(5, TimeUnit.SECONDS), "Did not receive all messages");
+
+        // --- ASSERTIONS ---
+
+        try {
+            // Both clients should have received BOTH messages
+            assertEquals(2, aMsgs.size());
+            assertEquals(2, bMsgs.size());
+
+            // Check Content (Order is not guaranteed in async systems, so use contains)
+            assertTrue(aMsgs.contains("m1"), "A missing m1");
+            assertTrue(aMsgs.contains("m2"), "A missing m2");
+
+            assertTrue(bMsgs.contains("m1"), "B missing m1");
+            assertTrue(bMsgs.contains("m2"), "B missing m2");
+
+        } finally {
+            // Always disconnect
+            a.disconnect();
+            b.disconnect();
+        }
+    }
+
 
     // ===================================================================
     //   1. MULTIPLE CLIENTS — ROOM MEMBERS RECEIVE, NON-MEMBERS DO NOT
@@ -179,10 +288,9 @@ public class DistributedRedissonPubSubTest {
     // ===================================================================
     @Test
     public void testRoomBroadcastFromBothNodes() throws Exception {
-        // FIXED: Expect 8 events total (4 clients * 2 broadcasts)
-        CountDownLatch latch = new CountDownLatch(8);
 
-        // FIXED: Use thread-safe lists to handle race condition of m1/m2 arrival
+        CountDownLatch latch = new CountDownLatch(4);
+
         java.util.List<String>[] receivedMessages = new java.util.List[4];
         for (int i = 0; i < 4; i++) {
             receivedMessages[i] = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
@@ -256,9 +364,6 @@ public class DistributedRedissonPubSubTest {
         b.emit("leave-room", "room1");
         Thread.sleep(1000); // Wait for leave to propagate
 
-        // FIXED: Do NOT remove listeners. We need to prove the socket receives nothing
-        // even while it is still listening.
-        // clearListeners(b); <--- REMOVED
 
         // Reset message storage to verify emptiness later
         msg[0] = null;

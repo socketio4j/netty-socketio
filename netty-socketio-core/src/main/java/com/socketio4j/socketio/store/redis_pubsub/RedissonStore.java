@@ -14,41 +14,47 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store;
+package com.socketio4j.socketio.store.redis_pubsub;
 
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
-import com.socketio4j.socketio.store.event.BaseStoreFactory;
-import com.socketio4j.socketio.store.event.EventStore;
+import org.redisson.api.RMap;
+import org.redisson.api.RedissonClient;
 
-public class MemoryStoreFactory extends BaseStoreFactory {
+import com.socketio4j.socketio.store.Store;
 
-    private final MemoryEventStore pubSubMemoryStore = new MemoryEventStore();
 
-    @Override
-    public Store createStore(UUID sessionId) {
-        return new MemoryStore();
+public class RedissonStore implements Store {
+
+    private final RMap<String, Object> map;
+
+    public RedissonStore(UUID sessionId, RedissonClient redisson) {
+        this.map = redisson.getMap(sessionId.toString());
     }
 
     @Override
-    public EventStore eventStore() {
-        return pubSubMemoryStore;
+    public void set(String key, Object value) {
+        map.put(key, value);
     }
 
     @Override
-    public void shutdown() {
+    public <T> T get(String key) {
+        return (T) map.get(key);
     }
 
     @Override
-    public String toString() {
-        return getClass().getSimpleName() + " (local session store only)";
+    public boolean has(String key) {
+        return map.containsKey(key);
     }
 
     @Override
-    public <K, V> Map<K, V> createMap(String name) {
-        return new ConcurrentHashMap<>();
+    public void del(String key) {
+        map.remove(key);
+    }
+
+    @Override
+    public void destroy() {
+        map.delete();
     }
 
 }

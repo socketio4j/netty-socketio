@@ -49,7 +49,7 @@ public class HazelcastEventStoreTest extends AbstractEventStoreTest {
         hazelcastPub = HazelcastClient.newHazelcastClient(clientConfig);
         hazelcastSub = HazelcastClient.newHazelcastClient(clientConfig);
         
-        return new HazelcastEventStore(hazelcastPub, hazelcastSub, nodeId);
+        return new HazelcastEventStore(hazelcastPub, hazelcastSub, nodeId, PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
     }
 
     @Override

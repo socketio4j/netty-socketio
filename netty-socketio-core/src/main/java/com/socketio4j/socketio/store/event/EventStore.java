@@ -22,7 +22,12 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public interface EventStore {
+
+    Logger log = LoggerFactory.getLogger(EventStore.class);
 
     default EventStoreMode getMode(){
         return  EventStoreMode.MULTI_CHANNEL;
@@ -42,13 +47,52 @@ public interface EventStore {
                 .collect(Collectors.toList());
     }
 
+    default void publish(EventType type, EventMessage msg) {
+        try {
+            publish0(type, msg);
+        } catch (Exception e) {
+            log.error("Error publishing event {}", e.getMessage(), e);
+            //re-throw to keep the behavior
+            throw e;
+        }
+    }
 
-    void publish(EventType type, EventMessage msg);
+    void publish0(EventType type, EventMessage msg);
 
-    <T extends EventMessage> void subscribe(EventType type, EventListener<T> listener, Class<T> clazz);
+    default <T extends EventMessage> void subscribe(EventType type, EventListener<T> listener, Class<T> clazz) {
+        try {
+            subscribe0(type, listener, clazz);
+        } catch (Exception e) {
+            log.error("Error subscribing event {}", e.getMessage(), e);
+            //re-throw to keep the behavior
+            throw e;
+        }
+    }
 
-    void unsubscribe(EventType type);
+    <T extends EventMessage> void subscribe0(EventType type, EventListener<T> listener, Class<T> clazz);
 
-    void shutdown();
+    default void unsubscribe(EventType type) {
+        try {
+            unsubscribe0(type);
+        } catch (Exception e) {
+            log.error("Error unsubscribing event {}", e.getMessage(), e);
+            //re-throw to keep the behavior
+            throw e;
+        }
+    }
+
+    void unsubscribe0(EventType type);
+
+    default void shutdown() {
+        try {
+            shutdown0();
+        } catch (Exception e) {
+            log.error("Error shutting down event store {}", e.getMessage(), e);
+            //re-throw to keep the behavior
+            throw e;
+        }
+    }
+
+    void shutdown0();
 
 }

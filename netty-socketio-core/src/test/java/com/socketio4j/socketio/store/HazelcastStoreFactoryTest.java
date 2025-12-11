@@ -19,6 +19,9 @@ package com.socketio4j.socketio.store;
 import java.util.Map;
 import java.util.UUID;
 
+import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.event.PublishConfig;
+import com.socketio4j.socketio.store.event.PublishMode;
 import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
@@ -61,7 +64,7 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
         );
         
         hazelcastInstance = HazelcastClient.newHazelcastClient(clientConfig);
-        return new HazelcastStoreFactory(hazelcastInstance);
+        return new HazelcastStoreFactory(hazelcastInstance, PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
     }
 
     @AfterEach

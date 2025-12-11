@@ -14,46 +14,55 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store;
+package com.socketio4j.socketio.store.redis_stream;
 
 import java.time.Duration;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
+import com.socketio4j.socketio.store.Store;
+import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.redis_pubsub.RedissonStore;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.StreamMessageId;
 
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
-import com.socketio4j.socketio.store.event.EventType;
 
 
-
-public class SingleChannelRedisStreamsStoreFactory extends BaseStoreFactory {
+public class RedisStreamsStoreFactory extends BaseStoreFactory {
 
     private final RedissonClient redissonClient;
     private final EventStore eventStore;
 
-    public SingleChannelRedisStreamsStoreFactory(RedissonClient redissonClient) {
+    public RedisStreamsStoreFactory(RedissonClient redissonClient) {
         Objects.requireNonNull(redissonClient, "redisson client can not be null");
         this.redissonClient = redissonClient;
-        this.eventStore = new SingleChannelRedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, Collections.singletonList(EventType.ALL_SINGLE_CHANNEL)
+
+        this.eventStore = new RedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, EventStoreMode.SINGLE_CHANNEL
+        );
+    }
+    public RedisStreamsStoreFactory(RedissonClient redissonClient, EventStoreMode eventStoreMode) {
+        Objects.requireNonNull(redissonClient, "redisson client can not be null");
+        this.redissonClient = redissonClient;
+
+        this.eventStore = new RedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100,eventStoreMode
         );
     }
 
-    public SingleChannelRedisStreamsStoreFactory(RedissonClient redissonClient, SingleChannelRedisStreamsStore eventStore) {
+    public RedisStreamsStoreFactory(RedissonClient redissonClient, RedisStreamsStore eventStore) {
         Objects.requireNonNull(redissonClient, "redisson client can not be null");
         Objects.requireNonNull(eventStore, "SingleChannelRedisStreamsStore can not be null");
         this.redissonClient = redissonClient;
         this.eventStore = eventStore;
     }
 
-    public SingleChannelRedisStreamsStoreFactory() {
+    public RedisStreamsStoreFactory() {
         this.redissonClient = Redisson.create();
-        this.eventStore = new SingleChannelRedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, Collections.singletonList(EventType.ALL_SINGLE_CHANNEL)
+        this.eventStore = new RedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, EventStoreMode.SINGLE_CHANNEL
         );
     }
 

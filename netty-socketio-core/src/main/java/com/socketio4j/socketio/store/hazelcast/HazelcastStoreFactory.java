@@ -30,6 +30,8 @@ import com.hazelcast.core.HazelcastInstance;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
+import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.event.PublishConfig;
 
 
 /**
@@ -47,21 +49,20 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     private final EventStore eventStore;
 
     public HazelcastStoreFactory() {
-        this(HazelcastClient.newHazelcastClient());
+        this(HazelcastClient.newHazelcastClient(), PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
     }
 
-    public HazelcastStoreFactory(HazelcastInstance instance) {
+    public HazelcastStoreFactory(HazelcastInstance instance, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
 
         Objects.requireNonNull(instance, "instance cannot be null");
 
         this.hazelcastClient = instance;
         this.hazelcastPub = instance;
         this.hazelcastSub = instance;
-
-        this.eventStore = new HazelcastEventStore(hazelcastPub, hazelcastSub, getNodeId());
+        this.eventStore = new HazelcastEventStore(hazelcastPub, hazelcastSub, getNodeId(), publishConfig, eventStoreMode);
     }
 
-    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub) {
+    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
 
         Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
         Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
@@ -70,8 +71,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
         this.hazelcastClient = hazelcastClient;
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
-
-        this.eventStore = new HazelcastEventStore(hazelcastPub, hazelcastSub, getNodeId());
+        this.eventStore = new HazelcastEventStore(hazelcastPub, hazelcastSub, getNodeId(),  publishConfig, eventStoreMode);
     }
 
 

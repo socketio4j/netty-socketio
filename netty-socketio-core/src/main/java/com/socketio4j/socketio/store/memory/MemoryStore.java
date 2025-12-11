@@ -14,10 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store;
+package com.socketio4j.socketio.store.memory;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import com.socketio4j.socketio.store.Store;
 
 public class MemoryStore implements Store {
 

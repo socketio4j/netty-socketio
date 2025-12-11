@@ -19,6 +19,11 @@ package com.socketio4j.socketio.store;
 import java.util.Map;
 import java.util.UUID;
 
+import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.event.PublishConfig;
+import com.socketio4j.socketio.store.redis_pubsub.RedissonEventStore;
+import com.socketio4j.socketio.store.redis_pubsub.RedissonStore;
+import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -58,7 +63,7 @@ public class RedissonStoreFactoryTest extends StoreFactoryTest {
                 .setAddress("redis://" + customizedRedisContainer.getHost() + ":" + customizedRedisContainer.getRedisPort());
         
         redissonClient = Redisson.create(config);
-        return new RedissonStoreFactory(redissonClient);
+        return new RedissonStoreFactory(redissonClient, PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
     }
 
     @AfterEach

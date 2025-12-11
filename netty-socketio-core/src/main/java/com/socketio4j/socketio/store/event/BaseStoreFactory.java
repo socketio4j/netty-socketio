@@ -34,8 +34,6 @@ import com.socketio4j.socketio.store.StoreFactory;
 
 import io.netty.util.internal.ObjectUtil;
 
-
-
 public abstract class BaseStoreFactory implements StoreFactory {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
@@ -48,48 +46,46 @@ public abstract class BaseStoreFactory implements StoreFactory {
 
     @Override
     public void init(final NamespacesHub namespacesHub, final AuthorizeHandler authorizeHandler, JsonSupport jsonSupport) {
-        ObjectUtil.checkNotNull(eventStore().getMode(), "mode");
 
-        List<EventType> enabledTypes = eventStore().getEnabledTypes();
+        ObjectUtil.checkNotNull(eventStore().getMode(), "mode cannot be null");
 
         if (eventStore().getMode().equals(EventStoreMode.MULTI_CHANNEL)) {
-           handleMultiChannelSubscribe(namespacesHub, authorizeHandler, enabledTypes);
+           handleMultiChannelSubscribe(namespacesHub, authorizeHandler);
         } else if (eventStore().getMode().equals(EventStoreMode.SINGLE_CHANNEL)) {
-           handleSingleChannelSubscribe(namespacesHub, authorizeHandler, enabledTypes);
+           handleSingleChannelSubscribe(namespacesHub, authorizeHandler);
         }
 
     }
 
     private void handleSingleChannelSubscribe(
             final NamespacesHub hub,
-            final AuthorizeHandler auth,
-            final List<EventType> enabled
+            final AuthorizeHandler auth
     ) {
 
         eventStore().subscribe(EventType.ALL_SINGLE_CHANNEL, msg -> {
 
-            if (msg instanceof ConnectMessage && enabled.contains(EventType.CONNECT)) {
+            if (msg instanceof ConnectMessage) {
                 ConnectMessage m = (ConnectMessage) msg;
                 auth.connect(m.getSessionId());
                 log.debug("[PUBSUB-SC] CONNECT {}", m.getSessionId());
-            } else if (msg instanceof DisconnectMessage && enabled.contains(EventType.DISCONNECT)) {
+            } else if (msg instanceof DisconnectMessage) {
                 DisconnectMessage m = (DisconnectMessage) msg;
                 log.debug("[PUBSUB-SC] DISCONNECT {}", m.getSessionId());
-            } else if (msg instanceof JoinMessage && enabled.contains(EventType.JOIN)) {
+            } else if (msg instanceof JoinMessage) {
                 JoinMessage m = (JoinMessage) msg;
                 Namespace n = hub.get(m.getNamespace());
                 if (n != null) {
                     n.join(m.getRoom(), m.getSessionId());
                 }
                 log.debug("[PUBSUB-SC] JOIN {}", m.getSessionId());
-            } else if (msg instanceof LeaveMessage && enabled.contains(EventType.LEAVE)) {
+            } else if (msg instanceof LeaveMessage) {
                 LeaveMessage m = (LeaveMessage) msg;
                 Namespace n = hub.get(m.getNamespace());
                 if (n != null) {
                     n.leave(m.getRoom(), m.getSessionId());
                 }
                 log.debug("[PUBSUB-SC] LEAVE {}", m.getSessionId());
-            } else if (msg instanceof DispatchMessage && enabled.contains(EventType.DISPATCH)) {
+            } else if (msg instanceof DispatchMessage) {
                 DispatchMessage m = (DispatchMessage) msg;
                 Namespace n = hub.get(m.getNamespace());
                 if (msg.getOffset() != null && !msg.getOffset().isEmpty()) {
@@ -99,7 +95,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     n.dispatch(m.getRoom(), m.getPacket());
                 }
                 log.debug("[PUBSUB-SC] DISPATCH {}", m.getPacket());
-            } else if (msg instanceof BulkJoinMessage && enabled.contains(EventType.BULK_JOIN)) {
+            } else if (msg instanceof BulkJoinMessage) {
                 BulkJoinMessage m = (BulkJoinMessage) msg;
                 Namespace n = hub.get(m.getNamespace());
                 if (n != null) {
@@ -108,7 +104,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     }
                 }
                 log.debug("[PUBSUB-SC] BULK_JOIN {}", m.getSessionId());
-            } else if (msg instanceof BulkLeaveMessage && enabled.contains(EventType.BULK_LEAVE)) {
+            } else if (msg instanceof BulkLeaveMessage) {
                 BulkLeaveMessage m = (BulkLeaveMessage) msg;
                 Namespace n = hub.get(m.getNamespace());
                 if (n != null) {
@@ -139,33 +135,31 @@ public abstract class BaseStoreFactory implements StoreFactory {
 
 
 
-    private <T extends EventMessage> void subscribeIfEnabled(
-            List<EventType> enabled,
+    private <T extends EventMessage> void subscribe(
             EventType type,
             Class<T> clazz,
             EventListener<T> listener
     ) {
-        if (enabled.contains(type)) {
+
             eventStore().subscribe(type, listener, clazz);
-        }
+
     }
 
     private void handleMultiChannelSubscribe(
             final NamespacesHub hub,
-            final AuthorizeHandler auth,
-            final List<EventType> enabled
+            final AuthorizeHandler auth
     ) {
 
-        subscribeIfEnabled(enabled, EventType.DISCONNECT, DisconnectMessage.class,
+        subscribe(EventType.DISCONNECT, DisconnectMessage.class,
                 m -> log.debug("[PUBSUB-MC] DISCONNECT {}", m.getSessionId()));
 
-        subscribeIfEnabled(enabled, EventType.CONNECT, ConnectMessage.class,
+        subscribe(EventType.CONNECT, ConnectMessage.class,
                 m -> {
                     auth.connect(m.getSessionId());
                     log.debug("[PUBSUB-MC] CONNECT {}", m.getSessionId());
                 });
 
-        subscribeIfEnabled(enabled, EventType.DISPATCH, DispatchMessage.class,
+        subscribe(EventType.DISPATCH, DispatchMessage.class,
                 m -> {
                     Namespace n = hub.get(m.getNamespace());
                     if (n != null) {
@@ -174,7 +168,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     log.debug("[PUBSUB-MC] DISPATCH {}", m.getPacket());
                 });
 
-        subscribeIfEnabled(enabled, EventType.JOIN, JoinMessage.class,
+        subscribe(EventType.JOIN, JoinMessage.class,
                 m -> {
                     Namespace n = hub.get(m.getNamespace());
                     if (n != null) {
@@ -183,7 +177,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     log.debug("[PUBSUB-MC] JOIN {}", m.getSessionId());
                 });
 
-        subscribeIfEnabled(enabled, EventType.BULK_JOIN, BulkJoinMessage.class,
+        subscribe(EventType.BULK_JOIN, BulkJoinMessage.class,
                 m -> {
                     Namespace n = hub.get(m.getNamespace());
                     if (n != null) {
@@ -194,7 +188,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     log.debug("[PUBSUB-MC] BULK_JOIN {}", m.getSessionId());
                 });
 
-        subscribeIfEnabled(enabled, EventType.LEAVE, LeaveMessage.class,
+        subscribe(EventType.LEAVE, LeaveMessage.class,
                 m -> {
                     Namespace n = hub.get(m.getNamespace());
                     if (n != null) {
@@ -203,7 +197,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
                     log.debug("[PUBSUB-MC] LEAVE {}", m.getSessionId());
                 });
 
-        subscribeIfEnabled(enabled, EventType.BULK_LEAVE, BulkLeaveMessage.class,
+        subscribe(EventType.BULK_LEAVE, BulkLeaveMessage.class,
                 m -> {
                     Namespace n = hub.get(m.getNamespace());
                     if (n != null) {

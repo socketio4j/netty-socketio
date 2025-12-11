@@ -19,6 +19,9 @@ package com.socketio4j.socketio.store;
 import java.util.Map;
 import java.util.UUID;
 
+import com.socketio4j.socketio.store.memory.MemoryEventStore;
+import com.socketio4j.socketio.store.memory.MemoryStore;
+import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;

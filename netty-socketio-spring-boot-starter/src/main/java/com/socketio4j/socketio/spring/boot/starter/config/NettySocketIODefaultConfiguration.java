@@ -30,7 +30,7 @@ import com.socketio4j.socketio.protocol.JacksonJsonSupport;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.spring.SpringAnnotationScanner;
 import com.socketio4j.socketio.spring.boot.starter.lifecycle.NettySocketIOLifecycle;
-import com.socketio4j.socketio.store.MemoryStoreFactory;
+import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 import com.socketio4j.socketio.store.StoreFactory;
 
 @Configuration(proxyBeanMethods = false)

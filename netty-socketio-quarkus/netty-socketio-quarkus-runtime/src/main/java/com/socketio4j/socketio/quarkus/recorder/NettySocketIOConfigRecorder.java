@@ -136,28 +136,32 @@ public class NettySocketIOConfigRecorder {
         ));
         configuration.setSocketSslConfig(sslConfig);
 
-        InstanceHandle<ExceptionListener> exceptionListenerInstanceHandle = Arc.container().instance(ExceptionListener.class);
-        if (exceptionListenerInstanceHandle != null && exceptionListenerInstanceHandle.isAvailable()) {
-            log.info("Netty socket-io server configuration uses ExceptionListener: {}", exceptionListenerInstanceHandle.get().getClass().getName());
-            configuration.setExceptionListener(exceptionListenerInstanceHandle.get());
+        try (InstanceHandle<ExceptionListener> exceptionListenerInstanceHandle = Arc.container().instance(ExceptionListener.class)) {
+            if (exceptionListenerInstanceHandle != null && exceptionListenerInstanceHandle.isAvailable()) {
+                log.info("Netty socket-io server configuration uses ExceptionListener: {}", exceptionListenerInstanceHandle.get().getClass().getName());
+                configuration.setExceptionListener(exceptionListenerInstanceHandle.get());
+            }
         }
 
-        InstanceHandle<StoreFactory> storeFactoryInstanceHandle = Arc.container().instance(StoreFactory.class);
-        if (storeFactoryInstanceHandle != null && storeFactoryInstanceHandle.isAvailable()) {
-            log.info("Netty socket-io server configuration uses StoreFactory: {}", storeFactoryInstanceHandle.get().getClass().getName());
-            configuration.setStoreFactory(storeFactoryInstanceHandle.get());
+        try (InstanceHandle<StoreFactory> storeFactoryInstanceHandle = Arc.container().instance(StoreFactory.class)) {
+            if (storeFactoryInstanceHandle != null && storeFactoryInstanceHandle.isAvailable()) {
+                log.info("Netty socket-io server configuration uses StoreFactory: {}", storeFactoryInstanceHandle.get().getClass().getName());
+                configuration.setStoreFactory(storeFactoryInstanceHandle.get());
+            }
         }
 
-        InstanceHandle<JsonSupport> jsonSupportInstanceHandle = Arc.container().instance(JsonSupport.class);
-        if (jsonSupportInstanceHandle != null && jsonSupportInstanceHandle.isAvailable()) {
-            log.info("Netty socket-io server configuration uses JsonSupport: {}", jsonSupportInstanceHandle.get().getClass().getName());
-            configuration.setJsonSupport(jsonSupportInstanceHandle.get());
+        try (InstanceHandle<JsonSupport> jsonSupportInstanceHandle = Arc.container().instance(JsonSupport.class)) {
+            if (jsonSupportInstanceHandle != null && jsonSupportInstanceHandle.isAvailable()) {
+                log.info("Netty socket-io server configuration uses JsonSupport: {}", jsonSupportInstanceHandle.get().getClass().getName());
+                configuration.setJsonSupport(jsonSupportInstanceHandle.get());
+            }
         }
 
-        InstanceHandle<AuthorizationListener> authorizationListenerInstanceHandle = Arc.container().instance(AuthorizationListener.class);
-        if (authorizationListenerInstanceHandle != null && authorizationListenerInstanceHandle.isAvailable()) {
-            log.info("Netty socket-io server configuration uses AuthorizationListener: {}", authorizationListenerInstanceHandle.get().getClass().getName());
-            configuration.setAuthorizationListener(authorizationListenerInstanceHandle.get());
+        try (InstanceHandle<AuthorizationListener> authorizationListenerInstanceHandle = Arc.container().instance(AuthorizationListener.class)) {
+            if (authorizationListenerInstanceHandle != null && authorizationListenerInstanceHandle.isAvailable()) {
+                log.info("Netty socket-io server configuration uses AuthorizationListener: {}", authorizationListenerInstanceHandle.get().getClass().getName());
+                configuration.setAuthorizationListener(authorizationListenerInstanceHandle.get());
+            }
         }
 
         return new RuntimeValue<>(new SocketIOServer(configuration));
