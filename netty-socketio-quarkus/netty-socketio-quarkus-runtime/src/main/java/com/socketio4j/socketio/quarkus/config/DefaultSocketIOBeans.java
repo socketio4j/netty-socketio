@@ -26,10 +26,11 @@ import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 import com.socketio4j.socketio.store.StoreFactory;
 
 import io.quarkus.arc.DefaultBean;
-import jakarta.enterprise.context.Dependent;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Singleton;
 
-@Dependent
+@ApplicationScoped
 public class DefaultSocketIOBeans {
     /**
      * Produce default ExceptionListener bean if none is provided by the user.
