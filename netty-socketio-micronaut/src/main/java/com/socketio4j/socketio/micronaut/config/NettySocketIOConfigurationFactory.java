@@ -28,8 +28,9 @@ import com.socketio4j.socketio.micronaut.lifecycle.NettySocketIOServerShutdown;
 import com.socketio4j.socketio.micronaut.lifecycle.NettySocketIOServerStartup;
 import com.socketio4j.socketio.protocol.JacksonJsonSupport;
 import com.socketio4j.socketio.protocol.JsonSupport;
-import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 import com.socketio4j.socketio.store.StoreFactory;
+import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
+
 
 import io.micronaut.context.BeanContext;
 import io.micronaut.context.annotation.Factory;
