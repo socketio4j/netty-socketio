@@ -138,7 +138,7 @@ public class SingleChannelRedisStreamsStore implements EventStore {
     // =========================================================================
 
     @Override
-    public void publish(EventType type, EventMessage msg) {
+    public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
         // Stream auto-creates on first add
         stream.add(StreamAddArgs.entry(type.toString(), msg));
@@ -149,7 +149,7 @@ public class SingleChannelRedisStreamsStore implements EventStore {
     // =========================================================================
 
     @Override
-    public <T extends EventMessage> void subscribe(EventType type,
+    public <T extends EventMessage> void subscribe0(EventType type,
                                                    EventListener<T> listener,
                                                    Class<T> clazz) {
 
@@ -270,7 +270,7 @@ public class SingleChannelRedisStreamsStore implements EventStore {
 
 
     @Override
-    public void unsubscribe(EventType type) {
+    public void unsubscribe0(EventType type) {
         // Single-channel mode subscribes to ALL types
         if (type != EventType.ALL_SINGLE_CHANNEL) {
             throw new UnsupportedOperationException(
@@ -286,7 +286,7 @@ public class SingleChannelRedisStreamsStore implements EventStore {
     // =========================================================================
 
     @Override
-    public void shutdown() {
+    public void shutdown0() {
         log.debug("Shutting down Redis Streams");
         unsubscribe(EventType.ALL_SINGLE_CHANNEL);
         executorService.shutdownNow();

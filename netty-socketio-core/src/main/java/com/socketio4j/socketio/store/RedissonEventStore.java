@@ -74,13 +74,13 @@ public class RedissonEventStore implements EventStore {
 
 
     @Override
-    public void publish(EventType type, EventMessage msg) {
+    public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
         redissonPub.getTopic(type.toString()).publish(msg);
     }
 
     @Override
-    public <T extends EventMessage> void subscribe(EventType type, final EventListener<T> listener, Class<T> clazz) {
+    public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
         RTopic topic = redissonSub.getTopic(type.toString());
 
         int regId = topic.addListener(clazz, (channel, msg) -> {
@@ -93,7 +93,7 @@ public class RedissonEventStore implements EventStore {
     }
 
     @Override
-    public void unsubscribe(EventType type) {
+    public void unsubscribe0(EventType type) {
         String name = type.toString();
 
         Queue<Integer> regIds = map.remove(name);
@@ -116,7 +116,7 @@ public class RedissonEventStore implements EventStore {
     }
 
     @Override
-    public void shutdown() {
+    public void shutdown0() {
         Arrays.stream(EventType.values()).forEach(this::unsubscribe);
         map.clear();
     }

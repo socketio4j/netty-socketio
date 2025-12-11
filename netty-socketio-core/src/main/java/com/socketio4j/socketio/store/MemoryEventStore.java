@@ -37,19 +37,19 @@ public class MemoryEventStore implements EventStore {
     }
 
     @Override
-    public void publish(EventType type, EventMessage msg) {
+    public void publish0(EventType type, EventMessage msg) {
     }
 
     @Override
-    public <T extends EventMessage> void subscribe(EventType type, EventListener<T> listener, Class<T> clazz) {
+    public <T extends EventMessage> void subscribe0(EventType type, EventListener<T> listener, Class<T> clazz) {
     }
 
     @Override
-    public void unsubscribe(EventType type) {
+    public void unsubscribe0(EventType type) {
     }
 
     @Override
-    public void shutdown() {
+    public void shutdown0() {
     }
 
 }
