@@ -19,7 +19,6 @@ package com.socketio4j.socketio.integration;
 import java.net.ServerSocket;
 
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 import org.redisson.Redisson;
@@ -108,9 +107,15 @@ public class DistributedRedissonPubSubMultiChannelTest extends DistributedCommon
 
     @AfterAll
     public void stop() {
-        if (node1 != null) node1.stop();
-        if (node2 != null) node2.stop();
-        REDIS_CONTAINER.stop();
+        if (REDIS_CONTAINER != null) {
+            REDIS_CONTAINER.stop();
+        }
+        if (node1 != null) {
+            node1.stop();
+        }
+        if (node2 != null) {
+            node2.stop();
+        }
     }
 
 }

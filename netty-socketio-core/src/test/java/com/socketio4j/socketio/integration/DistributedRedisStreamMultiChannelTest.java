@@ -107,8 +107,14 @@ public class DistributedRedisStreamMultiChannelTest extends DistributedCommonTes
 
     @AfterAll
     public void stop() {
-        if (node1 != null) node1.stop();
-        if (node2 != null) node2.stop();
-        REDIS_CONTAINER.stop();
+        if (REDIS_CONTAINER != null) {
+            REDIS_CONTAINER.stop();
+        }
+        if (node1 != null) {
+            node1.stop();
+        }
+        if (node2 != null) {
+            node2.stop();
+        }
     }
 }

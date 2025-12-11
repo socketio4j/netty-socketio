@@ -22,7 +22,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 import org.redisson.Redisson;
-import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 
 import com.socketio4j.socketio.Configuration;
@@ -109,10 +108,14 @@ public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommo
 
     @AfterAll
     public void stop() {
-        if (node1 != null) node1.stop();
-        if (node2 != null) node2.stop();
-        if (redisClient1 != null) redisClient1.shutdown();
-        if (redisClient2 != null) redisClient2.shutdown();
-        REDIS_CONTAINER.stop();
+        if (REDIS_CONTAINER != null) {
+            REDIS_CONTAINER.stop();
+        }
+        if (node1 != null) {
+            node1.stop();
+        }
+        if (node2 != null) {
+            node2.stop();
+        }
     }
 }

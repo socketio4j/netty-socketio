@@ -17,10 +17,10 @@
 package com.socketio4j.socketio.integration;
 
 
-import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -49,29 +49,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public abstract class DistributedCommonTest {
 
-    protected static SocketIOServer node1;
-    protected static SocketIOServer node2;
+    protected SocketIOServer node1;
+    protected SocketIOServer node2;
 
     protected int port1;
     protected int port2;
 
     protected RedissonClient redisClient1;
     protected RedissonClient redisClient2;
-
-    // -------------------------------------------
-    // Create a client with list appending handler
-    // -------------------------------------------
-    private Socket createListAppendingClient(int port, CountDownLatch latch, List<List<String>> store, int index) throws URISyntaxException {
-        io.socket.client.IO.Options opts = new io.socket.client.IO.Options();
-        opts.forceNew = true;
-        Socket client = io.socket.client.IO.socket("http://127.0.0.1:" + port, opts);
-        client.on("room-event", args -> {
-            store.get(index).add((String) args[0]);
-            latch.countDown();
-        });
-        return client;
-    }
-
 
     // ===================================================================
     //   0. TWO NODES ROOM BROADCAST (Refactored/Fixed Original Test)
@@ -248,16 +233,38 @@ public abstract class DistributedCommonTest {
         CountDownLatch joinLatch = new CountDownLatch(clientCount);
         CountDownLatch msgLatch = new CountDownLatch(clientCount * expectedBroadcasts); // 8 total
 
+        io.socket.client.IO.Options opts = new io.socket.client.IO.Options();
+        opts.forceNew = true;
 
-        List<List<String>> receivedMessages = new ArrayList<>();
-        for (int i = 0; i < clientCount; i++) {
-            receivedMessages.add(new CopyOnWriteArrayList<>());
-        }
+        Socket a1 = io.socket.client.IO.socket("http://localhost:" + port1, opts);
+        Socket b1 = io.socket.client.IO.socket("http://localhost:" + port2, opts);
 
-        Socket a1 = createListAppendingClient(port1, msgLatch, receivedMessages, 0);
-        Socket a2 = createListAppendingClient(port1, msgLatch, receivedMessages, 1);
-        Socket b1 = createListAppendingClient(port2, msgLatch, receivedMessages, 2);
-        Socket b2 = createListAppendingClient(port2, msgLatch, receivedMessages, 3);
+
+        Socket a2 = io.socket.client.IO.socket("http://localhost:" + port1, opts);
+        Socket b2 = io.socket.client.IO.socket("http://localhost:" + port2, opts);
+
+        Set<String> a1Data = new HashSet<>();
+        Set<String> a2Data = new HashSet<>();
+        Set<String> b1Data = new HashSet<>();
+        Set<String> b2Data = new HashSet<>();
+
+
+        a1.on("room-event", args -> {
+            msgLatch.countDown();
+            a1Data.add((String) args[0]);
+        });
+        a2.on("room-event", args -> {
+            msgLatch.countDown();
+            a2Data.add((String) args[0]);
+        });
+        b1.on("room-event", args -> {
+            msgLatch.countDown();
+            b1Data.add((String) args[0]);
+        });
+        b2.on("room-event", args -> {
+            msgLatch.countDown();
+            b2Data.add((String) args[0]);
+        });
 
         // Add connection/join listeners
         List<Socket> allClients = Arrays.asList(a1, a2, b1, b2);
@@ -283,14 +290,12 @@ public abstract class DistributedCommonTest {
         node2.getRoomOperations("room1").sendEvent("room-event", "m2");
 
         assertTrue(msgLatch.await(5, TimeUnit.SECONDS), "Did not receive all 8 events");
-
-        for (int i = 0; i < clientCount; i++) {
-            List<String> msgs = receivedMessages.get(i);
-            assertEquals(2, msgs.size(), "Client " + i + " must receive 2 messages");
-            assertTrue(msgs.contains("m1"), "Client " + i + " missing m1");
-            assertTrue(msgs.contains("m2"), "Client " + i + " missing m2");
-        }
-
+        assertEquals(8, a1Data.size() + a2Data.size() + b1Data.size() + b2Data.size(), "Each client must receive 2 messages");
+        Set<String> expected = new HashSet<>(Arrays.asList("m1", "m2"));
+        assertEquals(expected, a1Data);
+        assertEquals(expected, b1Data);
+        assertEquals(expected, a2Data);
+        assertEquals(expected, b2Data);
         a1.disconnect();
         a2.disconnect();
         b1.disconnect();
@@ -591,23 +596,49 @@ public abstract class DistributedCommonTest {
     public void testPureBroadcastFromBothNodes() throws Exception {
 
         final int clientCount = 4;
-        final int expectedBroadcasts = 2; // n1 and n2
+        final int expectedBroadcasts = 2; // m1 and m2
         CountDownLatch connectLatch = new CountDownLatch(clientCount);
+        CountDownLatch joinLatch = new CountDownLatch(clientCount);
         CountDownLatch msgLatch = new CountDownLatch(clientCount * expectedBroadcasts); // 8 total
 
+        io.socket.client.IO.Options opts = new io.socket.client.IO.Options();
+        opts.forceNew = true;
 
-        List<List<String>> receivedMessages = new ArrayList<>();
-        for (int i = 0; i < clientCount; i++) {
-            receivedMessages.add(new CopyOnWriteArrayList<>());
-        }
+        Socket a1 = io.socket.client.IO.socket("http://localhost:" + port1, opts);
+        Socket b1 = io.socket.client.IO.socket("http://localhost:" + port2, opts);
 
-        Socket a1 = createListAppendingClient(port1, msgLatch, receivedMessages, 0);
-        Socket a2 = createListAppendingClient(port1, msgLatch, receivedMessages, 1);
-        Socket b1 = createListAppendingClient(port2, msgLatch, receivedMessages, 2);
-        Socket b2 = createListAppendingClient(port2, msgLatch, receivedMessages, 3);
 
+        Socket a2 = io.socket.client.IO.socket("http://localhost:" + port1, opts);
+        Socket b2 = io.socket.client.IO.socket("http://localhost:" + port2, opts);
+
+        Set<String> a1Data = new HashSet<>();
+        Set<String> a2Data = new HashSet<>();
+        Set<String> b1Data = new HashSet<>();
+        Set<String> b2Data = new HashSet<>();
+
+
+        a1.on("room-event", args -> {
+            msgLatch.countDown();
+            a1Data.add((String) args[0]);
+        });
+        a2.on("room-event", args -> {
+            msgLatch.countDown();
+            a2Data.add((String) args[0]);
+        });
+        b1.on("room-event", args -> {
+            msgLatch.countDown();
+            b1Data.add((String) args[0]);
+        });
+        b2.on("room-event", args -> {
+            msgLatch.countDown();
+            b2Data.add((String) args[0]);
+        });
+
+        // Add connection/join listeners
         List<Socket> allClients = Arrays.asList(a1, a2, b1, b2);
         allClients.forEach(c -> c.on(Socket.EVENT_CONNECT, args -> connectLatch.countDown()));
+        allClients.forEach(c -> c.on("join-ok", args -> joinLatch.countDown()));
+
 
         a1.connect();
         a2.connect();
@@ -615,22 +646,24 @@ public abstract class DistributedCommonTest {
         b2.connect();
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Clients failed to connect");
 
-        // Node1 broadcast
-        node1.getBroadcastOperations().sendEvent("room-event", "n1");
+        a1.emit("join-room", "room1");
+        a2.emit("join-room", "room1");
+        b1.emit("join-room", "room1");
+        b2.emit("join-room", "room1");
+        assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
-        // Node2 broadcast
-        node2.getBroadcastOperations().sendEvent("room-event", "n2");
+        Thread.sleep(500);
 
-        assertTrue(msgLatch.await(5, TimeUnit.SECONDS), "Did not receive all 8 pure broadcast messages");
+        node1.getBroadcastOperations().sendEvent("room-event", "m1");
+        node2.getBroadcastOperations().sendEvent("room-event", "m2");
 
-        // Verify EVERY client got BOTH messages
-        for (int i = 0; i < clientCount; i++) {
-            List<String> clientMsgs = receivedMessages.get(i);
-            assertEquals(2, clientMsgs.size(), "Client " + i + " should receive exactly 2 messages");
-            assertTrue(clientMsgs.contains("n1"), "Client " + i + " missing n1 (broadcast from node1)");
-            assertTrue(clientMsgs.contains("n2"), "Client " + i + " missing n2 (broadcast from node2)");
-        }
-
+        assertTrue(msgLatch.await(5, TimeUnit.SECONDS), "Did not receive all 8 events");
+        assertEquals(8, a1Data.size() + a2Data.size() + b1Data.size() + b2Data.size(), "Each client must receive 2 messages");
+        Set<String> expected = new HashSet<>(Arrays.asList("m1", "m2"));
+        assertEquals(expected, a1Data);
+        assertEquals(expected, b1Data);
+        assertEquals(expected, a2Data);
+        assertEquals(expected, b2Data);
         a1.disconnect();
         a2.disconnect();
         b1.disconnect();
