@@ -28,6 +28,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -74,7 +75,7 @@ public class RedisStreamsStore implements EventStore {
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final ConcurrentHashMap<String, Integer> retryCount = new ConcurrentHashMap<>();
 
-    private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+    private final Map<EventType, ScheduledExecutorService> executors = new ConcurrentHashMap<>();
 
     private final ConcurrentHashMap<EventType, StreamMessageId> offsets; // "$"
     private final Duration readTimeout;
@@ -133,12 +134,24 @@ public class RedisStreamsStore implements EventStore {
         init();
     }
 
-    private void init(){
-        // start worker only once
+    private void init() {
         if (running.compareAndSet(false, true)) {
-            streams.forEach((k, v) -> pollAsync(v, k.eventType));
+            streams.forEach((nameType, stream) -> {
+                executors.computeIfAbsent(nameType.eventType, t ->
+                        Executors.newSingleThreadScheduledExecutor(r -> {
+                            Thread th = new Thread(r);
+                            th.setName("redis-stream-" + t);
+                            return th;
+                        })
+                );
+
+                executors
+                        .get(nameType.eventType)
+                        .execute(() -> pollAsync(stream, nameType.eventType));
+            });
         }
     }
+
 
     public RedisStreamsStore(RedissonClient redissonClient, Long nodeId, EventStoreMode eventStoreMode) {
         if (eventStoreMode == null) {
@@ -228,15 +241,13 @@ public class RedisStreamsStore implements EventStore {
 
         msg.setNodeId(nodeId);
 
+        // Single-channel mode subscribes to ALL types
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            streams.get(
-                            new NameType(
-                                    getStreamName(EventType.ALL_SINGLE_CHANNEL),
-                                    EventType.ALL_SINGLE_CHANNEL))
-                    .add(StreamAddArgs.entry(type.toString(), msg));
+            streams.get(new NameType(getStreamName(EventType.ALL_SINGLE_CHANNEL), EventType.ALL_SINGLE_CHANNEL)).add(StreamAddArgs.entry(type.toString(), msg));
         } else {
             streams.get(new NameType(getStreamName(type), type)).add(StreamAddArgs.entry(type.toString(), msg));
         }
+
 
     }
 
@@ -262,7 +273,6 @@ public class RedisStreamsStore implements EventStore {
                     "can not subscribe with ALL_SINGLE_CHANNEL when you are on MULTI_CHANNEL mode");
         }
         map.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>()).add((EventListener<EventMessage>) listener);
-        init(); //needed when subscribing after unsubscribing
     }
 
 
@@ -372,11 +382,13 @@ public class RedisStreamsStore implements EventStore {
 
 
 
-    private void scheduleNextPoll(final RStream<String, EventMessage> stream, final EventType type) {
-        if (running.get()) {
-            executorService.schedule(() -> pollAsync(stream, type), 1, TimeUnit.SECONDS);
+    private void scheduleNextPoll(RStream<String, EventMessage> stream, EventType type) {
+        ScheduledExecutorService exec = executors.get(type);
+        if (exec != null && running.get()) {
+            exec.schedule(() -> pollAsync(stream, type), 1, TimeUnit.SECONDS);
         }
     }
+
 
 
     @Override
@@ -389,9 +401,14 @@ public class RedisStreamsStore implements EventStore {
             }
             map.clear();
             log.debug("Unsubscribing from Redis Streams");
-
+            executors.values().forEach(ExecutorService::shutdownNow);
         } else {
             map.remove(type);
+            executors.forEach((key, value) -> {
+                if (key.equals(type)) {
+                    value.shutdownNow();
+                }
+            });
         }
         if (map.isEmpty()) {
             running.set(false);
@@ -404,18 +421,11 @@ public class RedisStreamsStore implements EventStore {
 
     @Override
     public void shutdown0() {
-        log.debug("Shutting down Redis Streams");
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            unsubscribe(EventType.ALL_SINGLE_CHANNEL);
-        }
-
-        if (map.isEmpty()) {
-            running.set(false);
-        }
-        //streams.clear();
-        offsets.clear();
-        executorService.shutdownNow();
+        running.set(false);
+        executors.values().forEach(ExecutorService::shutdownNow);
+        executors.clear();
     }
+
 
     private static final class NameType {
         String name;
