@@ -17,10 +17,7 @@
 package com.socketio4j.socketio.store.event;
 
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,12 +36,6 @@ public interface EventStore {
 
     default Long getNodeId() {
         return ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
-    }
-
-    default List<EventType> getEnabledTypes() {
-        return Arrays.stream(EventType.values())
-                .filter(t -> t != EventType.ALL_SINGLE_CHANNEL)
-                .collect(Collectors.toList());
     }
 
     default void publish(EventType type, EventMessage msg) {
