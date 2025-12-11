@@ -50,7 +50,7 @@ public interface EventStore {
     default void publish(EventType type, EventMessage msg) {
         try {
             publish0(type, msg);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             log.error("Error publishing event {}", e.getMessage(), e);
             //re-throw to keep the behavior
             throw e;
@@ -62,7 +62,7 @@ public interface EventStore {
     default <T extends EventMessage> void subscribe(EventType type, EventListener<T> listener, Class<T> clazz) {
         try {
             subscribe0(type, listener, clazz);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             log.error("Error subscribing event {}", e.getMessage(), e);
             //re-throw to keep the behavior
             throw e;
@@ -74,7 +74,7 @@ public interface EventStore {
     default void unsubscribe(EventType type) {
         try {
             unsubscribe0(type);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             log.error("Error unsubscribing event {}", e.getMessage(), e);
             //re-throw to keep the behavior
             throw e;
@@ -86,7 +86,7 @@ public interface EventStore {
     default void shutdown() {
         try {
             shutdown0();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             log.error("Error shutting down event store {}", e.getMessage(), e);
             //re-throw to keep the behavior
             throw e;
