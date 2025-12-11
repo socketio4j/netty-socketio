@@ -49,7 +49,7 @@ public class RedisStreamsStoreFactory extends BaseStoreFactory {
         Objects.requireNonNull(redissonClient, "redisson client can not be null");
         this.redissonClient = redissonClient;
 
-        this.eventStore = new RedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100,eventStoreMode
+        this.eventStore = new RedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, eventStoreMode
         );
     }
 
