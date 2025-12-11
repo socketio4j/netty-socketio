@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.json.JSONArray;
 import org.junit.jupiter.api.Test;
+import org.redisson.api.RedissonClient;
 import org.skyscreamer.jsonassert.JSONAssert;
 
 import com.socketio4j.socketio.SocketIOClient;
@@ -22,6 +23,7 @@ import io.socket.client.Socket;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -37,6 +39,8 @@ public abstract class DistributedCommonTest {
     protected int port1;
     protected int port2;
 
+    protected RedissonClient redisClient1;
+    protected RedissonClient redisClient2;
 
     // -------------------------------------------
     // Create a client with list appending handler
@@ -137,7 +141,6 @@ public abstract class DistributedCommonTest {
         CountDownLatch joinLatch = new CountDownLatch(2); // a1, b1 join
 
         CountDownLatch latchRoom = new CountDownLatch(2); // a1, b1 receive
-        CountDownLatch latchNonRoom = new CountDownLatch(0);
 
         String[] msg = new String[allClients]; // Store 4 results
 
@@ -171,6 +174,7 @@ public abstract class DistributedCommonTest {
         a1.emit("join-room", "room1");
         b1.emit("join-room", "room1");
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
+        CountDownLatch unexpectedLatch = new CountDownLatch(2);
 
         // Give adapter time to sync room state
         Thread.sleep(500);
@@ -188,13 +192,13 @@ public abstract class DistributedCommonTest {
         });
         a2.on("room-event", data -> {
             if (data.length > 0) {
-                latchRoom.countDown();
+                unexpectedLatch.countDown(); // Should not happen
                 msg[1] = (String) data[0];
             }
         });
         b2.on("room-event", data -> {
             if (data.length > 0) {
-                latchRoom.countDown();
+                unexpectedLatch.countDown(); // Should not happen
                 msg[3] = (String) data[0];
             }
         });
@@ -205,7 +209,7 @@ public abstract class DistributedCommonTest {
 
 
         assertTrue(latchRoom.await(3, TimeUnit.SECONDS), "Room members did not receive message");
-
+        assertFalse(unexpectedLatch.await(3, TimeUnit.SECONDS), "Non-room clients should not receive messages");
         assertEquals("hello", msg[0]); // a1 received
         assertEquals("hello", msg[2]); // b1 received
         assertNull(msg[1]); // a2 did not receive
@@ -719,8 +723,7 @@ public abstract class DistributedCommonTest {
         Socket a = io.socket.client.IO.socket("http://localhost:" + port1 + "?join=room1", opts);
         Socket b = io.socket.client.IO.socket("http://localhost:" + port2 + "?join=room2", opts);
 
-        a.connect();
-        b.connect();
+
         CountDownLatch joinLatch = new CountDownLatch(2);
         CountDownLatch connectLatch = new CountDownLatch(2);
         a.on(Socket.EVENT_CONNECT, args -> {
@@ -729,6 +732,8 @@ public abstract class DistributedCommonTest {
         b.on(Socket.EVENT_CONNECT, args -> {
             connectLatch.countDown();
         });
+        a.connect();
+        b.connect();
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Join timed out");
         a.emit("get-my-rooms", "anything", (Ack) ackArgs -> {
             joinLatch.countDown();

@@ -16,10 +16,8 @@
  */
 package com.socketio4j.socketio.store.redis_pubsub;
 
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 import org.redisson.Redisson;
@@ -109,26 +107,7 @@ public class RedissonStoreFactory extends BaseStoreFactory {
 
     @Override
     public void shutdown() {
-
         eventStore.shutdown();
-
-        // Ordered hash: preserves order, no duplicates
-        Set<RedissonClient> ordered = new LinkedHashSet<>();
-
-        ordered.add(redisSub);
-        ordered.add(redisPub);
-        ordered.add(redisClient);
-
-        for (RedissonClient c : ordered) {
-            if (c != null) {
-                try {
-                    c.shutdown();
-                    log.info("Shutdown: {}", c.getClass().getSimpleName());
-                } catch (Exception e) {
-                    log.warn("Shutdown failed: {}", c.getClass().getSimpleName(), e);
-                }
-            }
-        }
     }
 
 

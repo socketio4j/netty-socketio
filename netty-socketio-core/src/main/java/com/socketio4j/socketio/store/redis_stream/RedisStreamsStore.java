@@ -80,6 +80,7 @@ public class RedisStreamsStore implements EventStore {
     private final Duration readTimeout;
     private final int readBatchSize;
 
+
     public RedisStreamsStore(String streamName, Long nodeId, RedissonClient redissonClient, int maxRetryCount, StreamMessageId offset, Duration readTimeout, int readBatchSize, EventStoreMode eventStoreMode) {
         if (eventStoreMode == null) {
             eventStoreMode = EventStoreMode.SINGLE_CHANNEL;
@@ -313,9 +314,16 @@ public class RedisStreamsStore implements EventStore {
                                             }
                                         }
                                         boolean processed;
-                                        do {
-                                            processed = processMessage(msg, listener, id);
-                                        } while (!processed);
+                                        try {
+                                            do {
+                                                processed = processMessage(msg, listener, id);
+                                            } while (!processed);
+                                        } catch (Exception ex) {
+                                            log.error("Error processing stream message {} {} {}", msg, id, listener, ex);
+                                        } finally {
+                                            retryCount.remove(id.toString());
+                                        }
+
                                     }
                                     // success or give-up → advance offset (as we use > )
                                     this.offsets.compute(type, (k, old) -> id);
@@ -359,8 +367,6 @@ public class RedisStreamsStore implements EventStore {
             // TODO: DLQ here
 
             return true; // "processed" (give up) → so offset moves
-        } finally {
-            retryCount.remove(key);
         }
     }
 
@@ -382,12 +388,14 @@ public class RedisStreamsStore implements EventStore {
                         "Single-channel mode only supports EventType.ALL_SINGLE_CHANNEL - no individual un-subscribes");
             }
             map.clear();
+            log.debug("Unsubscribing from Redis Streams");
+
+        } else {
+            map.remove(type);
         }
-        log.debug("Unsubscribing from Redis Streams");
         if (map.isEmpty()) {
             running.set(false);
         }
-
     }
 
     // =========================================================================
@@ -397,8 +405,13 @@ public class RedisStreamsStore implements EventStore {
     @Override
     public void shutdown0() {
         log.debug("Shutting down Redis Streams");
-        unsubscribe(EventType.ALL_SINGLE_CHANNEL);
-        map.clear();
+        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
+            unsubscribe(EventType.ALL_SINGLE_CHANNEL);
+        }
+
+        if (map.isEmpty()) {
+            running.set(false);
+        }
         //streams.clear();
         offsets.clear();
         executorService.shutdownNow();

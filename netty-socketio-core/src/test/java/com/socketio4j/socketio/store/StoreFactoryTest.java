@@ -30,7 +30,13 @@ import com.socketio4j.socketio.namespace.NamespacesHub;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.store.event.EventStore;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Test class for StoreFactory implementations
@@ -80,8 +86,8 @@ public abstract class StoreFactoryTest {
     public void testCreateEventStore() {
         EventStore eventStore = storeFactory.eventStore();
         
-        assertNotNull(eventStore, "PubSubStore should not be null");
-        assertInstanceOf(EventStore.class, eventStore, "PubSubStore should implement PubSubStore interface");
+        assertNotNull(eventStore, "EventStore should not be null");
+        assertInstanceOf(EventStore.class, eventStore, "EventStore should implement PubSubStore interface");
     }
 
     @Test

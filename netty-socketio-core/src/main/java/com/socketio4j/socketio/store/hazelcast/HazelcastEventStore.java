@@ -73,7 +73,7 @@ public class HazelcastEventStore implements EventStore {
         if (PublishMode.UNRELIABLE.equals(publishConfig.get(type))) {
             hazelcastPub.getTopic(type.toString()).publish(msg);
         } else {
-            hazelcastSub.getReliableTopic(type.toString()).publish(msg);
+            hazelcastPub.getReliableTopic(type.toString()).publish(msg);
         }
 
     }

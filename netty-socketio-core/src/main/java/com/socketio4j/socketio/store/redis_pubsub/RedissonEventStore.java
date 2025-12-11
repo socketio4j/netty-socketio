@@ -116,14 +116,14 @@ public class RedissonEventStore implements EventStore {
             if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
                 redissonPub.getTopic(EventType.ALL_SINGLE_CHANNEL.toString()).publish(msg);
             } else {
-                redissonSub.getTopic(type.toString()).publish(msg);
+                redissonPub.getTopic(type.toString()).publish(msg);
             }
 
         } else  {
             if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
                 redissonPub.getReliableTopic(EventType.ALL_SINGLE_CHANNEL.toString()).publish(msg);
             } else {
-                redissonSub.getReliableTopic(type.toString()).publish(msg);
+                redissonPub.getReliableTopic(type.toString()).publish(msg);
             }
         }
     }

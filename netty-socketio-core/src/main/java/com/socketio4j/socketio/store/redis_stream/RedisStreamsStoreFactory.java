@@ -17,20 +17,20 @@
 package com.socketio4j.socketio.store.redis_stream;
 
 import java.time.Duration;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 
-import com.socketio4j.socketio.store.Store;
-import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.event.EventType;
-import com.socketio4j.socketio.store.redis_pubsub.RedissonStore;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.StreamMessageId;
 
+import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
+import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.redis_pubsub.RedissonStore;
+
 
 
 public class RedisStreamsStoreFactory extends BaseStoreFactory {
@@ -80,7 +80,6 @@ public class RedisStreamsStoreFactory extends BaseStoreFactory {
     @Override
     public void shutdown() {
         eventStore.shutdown();
-        redissonClient.shutdown();
     }
 
     @Override

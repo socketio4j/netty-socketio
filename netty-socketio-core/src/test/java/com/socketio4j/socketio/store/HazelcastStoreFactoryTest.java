@@ -19,12 +19,6 @@ package com.socketio4j.socketio.store;
 import java.util.Map;
 import java.util.UUID;
 
-import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.event.PublishConfig;
-import com.socketio4j.socketio.store.event.PublishMode;
-import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
-import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
-import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -32,14 +26,23 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.testcontainers.containers.GenericContainer;
 
-import com.socketio4j.socketio.handler.ClientHead;
-import com.socketio4j.socketio.store.event.EventStore;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
+import com.socketio4j.socketio.handler.ClientHead;
+import com.socketio4j.socketio.store.event.EventStore;
+import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.event.PublishConfig;
+import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
+import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
+import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
@@ -107,8 +110,8 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
     public void testHazelcastEventStore() {
         EventStore eventStore = storeFactory.eventStore();
         
-        assertNotNull(eventStore, "PubSubStore should not be null");
-        assertInstanceOf(HazelcastEventStore.class, eventStore, "PubSubStore should be HazelcastStore");
+        assertNotNull(eventStore, "EventStore should not be null");
+        assertInstanceOf(HazelcastEventStore.class, eventStore, "EventStore should be HazelcastStore");
     }
 
     @Test

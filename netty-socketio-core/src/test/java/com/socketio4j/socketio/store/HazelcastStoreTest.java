@@ -18,17 +18,13 @@ package com.socketio4j.socketio.store;
 
 import java.util.UUID;
 
-import com.socketio4j.socketio.store.event.EventStore;
-import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.event.PublishConfig;
-import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
-import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.HazelcastInstance;
+import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;

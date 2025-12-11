@@ -22,6 +22,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 import org.redisson.Redisson;
+import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 
 import com.socketio4j.socketio.Configuration;
@@ -54,14 +55,15 @@ public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommo
         REDIS_CONTAINER.start();
 
         String redisURL = "redis://" + REDIS_CONTAINER.getHost() + ":" + REDIS_CONTAINER.getRedisPort();
-
+        redisClient1 = Redisson.create(redisConfig(redisURL));
+        redisClient2 = Redisson.create(redisConfig(redisURL));
         // ---------- NODE 1 ----------
         Configuration cfg1 = new Configuration();
         cfg1.setHostname("127.0.0.1");
         cfg1.setPort(findAvailablePort());
 
         cfg1.setStoreFactory(new RedissonStoreFactory(
-                Redisson.create(redisConfig(redisURL)), PublishConfig.allUnreliable(), EventStoreMode.SINGLE_CHANNEL
+                redisClient1, PublishConfig.allUnreliable(), EventStoreMode.SINGLE_CHANNEL
         ));
 
         node1 = new SocketIOServer(cfg1);
@@ -82,7 +84,7 @@ public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommo
         cfg2.setPort(findAvailablePort());
 
         cfg2.setStoreFactory(new RedissonStoreFactory(
-                Redisson.create(redisConfig(redisURL)), PublishConfig.allUnreliable(), EventStoreMode.SINGLE_CHANNEL));
+                redisClient2, PublishConfig.allUnreliable(), EventStoreMode.SINGLE_CHANNEL));
 
         node2 = new SocketIOServer(cfg2);
         node2.addEventListener("join-room", String.class, (c, room, ack) -> {
@@ -109,6 +111,8 @@ public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommo
     public void stop() {
         if (node1 != null) node1.stop();
         if (node2 != null) node2.stop();
+        if (redisClient1 != null) redisClient1.shutdown();
+        if (redisClient2 != null) redisClient2.shutdown();
         REDIS_CONTAINER.stop();
     }
 }
