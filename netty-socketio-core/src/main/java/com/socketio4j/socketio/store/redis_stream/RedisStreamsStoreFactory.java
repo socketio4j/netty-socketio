@@ -32,7 +32,6 @@ import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.redis_pubsub.RedissonStore;
 
 
-
 public class RedisStreamsStoreFactory extends BaseStoreFactory {
 
     private final RedissonClient redissonClient;
@@ -42,15 +41,14 @@ public class RedisStreamsStoreFactory extends BaseStoreFactory {
         Objects.requireNonNull(redissonClient, "redisson client can not be null");
         this.redissonClient = redissonClient;
 
-        this.eventStore = new RedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, EventStoreMode.SINGLE_CHANNEL
-        );
+        this.eventStore = new RedisStreamsStore("socketio4j", getNodeId(), redissonClient, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, EventStoreMode.SINGLE_CHANNEL);
     }
+
     public RedisStreamsStoreFactory(RedissonClient redissonClient, EventStoreMode eventStoreMode) {
         Objects.requireNonNull(redissonClient, "redisson client can not be null");
         this.redissonClient = redissonClient;
 
-        this.eventStore = new RedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, eventStoreMode
-        );
+        this.eventStore = new RedisStreamsStore("socketio4j", getNodeId(), redissonClient, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, eventStoreMode);
     }
 
     public RedisStreamsStoreFactory(RedissonClient redissonClient, RedisStreamsStore eventStore) {
@@ -62,8 +60,7 @@ public class RedisStreamsStoreFactory extends BaseStoreFactory {
 
     public RedisStreamsStoreFactory() {
         this.redissonClient = Redisson.create();
-        this.eventStore = new RedisStreamsStore("socketio4j", getNodeId(), redissonClient, 3, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, EventStoreMode.SINGLE_CHANNEL
-        );
+        this.eventStore = new RedisStreamsStore("socketio4j", getNodeId(), redissonClient, StreamMessageId.NEWEST, Duration.ofSeconds(1), 100, EventStoreMode.SINGLE_CHANNEL);
     }
 
 

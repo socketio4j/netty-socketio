@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.socketio4j.socketio.store.redis_stream;
 
 import java.time.Duration;
@@ -65,56 +64,67 @@ public class RedisStreamsStore implements EventStore {
 
     private static final Logger log = LoggerFactory.getLogger(RedisStreamsStore.class);
     private static final String DEFAULT_STREAM_PREFIX = "socketio4j";
-    private final ConcurrentMap<EventType, Queue<EventListener<EventMessage>>> map = new ConcurrentHashMap<>();
+    private final ConcurrentMap<EventType, Queue<EventListener<EventMessage>>> eventListenerMap = new ConcurrentHashMap<>();
     private final EventStoreMode eventStoreMode;
     private final String streamName;
-    private final Map<NameType, RStream<String, EventMessage>> streams;
+    private final Map<EventType, RStream<String, EventMessage>> streams;
     private final Long nodeId;
     private final RedissonClient redissonClient;
-    private final int maxRetryCount;
     private final AtomicBoolean running = new AtomicBoolean(false);
-    private final ConcurrentHashMap<String, Integer> retryCount = new ConcurrentHashMap<>();
-
     private final Map<EventType, ScheduledExecutorService> executors = new ConcurrentHashMap<>();
 
     private final ConcurrentHashMap<EventType, StreamMessageId> offsets; // "$"
     private final Duration readTimeout;
     private final int readBatchSize;
 
+    public RedisStreamsStore(String streamName, Long nodeId, RedissonClient redissonClient, StreamMessageId offset, Duration readTimeout, int readBatchSize, EventStoreMode eventStoreMode) {
 
-    public RedisStreamsStore(String streamName, Long nodeId, RedissonClient redissonClient, int maxRetryCount, StreamMessageId offset, Duration readTimeout, int readBatchSize, EventStoreMode eventStoreMode) {
+        Objects.requireNonNull(redissonClient, "redissonClient cannot be null");
+
+        this.redissonClient = redissonClient;
+
         if (eventStoreMode == null) {
             eventStoreMode = EventStoreMode.SINGLE_CHANNEL;
             log.warn("eventStoreMode is null, loaded default {}", EventStoreMode.SINGLE_CHANNEL);
         }
-        if (streamName == null || streamName.isEmpty()){
+        if (streamName == null || streamName.isEmpty()) {
             streamName = DEFAULT_STREAM_PREFIX;
             log.warn("streamname is null/empty, loaded default {}", DEFAULT_STREAM_PREFIX);
         }
-        this.eventStoreMode = eventStoreMode;
-        this.nodeId = nodeId;
-        this.redissonClient = redissonClient;
-        this.maxRetryCount = maxRetryCount;
+        if (nodeId == null) {
+            nodeId = getNodeId();
+            log.warn("nodeId is null, loaded default {}", nodeId);
+        }
+        if (readTimeout == null) {
+            readTimeout = Duration.ofSeconds(10);
+            log.warn("readTimeout is null, loaded default {}", readTimeout);
+        }
+        if (readBatchSize <= 0) {
+            readBatchSize = 100;
+            log.warn("readBatchSize is null, loaded default {}", readBatchSize);
+        }
 
+        this.eventStoreMode = eventStoreMode;
+        this.streamName = streamName;
+        this.nodeId = nodeId;
         this.readTimeout = readTimeout;
         this.readBatchSize = readBatchSize;
-        this.streamName = streamName;
+
         List<EventType> eventTypeList = Collections.emptyList();
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
             eventTypeList = Collections.singletonList(EventType.ALL_SINGLE_CHANNEL);
         } else if (EventStoreMode.MULTI_CHANNEL.equals(eventStoreMode)) {
-            eventTypeList = Arrays.stream(EventType.values())
-                    .filter(t -> t != EventType.ALL_SINGLE_CHANNEL)
-                    .collect(Collectors.toList());
+            eventTypeList = Arrays.stream(EventType.values()).filter(t -> t != EventType.ALL_SINGLE_CHANNEL).collect(Collectors.toList());
         }
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            this.streams = Collections.singletonMap(new NameType(getStreamName(EventType.ALL_SINGLE_CHANNEL), EventType.ALL_SINGLE_CHANNEL), redissonClient.getStream(streamName));
+            this.streams = Collections.singletonMap(EventType.ALL_SINGLE_CHANNEL, redissonClient.getStream(streamName));
         } else {
-            Map<NameType, RStream<String, EventMessage>> streamMap = new HashMap<>();
-            eventTypeList.forEach(t -> streamMap.put(new NameType(getStreamName(t), t), redissonClient.getStream(getStreamName(t))));
-            this.streams = streamMap;
+            this.streams = new HashMap<>();
+            eventTypeList.forEach(t -> {
+                this.streams.put(t, this.redissonClient.getStream(getStreamName(t)));
+            });
         }
-        for (Map.Entry<NameType, RStream<String, EventMessage>> entry : streams.entrySet()){
+        for (Map.Entry<EventType, RStream<String, EventMessage>> entry : streams.entrySet()) {
             try {
                 entry.getValue().getInfo(); // check existence
             } catch (RedisException e) {
@@ -134,93 +144,22 @@ public class RedisStreamsStore implements EventStore {
         init();
     }
 
+    public RedisStreamsStore(RedissonClient redissonClient, EventStoreMode eventStoreMode) {
+        this("", null, redissonClient, StreamMessageId.NEWEST, Duration.ofSeconds(10), 100, eventStoreMode);
+    }
+
     private void init() {
         if (running.compareAndSet(false, true)) {
-            streams.forEach((nameType, stream) -> {
-                executors.computeIfAbsent(nameType.eventType, t ->
-                        Executors.newSingleThreadScheduledExecutor(r -> {
-                            Thread th = new Thread(r);
-                            th.setName("redis-stream-" + t);
-                            return th;
-                        })
-                );
+            streams.forEach((eventType, stream) -> {
+                executors.computeIfAbsent(eventType, t -> Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread th = new Thread(r);
+                    th.setName("redis-stream-" + t.name());
+                    return th;
+                }));
 
-                executors
-                        .get(nameType.eventType)
-                        .execute(() -> pollAsync(stream, nameType.eventType));
+                executors.get(eventType).execute(() -> pollAsync(stream, eventType));
             });
         }
-    }
-
-
-    public RedisStreamsStore(RedissonClient redissonClient, Long nodeId, EventStoreMode eventStoreMode) {
-        if (eventStoreMode == null) {
-            eventStoreMode = EventStoreMode.SINGLE_CHANNEL;
-        }
-        this.eventStoreMode = eventStoreMode;
-        this.nodeId = nodeId;
-        this.redissonClient = redissonClient;
-        this.maxRetryCount = 0; // Default retry off
-
-        this.readTimeout = Duration.ofSeconds(1);
-        this.readBatchSize = 100;
-        this.streamName = DEFAULT_STREAM_PREFIX;
-        List<EventType> eventTypeList = Collections.emptyList();
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            eventTypeList = Collections.singletonList(EventType.ALL_SINGLE_CHANNEL);
-        } else if (EventStoreMode.MULTI_CHANNEL.equals(eventStoreMode)) {
-            eventTypeList = Arrays.stream(EventType.values())
-                    .filter(t -> t != EventType.ALL_SINGLE_CHANNEL)
-                    .collect(Collectors.toList());
-        }
-        this.offsets = new ConcurrentHashMap<>();
-        for (EventType eventType : eventTypeList) {
-            this.offsets.put(eventType, StreamMessageId.NEWEST);
-        }
-
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            this.streams = Collections.singletonMap(new NameType(getStreamName(EventType.ALL_SINGLE_CHANNEL), EventType.ALL_SINGLE_CHANNEL), redissonClient.getStream(streamName));
-        } else {
-            Map<NameType, RStream<String, EventMessage>> streamMap = new HashMap<>();
-            eventTypeList.forEach(t -> streamMap.put(new NameType(getStreamName(t), t), redissonClient.getStream(getStreamName(t))));
-            this.streams = streamMap;
-        }
-        init();
-    }
-
-    public RedisStreamsStore(RedissonClient redissonClient, EventStoreMode eventStoreMode) {
-        if (eventStoreMode == null) {
-            eventStoreMode = EventStoreMode.SINGLE_CHANNEL;
-        }
-        this.eventStoreMode = eventStoreMode;
-        this.nodeId = getNodeId();
-        this.redissonClient = redissonClient;
-        this.maxRetryCount = 0; // Default retry off
-
-        this.readTimeout = Duration.ofSeconds(1);
-        this.readBatchSize = 100;
-        this.streamName = DEFAULT_STREAM_PREFIX;
-        List<EventType> eventTypeList = Collections.emptyList();
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            eventTypeList = Collections.singletonList(EventType.ALL_SINGLE_CHANNEL);
-        } else if (EventStoreMode.MULTI_CHANNEL.equals(eventStoreMode)) {
-            eventTypeList = Arrays.stream(EventType.values())
-                    .filter(t -> t != EventType.ALL_SINGLE_CHANNEL)
-                    .collect(Collectors.toList());
-        }
-        this.offsets = new ConcurrentHashMap<>();
-        for (EventType eventType : eventTypeList) {
-            this.offsets.put(eventType, StreamMessageId.NEWEST);
-        }
-
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            this.streams = Collections.singletonMap(new NameType(getStreamName(EventType.ALL_SINGLE_CHANNEL), EventType.ALL_SINGLE_CHANNEL), redissonClient.getStream(streamName));
-        } else {
-            Map<NameType, RStream<String, EventMessage>> streamMap = new HashMap<>();
-            eventTypeList.forEach(t -> streamMap.put(new NameType(getStreamName(t), t), redissonClient.getStream(getStreamName(t))));
-            this.streams = streamMap;
-        }
-        init();
     }
 
     @Override
@@ -243,16 +182,14 @@ public class RedisStreamsStore implements EventStore {
 
         // Single-channel mode subscribes to ALL types
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            streams.get(new NameType(getStreamName(EventType.ALL_SINGLE_CHANNEL), EventType.ALL_SINGLE_CHANNEL)).add(StreamAddArgs.entry(type.toString(), msg));
+            streams.get(EventType.ALL_SINGLE_CHANNEL).add(StreamAddArgs.entry(type.toString(), msg));
         } else {
-            streams.get(new NameType(getStreamName(type), type)).add(StreamAddArgs.entry(type.toString(), msg));
+            streams.get(type).add(StreamAddArgs.entry(type.toString(), msg));
         }
-
-
     }
 
     private String getStreamName(EventType type) {
-        return streamName+":"+type;
+        return streamName + ":" + type.name();
     }
 
     // =========================================================================
@@ -260,126 +197,97 @@ public class RedisStreamsStore implements EventStore {
     // =========================================================================
 
     @Override
-    public <T extends EventMessage> void subscribe0(EventType type,
-                                                   EventListener<T> listener,
-                                                   Class<T> clazz) {
+    public <T extends EventMessage> void subscribe0(EventType type, EventListener<T> listener, Class<T> clazz) {
         ObjectUtil.checkNotNull(listener, "listener");
         // Single-channel mode subscribes to ALL types
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode) && type != EventType.ALL_SINGLE_CHANNEL) {
-                throw new UnsupportedOperationException(
-                         "can only subscribe with ALL_SINGLE_CHANNEL when you are on SINGLE_CHANNEL mode");
-        } else if (EventStoreMode.MULTI_CHANNEL.equals(eventStoreMode) &&  type == EventType.ALL_SINGLE_CHANNEL) {
-            throw new UnsupportedOperationException(
-                    "can not subscribe with ALL_SINGLE_CHANNEL when you are on MULTI_CHANNEL mode");
+            throw new UnsupportedOperationException("can only subscribe with ALL_SINGLE_CHANNEL when you are on "+EventStoreMode.SINGLE_CHANNEL+ " mode");
+        } else if (EventStoreMode.MULTI_CHANNEL.equals(eventStoreMode) && type == EventType.ALL_SINGLE_CHANNEL) {
+            throw new UnsupportedOperationException("can not subscribe with ALL_SINGLE_CHANNEL when you are on "+EventStoreMode.MULTI_CHANNEL+ " mode");
         }
-        map.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>()).add((EventListener<EventMessage>) listener);
+        eventListenerMap.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>()).add((EventListener<EventMessage>) listener);
+        ensurePollerRunning(type);
+    }
+
+    private void ensurePollerRunning(EventType type) {
+        executors.compute(type, (k, existingExecutor) -> {
+            if (existingExecutor == null || existingExecutor.isShutdown()) {
+                ScheduledExecutorService newExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread th = new Thread(r);
+                    th.setName("redis-stream-" + type);
+                    return th;
+                });
+
+                RStream<String, EventMessage> stream = streams.get(type);
+
+                newExecutor.execute(() -> pollAsync(stream, type));
+                return newExecutor;
+            }
+            return existingExecutor;
+        });
     }
 
 
-
     private void pollAsync(final RStream<String, EventMessage> stream, EventType type) {
-        if (!running.get()) {
+
+        if (!running.get() || Thread.currentThread().isInterrupted()) {
             log.debug("Polling stopped {}", type);
             return;
         }
-        stream.readAsync(StreamReadArgs
-                        .greaterThan(offsets.get(type))
-                        .count(readBatchSize)
-                        .timeout(readTimeout))
-                .whenComplete((messages, error) -> {
 
-                    if (error != null) {
-                        log.error("Streams async read failure", error);
-                        scheduleNextPoll(stream, type);
-                        return;
-                    }
+        stream.readAsync(StreamReadArgs.greaterThan(offsets.get(type)).count(readBatchSize).timeout(readTimeout)).whenComplete((messages, error) -> {
 
-                    if (messages != null && !messages.isEmpty()) {
+            if (error != null) {
+                log.error("Streams async read failure", error);
+                scheduleNextPoll(stream, type);
+                return;
+            }
 
-                        for (Map.Entry<StreamMessageId, Map<String, EventMessage>> entry : messages.entrySet()) {
+            if (messages != null && !messages.isEmpty()) {
 
-                            StreamMessageId id = entry.getKey();
-                            EventMessage msg =
-                                    entry.getValue().entrySet().iterator().next().getValue();
-                            if (!nodeId.equals(msg.getNodeId())) {
-                                for (Map.Entry<EventType, Queue<EventListener<EventMessage>>> lisenerEntry : map.entrySet()) {
-                                    EventType listenerEventType = lisenerEntry.getKey();
-                                    Queue<EventListener<EventMessage>> listeners = lisenerEntry.getValue();
-                                    for (EventListener<EventMessage> listener : listeners) {
-                                        if (EventStoreMode.MULTI_CHANNEL.equals(eventStoreMode)) {
-                                            if (
-                                                    (msg instanceof ConnectMessage && listenerEventType != EventType.CONNECT)
-                                                    || (msg instanceof DisconnectMessage && listenerEventType != EventType.DISCONNECT)
-                                                    || (msg instanceof BulkJoinMessage && listenerEventType != EventType.BULK_JOIN)
-                                                    || (msg instanceof BulkLeaveMessage && listenerEventType != EventType.BULK_LEAVE)
-                                                    || (msg instanceof JoinMessage && listenerEventType != EventType.JOIN)
-                                                    || (msg instanceof LeaveMessage && listenerEventType != EventType.LEAVE)
-                                                    || (msg instanceof DispatchMessage && listenerEventType != EventType.DISPATCH)
-                                            ) {
-                                                continue;
-                                            }
-                                        } else if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-                                            if (listenerEventType != EventType.ALL_SINGLE_CHANNEL) {
-                                                continue;
-                                            }
-                                        }
-                                        boolean processed;
-                                        try {
-                                            do {
-                                                processed = processMessage(msg, listener, id);
-                                            } while (!processed);
-                                        } catch (Exception ex) {
-                                            log.error("Error processing stream message {} {} {}", msg, id, listener, ex);
-                                        } finally {
-                                            retryCount.remove(id.toString());
-                                        }
+                for (Map.Entry<StreamMessageId, Map<String, EventMessage>> entry : messages.entrySet()) {
 
-                                    }
-                                    // success or give-up → advance offset (as we use > )
-                                    this.offsets.compute(type, (k, old) -> id);
+                    StreamMessageId id = entry.getKey();
+                    EventMessage msg = entry.getValue().entrySet().iterator().next().getValue();
+                    if (!nodeId.equals(msg.getNodeId())) {
+                        for (Map.Entry<EventType, Queue<EventListener<EventMessage>>> lisenerEntry : eventListenerMap.entrySet()) {
+                            EventType listenerEventType = lisenerEntry.getKey();
+                            Queue<EventListener<EventMessage>> listeners = lisenerEntry.getValue();
+                            for (EventListener<EventMessage> listener : listeners) {
+                                if (shouldSkipListener(listenerEventType, msg)) {
+                                    continue;
+                                }
+                                try {
+                                    processMessage(msg, listener, id);
+                                } catch (Exception ex) {
+                                    log.error("Error processing stream message {} {} {}", msg, id, listener, ex);
                                 }
                             }
                         }
                     }
-                    pollAsync(stream, type);
-                });
-    }
-
-
-
-    private boolean processMessage(EventMessage msg,
-                                   EventListener<EventMessage> listener,
-                                   StreamMessageId id) {
-        String key = id.toString();
-        int attempts = retryCount.getOrDefault(key, 0);
-        msg.setOffset(key);
-        try {
-            listener.onMessage(msg);
-            retryCount.remove(key);
-            return true;  // success
-        } catch (Exception ex) {
-
-            int nextAttempt = attempts + 1;
-
-            if (nextAttempt <= maxRetryCount) {
-                log.error("Listener failed for {} (attempt {}/{}) → will retry on next poll",
-                        id, nextAttempt, maxRetryCount, ex);
-
-                retryCount.put(key, nextAttempt);
-                return false;  // retry in next poll
+                    // advance offset (as we use > )
+                    this.offsets.compute(type, (k, old) -> id);
+                }
             }
-
-            // Max retries reached
-            log.error("Giving up message {} after {} attempts", id, maxRetryCount, ex);
-
-            retryCount.remove(key);
-
-            // TODO: DLQ here
-
-            return true; // "processed" (give up) → so offset moves
-        }
+            pollAsync(stream, type);
+        });
     }
 
+    private boolean shouldSkipListener(EventType listenerEventType, EventMessage msg) {
+        if (EventStoreMode.MULTI_CHANNEL.equals(eventStoreMode)) {
+            return (msg instanceof ConnectMessage && listenerEventType != EventType.CONNECT) || (msg instanceof DisconnectMessage && listenerEventType != EventType.DISCONNECT) || (msg instanceof BulkJoinMessage && listenerEventType != EventType.BULK_JOIN) || (msg instanceof BulkLeaveMessage && listenerEventType != EventType.BULK_LEAVE) || (msg instanceof JoinMessage && listenerEventType != EventType.JOIN) || (msg instanceof LeaveMessage && listenerEventType != EventType.LEAVE) || (msg instanceof DispatchMessage && listenerEventType != EventType.DISPATCH);
+        } else if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
+            return listenerEventType != EventType.ALL_SINGLE_CHANNEL;
+        }
+        return false;
+    }
+
+
+    private void processMessage(EventMessage msg, EventListener<EventMessage> listener, StreamMessageId id) {
+        String key = id.toString();
+        msg.setOffset(key);
+        listener.onMessage(msg);
+    }
 
 
     private void scheduleNextPoll(RStream<String, EventMessage> stream, EventType type) {
@@ -390,27 +298,25 @@ public class RedisStreamsStore implements EventStore {
     }
 
 
-
     @Override
     public void unsubscribe0(EventType type) {
         // Single-channel mode subscribes to ALL types
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
             if (type != EventType.ALL_SINGLE_CHANNEL) {
-                throw new UnsupportedOperationException(
-                        "Single-channel mode only supports EventType.ALL_SINGLE_CHANNEL - no individual un-subscribes");
+                throw new UnsupportedOperationException("Single-channel mode only supports EventType.ALL_SINGLE_CHANNEL - no individual un-subscribes");
             }
-            map.clear();
+            eventListenerMap.clear();
             log.debug("Unsubscribing from Redis Streams");
             executors.values().forEach(ExecutorService::shutdownNow);
         } else {
-            map.remove(type);
+            eventListenerMap.remove(type);
             executors.forEach((key, value) -> {
                 if (key.equals(type)) {
                     value.shutdownNow();
                 }
             });
         }
-        if (map.isEmpty()) {
+        if (eventListenerMap.isEmpty()) {
             running.set(false);
         }
     }
@@ -424,30 +330,5 @@ public class RedisStreamsStore implements EventStore {
         running.set(false);
         executors.values().forEach(ExecutorService::shutdownNow);
         executors.clear();
-    }
-
-
-    private static final class NameType {
-        String name;
-        EventType eventType;
-
-        NameType(String name, EventType eventType) {
-            this.name = name;
-            this.eventType = eventType;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof NameType)) return false;
-            NameType other = (NameType) o;
-            return Objects.equals(name, other.name)
-                    && eventType == other.eventType;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, eventType);
-        }
     }
 }
