@@ -255,11 +255,11 @@ public class RedisStreamsStore implements EventStore {
                         if (eventListener == null) {
                             continue;
                         }
-                        for (EventListener<EventMessage> lisenerEntry : eventListener) {
+                        for (EventListener<EventMessage> listenerEntry : eventListener) {
                             try {
-                                processMessage(msg, lisenerEntry, id);
+                                processMessage(msg, listenerEntry, id);
                             } catch (Exception ex) {
-                                log.error("Error processing stream message {} {} {}", msg, id, lisenerEntry, ex);
+                                log.error("Error processing stream message {} {} {}", msg, id, listenerEntry, ex);
                             }
                         }
                     } finally {
