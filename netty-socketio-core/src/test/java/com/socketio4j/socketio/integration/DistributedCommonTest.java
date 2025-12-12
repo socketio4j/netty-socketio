@@ -27,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.json.JSONArray;
 import org.junit.jupiter.api.Test;
-import org.redisson.api.RedissonClient;
 import org.skyscreamer.jsonassert.JSONAssert;
 
 import com.socketio4j.socketio.SocketIOClient;
@@ -54,12 +53,9 @@ public abstract class DistributedCommonTest {
 
     protected int port1;
     protected int port2;
-
-    protected RedissonClient redisClient1;
-    protected RedissonClient redisClient2;
-
+    
     // ===================================================================
-    //   0. TWO NODES ROOM BROADCAST (Refactored/Fixed Original Test)
+    //   0. TWO NODES ROOM BROADCAST
     // ===================================================================
     @Test
     public void testTwoNodesRoomBroadcast() throws Exception {

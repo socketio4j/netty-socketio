@@ -17,8 +17,6 @@
 package com.socketio4j.socketio.integration;
 
 import java.net.ServerSocket;
-import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -27,18 +25,19 @@ import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 
-import com.socketio4j.socketio.AckMode;
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.redis_stream.RedisStreamsStoreFactory;
 
+
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class DistributedRedisStreamSingleChannelTest extends DistributedCommonTest {
+public class DistributedRedisAdaptersRedisStreamMultiChannelTest extends DistributedCommonTest {
 
     private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(true);
-
+    private RedissonClient redisClient1;
+    private RedissonClient redisClient2;
     // -------------------------------------------
     // Utility: find dynamic free port
     // -------------------------------------------
@@ -48,7 +47,6 @@ public class DistributedRedisStreamSingleChannelTest extends DistributedCommonTe
         }
     }
 
-
     // -------------------------------------------
     // Redis + Node Setup
     // -------------------------------------------
@@ -57,33 +55,18 @@ public class DistributedRedisStreamSingleChannelTest extends DistributedCommonTe
         REDIS_CONTAINER.start();
 
         String redisURL = "redis://" + REDIS_CONTAINER.getHost() + ":" + REDIS_CONTAINER.getRedisPort();
-
-        // Standard Redisson config
-        Config config = new Config();
-        config.useSingleServer().setAddress(redisURL);
-        RedissonClient redissonClient = Redisson.create(config);
-
+        redisClient1 = Redisson.create(redisConfig(redisURL));
+        redisClient2 = Redisson.create(redisConfig(redisURL));
         // ---------- NODE 1 ----------
         Configuration cfg1 = new Configuration();
         cfg1.setHostname("127.0.0.1");
         cfg1.setPort(findAvailablePort());
 
-        cfg1.setStoreFactory(new RedisStreamsStoreFactory(redissonClient, EventStoreMode.SINGLE_CHANNEL));
-        cfg1.setAckMode(AckMode.MANUAL);
-        node1 = new SocketIOServer(cfg1);
-        node1.addConnectListener(client -> {
-            Map<String, List<String>> params = client.getHandshakeData().getUrlParams();
-            if (params.containsKey("join")) {
-                params.get("join").forEach(client::joinRoom);
-            }
+        cfg1.setStoreFactory(new RedisStreamsStoreFactory(
+                redisClient1, EventStoreMode.MULTI_CHANNEL
+        ));
 
-        });
-        node1.addEventListener("test", String.class, ((client, data, ackSender) -> {
-            ackSender.sendAckData("ACK-OK");
-        }));
-        node1.addEventListener("get-my-rooms", String.class, ((client, data, ackSender) -> {
-            ackSender.sendAckData(client.getAllRooms());
-        }));
+        node1 = new SocketIOServer(cfg1);
         node1.addEventListener("join-room", String.class, (c, room, ack) -> {
             c.joinRoom(room);
             c.sendEvent("join-ok", "OK");
@@ -100,22 +83,11 @@ public class DistributedRedisStreamSingleChannelTest extends DistributedCommonTe
         cfg2.setHostname("127.0.0.1");
         cfg2.setPort(findAvailablePort());
 
-        cfg2.setStoreFactory(new RedisStreamsStoreFactory(redissonClient, EventStoreMode.SINGLE_CHANNEL));
-        cfg2.setAckMode(AckMode.MANUAL);
-        node2 = new SocketIOServer(cfg2);
-        node2.addConnectListener(client -> {
-            Map<String, List<String>> params = client.getHandshakeData().getUrlParams();
-            if (params.containsKey("join")) {
-                params.get("join").forEach(client::joinRoom);
-            }
+        cfg2.setStoreFactory(new RedisStreamsStoreFactory(
+                redisClient2, EventStoreMode.MULTI_CHANNEL
+        ));
 
-        });
-        node2.addEventListener("get-my-rooms", String.class, ((client, data, ackSender) -> {
-            ackSender.sendAckData(client.getAllRooms());
-        }));
-        node2.addEventListener("test", String.class, ((client, data, ackSender) -> {
-            ackSender.sendAckData("ACK-OK");
-        }));
+        node2 = new SocketIOServer(cfg2);
         node2.addEventListener("join-room", String.class, (c, room, ack) -> {
             c.joinRoom(room);
             c.sendEvent("join-ok", "OK");
@@ -127,9 +99,14 @@ public class DistributedRedisStreamSingleChannelTest extends DistributedCommonTe
         node2.start();
         port2 = cfg2.getPort();
 
-        Thread.sleep(2000); // Give servers time to bind and adapters time to initialize
+        Thread.sleep(600);
     }
 
+    private Config redisConfig(String url) {
+        Config c = new Config();
+        c.useSingleServer().setAddress(url);
+        return c;
+    }
 
     @AfterAll
     public void stop() {
@@ -141,6 +118,12 @@ public class DistributedRedisStreamSingleChannelTest extends DistributedCommonTe
         }
         if (node2 != null) {
             node2.stop();
+        }
+        if (redisClient1 != null) {
+            redisClient1.shutdown();
+        }
+        if (redisClient2 != null) {
+            redisClient2.shutdown();
         }
     }
 }

@@ -22,6 +22,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 import org.redisson.Redisson;
+import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 
 import com.socketio4j.socketio.Configuration;
@@ -36,7 +37,8 @@ import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommonTest {
 
     private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(true);
-
+    private RedissonClient redisClient1;
+    private RedissonClient redisClient2;
     // -------------------------------------------
     // Utility: find dynamic free port
     // -------------------------------------------
@@ -116,6 +118,12 @@ public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommo
         }
         if (node2 != null) {
             node2.stop();
+        }
+        if (redisClient1 != null) {
+            redisClient1.shutdown();
+        }
+        if (redisClient2 != null) {
+            redisClient2.shutdown();
         }
     }
 }

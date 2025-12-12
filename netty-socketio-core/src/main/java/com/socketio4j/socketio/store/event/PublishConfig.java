@@ -23,6 +23,7 @@ package com.socketio4j.socketio.store.event;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class PublishConfig {
 
@@ -33,12 +34,16 @@ public class PublishConfig {
             PublishMode defaultMode,
             Map<EventType, PublishMode> overrides
     ) {
+        Objects.requireNonNull(defaultMode, "defaultMode must not be null");
+        Objects.requireNonNull(overrides, "overrides must not be null");
+
         this.defaultMode = defaultMode;
         this.overrides = new EnumMap<>(EventType.class);
         this.overrides.putAll(overrides);
     }
 
     public PublishMode get(EventType type) {
+        Objects.requireNonNull(type, "type must not be null");
         return overrides.getOrDefault(type, defaultMode);
     }
 
