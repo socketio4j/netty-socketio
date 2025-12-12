@@ -130,15 +130,13 @@ public class DistributedRedisAdaptersRedisStreamSingleChannelTest extends Distri
         node2.start();
         port2 = cfg2.getPort();
 
-        Thread.sleep(2000); // Give servers time to bind and adapters time to initialize
+        //Thread.sleep(2000); // Give servers time to bind and adapters time to initialize
     }
 
 
     @AfterAll
     public void stop() {
-        if (REDIS_CONTAINER != null) {
-            REDIS_CONTAINER.stop();
-        }
+
         if (node1 != null) {
             node1.stop();
         }
@@ -150,6 +148,9 @@ public class DistributedRedisAdaptersRedisStreamSingleChannelTest extends Distri
         }
         if (redisClient2 != null) {
             redisClient2.shutdown();
+        }
+        if (REDIS_CONTAINER != null) {
+            REDIS_CONTAINER.stop();
         }
     }
 }

@@ -34,31 +34,25 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import org.jetbrains.annotations.Nullable;
 import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.StreamMessageId;
 import org.redisson.api.stream.StreamAddArgs;
 import org.redisson.api.stream.StreamReadArgs;
-import org.redisson.client.RedisException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.socketio4j.socketio.store.event.BulkJoinMessage;
-import com.socketio4j.socketio.store.event.BulkLeaveMessage;
-import com.socketio4j.socketio.store.event.ConnectMessage;
-import com.socketio4j.socketio.store.event.DisconnectMessage;
-import com.socketio4j.socketio.store.event.DispatchMessage;
+
+
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
-import com.socketio4j.socketio.store.event.JoinMessage;
-import com.socketio4j.socketio.store.event.LeaveMessage;
 import com.socketio4j.socketio.store.event.TestMessage;
 
-import io.netty.util.internal.ObjectUtil;
 
 public class RedisStreamsStore implements EventStore {
 
@@ -77,7 +71,13 @@ public class RedisStreamsStore implements EventStore {
     private final Duration readTimeout;
     private final int readBatchSize;
 
-    public RedisStreamsStore(String streamName, Long nodeId, RedissonClient redissonClient, StreamMessageId offset, Duration readTimeout, int readBatchSize, EventStoreMode eventStoreMode) {
+    public RedisStreamsStore(@Nullable String streamName,
+                             @Nullable Long nodeId,
+                             RedissonClient redissonClient,
+                             @Nullable StreamMessageId offset,
+                             @Nullable Duration readTimeout,
+                             int readBatchSize,
+                             EventStoreMode eventStoreMode) {
 
         Objects.requireNonNull(redissonClient, "redissonClient cannot be null");
 
@@ -89,7 +89,7 @@ public class RedisStreamsStore implements EventStore {
         }
         if (streamName == null || streamName.isEmpty()) {
             streamName = DEFAULT_STREAM_PREFIX;
-            log.warn("streamname is null/empty, loaded default {}", DEFAULT_STREAM_PREFIX);
+            log.warn("streamName is null/empty, loaded default {}", DEFAULT_STREAM_PREFIX);
         }
         if (nodeId == null) {
             nodeId = getNodeId();
@@ -120,21 +120,7 @@ public class RedisStreamsStore implements EventStore {
             this.streams = Collections.singletonMap(EventType.ALL_SINGLE_CHANNEL, redissonClient.getStream(streamName));
         } else {
             this.streams = new HashMap<>();
-            eventTypeList.forEach(t -> {
-                this.streams.put(t, this.redissonClient.getStream(getStreamName(t)));
-            });
-        }
-        for (Map.Entry<EventType, RStream<String, EventMessage>> entry : streams.entrySet()) {
-            try {
-                entry.getValue().getInfo(); // check existence
-            } catch (RedisException e) {
-                if (e.getMessage().contains("no such key")) {
-                    // create the stream (empty) via XADD
-                    entry.getValue().add(StreamAddArgs.entry("", new TestMessage()));
-                } else {
-                    throw e;
-                }
-            }
+            eventTypeList.forEach(t -> this.streams.put(t, this.redissonClient.getStream(getStreamName(t))));
         }
 
         this.offsets = new ConcurrentHashMap<>();
@@ -151,16 +137,19 @@ public class RedisStreamsStore implements EventStore {
     private void init() {
         if (running.compareAndSet(false, true)) {
             streams.forEach((eventType, stream) -> {
-                executors.computeIfAbsent(eventType, t -> Executors.newSingleThreadScheduledExecutor(r -> {
-                    Thread th = new Thread(r);
-                    th.setName("redis-stream-" + t.name());
-                    return th;
-                }));
+                executors.computeIfAbsent(eventType, t ->
+                        Executors.newSingleThreadScheduledExecutor(r -> {
+                            Thread th = new Thread(r);
+                            th.setName("redis-stream-" + t.name());
+                            return th;
+                        })
+                );
 
-                executors.get(eventType).execute(() -> pollAsync(stream, eventType));
+                executors.get(eventType).submit(() -> pollAsync(stream, eventType));
             });
         }
     }
+
 
     @Override
     public EventStoreMode getMode() {
@@ -198,7 +187,7 @@ public class RedisStreamsStore implements EventStore {
 
     @Override
     public <T extends EventMessage> void subscribe0(EventType type, EventListener<T> listener, Class<T> clazz) {
-        ObjectUtil.checkNotNull(listener, "listener");
+        Objects.requireNonNull(listener, "listener");
         // Single-channel mode subscribes to ALL types
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode) && type != EventType.ALL_SINGLE_CHANNEL) {
             throw new UnsupportedOperationException("can only subscribe with ALL_SINGLE_CHANNEL when you are on "+EventStoreMode.SINGLE_CHANNEL+ " mode");
@@ -211,10 +200,10 @@ public class RedisStreamsStore implements EventStore {
 
     private void ensurePollerRunning(EventType type) {
         executors.compute(type, (k, existingExecutor) -> {
-            if (existingExecutor == null || existingExecutor.isShutdown()) {
+            if (existingExecutor == null || existingExecutor.isShutdown() || existingExecutor.isTerminated()) {
                 ScheduledExecutorService newExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
                     Thread th = new Thread(r);
-                    th.setName("redis-stream-" + type);
+                    th.setName("redis-stream-" + type.name());
                     return th;
                 });
 
@@ -225,6 +214,7 @@ public class RedisStreamsStore implements EventStore {
             }
             return existingExecutor;
         });
+        offsets.computeIfAbsent(type, t -> StreamMessageId.NEWEST);
     }
 
 
@@ -244,42 +234,46 @@ public class RedisStreamsStore implements EventStore {
             }
 
             if (messages != null && !messages.isEmpty()) {
-
+                if (!running.get() || Thread.currentThread().isInterrupted()) {
+                    log.debug("Polling stopped {}", type);
+                    return;
+                }
                 for (Map.Entry<StreamMessageId, Map<String, EventMessage>> entry : messages.entrySet()) {
 
                     StreamMessageId id = entry.getKey();
-                    EventMessage msg = entry.getValue().entrySet().iterator().next().getValue();
-                    if (!nodeId.equals(msg.getNodeId())) {
-                        for (Map.Entry<EventType, Queue<EventListener<EventMessage>>> lisenerEntry : eventListenerMap.entrySet()) {
-                            EventType listenerEventType = lisenerEntry.getKey();
-                            Queue<EventListener<EventMessage>> listeners = lisenerEntry.getValue();
-                            for (EventListener<EventMessage> listener : listeners) {
-                                if (shouldSkipListener(listenerEventType, msg)) {
-                                    continue;
-                                }
-                                try {
-                                    processMessage(msg, listener, id);
-                                } catch (Exception ex) {
-                                    log.error("Error processing stream message {} {} {}", msg, id, listener, ex);
-                                }
+                    EventMessage msg = entry.getValue().values().iterator().next();
+                    try {
+                        if (msg instanceof TestMessage) {
+                            continue;
+                        }
+                        if (nodeId.equals(msg.getNodeId())) {
+                            this.offsets.compute(type, (k, old) -> id);
+                            continue;
+                        }
+
+                        Queue<EventListener<EventMessage>> eventListener = eventListenerMap.get(type);
+                        if (eventListener == null) {
+                            continue;
+                        }
+                        for (EventListener<EventMessage> lisenerEntry : eventListener) {
+                            try {
+                                processMessage(msg, lisenerEntry, id);
+                            } catch (Exception ex) {
+                                log.error("Error processing stream message {} {} {}", msg, id, lisenerEntry, ex);
                             }
                         }
+                    } finally {
+                        // advance offset (as we use > )
+                        this.offsets.compute(type, (k, old) -> id);
                     }
-                    // advance offset (as we use > )
-                    this.offsets.compute(type, (k, old) -> id);
                 }
             }
-            pollAsync(stream, type);
-        });
-    }
 
-    private boolean shouldSkipListener(EventType listenerEventType, EventMessage msg) {
-        if (EventStoreMode.MULTI_CHANNEL.equals(eventStoreMode)) {
-            return (msg instanceof ConnectMessage && listenerEventType != EventType.CONNECT) || (msg instanceof DisconnectMessage && listenerEventType != EventType.DISCONNECT) || (msg instanceof BulkJoinMessage && listenerEventType != EventType.BULK_JOIN) || (msg instanceof BulkLeaveMessage && listenerEventType != EventType.BULK_LEAVE) || (msg instanceof JoinMessage && listenerEventType != EventType.JOIN) || (msg instanceof LeaveMessage && listenerEventType != EventType.LEAVE) || (msg instanceof DispatchMessage && listenerEventType != EventType.DISPATCH);
-        } else if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            return listenerEventType != EventType.ALL_SINGLE_CHANNEL;
-        }
-        return false;
+            ScheduledExecutorService exec = executors.get(type);
+            if (exec != null && running.get() && !Thread.currentThread().isInterrupted()) {
+                exec.submit(() -> pollAsync(stream, type));
+            }
+        });
     }
 
 
@@ -300,35 +294,52 @@ public class RedisStreamsStore implements EventStore {
 
     @Override
     public void unsubscribe0(EventType type) {
-        // Single-channel mode subscribes to ALL types
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
             if (type != EventType.ALL_SINGLE_CHANNEL) {
                 throw new UnsupportedOperationException("Single-channel mode only supports EventType.ALL_SINGLE_CHANNEL - no individual un-subscribes");
             }
             eventListenerMap.clear();
             log.debug("Unsubscribing from Redis Streams");
-            executors.values().forEach(ExecutorService::shutdownNow);
+            executors.values().forEach(this::shutdownExecutorGracefully);
+            executors.clear();
         } else {
             eventListenerMap.remove(type);
-            executors.forEach((key, value) -> {
-                if (key.equals(type)) {
-                    value.shutdownNow();
-                }
-            });
+            ScheduledExecutorService exec = executors.remove(type);
+            shutdownExecutorGracefully(exec);
         }
         if (eventListenerMap.isEmpty()) {
             running.set(false);
         }
     }
 
-    // =========================================================================
-    // SHUTDOWN
-    // =========================================================================
-
     @Override
     public void shutdown0() {
         running.set(false);
-        executors.values().forEach(ExecutorService::shutdownNow);
+        executors.values().forEach(this::shutdownExecutorGracefully);
         executors.clear();
     }
+
+
+    private void shutdownExecutorGracefully(ExecutorService exec) {
+        if (exec == null) {
+            return;
+        }
+
+        try {
+            exec.shutdown(); // disallow new tasks
+            if (!exec.awaitTermination((long) 5, TimeUnit.SECONDS)) {
+                exec.shutdownNow(); // interrupt running tasks
+                if (!exec.awaitTermination((long) 5, TimeUnit.SECONDS)) {
+                    log.warn("Executor did not terminate");
+                }
+            }
+        } catch (InterruptedException ie) {
+            exec.shutdownNow();
+            Thread.currentThread().interrupt();
+        } finally {
+            log.debug("Executor shutdown attempt finished.");
+        }
+    }
+
+
 }

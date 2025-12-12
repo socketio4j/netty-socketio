@@ -104,10 +104,10 @@ public abstract class DistributedCommonTest {
 
         a.emit("join-room", "room1");
         b.emit("join-room", "room1");
-        Thread.sleep(3000);
+        //Thread.sleep(3000);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
-        Thread.sleep(500); // Buffer for Redis adapter sync
+        //Thread.sleep(500); // Buffer for Redis adapter sync
 
         node1.getRoomOperations("room1").sendEvent("room-event", "m1");
         node2.getRoomOperations("room1").sendEvent("room-event", "m2");
@@ -174,7 +174,7 @@ public abstract class DistributedCommonTest {
         CountDownLatch unexpectedLatch = new CountDownLatch(2);
 
         // Give adapter time to sync room state
-        Thread.sleep(500);
+        //Thread.sleep(500);
         a1.on("room-event", data -> {
             if (data.length > 0) {
                 latchRoom.countDown();
@@ -201,7 +201,7 @@ public abstract class DistributedCommonTest {
         });
         node1.getRoomOperations("room1").sendEvent("room-event", "hello");
 
-        Thread.sleep(2000);
+        //Thread.sleep(2000);
 
 
 
@@ -283,7 +283,7 @@ public abstract class DistributedCommonTest {
         node1.getRoomOperations("room1").sendEvent("room-event", "m1");
         node2.getRoomOperations("room1").sendEvent("room-event", "m2");
 
-        Thread.sleep(1000);
+        //Thread.sleep(1000);
 
         assertTrue(msgLatch.await(5, TimeUnit.SECONDS), "Did not receive all 8 events");
         assertEquals(8, a1Data.size() + a2Data.size() + b1Data.size() + b2Data.size(), "Each client must receive 2 messages");
@@ -418,7 +418,7 @@ public abstract class DistributedCommonTest {
 
         // early broadcast
         node1.getRoomOperations("room1").sendEvent("room-event", "early");
-        Thread.sleep(2000);
+        //Thread.sleep(2000);
         assertTrue(latchEarly.await(2, TimeUnit.SECONDS), "Client A did not receive early message");
         assertEquals("OK", msg[0]);
 
@@ -483,14 +483,14 @@ public abstract class DistributedCommonTest {
         });
         a.connect();
         b.connect();
-        Thread.sleep(2000);
+        //Thread.sleep(2000);
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Clients failed to connect");
 
         a.emit("join-room", "room1");
         b.emit("join-room", "room1");
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
-        Thread.sleep(500); // Give adapter time to sync room state
+        //Thread.sleep(500); // Give adapter time to sync room state
 
         // Emit from a custom method that finds all clients *except* 'a' and sends to them.
         sendExcept("room1", "room-event", "hello", a.id());
@@ -549,7 +549,7 @@ public abstract class DistributedCommonTest {
         b.emit("join-room", "roomB");
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
-        Thread.sleep(500); // Give adapter time to sync room state
+        //Thread.sleep(500); // Give adapter time to sync room state
 
         // ---- Broadcast to roomA ----
         CountDownLatch latchA = new CountDownLatch(1);
@@ -648,7 +648,7 @@ public abstract class DistributedCommonTest {
         b2.emit("join-room", "room1");
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
-        Thread.sleep(500);
+        //Thread.sleep(500);
 
         node1.getBroadcastOperations().sendEvent("room-event", "m1");
         node2.getBroadcastOperations().sendEvent("room-event", "m2");

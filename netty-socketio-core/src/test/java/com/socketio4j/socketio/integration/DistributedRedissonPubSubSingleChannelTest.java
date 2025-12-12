@@ -99,7 +99,7 @@ public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommo
         node2.start();
         port2 = cfg2.getPort();
 
-        Thread.sleep(600);
+        //Thread.sleep(600);
     }
 
     private Config redisConfig(String url) {
@@ -110,9 +110,7 @@ public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommo
 
     @AfterAll
     public void stop() {
-        if (REDIS_CONTAINER != null) {
-            REDIS_CONTAINER.stop();
-        }
+
         if (node1 != null) {
             node1.stop();
         }
@@ -124,6 +122,9 @@ public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommo
         }
         if (redisClient2 != null) {
             redisClient2.shutdown();
+        }
+        if (REDIS_CONTAINER != null) {
+            REDIS_CONTAINER.stop();
         }
     }
 }
