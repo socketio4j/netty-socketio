@@ -26,7 +26,7 @@ import com.socketio4j.socketio.store.event.EventStore;
 
 public class MemoryStoreFactory extends BaseStoreFactory {
 
-    private final MemoryEventStore pubSubMemoryStore = new MemoryEventStore();
+    private final MemoryEventStore memoryEventStore = new MemoryEventStore();
 
     @Override
     public Store createStore(UUID sessionId) {
@@ -35,7 +35,7 @@ public class MemoryStoreFactory extends BaseStoreFactory {
 
     @Override
     public EventStore eventStore() {
-        return pubSubMemoryStore;
+        return memoryEventStore;
     }
 
     @Override

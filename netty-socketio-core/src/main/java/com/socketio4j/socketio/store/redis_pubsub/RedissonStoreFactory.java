@@ -57,15 +57,15 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.eventStore = new RedissonEventStore(redisPub, redisSub, getNodeId(), publishConfig, eventStoreMode);
     }
 
-    public RedissonStoreFactory(RedissonClient redisson, RedissonEventStore pubSubStore) {
+    public RedissonStoreFactory(RedissonClient redisson, RedissonEventStore eventStore) {
 
         Objects.requireNonNull(redisson, "redisson cannot be null");
-        Objects.requireNonNull(pubSubStore, "eventStore cannot be null");
+        Objects.requireNonNull(eventStore, "eventStore cannot be null");
 
         this.redisClient = redisson;
         this.redisPub = redisson;
         this.redisSub = redisson;
-        this.eventStore = pubSubStore;
+        this.eventStore = eventStore;
     }
 
     public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
@@ -81,18 +81,18 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.eventStore = new RedissonEventStore(redisPub, redisSub, getNodeId(), publishConfig, eventStoreMode);
     }
 
-    public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, RedissonEventStore pubSubStore) {
+    public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, RedissonEventStore eventStore) {
 
         Objects.requireNonNull(redisClient, "redisClient cannot be null");
         Objects.requireNonNull(redisPub, "redisPub cannot be null");
         Objects.requireNonNull(redisSub, "redisSub cannot be null");
-        Objects.requireNonNull(pubSubStore, "eventStore cannot be null");
+        Objects.requireNonNull(eventStore, "eventStore cannot be null");
 
         this.redisClient = redisClient;
         this.redisPub = redisPub;
         this.redisSub = redisSub;
 
-        this.eventStore = pubSubStore;
+        this.eventStore = eventStore;
     }
 
     @Override

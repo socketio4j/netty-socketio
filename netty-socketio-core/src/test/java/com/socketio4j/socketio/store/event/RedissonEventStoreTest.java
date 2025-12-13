@@ -38,7 +38,7 @@ public class RedissonEventStoreTest extends AbstractEventStoreTest {
     }
 
     @Override
-    protected EventStore createPubSubStore(Long nodeId) throws Exception {
+    protected EventStore createEventStore(Long nodeId) throws Exception {
         CustomizedRedisContainer customizedRedisContainer = (CustomizedRedisContainer) container;
         Config config = new Config();
         config.useSingleServer()

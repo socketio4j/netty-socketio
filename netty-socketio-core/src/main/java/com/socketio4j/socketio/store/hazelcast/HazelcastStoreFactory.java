@@ -73,18 +73,18 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     }
 
 
-    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, HazelcastEventStore pubSubStore) {
+    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, HazelcastEventStore eventStore) {
 
         Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
         Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
         Objects.requireNonNull(hazelcastSub, "hazelcastSub cannot be null");
-        Objects.requireNonNull(pubSubStore, "eventStore cannot be null");
+        Objects.requireNonNull(eventStore, "eventStore cannot be null");
 
         this.hazelcastClient = hazelcastClient;
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
 
-        this.eventStore = pubSubStore;
+        this.eventStore = eventStore;
     }
 
     @Override

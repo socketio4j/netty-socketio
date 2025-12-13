@@ -48,8 +48,8 @@ public abstract class AbstractEventStoreTest {
         if (container != null) {
             container.start();
         }
-        publisherStore = createPubSubStore(publisherNodeId);
-        subscriberStore = createPubSubStore(subscriberNodeId);
+        publisherStore = createEventStore(publisherNodeId);
+        subscriberStore = createEventStore(subscriberNodeId);
     }
 
     @AfterEach
@@ -73,7 +73,7 @@ public abstract class AbstractEventStoreTest {
     /**
      * Create the PubSub store instance for testing with specified nodeId
      */
-    protected abstract EventStore createPubSubStore(Long nodeId) throws Exception;
+    protected abstract EventStore createEventStore(Long nodeId) throws Exception;
 
     @Test
     public void testBasicPublishSubscribe() throws InterruptedException {

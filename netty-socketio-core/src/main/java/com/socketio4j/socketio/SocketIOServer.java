@@ -145,7 +145,7 @@ public class SocketIOServer implements ClientListeners {
         }
 
         try {
-            log.info("Session store / pubsub factory: {}", configCopy.getStoreFactory());
+            log.info("Session store / event store factory: {}", configCopy.getStoreFactory());
             initGroups();
             pipelineFactory.start(configCopy, namespacesHub);
 

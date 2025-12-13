@@ -49,13 +49,14 @@ import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.event.ListenerRegistration;
 
 
 public class RedisStreamsStore implements EventStore {
 
     private static final Logger log = LoggerFactory.getLogger(RedisStreamsStore.class);
     private static final String DEFAULT_STREAM_PREFIX = "socketio4j";
-    private final ConcurrentMap<EventType, Queue<EventListener<EventMessage>>> eventListenerMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<EventType, Queue<ListenerRegistration<? extends EventMessage>>> eventListenerMap = new ConcurrentHashMap<>();
     private final EventStoreMode eventStoreMode;
     private final String streamName;
     private final Map<EventType, RStream<String, EventMessage>> streams;
@@ -193,13 +194,14 @@ public class RedisStreamsStore implements EventStore {
     @Override
     public <T extends EventMessage> void subscribe0(EventType type, EventListener<T> listener, Class<T> clazz) {
         Objects.requireNonNull(listener, "listener");
+        Objects.requireNonNull(clazz, "clazz");
         // Single-channel mode subscribes to ALL types
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode) && type != EventType.ALL_SINGLE_CHANNEL) {
             throw new UnsupportedOperationException("can only subscribe with ALL_SINGLE_CHANNEL when you are on "+EventStoreMode.SINGLE_CHANNEL+ " mode");
         } else if (EventStoreMode.MULTI_CHANNEL.equals(eventStoreMode) && type == EventType.ALL_SINGLE_CHANNEL) {
             throw new UnsupportedOperationException("can not subscribe with ALL_SINGLE_CHANNEL when you are on "+EventStoreMode.MULTI_CHANNEL+ " mode");
         }
-        eventListenerMap.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>()).add((EventListener<EventMessage>) listener);
+        eventListenerMap.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>()).add(new ListenerRegistration<>(listener, clazz));
         ensurePollerRunning(type);
     }
 
@@ -245,20 +247,26 @@ public class RedisStreamsStore implements EventStore {
                 for (Map.Entry<StreamMessageId, Map<String, EventMessage>> entry : messages.entrySet()) {
 
                     StreamMessageId id = entry.getKey();
-                    EventMessage msg = entry.getValue().values().iterator().next();
+                    Map<String, EventMessage> msgMap = entry.getValue();
+                    if (msgMap.isEmpty()) {
+                        log.warn("Empty message map for StreamMessageId: {}", id);
+                        this.offsets.compute(type, (k, old) -> id);
+                        continue;
+                    }
+                    EventMessage msg = msgMap.entrySet().iterator().next().getValue();
                     try {
                         if (nodeId.equals(msg.getNodeId())) {
                             this.offsets.compute(type, (k, old) -> id);
                             continue;
                         }
 
-                        Queue<EventListener<EventMessage>> eventListeners = eventListenerMap.get(type);
+                        Queue<ListenerRegistration<? extends EventMessage>> eventListeners = eventListenerMap.get(type);
                         if (eventListeners == null) {
                             continue;
                         }
-                        for (EventListener<EventMessage> listenerEntry : eventListeners) {
+                        for (ListenerRegistration<? extends EventMessage> listenerEntry : eventListeners) {
                             try {
-                                processMessage(msg, listenerEntry, id);
+                                dispatchTyped(listenerEntry, msg, id);
                             } catch (Exception ex) {
                                 log.error("Error processing stream message {} {} {}", msg, id, listenerEntry, ex);
                             }
@@ -278,11 +286,17 @@ public class RedisStreamsStore implements EventStore {
     }
 
 
-    private void processMessage(EventMessage msg, EventListener<EventMessage> listener, StreamMessageId id) {
-        String key = id.toString();
-        msg.setOffset(key);
-        listener.onMessage(msg);
+    private <T extends EventMessage> void dispatchTyped(
+            ListenerRegistration<T> listenerRegistration,
+            EventMessage msg,
+            StreamMessageId id) {
+        if (!listenerRegistration.getClazz().isInstance(msg)) {
+            return; // skip incompatible listener
+        }
+        msg.setOffset(id.toString());
+        listenerRegistration.getListener().onMessage((T) msg); //Safe because of instance check
     }
+
 
 
     private void scheduleNextPoll(RStream<String, EventMessage> stream, EventType type) {

@@ -27,7 +27,7 @@ import com.socketio4j.socketio.store.event.EventStore;
 
 /**
  *
- * Creates a client Store and PubSubStore
+ * Creates a client Store and EventStore
  *
  */
 public interface StoreFactory extends Disconnectable {

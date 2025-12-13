@@ -39,7 +39,7 @@ public class HazelcastEventStoreTest extends AbstractEventStoreTest {
     }
 
     @Override
-    protected EventStore createPubSubStore(Long nodeId) throws Exception {
+    protected EventStore createEventStore(Long nodeId) throws Exception {
         CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
 
         ClientConfig config = new ClientConfig();
