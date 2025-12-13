@@ -141,7 +141,7 @@ public class RedissonStreamEventStore implements EventStore {
         Objects.requireNonNull(redissonClient, "redissonCli is null");
         this.redissonPub = redissonClient;
         this.redissonSub = redissonClient;
-        if ( nodeId == null ){
+        if (nodeId == null) {
             nodeId = getNodeId();
         }
         this.nodeId = nodeId;

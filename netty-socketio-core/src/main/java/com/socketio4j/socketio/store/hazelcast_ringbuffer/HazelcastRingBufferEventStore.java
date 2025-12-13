@@ -35,7 +35,6 @@ import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
-import com.socketio4j.socketio.store.event.PublishConfig;
 
 
 public class HazelcastRingBufferEventStore implements EventStore {
