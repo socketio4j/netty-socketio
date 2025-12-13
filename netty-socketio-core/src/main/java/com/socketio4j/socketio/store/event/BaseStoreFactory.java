@@ -47,11 +47,11 @@ public abstract class BaseStoreFactory implements StoreFactory {
     @Override
     public void init(final NamespacesHub namespacesHub, final AuthorizeHandler authorizeHandler, JsonSupport jsonSupport) {
 
-        ObjectUtil.checkNotNull(eventStore().getMode(), "mode cannot be null");
+        ObjectUtil.checkNotNull(eventStore().getEventStoreMode(), "mode cannot be null");
 
-        if (eventStore().getMode().equals(EventStoreMode.MULTI_CHANNEL)) {
+        if (eventStore().getEventStoreMode().equals(EventStoreMode.MULTI_CHANNEL)) {
            handleMultiChannelSubscribe(namespacesHub, authorizeHandler);
-        } else if (eventStore().getMode().equals(EventStoreMode.SINGLE_CHANNEL)) {
+        } else if (eventStore().getEventStoreMode().equals(EventStoreMode.SINGLE_CHANNEL)) {
            handleSingleChannelSubscribe(namespacesHub, authorizeHandler);
         }
 

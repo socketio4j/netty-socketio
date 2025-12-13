@@ -26,12 +26,17 @@ public interface EventStore {
 
     Logger log = LoggerFactory.getLogger(EventStore.class);
 
-    default EventStoreMode getMode(){
-        return  EventStoreMode.MULTI_CHANNEL;
+
+    default EventStoreMode getEventStoreMode() {
+        return EventStoreMode.MULTI_CHANNEL;
     }
 
-    default EventStoreType getStoreType() {
+    default EventStoreType getEventStoreType() {
         return EventStoreType.PUBSUB;
+    }
+
+    default PublishMode getPublishMode(){
+        return PublishMode.UNRELIABLE;
     }
 
     default Long getNodeId() {

@@ -28,7 +28,7 @@ import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
 /**
  * Test class for HazelcastPubSubStore using testcontainers
  */
-public class HazelcastEventStoreTest extends AbstractEventStoreTest {
+public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
 
     private HazelcastInstance hazelcastPub;
     private HazelcastInstance hazelcastSub;
@@ -55,7 +55,6 @@ public class HazelcastEventStoreTest extends AbstractEventStoreTest {
                 hazelcastPub,
                 hazelcastSub,
                 nodeId,
-                PublishConfig.allUnreliable(),
                 EventStoreMode.MULTI_CHANNEL
         );
     }

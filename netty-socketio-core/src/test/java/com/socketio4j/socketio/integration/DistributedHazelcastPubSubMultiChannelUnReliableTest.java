@@ -22,23 +22,26 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 import org.redisson.Redisson;
-import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 
+import com.hazelcast.client.HazelcastClient;
+import com.hazelcast.client.config.ClientConfig;
+import com.hazelcast.core.HazelcastInstance;
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
-import com.socketio4j.socketio.store.CustomizedRedisContainer;
+import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.PublishConfig;
+import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommonTest {
+public class DistributedHazelcastPubSubMultiChannelUnReliableTest extends DistributedCommonTest {
 
-    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(true);
-    private RedissonClient redisClient1;
-    private RedissonClient redisClient2;
+    private static final CustomizedHazelcastContainer HAZELCAST_CONTAINER = new CustomizedHazelcastContainer().withReuse(true);
+    private HazelcastInstance hazelcastClient;
+    private HazelcastInstance hazelcastClient1;
     // -------------------------------------------
     // Utility: find dynamic free port
     // -------------------------------------------
@@ -53,18 +56,24 @@ public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommo
     // -------------------------------------------
     @BeforeAll
     public void setup() throws Exception {
-        REDIS_CONTAINER.start();
+        if (!HAZELCAST_CONTAINER.isRunning()) {
+            HAZELCAST_CONTAINER.start();
+        }
 
-        String redisURL = "redis://" + REDIS_CONTAINER.getHost() + ":" + REDIS_CONTAINER.getRedisPort();
-        redisClient1 = Redisson.create(redisConfig(redisURL));
-        redisClient2 = Redisson.create(redisConfig(redisURL));
+        ClientConfig config = new ClientConfig();
+        config.getNetworkConfig()
+                .setSmartRouting(false)                   // never try unreachable members inside container
+                .setRedoOperation(true)
+                .addAddress(HAZELCAST_CONTAINER.getHazelcastAddress());
+        hazelcastClient = HazelcastClient.newHazelcastClient(config);
+        hazelcastClient1 = HazelcastClient.newHazelcastClient(config);
         // ---------- NODE 1 ----------
         Configuration cfg1 = new Configuration();
         cfg1.setHostname("127.0.0.1");
         cfg1.setPort(findAvailablePort());
 
-        cfg1.setStoreFactory(new RedissonStoreFactory(
-                redisClient1, PublishConfig.allUnreliable(), EventStoreMode.SINGLE_CHANNEL
+        cfg1.setStoreFactory(new HazelcastStoreFactory(
+                hazelcastClient, EventStoreMode.MULTI_CHANNEL
         ));
 
         node1 = new SocketIOServer(cfg1);
@@ -84,8 +93,8 @@ public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommo
         cfg2.setHostname("127.0.0.1");
         cfg2.setPort(findAvailablePort());
 
-        cfg2.setStoreFactory(new RedissonStoreFactory(
-                redisClient2, PublishConfig.allUnreliable(), EventStoreMode.SINGLE_CHANNEL));
+        cfg2.setStoreFactory(new HazelcastStoreFactory(
+                hazelcastClient1, EventStoreMode.MULTI_CHANNEL));
 
         node2 = new SocketIOServer(cfg2);
         node2.addEventListener("join-room", String.class, (c, room, ack) -> {
@@ -102,12 +111,6 @@ public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommo
         //Thread.sleep(600);
     }
 
-    private Config redisConfig(String url) {
-        Config c = new Config();
-        c.useSingleServer().setAddress(url);
-        return c;
-    }
-
     @AfterAll
     public void stop() {
 
@@ -117,14 +120,15 @@ public class DistributedRedissonPubSubSingleChannelTest extends DistributedCommo
         if (node2 != null) {
             node2.stop();
         }
-        if (redisClient1 != null) {
-            redisClient1.shutdown();
+        if (hazelcastClient != null) {
+            hazelcastClient.shutdown();
         }
-        if (redisClient2 != null) {
-            redisClient2.shutdown();
+        if (hazelcastClient1 != null) {
+            hazelcastClient1.shutdown();
         }
-        if (REDIS_CONTAINER != null) {
-            REDIS_CONTAINER.stop();
+        if (HAZELCAST_CONTAINER != null) {
+            HAZELCAST_CONTAINER.stop();
         }
     }
+
 }

@@ -25,9 +25,9 @@ import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.redis_pubsub.RedissonEventStore;
 
 /**
- * Test class for RedissonEventStore using testcontainers
+ * Test class for RedissonStreamEventStore using testcontainers
  */
-public class RedissonEventStoreTest extends AbstractEventStoreTest {
+public class RedissonStreamEventStoreTest extends AbstractEventStoreTest {
 
     private RedissonClient redissonPub;
     private RedissonClient redissonSub;
@@ -46,7 +46,7 @@ public class RedissonEventStoreTest extends AbstractEventStoreTest {
         
         redissonPub = Redisson.create(config);
         redissonSub = Redisson.create(config);
-        return new RedissonEventStore(redissonPub, redissonSub, nodeId,  PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
+        return new RedissonEventStore(redissonPub, redissonSub, nodeId,  EventStoreMode.MULTI_CHANNEL);
     }
 
     @Override

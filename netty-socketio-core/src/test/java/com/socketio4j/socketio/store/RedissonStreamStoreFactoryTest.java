@@ -19,56 +19,51 @@ package com.socketio4j.socketio.store;
 import java.util.Map;
 import java.util.UUID;
 
+import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.event.PublishConfig;
+import com.socketio4j.socketio.store.redis_pubsub.RedissonEventStore;
+import com.socketio4j.socketio.store.redis_pubsub.RedissonStore;
+import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import org.redisson.Redisson;
+import org.redisson.api.RMap;
+import org.redisson.api.RedissonClient;
+import org.redisson.config.Config;
 import org.testcontainers.containers.GenericContainer;
 
-import com.hazelcast.client.HazelcastClient;
-import com.hazelcast.client.config.ClientConfig;
-import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.map.IMap;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.store.event.EventStore;
-import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.event.PublishConfig;
-import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
-import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
-import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
-
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * Test class for HazelcastStoreFactory using testcontainers
+ * Test class for RedissonStreamStoreFactory using testcontainers
  */
-public class HazelcastStoreFactoryTest extends StoreFactoryTest {
+public class RedissonStreamStoreFactoryTest extends StoreFactoryTest {
 
     private static GenericContainer<?> container;
-    private HazelcastInstance hazelcastInstance;
+    private RedissonClient redissonClient;
     private AutoCloseable closeableMocks;
 
     @Override
     protected StoreFactory createStoreFactory() throws Exception {
-        container = new CustomizedHazelcastContainer().withReuse(true);
+        container = new CustomizedRedisContainer().withReuse(true);
         container.start();
-        CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
-
-        ClientConfig config = new ClientConfig();
-        config.getNetworkConfig()
-                .setSmartRouting(false)                   // never try unreachable members inside container
-                .setRedoOperation(true)
-                .addAddress(hz.getHazelcastAddress());   // ALWAYS localhost:mappedPort
-
-        hazelcastInstance = HazelcastClient.newHazelcastClient(config);
-
-        return new HazelcastStoreFactory(hazelcastInstance, PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
+        
+        CustomizedRedisContainer customizedRedisContainer = (CustomizedRedisContainer) container;
+        Config config = new Config();
+        config.useSingleServer()
+                .setAddress("redis://" + customizedRedisContainer.getHost() + ":" + customizedRedisContainer.getRedisPort());
+        
+        redissonClient = Redisson.create(config);
+        return new RedissonStoreFactory(redissonClient, PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
     }
 
     @AfterEach
@@ -79,8 +74,8 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
         if (storeFactory != null) {
             storeFactory.shutdown();
         }
-        if (hazelcastInstance != null) {
-            hazelcastInstance.shutdown();
+        if (redissonClient != null) {
+            redissonClient.shutdown();
         }
 
     }
@@ -93,30 +88,30 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
     }
 
     @Test
-    public void testHazelcastSpecificFeatures() {
-        // Test that the factory creates Hazelcast-specific stores
+    public void testRedissonSpecificFeatures() {
+        // Test that the factory creates Redisson-specific stores
         UUID sessionId = UUID.randomUUID();
         Store store = storeFactory.createStore(sessionId);
         
         assertNotNull(store, "Store should not be null");
-        assertInstanceOf(HazelcastStore.class, store, "Store should be HazelcastStore");
+        assertTrue(store instanceof RedissonStore, "Store should be RedissonStore");
         
-        // Test that the store works with Hazelcast
-        store.set("hazelcastKey", "hazelcastValue");
-        assertEquals("hazelcastValue", store.get("hazelcastKey"));
+        // Test that the store works with Redisson
+        store.set("redissonKey", "redissonValue");
+        assertEquals("redissonValue", store.get("redissonKey"));
     }
 
     @Test
-    public void testHazelcastEventStore() {
+    public void testRedissonEventStore() {
         EventStore eventStore = storeFactory.eventStore();
         
-        assertNotNull(eventStore, "EventStore should not be null");
-        assertInstanceOf(HazelcastEventStore.class, eventStore, "EventStore should be HazelcastStore");
+        assertNotNull(eventStore, "PubSubStore should not be null");
+        assertTrue(eventStore instanceof RedissonEventStore, "PubSubStore should be RedissonPubSubStore");
     }
 
     @Test
-    public void testHazelcastMapCreation() {
-        String mapName = "testHazelcastMap";
+    public void testRedissonMapCreation() {
+        String mapName = "testRedissonMap";
         Map<String, Object> map = storeFactory.createMap(mapName);
         
         assertNotNull(map, "Map should not be null");
@@ -154,9 +149,9 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
         // Call onDisconnect
         storeFactory.onDisconnect(clientHead);
         
-        // Verify the Hazelcast map is destroyed
-        // After destroy, the map should be empty or not accessible
-        IMap<String, Object> map = hazelcastInstance.getMap(sessionId.toString());
-        assertTrue(map.isEmpty(), "Map should be empty after destroy");
+        // Verify the Redisson map is deleted
+        // After delete, the map should be empty or not accessible
+        RMap<String, Object> map = redissonClient.getMap(sessionId.toString());
+        assertTrue(map.isEmpty() || map.size() == 0, "Map should be empty after delete");
     }
 }

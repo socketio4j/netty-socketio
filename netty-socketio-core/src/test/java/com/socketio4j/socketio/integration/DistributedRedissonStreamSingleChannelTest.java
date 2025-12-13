@@ -29,11 +29,11 @@ import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.redis_stream.RedisStreamsStoreFactory;
+import com.socketio4j.socketio.store.redis_stream.RedissonStreamStoreFactory;
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class DistributedRedisAdaptersRedisStreamMultiChannelTest extends DistributedCommonTest {
+public class DistributedRedissonStreamSingleChannelTest extends DistributedCommonTest {
 
     private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(true);
     private RedissonClient redisClient1;
@@ -62,8 +62,8 @@ public class DistributedRedisAdaptersRedisStreamMultiChannelTest extends Distrib
         cfg1.setHostname("127.0.0.1");
         cfg1.setPort(findAvailablePort());
 
-        cfg1.setStoreFactory(new RedisStreamsStoreFactory(
-                redisClient1, EventStoreMode.MULTI_CHANNEL
+        cfg1.setStoreFactory(new RedissonStreamStoreFactory(
+                redisClient1, EventStoreMode.SINGLE_CHANNEL
         ));
 
         node1 = new SocketIOServer(cfg1);
@@ -83,9 +83,8 @@ public class DistributedRedisAdaptersRedisStreamMultiChannelTest extends Distrib
         cfg2.setHostname("127.0.0.1");
         cfg2.setPort(findAvailablePort());
 
-        cfg2.setStoreFactory(new RedisStreamsStoreFactory(
-                redisClient2, EventStoreMode.MULTI_CHANNEL
-        ));
+        cfg2.setStoreFactory(new RedissonStreamStoreFactory(
+                redisClient2, EventStoreMode.SINGLE_CHANNEL));
 
         node2 = new SocketIOServer(cfg2);
         node2.addEventListener("join-room", String.class, (c, room, ack) -> {

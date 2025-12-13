@@ -14,8 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.redis_pubsub;
+package com.socketio4j.socketio.store.redis_stream;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -30,11 +31,12 @@ import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.PublishConfig;
+import com.socketio4j.socketio.store.redis_pubsub.RedissonStore;
 
 
-public class RedissonStoreFactory extends BaseStoreFactory {
+public class RedissonStreamStoreFactory extends BaseStoreFactory {
 
-    private static final Logger log = LoggerFactory.getLogger(RedissonStoreFactory.class);
+    private static final Logger log = LoggerFactory.getLogger(RedissonStreamStoreFactory.class);
 
     private final RedissonClient redisClient;
     private final RedissonClient redisPub;
@@ -42,11 +44,11 @@ public class RedissonStoreFactory extends BaseStoreFactory {
 
     private final EventStore eventStore;
 
-    public RedissonStoreFactory() {
-        this(Redisson.create(), PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
+    public RedissonStreamStoreFactory() {
+        this(Redisson.create(), EventStoreMode.MULTI_CHANNEL);
     }
 
-    public RedissonStoreFactory(RedissonClient redisson,  PublishConfig publishConfig, EventStoreMode eventStoreMode) {
+    public RedissonStreamStoreFactory(RedissonClient redisson, EventStoreMode eventStoreMode) {
 
         Objects.requireNonNull(redisson, "redisson cannot be null");
 
@@ -54,10 +56,10 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.redisPub = redisson;
         this.redisSub = redisson;
 
-        this.eventStore = new RedissonEventStore(redisPub, redisSub, getNodeId(), eventStoreMode);
+        this.eventStore = new RedissonStreamEventStore.Builder(redisSub, eventStoreMode).trimEvery(Duration.ofSeconds(30)).build();
     }
 
-    public RedissonStoreFactory(RedissonClient redisson, RedissonEventStore eventStore) {
+    public RedissonStreamStoreFactory(RedissonClient redisson, RedissonStreamEventStore eventStore) {
 
         Objects.requireNonNull(redisson, "redisson cannot be null");
         Objects.requireNonNull(eventStore, "eventStore cannot be null");
@@ -68,7 +70,7 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.eventStore = eventStore;
     }
 
-    public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
+    public RedissonStreamStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
 
         Objects.requireNonNull(redisClient, "redisClient cannot be null");
         Objects.requireNonNull(redisPub, "redisPub cannot be null");
@@ -78,10 +80,10 @@ public class RedissonStoreFactory extends BaseStoreFactory {
         this.redisPub = redisPub;
         this.redisSub = redisSub;
 
-        this.eventStore = new RedissonEventStore(redisPub, redisSub, getNodeId(), eventStoreMode);
+        this.eventStore = new RedissonStreamEventStore(redisClient, getNodeId(), eventStoreMode, null, null, Duration.ofSeconds(30));
     }
 
-    public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, RedissonEventStore eventStore) {
+    public RedissonStreamStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, RedissonStreamEventStore eventStore) {
 
         Objects.requireNonNull(redisClient, "redisClient cannot be null");
         Objects.requireNonNull(redisPub, "redisPub cannot be null");

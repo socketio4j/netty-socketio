@@ -27,12 +27,12 @@ import com.socketio4j.socketio.store.event.EventType;
 public class MemoryEventStore implements EventStore {
 
     @Override
-    public EventStoreMode getMode() {
+    public EventStoreMode getEventStoreMode() {
         return EventStoreMode.SINGLE_CHANNEL; // No effect as local client will be sent first and then publish via adapter , for local no need to publish
     }
 
     @Override
-    public EventStoreType getStoreType() {
+    public EventStoreType getEventStoreType() {
         return EventStoreType.LOCAL;
     }
 

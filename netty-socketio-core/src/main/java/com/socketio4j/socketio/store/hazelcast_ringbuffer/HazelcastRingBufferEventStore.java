@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.hazelcast;
+package com.socketio4j.socketio.store.hazelcast_ringbuffer;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -35,9 +35,10 @@ import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.event.PublishConfig;
 
 
-public class HazelcastEventStore implements EventStore {
+public class HazelcastRingBufferEventStore implements EventStore {
 
     private final HazelcastInstance hazelcastPub;
     private final HazelcastInstance hazelcastSub;
@@ -45,15 +46,25 @@ public class HazelcastEventStore implements EventStore {
     private final EventStoreMode eventStoreMode;
 
     private final ConcurrentMap<EventType, Queue<UUID>> map = new ConcurrentHashMap<>();
-    private static final Logger log = LoggerFactory.getLogger(HazelcastEventStore.class);
+    private static final Logger log = LoggerFactory.getLogger(HazelcastRingBufferEventStore.class);
+    private final String ringBufferNamePrefix;
 
-    public HazelcastEventStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId, EventStoreMode eventStoreMode) {
+    private static final String DEFAULT_RING_BUFFER_NAME_PREFIX = "SOCKETIO4J:";
+    private static final int DEFAULT_RING_BUFFER_MAX_LENGTH = 10000;
+
+    public HazelcastRingBufferEventStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId, EventStoreMode eventStoreMode, String ringBufferNamePrefix) {
+        if (ringBufferNamePrefix == null || ringBufferNamePrefix.isEmpty()){
+            ringBufferNamePrefix = DEFAULT_RING_BUFFER_NAME_PREFIX;
+        }
+
+        this.ringBufferNamePrefix = ringBufferNamePrefix;
+
 
         Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
         Objects.requireNonNull(hazelcastSub, "hazelcastSub cannot be null");
         Objects.requireNonNull(nodeId, "nodeId cannot be null");
 
-        if (eventStoreMode == null){
+        if (eventStoreMode == null) {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         }
         this.hazelcastPub = hazelcastPub;
@@ -65,23 +76,29 @@ public class HazelcastEventStore implements EventStore {
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        hazelcastPub.getTopic(getRingBufferName(type)).publish(msg);
+        hazelcastPub.getReliableTopic(getRingBufferName(type)).publish(msg);
     }
     private String getRingBufferName(EventType type) {
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            return EventType.ALL_SINGLE_CHANNEL.name();
+            return ringBufferNamePrefix + EventType.ALL_SINGLE_CHANNEL.name();
         }
-        return type.name();
+        return ringBufferNamePrefix + type.name();
     }
+
     @Override
     public EventStoreMode getEventStoreMode(){
         return eventStoreMode;
     }
 
     @Override
+    public EventStoreType getEventStoreType() {
+        return EventStoreType.STREAM;
+    }
+
+    @Override
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
 
-        ITopic<T> topic = hazelcastSub.getTopic(getRingBufferName(type));
+        ITopic<T> topic = hazelcastSub.getReliableTopic(getRingBufferName(type));
 
         UUID regId = topic.addMessageListener(msg -> {
             if (!nodeId.equals(msg.getMessageObject().getNodeId())) {
@@ -95,6 +112,7 @@ public class HazelcastEventStore implements EventStore {
 
     @Override
     public void unsubscribe0(EventType type) {
+
         Queue<UUID> regIds = map.remove(type);
         if (regIds == null || regIds.isEmpty()) {
             return;
@@ -102,7 +120,8 @@ public class HazelcastEventStore implements EventStore {
 
         ITopic<Object> topic;
 
-        topic = hazelcastSub.getTopic(getRingBufferName(type));
+
+        topic = hazelcastSub.getReliableTopic(getRingBufferName(type));
 
         for (UUID id : regIds) {
             try {

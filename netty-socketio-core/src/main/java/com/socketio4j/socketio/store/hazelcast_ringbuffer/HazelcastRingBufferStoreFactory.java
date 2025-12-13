@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.hazelcast;
+package com.socketio4j.socketio.store.hazelcast_ringbuffer;
 
 import java.util.Map;
 import java.util.Objects;
@@ -30,15 +30,16 @@ import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.PublishConfig;
+import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
 
 
 /**
  * WARN: It's necessary to add netty-socketio.jar in hazelcast server classpath.
  *
  */
-public class HazelcastStoreFactory extends BaseStoreFactory {
+public class HazelcastRingBufferStoreFactory extends BaseStoreFactory {
 
-    private static final Logger log = LoggerFactory.getLogger(HazelcastStoreFactory.class);
+    private static final Logger log = LoggerFactory.getLogger(HazelcastRingBufferStoreFactory.class);
 
     private final HazelcastInstance hazelcastClient;
     private final HazelcastInstance hazelcastPub;
@@ -46,21 +47,21 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
 
     private final EventStore eventStore;
 
-    public HazelcastStoreFactory() {
-        this(HazelcastClient.newHazelcastClient(), EventStoreMode.MULTI_CHANNEL);
+    public HazelcastRingBufferStoreFactory() {
+        this(HazelcastClient.newHazelcastClient(),  EventStoreMode.MULTI_CHANNEL);
     }
 
-    public HazelcastStoreFactory(HazelcastInstance instance, EventStoreMode eventStoreMode) {
+    public HazelcastRingBufferStoreFactory(HazelcastInstance instance, EventStoreMode eventStoreMode) {
 
         Objects.requireNonNull(instance, "instance cannot be null");
 
         this.hazelcastClient = instance;
         this.hazelcastPub = instance;
         this.hazelcastSub = instance;
-        this.eventStore = new HazelcastEventStore(hazelcastPub, hazelcastSub, getNodeId(), eventStoreMode);
+        this.eventStore = new HazelcastRingBufferEventStore(hazelcastPub, hazelcastSub, getNodeId(), eventStoreMode, null);
     }
 
-    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
+    public HazelcastRingBufferStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, EventStoreMode eventStoreMode) {
 
         Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
         Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
@@ -69,11 +70,11 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
         this.hazelcastClient = hazelcastClient;
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
-        this.eventStore = new HazelcastEventStore(hazelcastPub, hazelcastSub, getNodeId(), eventStoreMode);
+        this.eventStore = new HazelcastRingBufferEventStore(hazelcastPub, hazelcastSub, getNodeId(), eventStoreMode, null);
     }
 
 
-    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, HazelcastEventStore eventStore) {
+    public HazelcastRingBufferStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, HazelcastRingBufferEventStore eventStore) {
 
         Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
         Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");

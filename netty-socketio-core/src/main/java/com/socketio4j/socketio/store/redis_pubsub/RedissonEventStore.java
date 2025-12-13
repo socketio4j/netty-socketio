@@ -33,42 +33,22 @@ import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventType;
-import com.socketio4j.socketio.store.event.PublishConfig;
-import com.socketio4j.socketio.store.event.PublishMode;
 
 public class RedissonEventStore implements EventStore {
 
     private final RedissonClient redissonPub;
     private final RedissonClient redissonSub;
     private final Long nodeId;
-    private final PublishConfig publishConfig;
     private final EventStoreMode eventStoreMode;
 
-    private final ConcurrentMap<String, Queue<Integer>> map = new ConcurrentHashMap<>();
+    private final ConcurrentMap<EventType, Queue<Integer>> map = new ConcurrentHashMap<>();
     private static final Logger log = LoggerFactory.getLogger(RedissonEventStore.class);
 
     // ----------------------------------------------------------------------
     // Constructors
     // ----------------------------------------------------------------------
 
-    public RedissonEventStore(RedissonClient redisson, Long nodeId, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
-
-        Objects.requireNonNull(redisson, "redisson is null");
-
-        this.redissonPub = redisson;
-        this.redissonSub = redisson;
-        this.nodeId = nodeId;
-        if (publishConfig == null){
-            publishConfig = PublishConfig.allUnreliable();
-        }
-        this.publishConfig = publishConfig;
-        if (eventStoreMode == null){
-            eventStoreMode = EventStoreMode.MULTI_CHANNEL;
-        }
-        this.eventStoreMode = eventStoreMode;
-    }
-
-    public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub, Long nodeId, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
+    public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub, Long nodeId, EventStoreMode eventStoreMode) {
 
         Objects.requireNonNull(redissonPub, "redissonPub is null");
         Objects.requireNonNull(redissonSub, "redissonSub is null");
@@ -76,29 +56,6 @@ public class RedissonEventStore implements EventStore {
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
         this.nodeId = nodeId;
-        if (publishConfig == null){
-            publishConfig = PublishConfig.allUnreliable();
-        }
-        this.publishConfig = publishConfig;
-        if (eventStoreMode == null){
-            eventStoreMode = EventStoreMode.MULTI_CHANNEL;
-        }
-        this.eventStoreMode = eventStoreMode;
-    }
-
-    public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
-
-
-        Objects.requireNonNull(redissonPub, "redissonPub is null");
-        Objects.requireNonNull(redissonSub, "redissonSub is null");
-
-        this.redissonPub = redissonPub;
-        this.redissonSub = redissonSub;
-        this.nodeId = getNodeId();
-        if (publishConfig == null){
-            publishConfig = PublishConfig.allUnreliable();
-        }
-        this.publishConfig = publishConfig;
         if (eventStoreMode == null){
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         }
@@ -106,49 +63,40 @@ public class RedissonEventStore implements EventStore {
     }
 
     @Override
-    public EventStoreMode getMode(){
+    public EventStoreMode getEventStoreMode(){
         return this.eventStoreMode;
     }
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        if (PublishMode.UNRELIABLE.equals(publishConfig.get(type))) {
-            if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-                redissonPub.getTopic(EventType.ALL_SINGLE_CHANNEL.toString()).publish(msg);
-            } else {
-                redissonPub.getTopic(type.toString()).publish(msg);
-            }
-
-        } else  {
-            if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-                redissonPub.getReliableTopic(EventType.ALL_SINGLE_CHANNEL.toString()).publish(msg);
-            } else {
-                redissonPub.getReliableTopic(type.toString()).publish(msg);
-            }
-        }
+        redissonPub.getTopic(getStreamName(type)).publish(msg);
     }
 
     @Override
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
-        RTopic topic = redissonSub.getTopic(type.toString());
+        RTopic topic = redissonSub.getTopic(getStreamName(type));
         int regId = topic.addListener(clazz, (channel, msg) -> {
             if (!nodeId.equals(msg.getNodeId())) {
                 listener.onMessage(msg);
             }
         });
-        map.computeIfAbsent(type.toString(), k -> new ConcurrentLinkedQueue<>()).add(regId);
+        map.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>()).add(regId);
     }
-
+    private String getStreamName(EventType type) {
+        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
+            return  EventType.ALL_SINGLE_CHANNEL.name();
+        }
+        return type.name();
+    }
     @Override
     public void unsubscribe0(EventType type) {
-        String name = type.toString();
 
-        Queue<Integer> regIds = map.remove(name);
+        Queue<Integer> regIds = map.remove(type);
         if (regIds == null || regIds.isEmpty()) {
             return;
         }
 
-        RTopic topic = redissonSub.getTopic(name);
+        RTopic topic = redissonSub.getTopic(getStreamName(type));
         if (topic == null) {
             return;
         }
@@ -157,7 +105,7 @@ public class RedissonEventStore implements EventStore {
             try {
                 topic.removeListener(id);
             } catch (Exception ex) {
-                log.warn("Failed to remove listener {} from topic {}", id, name, ex);
+                log.warn("Failed to remove listener {} from topic {}", id, getStreamName(type), ex);
             }
         }
     }
