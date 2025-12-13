@@ -51,7 +51,7 @@ public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
         hazelcastPub = HazelcastClient.newHazelcastClient(config);
         hazelcastSub = HazelcastClient.newHazelcastClient(config);
 
-        return new HazelcastEventStore.Builder(hazelcastPub, hazelcastSub).build();
+        return new HazelcastEventStore.Builder(hazelcastPub, hazelcastSub).nodeId(nodeId).build();
     }
 
     @Override
