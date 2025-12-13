@@ -21,17 +21,13 @@ import java.util.Objects;
 import java.util.UUID;
 
 import org.jetbrains.annotations.NotNull;
-import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.hazelcast.internal.services.ObjectNamespace;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
-import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.event.PublishConfig;
 
 
 public class RedissonStoreFactory extends BaseStoreFactory {

@@ -23,12 +23,10 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.core.HazelcastInstance;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
-import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
 
 
