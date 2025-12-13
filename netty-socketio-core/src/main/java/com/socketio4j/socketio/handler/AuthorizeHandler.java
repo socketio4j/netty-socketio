@@ -49,8 +49,8 @@ import com.socketio4j.socketio.scheduler.SchedulerKey;
 import com.socketio4j.socketio.scheduler.SchedulerKey.Type;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.StoreFactory;
-import com.socketio4j.socketio.store.pubsub.ConnectMessage;
-import com.socketio4j.socketio.store.pubsub.PubSubType;
+import com.socketio4j.socketio.store.event.ConnectMessage;
+import com.socketio4j.socketio.store.event.EventType;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
@@ -199,7 +199,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             return false;
         }
 
-        UUID sessionId = null;
+        UUID sessionId;
         if (configuration.isRandomSession()) {
             sessionId = UUID.randomUUID();
             if (log.isDebugEnabled()) {
@@ -222,7 +222,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             return false;
         }
 
-        Transport transport = null;
+        Transport transport;
         try {
             transport = Transport.valueOf(transportValue.get(0).toUpperCase());
             if (log.isDebugEnabled()) {
@@ -304,7 +304,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             try {
                 return UUID.fromString(values.get(0));
             } catch (IllegalArgumentException iaex) {
-                log.warn("Malformed UUID received for session! io=" + values.get(0));
+                log.warn("Malformed UUID received for session! io={}", values.get(0));
             }
         }
 
@@ -316,7 +316,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
                     try {
                         return UUID.fromString(cookie.value());
                     } catch (IllegalArgumentException iaex) {
-                        log.warn("Malformed UUID received for session! io=" + cookie.value());
+                        log.warn("Malformed UUID received for session! io={}", cookie.value());
                     }
                 }
             }
@@ -351,7 +351,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
                 client.send(packet);
             }
 
-            configuration.getStoreFactory().pubSubStore().publish(PubSubType.CONNECT, new ConnectMessage(client.getSessionId()));
+            configuration.getStoreFactory().eventStore().publish(EventType.CONNECT, new ConnectMessage(client.getSessionId()));
 
             SocketIOClient nsClient = client.addNamespaceClient(ns);
             ns.onConnect(nsClient);

@@ -19,12 +19,15 @@ package com.socketio4j.socketio.store;
 import java.util.Map;
 import java.util.UUID;
 
+import com.socketio4j.socketio.store.memory.MemoryEventStore;
+import com.socketio4j.socketio.store.memory.MemoryStore;
+import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.socketio4j.socketio.handler.ClientHead;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
+import com.socketio4j.socketio.store.event.EventStore;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -58,11 +61,11 @@ public class MemoryStoreFactoryTest extends StoreFactoryTest {
     }
 
     @Test
-    public void testMemoryPubSubStore() {
-        PubSubStore pubSubStore = storeFactory.pubSubStore();
+    public void testMemoryEventStore() {
+        EventStore eventStore = storeFactory.eventStore();
         
-        assertNotNull(pubSubStore, "PubSubStore should not be null");
-        assertTrue(pubSubStore instanceof MemoryPubSubStore, "PubSubStore should be MemoryPubSubStore");
+        assertNotNull(eventStore, "PubSubStore should not be null");
+        assertTrue(eventStore instanceof MemoryEventStore, "PubSubStore should be MemoryPubSubStore");
     }
 
     @Test

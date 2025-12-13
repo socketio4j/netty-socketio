@@ -28,8 +28,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,9 +56,11 @@ import com.socketio4j.socketio.listener.PongListener;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.store.StoreFactory;
-import com.socketio4j.socketio.store.pubsub.BulkJoinLeaveMessage;
-import com.socketio4j.socketio.store.pubsub.JoinLeaveMessage;
-import com.socketio4j.socketio.store.pubsub.PubSubType;
+import com.socketio4j.socketio.store.event.BulkJoinMessage;
+import com.socketio4j.socketio.store.event.BulkLeaveMessage;
+import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.event.JoinMessage;
+import com.socketio4j.socketio.store.event.LeaveMessage;
 import com.socketio4j.socketio.transport.NamespaceClient;
 
 
@@ -160,20 +160,6 @@ public class Namespace implements SocketIONamespace {
         removeOnAnyEventListener(listener);
     }
 
-
-    public void onAny(BiConsumer<String, List<Object>> listener) {
-        catchAllEventListeners.add((client, event, args, ack) ->
-                listener.accept(event, args)
-        );
-    }
-
-    public void onAny(Consumer<String> listener) {
-        catchAllEventListeners.add((client, event, args, ack) ->
-                listener.accept(event)
-        );
-    }
-
-
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <T> void addEventListener(String eventName, Class<T> eventClass, DataListener<T> listener) {
@@ -258,7 +244,7 @@ public class Namespace implements SocketIONamespace {
             leave(roomClients, joinedRoom, client.getSessionId());
         }
         clientRooms.remove(client.getSessionId());
-        storeFactory.pubSubStore().publish(PubSubType.BULK_LEAVE, new BulkJoinLeaveMessage(client.getSessionId(), roomsToLeave, getName()));
+        storeFactory.eventStore().publish(EventType.BULK_LEAVE, new BulkLeaveMessage(client.getSessionId(), roomsToLeave, getName()));
 
         try {
             for (DisconnectListener listener : disconnectListeners) {
@@ -281,7 +267,7 @@ public class Namespace implements SocketIONamespace {
         }
 
         join(getName(), client.getSessionId());
-        storeFactory.pubSubStore().publish(PubSubType.JOIN, new JoinLeaveMessage(client.getSessionId(), getName(), getName()));
+        storeFactory.eventStore().publish(EventType.JOIN, new JoinMessage(client.getSessionId(), getName(), getName()));
 
         try {
             for (ConnectListener listener : connectListeners) {
@@ -397,23 +383,23 @@ public class Namespace implements SocketIONamespace {
 
     public void joinRoom(String room, UUID sessionId) {
         join(room, sessionId);
-        storeFactory.pubSubStore().publish(PubSubType.JOIN, new JoinLeaveMessage(sessionId, room, getName()));
+        storeFactory.eventStore().publish(EventType.JOIN, new JoinMessage(sessionId, room, getName()));
     }
 
     public void joinRooms(Set<String> rooms, final UUID sessionId) {
         for (String room : rooms) {
             join(room, sessionId);
         }
-        storeFactory.pubSubStore().publish(PubSubType.BULK_JOIN, new BulkJoinLeaveMessage(sessionId, rooms, getName()));
+        storeFactory.eventStore().publish(EventType.BULK_JOIN, new BulkJoinMessage(sessionId, rooms, getName()));
     }
 
-    public void dispatch(String room, Packet packet) {
-        Iterable<SocketIOClient> clients = getRoomClients(room);
+        public void dispatch(String room, Packet packet) {
+            Iterable<SocketIOClient> clients = getRoomClients(room);
 
-        for (SocketIOClient socketIOClient : clients) {
-            socketIOClient.send(packet);
+            for (SocketIOClient socketIOClient : clients) {
+                socketIOClient.send(packet);
+            }
         }
-    }
 
     private <K, V> void join(ConcurrentMap<K, Set<V>> map, K key, V value) {
         Set<V> clients = map.get(key);
@@ -439,14 +425,14 @@ public class Namespace implements SocketIONamespace {
 
     public void leaveRoom(String room, UUID sessionId) {
         leave(room, sessionId);
-        storeFactory.pubSubStore().publish(PubSubType.LEAVE, new JoinLeaveMessage(sessionId, room, getName()));
+        storeFactory.eventStore().publish(EventType.LEAVE, new LeaveMessage(sessionId, room, getName()));
     }
 
     public void leaveRooms(Set<String> rooms, final UUID sessionId) {
         for (String room : rooms) {
             leave(room, sessionId);
         }
-        storeFactory.pubSubStore().publish(PubSubType.BULK_LEAVE, new BulkJoinLeaveMessage(sessionId, rooms, getName()));
+        storeFactory.eventStore().publish(EventType.BULK_LEAVE, new BulkLeaveMessage(sessionId, rooms, getName()));
     }
 
     private <K, V> void leave(ConcurrentMap<K, Set<V>> map, K room, V sessionId) {
