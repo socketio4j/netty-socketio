@@ -41,49 +41,19 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     private static final Logger log = LoggerFactory.getLogger(HazelcastStoreFactory.class);
 
     private final HazelcastInstance hazelcastClient;
-    private final HazelcastInstance hazelcastPub;
-    private final HazelcastInstance hazelcastSub;
-
     private final EventStore eventStore;
 
-    public HazelcastStoreFactory() {
-        this(HazelcastClient.newHazelcastClient(), EventStoreMode.MULTI_CHANNEL);
-    }
-
-    public HazelcastStoreFactory(HazelcastInstance instance, EventStoreMode eventStoreMode) {
-
-        Objects.requireNonNull(instance, "instance cannot be null");
-
-        this.hazelcastClient = instance;
-        this.hazelcastPub = instance;
-        this.hazelcastSub = instance;
-        this.eventStore = new HazelcastEventStore(hazelcastPub, hazelcastSub, getNodeId(), eventStoreMode);
-    }
-
-    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
+    /**
+     * API 4.y.z
+     * @param hazelcastClient
+     * @param eventStore
+     */
+    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastEventStore eventStore) {
 
         Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
-        Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
-        Objects.requireNonNull(hazelcastSub, "hazelcastSub cannot be null");
-
-        this.hazelcastClient = hazelcastClient;
-        this.hazelcastPub = hazelcastPub;
-        this.hazelcastSub = hazelcastSub;
-        this.eventStore = new HazelcastEventStore(hazelcastPub, hazelcastSub, getNodeId(), eventStoreMode);
-    }
-
-
-    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, HazelcastEventStore eventStore) {
-
-        Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
-        Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
-        Objects.requireNonNull(hazelcastSub, "hazelcastSub cannot be null");
         Objects.requireNonNull(eventStore, "eventStore cannot be null");
 
         this.hazelcastClient = hazelcastClient;
-        this.hazelcastPub = hazelcastPub;
-        this.hazelcastSub = hazelcastSub;
-
         this.eventStore = eventStore;
     }
 

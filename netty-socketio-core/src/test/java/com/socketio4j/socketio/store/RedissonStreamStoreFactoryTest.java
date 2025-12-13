@@ -63,7 +63,8 @@ public class RedissonStreamStoreFactoryTest extends StoreFactoryTest {
                 .setAddress("redis://" + customizedRedisContainer.getHost() + ":" + customizedRedisContainer.getRedisPort());
         
         redissonClient = Redisson.create(config);
-        return new RedissonStoreFactory(redissonClient, PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
+        return new RedissonStoreFactory(redissonClient,
+                new RedissonEventStore.Builder(redissonClient).build());
     }
 
     @AfterEach

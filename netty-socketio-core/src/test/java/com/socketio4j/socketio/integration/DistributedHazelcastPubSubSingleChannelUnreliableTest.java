@@ -32,6 +32,7 @@ import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
 import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.PublishConfig;
+import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 
@@ -73,7 +74,7 @@ public class DistributedHazelcastPubSubSingleChannelUnreliableTest extends Distr
         cfg1.setPort(findAvailablePort());
 
         cfg1.setStoreFactory(new HazelcastStoreFactory(
-                hazelcastInstance, EventStoreMode.SINGLE_CHANNEL
+                hazelcastInstance, new HazelcastEventStore.Builder(hazelcastInstance).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).build()
         ));
 
         node1 = new SocketIOServer(cfg1);
@@ -94,8 +95,8 @@ public class DistributedHazelcastPubSubSingleChannelUnreliableTest extends Distr
         cfg2.setPort(findAvailablePort());
 
         cfg2.setStoreFactory(new HazelcastStoreFactory(
-                hazelcastInstance1,  EventStoreMode.SINGLE_CHANNEL));
-
+                hazelcastInstance1,  new HazelcastEventStore.Builder(hazelcastInstance1).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).build()
+                ));
         node2 = new SocketIOServer(cfg2);
         node2.addEventListener("join-room", String.class, (c, room, ack) -> {
             c.joinRoom(room);

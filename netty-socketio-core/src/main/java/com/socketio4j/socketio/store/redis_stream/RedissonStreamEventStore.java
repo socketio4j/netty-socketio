@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.redisson.api.RReliableTopic;
+import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.stream.StreamTrimArgs;
 import org.slf4j.Logger;
@@ -41,6 +42,7 @@ import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.event.PublishMode;
 
 public class RedissonStreamEventStore implements EventStore {
 
@@ -57,76 +59,29 @@ public class RedissonStreamEventStore implements EventStore {
     private final ConcurrentMap<EventType, Queue<String>> map = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, RReliableTopic> activeSubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RReliableTopic> activePubTopics = new ConcurrentHashMap<>();
-
+    private final ConcurrentMap<EventType, RStream<String, EventMessage>> trimTopics = new ConcurrentHashMap<>();
     private static final Logger log = LoggerFactory.getLogger(RedissonStreamEventStore.class);
 
-    private RedissonStreamEventStore(Builder b) {
-
-        Objects.requireNonNull(b.redissonClient, "redissonClient");
-        Objects.requireNonNull(b.eventStoreMode, "eventStoreMode");
-
-        this.redissonPub = b.redissonClient;
-        this.redissonSub = b.redissonClient;
-
-        if (b.nodeId != null) {
-            this.nodeId = b.nodeId;
-        } else {
-            this.nodeId = getNodeId();
-        }
-        this.eventStoreMode = b.eventStoreMode;
-
-        if (b.streamNamePrefix == null || b.streamNamePrefix.isEmpty()) {
-            this.streamNamePrefix =
-                    DEFAULT_STREAM_NAME_PREFIX;
-        } else {
-            this.streamNamePrefix =
-                    b.streamNamePrefix;
-        }
-
-        if (b.streamMaxLength == null || b.streamMaxLength <= 0) {
-            this.streamMaxLength =
-                    DEFAULT_STREAM_MAX_LENGTH;
-        } else {
-            this.streamMaxLength =
-                    b.streamMaxLength;
-        }
-
-        this.trimEvery = b.trimEvery;
-
-        this.trimExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "socketio4j-redis-stream-trimmer");
-            t.setDaemon(true);
-            return t;
-        });
-
-        if (trimEvery != null) {
-            trimExecutor.scheduleAtFixedRate(
-                    this::trimAllReliableStreams,
-                    1,
-                    trimEvery.getSeconds(),
-                    TimeUnit.SECONDS
-            );
-        }
-    }
 
     // ----------------------------------------------------------------------
     // Constructors
     // ----------------------------------------------------------------------
 
-    public  RedissonStreamEventStore(@NotNull RedissonClient redissonClient,
-                                     @NotNull EventStoreMode eventStoreMode,
-                                     @Nullable Duration trimEvery){
-        this(redissonClient, null, eventStoreMode, null, null, trimEvery);
-    }
 
-    public RedissonStreamEventStore(@NotNull RedissonClient redissonClient,
-                                    @Nullable Long nodeId,
-                                    @NotNull EventStoreMode eventStoreMode,
+    public RedissonStreamEventStore(@NotNull RedissonClient redissonPub,
+                                    @NotNull RedissonClient redissonSub,
+                                    @Nullable Long nodeId, EventStoreMode eventStoreMode,
                                     @Nullable String streamNamePrefix,
                                     @Nullable Integer streamMaxLength,
                                     @Nullable Duration trimEvery) {
 
-        Objects.requireNonNull(redissonClient, "redisson client can not be null");
+        if (eventStoreMode == null) {
+            eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        }
+        this.eventStoreMode = eventStoreMode;
+
+        Objects.requireNonNull(redissonPub, "redissonPub client can not be null");
+        Objects.requireNonNull(redissonSub, "redissonSub client can not be null");
 
         if (streamNamePrefix == null || streamNamePrefix.isEmpty()) {
             streamNamePrefix = DEFAULT_STREAM_NAME_PREFIX;
@@ -140,16 +95,17 @@ public class RedissonStreamEventStore implements EventStore {
         }
         this.streamMaxLength = streamMaxLength;
 
+        if (streamMaxLength != Integer.MAX_VALUE) {
+            trimEvery = Duration.ofSeconds(60);
+        }
 
-        Objects.requireNonNull(redissonClient, "redissonCli is null");
-        this.redissonPub = redissonClient;
-        this.redissonSub = redissonClient;
+        this.redissonPub = redissonPub;
+        this.redissonSub = redissonSub;
         if (nodeId == null) {
             nodeId = getNodeId();
         }
         this.nodeId = nodeId;
 
-        this.eventStoreMode = eventStoreMode;
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "socketio4j-redis-stream-trimmer");
             t.setDaemon(true);
@@ -170,7 +126,7 @@ public class RedissonStreamEventStore implements EventStore {
     private void trimAllReliableStreams() {
 
         try {
-            if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
+            if (EventStoreMode.SINGLE_CHANNEL.equals(getEventStoreMode())) {
                 trimStream(EventType.ALL_SINGLE_CHANNEL);
             } else {
                 for (EventType type : EventType.values()) {
@@ -181,21 +137,39 @@ public class RedissonStreamEventStore implements EventStore {
             log.warn("Redis stream trim cycle failed", t);
         }
     }
+    private RStream<String, EventMessage> createStream(EventType type) {
+        return redissonPub.getStream(getStreamName(type));
+    }
 
     private void trimStream(EventType type) {
-
         try {
-            redissonPub.getStream(getStreamName(type))
-                    .trimNonStrictAsync(
-                            StreamTrimArgs.maxLen(streamMaxLength).noLimit() // ≈ MAXLEN ~
-                    );
+            RStream<String, EventMessage> stream =
+                    trimTopics.computeIfAbsent(type, this::createStream);
 
-            log.debug("Trim requested for {} (maxLen={})", getStreamName(type), streamMaxLength);
+            stream.trimNonStrictAsync(
+                    StreamTrimArgs.maxLen(streamMaxLength).noLimit()
+            ).whenComplete((trimmed, err) -> {
+                if (err != null) {
+                    log.warn("Trim failed for {}", getStreamName(type), err);
+                    return;
+                }
+
+                stream.sizeAsync()
+                        .whenComplete((length, sizeErr) -> {
+                            if (sizeErr != null) {
+                                log.warn("Failed to read stream size {}", getStreamName(type), sizeErr);
+                                return;
+                            }
+                            log.debug("Stream {} length={}", getStreamName(type), length);
+                        });
+
+            });
 
         } catch (Exception e) {
             log.warn("Failed to trim Redis stream {}", getStreamName(type), e);
         }
     }
+
 
     @Override
     public EventStoreMode getEventStoreMode(){
@@ -205,6 +179,11 @@ public class RedissonStreamEventStore implements EventStore {
     @Override
     public EventStoreType getEventStoreType() {
         return EventStoreType.STREAM;
+    }
+
+    @Override
+    public PublishMode getPublishMode(){
+        return PublishMode.RELIABLE;
     }
     @Override
     public void publish0(EventType type, EventMessage msg) {
@@ -232,7 +211,7 @@ public class RedissonStreamEventStore implements EventStore {
     }
 
     private String getStreamName(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
+        if (EventStoreMode.SINGLE_CHANNEL.equals(getEventStoreMode())) {
             return streamNamePrefix + EventType.ALL_SINGLE_CHANNEL.name();
         }
         return streamNamePrefix + type.name();
@@ -268,45 +247,89 @@ public class RedissonStreamEventStore implements EventStore {
         trimExecutor.shutdownNow();
         activePubTopics.clear();
         activeSubTopics.clear();
+        trimTopics.clear();
     }
+
     public static final class Builder {
 
-        private final RedissonClient redissonClient;
-        private final EventStoreMode eventStoreMode;
+        // -------------------------
+        // Required
+        // -------------------------
+        private final RedissonClient redissonPub;
+        private final RedissonClient redissonSub;
 
+        // -------------------------
+        // Optional (defaults)
+        // -------------------------
         private Long nodeId;
-        private String streamNamePrefix;
-        private Integer streamMaxLength;
+        private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        private String streamNamePrefix = DEFAULT_STREAM_NAME_PREFIX;
+        private Integer streamMaxLength = DEFAULT_STREAM_MAX_LENGTH;
         private Duration trimEvery;
 
-        public Builder(@NotNull RedissonClient redissonClient,
-                       @NotNull EventStoreMode eventStoreMode) {
-            this.redissonClient = redissonClient;
-            this.eventStoreMode = eventStoreMode;
+        // -------------------------
+        // Constructors
+        // -------------------------
+
+        public Builder(@NotNull RedissonClient redissonClient) {
+            this(redissonClient, redissonClient);
         }
 
-        public Builder nodeId(@Nullable Long nodeId) {
+        public Builder(@NotNull RedissonClient redissonPub,
+                       @NotNull RedissonClient redissonSub) {
+            this.redissonPub = Objects.requireNonNull(redissonPub, "redissonPub");
+            this.redissonSub = Objects.requireNonNull(redissonSub, "redissonSub");
+        }
+
+        // -------------------------
+        // Optional setters
+        // -------------------------
+
+        public Builder nodeId(long nodeId) {
             this.nodeId = nodeId;
             return this;
         }
 
-        public Builder streamNamePrefix(@Nullable String prefix) {
+        public Builder eventStoreMode(@NotNull EventStoreMode mode) {
+            this.eventStoreMode = Objects.requireNonNull(mode, "eventStoreMode");
+            return this;
+        }
+
+        public Builder streamNamePrefix(@NotNull String prefix) {
+            if (prefix.isEmpty()) {
+                throw new IllegalArgumentException("streamNamePrefix cannot be empty");
+            }
             this.streamNamePrefix = prefix;
             return this;
         }
 
-        public Builder streamMaxLength(@Nullable Integer maxLength) {
+        public Builder streamMaxLength(int maxLength) {
+            if (maxLength <= 0) {
+                throw new IllegalArgumentException("streamMaxLength must be > 0");
+            }
             this.streamMaxLength = maxLength;
             return this;
         }
 
-        public Builder trimEvery(@Nullable Duration duration) {
+        public Builder trimEvery(@NotNull Duration duration) {
             this.trimEvery = duration;
             return this;
         }
 
+        // -------------------------
+        // Build
+        // -------------------------
+
         public RedissonStreamEventStore build() {
-            return new RedissonStreamEventStore(this);
+            return new RedissonStreamEventStore(
+                    redissonPub,
+                    redissonSub,
+                    nodeId,
+                    eventStoreMode,
+                    streamNamePrefix,
+                    streamMaxLength,
+                    trimEvery
+            );
         }
     }
 

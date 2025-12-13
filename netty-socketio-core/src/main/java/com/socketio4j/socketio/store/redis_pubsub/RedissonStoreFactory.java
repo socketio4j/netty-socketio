@@ -20,11 +20,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.jetbrains.annotations.NotNull;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.hazelcast.internal.services.ObjectNamespace;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -37,61 +39,19 @@ public class RedissonStoreFactory extends BaseStoreFactory {
     private static final Logger log = LoggerFactory.getLogger(RedissonStoreFactory.class);
 
     private final RedissonClient redisClient;
-    private final RedissonClient redisPub;
-    private final RedissonClient redisSub;
-
     private final EventStore eventStore;
 
-    public RedissonStoreFactory() {
-        this(Redisson.create(), PublishConfig.allUnreliable(), EventStoreMode.MULTI_CHANNEL);
-    }
+    /**
+     * API 4.y.z
+     * @param redissonClient
+     * @param eventStore
+     */
+    public RedissonStoreFactory(@NotNull RedissonClient redissonClient,
+                                @NotNull EventStore eventStore) {
+        Objects.requireNonNull(redissonClient, "redissonClient can not be null");
+        Objects.requireNonNull(eventStore, "eventStore can not be null");
 
-    public RedissonStoreFactory(RedissonClient redisson,  PublishConfig publishConfig, EventStoreMode eventStoreMode) {
-
-        Objects.requireNonNull(redisson, "redisson cannot be null");
-
-        this.redisClient = redisson;
-        this.redisPub = redisson;
-        this.redisSub = redisson;
-
-        this.eventStore = new RedissonEventStore(redisPub, redisSub, getNodeId(), eventStoreMode);
-    }
-
-    public RedissonStoreFactory(RedissonClient redisson, RedissonEventStore eventStore) {
-
-        Objects.requireNonNull(redisson, "redisson cannot be null");
-        Objects.requireNonNull(eventStore, "eventStore cannot be null");
-
-        this.redisClient = redisson;
-        this.redisPub = redisson;
-        this.redisSub = redisson;
-        this.eventStore = eventStore;
-    }
-
-    public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, PublishConfig publishConfig, EventStoreMode eventStoreMode) {
-
-        Objects.requireNonNull(redisClient, "redisClient cannot be null");
-        Objects.requireNonNull(redisPub, "redisPub cannot be null");
-        Objects.requireNonNull(redisSub, "redisSub cannot be null");
-
-        this.redisClient = redisClient;
-        this.redisPub = redisPub;
-        this.redisSub = redisSub;
-
-        this.eventStore = new RedissonEventStore(redisPub, redisSub, getNodeId(), eventStoreMode);
-    }
-
-    public RedissonStoreFactory(Redisson redisClient, Redisson redisPub, Redisson redisSub, RedissonEventStore eventStore) {
-
-        Objects.requireNonNull(redisClient, "redisClient cannot be null");
-        Objects.requireNonNull(redisPub, "redisPub cannot be null");
-        Objects.requireNonNull(redisSub, "redisSub cannot be null");
-        Objects.requireNonNull(eventStore, "eventStore cannot be null");
-
-        this.redisClient = redisClient;
-        this.redisPub = redisPub;
-        this.redisSub = redisSub;
-
+        this.redisClient = redissonClient;
         this.eventStore = eventStore;
     }
 

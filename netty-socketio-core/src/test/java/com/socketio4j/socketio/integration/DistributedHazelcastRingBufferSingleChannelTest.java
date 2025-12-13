@@ -33,6 +33,7 @@ import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
 import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastRingBufferEventStore;
 import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastRingBufferStoreFactory;
 import com.socketio4j.socketio.store.redis_stream.RedissonStreamStoreFactory;
 
@@ -74,7 +75,7 @@ public class DistributedHazelcastRingBufferSingleChannelTest extends Distributed
         cfg1.setPort(findAvailablePort());
 
         cfg1.setStoreFactory(new HazelcastRingBufferStoreFactory(
-                hazelcastInstance, EventStoreMode.SINGLE_CHANNEL
+                hazelcastInstance, new HazelcastRingBufferEventStore.Builder(hazelcastInstance).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).build()
         ));
 
         node1 = new SocketIOServer(cfg1);
@@ -95,7 +96,8 @@ public class DistributedHazelcastRingBufferSingleChannelTest extends Distributed
         cfg2.setPort(findAvailablePort());
 
         cfg2.setStoreFactory(new HazelcastRingBufferStoreFactory(
-                hazelcastInstance1, EventStoreMode.SINGLE_CHANNEL));
+                hazelcastInstance1, new HazelcastRingBufferEventStore.Builder(hazelcastInstance1).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).build()
+        ));
 
         node2 = new SocketIOServer(cfg2);
         node2.addEventListener("join-room", String.class, (c, room, ack) -> {

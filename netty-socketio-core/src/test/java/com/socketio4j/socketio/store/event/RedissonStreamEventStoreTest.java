@@ -46,7 +46,7 @@ public class RedissonStreamEventStoreTest extends AbstractEventStoreTest {
         
         redissonPub = Redisson.create(config);
         redissonSub = Redisson.create(config);
-        return new RedissonEventStore(redissonPub, redissonSub, nodeId,  EventStoreMode.MULTI_CHANNEL);
+        return new RedissonEventStore(redissonPub, redissonSub, EventStoreMode.MULTI_CHANNEL, nodeId);
     }
 
     @Override

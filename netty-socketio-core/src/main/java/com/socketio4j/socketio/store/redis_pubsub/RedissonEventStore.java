@@ -23,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
@@ -34,6 +36,10 @@ import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventType;
 
+/**
+ * Unreliable Redis Pub/Sub based EventStore.
+ * Events are ephemeral and not replayed.
+ */
 public class RedissonEventStore implements EventStore {
 
     private final RedissonClient redissonPub;
@@ -44,21 +50,33 @@ public class RedissonEventStore implements EventStore {
     private final ConcurrentMap<EventType, Queue<Integer>> map = new ConcurrentHashMap<>();
     private final ConcurrentMap<Integer, RTopic> activeSubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RTopic> activePubTopics = new ConcurrentHashMap<>();
+
     private static final Logger log = LoggerFactory.getLogger(RedissonEventStore.class);
 
     // ----------------------------------------------------------------------
     // Constructors
     // ----------------------------------------------------------------------
-
-    public RedissonEventStore(RedissonClient redissonPub, RedissonClient redissonSub, Long nodeId, EventStoreMode eventStoreMode) {
-
+    /**
+     * API 4.x.y
+     * @param redissonPub
+     * @param redissonSub
+     * @param eventStoreMode
+     * @param nodeId
+     */
+    public RedissonEventStore(@NotNull RedissonClient redissonPub,
+                              @NotNull RedissonClient redissonSub,
+                              @Nullable EventStoreMode eventStoreMode,
+                              @Nullable Long nodeId) {
         Objects.requireNonNull(redissonPub, "redissonPub is null");
         Objects.requireNonNull(redissonSub, "redissonSub is null");
-        Objects.requireNonNull(nodeId, "nodeId is null");
+
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
+        if (nodeId == null) {
+            nodeId = getNodeId();
+        }
         this.nodeId = nodeId;
-        if (eventStoreMode == null){
+        if (eventStoreMode == null) {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         }
         this.eventStoreMode = eventStoreMode;
@@ -122,4 +140,61 @@ public class RedissonEventStore implements EventStore {
         activePubTopics.clear();
         activeSubTopics.clear();
     }
+
+    public static final class Builder {
+
+        // -------------------------
+        // Required
+        // -------------------------
+        private final RedissonClient redissonPub;
+        private final RedissonClient redissonSub;
+
+        // -------------------------
+        // Optional (defaults)
+        // -------------------------
+        private Long nodeId;
+        private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+
+        // -------------------------
+        // Constructors
+        // -------------------------
+
+        public Builder(@NotNull RedissonClient redissonClient) {
+            this(redissonClient, redissonClient);
+        }
+
+        public Builder(@NotNull RedissonClient redissonPub,
+                       @NotNull RedissonClient redissonSub) {
+            this.redissonPub = Objects.requireNonNull(redissonPub, "redissonPub");
+            this.redissonSub = Objects.requireNonNull(redissonSub, "redissonSub");
+        }
+
+        // -------------------------
+        // Optional setters
+        // -------------------------
+
+        public Builder nodeId(long nodeId) {
+            this.nodeId = nodeId;
+            return this;
+        }
+
+        public Builder eventStoreMode(@NotNull EventStoreMode mode) {
+            this.eventStoreMode = Objects.requireNonNull(mode, "eventStoreMode");
+            return this;
+        }
+
+        // -------------------------
+        // Build
+        // -------------------------
+
+        public RedissonEventStore build() {
+            return new RedissonEventStore(
+                    redissonPub,
+                    redissonSub,
+                    eventStoreMode,
+                    nodeId
+            );
+        }
+    }
+
 }

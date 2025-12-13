@@ -37,6 +37,8 @@ import com.socketio4j.socketio.store.event.PublishConfig;
 import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
+import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastRingBufferEventStore;
+import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastRingBufferStoreFactory;
 
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -68,7 +70,9 @@ public class HazelcastRingBufferStoreFactoryTest extends StoreFactoryTest {
 
         hazelcastInstance = HazelcastClient.newHazelcastClient(config);
 
-        return new HazelcastStoreFactory(hazelcastInstance, EventStoreMode.MULTI_CHANNEL);
+        return new HazelcastRingBufferStoreFactory(hazelcastInstance,
+                new HazelcastRingBufferEventStore.Builder(hazelcastInstance).build()
+                );
     }
 
     @AfterEach

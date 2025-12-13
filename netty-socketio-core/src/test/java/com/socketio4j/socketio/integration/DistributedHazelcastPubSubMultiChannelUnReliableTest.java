@@ -21,8 +21,6 @@ import java.net.ServerSocket;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
-import org.redisson.Redisson;
-import org.redisson.config.Config;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
@@ -31,9 +29,8 @@ import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.event.PublishConfig;
+import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
-import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -73,7 +70,7 @@ public class DistributedHazelcastPubSubMultiChannelUnReliableTest extends Distri
         cfg1.setPort(findAvailablePort());
 
         cfg1.setStoreFactory(new HazelcastStoreFactory(
-                hazelcastClient, EventStoreMode.MULTI_CHANNEL
+                hazelcastClient, new HazelcastEventStore.Builder(hazelcastClient).eventStoreMode(EventStoreMode.MULTI_CHANNEL).build()
         ));
 
         node1 = new SocketIOServer(cfg1);
@@ -94,7 +91,7 @@ public class DistributedHazelcastPubSubMultiChannelUnReliableTest extends Distri
         cfg2.setPort(findAvailablePort());
 
         cfg2.setStoreFactory(new HazelcastStoreFactory(
-                hazelcastClient1, EventStoreMode.MULTI_CHANNEL));
+                hazelcastClient1, new HazelcastEventStore.Builder(hazelcastClient1).eventStoreMode(EventStoreMode.MULTI_CHANNEL).build()));
 
         node2 = new SocketIOServer(cfg2);
         node2.addEventListener("join-room", String.class, (c, room, ack) -> {
