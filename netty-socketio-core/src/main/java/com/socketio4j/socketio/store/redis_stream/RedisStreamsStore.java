@@ -43,15 +43,12 @@ import org.redisson.api.stream.StreamReadArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-
-
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
-import com.socketio4j.socketio.store.event.TestMessage;
 
 
 public class RedisStreamsStore implements EventStore {
@@ -102,6 +99,10 @@ public class RedisStreamsStore implements EventStore {
         if (readBatchSize <= 0) {
             readBatchSize = 100;
             log.warn("readBatchSize is null, loaded default {}", readBatchSize);
+        }
+        if (offset == null) {
+            offset = StreamMessageId.NEWEST;
+            log.warn("offset is null, loaded default {}", StreamMessageId.NEWEST);
         }
 
         this.eventStoreMode = eventStoreMode;
@@ -168,7 +169,11 @@ public class RedisStreamsStore implements EventStore {
     public void publish0(EventType type, EventMessage msg) {
 
         msg.setNodeId(nodeId);
-
+        if (EventStoreMode.MULTI_CHANNEL.equals(eventStoreMode)
+                 && type == EventType.ALL_SINGLE_CHANNEL) {
+                       throw new IllegalArgumentException(
+                               "ALL_SINGLE_CHANNEL cannot be published in MULTI_CHANNEL mode");
+        }
         // Single-channel mode subscribes to ALL types
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
             streams.get(EventType.ALL_SINGLE_CHANNEL).add(StreamAddArgs.entry(type.toString(), msg));
@@ -207,14 +212,13 @@ public class RedisStreamsStore implements EventStore {
                     return th;
                 });
 
-                RStream<String, EventMessage> stream = streams.get(type);
-
+                RStream<String, EventMessage> stream = streams.getOrDefault(type, redissonClient.getStream(getStreamName(type)));
                 newExecutor.execute(() -> pollAsync(stream, type));
                 return newExecutor;
             }
             return existingExecutor;
         });
-        offsets.computeIfAbsent(type, t -> StreamMessageId.NEWEST);
+        offsets.computeIfAbsent(type, t -> offsets.getOrDefault(type, StreamMessageId.NEWEST));
     }
 
 
@@ -243,19 +247,16 @@ public class RedisStreamsStore implements EventStore {
                     StreamMessageId id = entry.getKey();
                     EventMessage msg = entry.getValue().values().iterator().next();
                     try {
-                        if (msg instanceof TestMessage) {
-                            continue;
-                        }
                         if (nodeId.equals(msg.getNodeId())) {
                             this.offsets.compute(type, (k, old) -> id);
                             continue;
                         }
 
-                        Queue<EventListener<EventMessage>> eventListener = eventListenerMap.get(type);
-                        if (eventListener == null) {
+                        Queue<EventListener<EventMessage>> eventListeners = eventListenerMap.get(type);
+                        if (eventListeners == null) {
                             continue;
                         }
-                        for (EventListener<EventMessage> listenerEntry : eventListener) {
+                        for (EventListener<EventMessage> listenerEntry : eventListeners) {
                             try {
                                 processMessage(msg, listenerEntry, id);
                             } catch (Exception ex) {
@@ -307,7 +308,10 @@ public class RedisStreamsStore implements EventStore {
             ScheduledExecutorService exec = executors.remove(type);
             shutdownExecutorGracefully(exec);
         }
-        if (eventListenerMap.isEmpty()) {
+        if (eventListenerMap.size() != executors.size()) {
+            log.warn("listener & executor size mismatch {} != {}", eventListenerMap.size(), executors.size());
+        }
+        if (eventListenerMap.isEmpty() && executors.isEmpty()) {
             running.set(false);
         }
     }
