@@ -16,7 +16,7 @@ module netty.socketio.core {
     exports com.socketio4j.socketio.store.hazelcast;
     exports com.socketio4j.socketio.store.memory;
     exports com.socketio4j.socketio.store.redis_pubsub;
-    exports com.socketio4j.socketio.store.redis_stream;
+    exports com.socketio4j.socketio.store.redis_reliable;
     requires com.fasterxml.jackson.core;
   requires com.fasterxml.jackson.annotation;
   requires com.fasterxml.jackson.databind;

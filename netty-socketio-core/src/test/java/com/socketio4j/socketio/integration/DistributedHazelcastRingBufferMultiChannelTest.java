@@ -21,9 +21,6 @@ import java.net.ServerSocket;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
-import org.redisson.Redisson;
-import org.redisson.api.RedissonClient;
-import org.redisson.config.Config;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
@@ -31,12 +28,9 @@ import com.hazelcast.core.HazelcastInstance;
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
-import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
 import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastRingBufferEventStore;
 import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastRingBufferStoreFactory;
-import com.socketio4j.socketio.store.redis_stream.RedissonStreamStoreFactory;
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)

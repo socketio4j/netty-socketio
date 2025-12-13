@@ -44,9 +44,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 /**
- * Test class for RedissonStreamStoreFactory using testcontainers
+ * Test class for RedissonReliableStoreFactory using testcontainers
  */
-public class RedissonStreamStoreFactoryTest extends StoreFactoryTest {
+public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
 
     private static GenericContainer<?> container;
     private RedissonClient redissonClient;

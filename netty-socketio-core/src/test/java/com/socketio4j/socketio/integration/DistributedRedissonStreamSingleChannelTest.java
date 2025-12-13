@@ -29,8 +29,8 @@ import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.redis_stream.RedissonStreamEventStore;
-import com.socketio4j.socketio.store.redis_stream.RedissonStreamStoreFactory;
+import com.socketio4j.socketio.store.redis_reliable.RedissonReliableEventStore;
+import com.socketio4j.socketio.store.redis_reliable.RedissonReliableStoreFactory;
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -63,8 +63,8 @@ public class DistributedRedissonStreamSingleChannelTest extends DistributedCommo
         cfg1.setHostname("127.0.0.1");
         cfg1.setPort(findAvailablePort());
 
-        cfg1.setStoreFactory(new RedissonStreamStoreFactory(
-                redisClient1,  new RedissonStreamEventStore.Builder(redisClient1).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).build()
+        cfg1.setStoreFactory(new RedissonReliableStoreFactory(
+                redisClient1,  new RedissonReliableEventStore.Builder(redisClient1).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).build()
         ));
 
         node1 = new SocketIOServer(cfg1);
@@ -84,8 +84,8 @@ public class DistributedRedissonStreamSingleChannelTest extends DistributedCommo
         cfg2.setHostname("127.0.0.1");
         cfg2.setPort(findAvailablePort());
 
-        cfg2.setStoreFactory(new RedissonStreamStoreFactory(
-                redisClient2, new RedissonStreamEventStore.Builder(redisClient2).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).build()
+        cfg2.setStoreFactory(new RedissonReliableStoreFactory(
+                redisClient2, new RedissonReliableEventStore.Builder(redisClient2).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).build()
         ));
 
         node2 = new SocketIOServer(cfg2);

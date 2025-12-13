@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.redis_stream;
+package com.socketio4j.socketio.store.redis_reliable;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -44,7 +44,7 @@ import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
 import com.socketio4j.socketio.store.event.PublishMode;
 
-public class RedissonStreamEventStore implements EventStore {
+public class RedissonReliableEventStore implements EventStore {
 
     private final RedissonClient redissonPub;
     private final RedissonClient redissonSub;
@@ -60,7 +60,7 @@ public class RedissonStreamEventStore implements EventStore {
     private final ConcurrentMap<String, RReliableTopic> activeSubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RReliableTopic> activePubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RStream<String, EventMessage>> trimTopics = new ConcurrentHashMap<>();
-    private static final Logger log = LoggerFactory.getLogger(RedissonStreamEventStore.class);
+    private static final Logger log = LoggerFactory.getLogger(RedissonReliableEventStore.class);
 
 
     // ----------------------------------------------------------------------
@@ -68,12 +68,12 @@ public class RedissonStreamEventStore implements EventStore {
     // ----------------------------------------------------------------------
 
 
-    public RedissonStreamEventStore(@NotNull RedissonClient redissonPub,
-                                    @NotNull RedissonClient redissonSub,
-                                    @Nullable Long nodeId, EventStoreMode eventStoreMode,
-                                    @Nullable String streamNamePrefix,
-                                    @Nullable Integer streamMaxLength,
-                                    @Nullable Duration trimEvery) {
+    public RedissonReliableEventStore(@NotNull RedissonClient redissonPub,
+                                      @NotNull RedissonClient redissonSub,
+                                      @Nullable Long nodeId, EventStoreMode eventStoreMode,
+                                      @Nullable String streamNamePrefix,
+                                      @Nullable Integer streamMaxLength,
+                                      @Nullable Duration trimEvery) {
 
         if (eventStoreMode == null) {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
@@ -320,8 +320,8 @@ public class RedissonStreamEventStore implements EventStore {
         // Build
         // -------------------------
 
-        public RedissonStreamEventStore build() {
-            return new RedissonStreamEventStore(
+        public RedissonReliableEventStore build() {
+            return new RedissonReliableEventStore(
                     redissonPub,
                     redissonSub,
                     nodeId,

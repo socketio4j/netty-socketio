@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.redis_stream;
+package com.socketio4j.socketio.store.redis_reliable;
 
 import java.util.Map;
 import java.util.Objects;
@@ -30,9 +30,9 @@ import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.redis_pubsub.RedissonStore;
 
 
-public class RedissonStreamStoreFactory extends BaseStoreFactory {
+public class RedissonReliableStoreFactory extends BaseStoreFactory {
 
-    private static final Logger log = LoggerFactory.getLogger(RedissonStreamStoreFactory.class);
+    private static final Logger log = LoggerFactory.getLogger(RedissonReliableStoreFactory.class);
 
     private final RedissonClient redissonClient;
     private final EventStore eventStore;
@@ -43,7 +43,7 @@ public class RedissonStreamStoreFactory extends BaseStoreFactory {
      * @param eventStore
      */
 
-    public RedissonStreamStoreFactory(RedissonClient redisson, EventStore eventStore) {
+    public RedissonReliableStoreFactory(RedissonClient redisson, EventStore eventStore) {
 
         Objects.requireNonNull(redisson, "redisson cannot be null");
         Objects.requireNonNull(eventStore, "eventStore cannot be null");
