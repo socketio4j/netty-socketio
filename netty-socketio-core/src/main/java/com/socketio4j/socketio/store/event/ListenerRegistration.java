@@ -16,6 +16,8 @@
  */
 package com.socketio4j.socketio.store.event;
 
+import java.util.Objects;
+
 /**
  * @author https://github.com/sanjomo
  * @date 13/12/25 11:48 am
@@ -25,6 +27,8 @@ public final class ListenerRegistration<T extends EventMessage> {
     final Class<T> clazz;
 
     public ListenerRegistration(EventListener<T> listener, Class<T> clazz) {
+        Objects.requireNonNull(listener, "listener can not be null");
+        Objects.requireNonNull(clazz, "clazz can not be null");
         this.listener = listener;
         this.clazz = clazz;
     }
