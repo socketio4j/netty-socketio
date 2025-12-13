@@ -44,12 +44,14 @@ public class HazelcastRingBufferEventStore implements EventStore {
     private final Long nodeId;
     private final EventStoreMode eventStoreMode;
 
-    private final ConcurrentMap<EventType, Queue<UUID>> map = new ConcurrentHashMap<>();
+    private final ConcurrentMap<EventType, Queue<UUID>> listenerMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<EventType, ITopic<EventMessage>> activePubTopics = new ConcurrentHashMap<>();
+    private final ConcurrentMap<UUID, ITopic<?>> activeSubTopics = new ConcurrentHashMap<>();
+
     private static final Logger log = LoggerFactory.getLogger(HazelcastRingBufferEventStore.class);
     private final String ringBufferNamePrefix;
 
     private static final String DEFAULT_RING_BUFFER_NAME_PREFIX = "SOCKETIO4J:";
-    private static final int DEFAULT_RING_BUFFER_MAX_LENGTH = 10000;
 
     public HazelcastRingBufferEventStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId, EventStoreMode eventStoreMode, String ringBufferNamePrefix) {
         if (ringBufferNamePrefix == null || ringBufferNamePrefix.isEmpty()){
@@ -75,7 +77,13 @@ public class HazelcastRingBufferEventStore implements EventStore {
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        hazelcastPub.getReliableTopic(getRingBufferName(type)).publish(msg);
+
+        ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> {
+            String topicName = getRingBufferName(k);
+            return hazelcastPub.getReliableTopic(topicName);
+        });
+
+        topic.publish(msg);
     }
     private String getRingBufferName(EventType type) {
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
@@ -105,24 +113,24 @@ public class HazelcastRingBufferEventStore implements EventStore {
             }
         });
 
-        map.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
+        activeSubTopics.put(regId, topic);
+
+        listenerMap.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
                 .add(regId);
     }
 
     @Override
     public void unsubscribe0(EventType type) {
 
-        Queue<UUID> regIds = map.remove(type);
+        Queue<UUID> regIds = listenerMap.remove(type);
         if (regIds == null || regIds.isEmpty()) {
             return;
         }
-
-        ITopic<Object> topic;
-
-
-        topic = hazelcastSub.getReliableTopic(getRingBufferName(type));
-
         for (UUID id : regIds) {
+            ITopic<?> topic = activeSubTopics.remove(id);
+            if (topic == null){
+                continue;
+            }
             try {
                 topic.removeMessageListener(id);
             } catch (Exception ex) {
@@ -134,7 +142,9 @@ public class HazelcastRingBufferEventStore implements EventStore {
     @Override
     public void shutdown0() {
         Arrays.stream(EventType.values()).forEach(this::unsubscribe);
-        map.clear();
+        listenerMap.clear();
+        activeSubTopics.clear();
+        activePubTopics.clear();
         //do not shut down client here
     }
 

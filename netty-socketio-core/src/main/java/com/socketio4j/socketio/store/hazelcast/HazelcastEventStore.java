@@ -43,7 +43,10 @@ public class HazelcastEventStore implements EventStore {
     private final Long nodeId;
     private final EventStoreMode eventStoreMode;
 
-    private final ConcurrentMap<EventType, Queue<UUID>> map = new ConcurrentHashMap<>();
+    private final ConcurrentMap<EventType, Queue<UUID>> listenerMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<EventType, ITopic<EventMessage>> activePubTopics = new ConcurrentHashMap<>();
+    private final ConcurrentMap<UUID, ITopic<?>> activeSubTopics = new ConcurrentHashMap<>();
+
     private static final Logger log = LoggerFactory.getLogger(HazelcastEventStore.class);
 
     public HazelcastEventStore(HazelcastInstance hazelcastPub, HazelcastInstance hazelcastSub, Long nodeId, EventStoreMode eventStoreMode) {
@@ -64,7 +67,13 @@ public class HazelcastEventStore implements EventStore {
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        hazelcastPub.getTopic(getRingBufferName(type)).publish(msg);
+
+        ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> {
+            String topicName = getRingBufferName(k);
+            return hazelcastPub.getTopic(topicName);
+        });
+
+        topic.publish(msg);
     }
     private String getRingBufferName(EventType type) {
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
@@ -87,23 +96,24 @@ public class HazelcastEventStore implements EventStore {
                 listener.onMessage(msg.getMessageObject());
             }
         });
+        activeSubTopics.put(regId, topic);
 
-        map.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
+        listenerMap.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
                 .add(regId);
     }
 
     @Override
     public void unsubscribe0(EventType type) {
-        Queue<UUID> regIds = map.remove(type);
+        Queue<UUID> regIds = listenerMap.remove(type);
         if (regIds == null || regIds.isEmpty()) {
             return;
         }
 
-        ITopic<Object> topic;
-
-        topic = hazelcastSub.getTopic(getRingBufferName(type));
-
         for (UUID id : regIds) {
+            ITopic<?> topic = activeSubTopics.remove(id);
+            if (topic == null) {
+                continue;
+            }
             try {
                 topic.removeMessageListener(id);
             } catch (Exception ex) {
@@ -115,7 +125,9 @@ public class HazelcastEventStore implements EventStore {
     @Override
     public void shutdown0() {
         Arrays.stream(EventType.values()).forEach(this::unsubscribe);
-        map.clear();
+        listenerMap.clear();
+        activeSubTopics.clear();
+        activePubTopics.clear();
         //do not shut down client here
     }
 

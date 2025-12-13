@@ -54,7 +54,10 @@ public class RedissonStreamEventStore implements EventStore {
     private final ScheduledExecutorService trimExecutor;
     private static final String DEFAULT_STREAM_NAME_PREFIX = "SOCKETIO4J:";
     private static final int DEFAULT_STREAM_MAX_LENGTH = Integer.MAX_VALUE;
-    private final ConcurrentMap<EventType, Queue<Object>> map = new ConcurrentHashMap<>();
+    private final ConcurrentMap<EventType, Queue<String>> map = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, RReliableTopic> activeSubTopics = new ConcurrentHashMap<>();
+    private final ConcurrentMap<EventType, RReliableTopic> activePubTopics = new ConcurrentHashMap<>();
+
     private static final Logger log = LoggerFactory.getLogger(RedissonStreamEventStore.class);
 
     private RedissonStreamEventStore(Builder b) {
@@ -206,18 +209,24 @@ public class RedissonStreamEventStore implements EventStore {
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        redissonPub.getReliableTopic(getStreamName(type)).publish(msg);
+        RReliableTopic topic = activePubTopics.computeIfAbsent(type, k -> {
+            String topicName = getStreamName(k);
+            return redissonPub.getReliableTopic(topicName);
+        });
+        topic.publish(msg);
     }
 
     @Override
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
 
             RReliableTopic reliableTopic = redissonSub.getReliableTopic(getStreamName(type));
+            Objects.requireNonNull(reliableTopic, "reliableTopic can not be null");
             String id = reliableTopic.addListener(clazz, (channel, msg) -> {
                 if (!nodeId.equals(msg.getNodeId())) {
                     listener.onMessage(msg);
                 }
             });
+            activeSubTopics.put(id, reliableTopic);
             map.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
                     .add(id);
     }
@@ -232,18 +241,17 @@ public class RedissonStreamEventStore implements EventStore {
     @Override
     public void unsubscribe0(EventType type) {
 
-        Queue<Object> regIds = map.remove(type);
+        Queue<String> regIds = map.remove(type);
         if (regIds == null || regIds.isEmpty()) {
             return;
         }
-
-        RReliableTopic topic = redissonSub.getReliableTopic(getStreamName(type));
-        if (topic == null) {
-            return;
-        }
-        for (Object id : regIds) {
+        for (String id : regIds) {
+            RReliableTopic topic = activeSubTopics.remove(id);
+            if (topic == null) {
+                continue;
+            }
             try {
-                topic.removeListener((String) id);
+                topic.removeListener(id);
             } catch (Exception ex) {
                 log.warn("Failed to remove listener {} from topic {}", id, getStreamName(type), ex);
             }
@@ -258,6 +266,8 @@ public class RedissonStreamEventStore implements EventStore {
         Arrays.stream(EventType.values()).forEach(this::unsubscribe);
         map.clear();
         trimExecutor.shutdownNow();
+        activePubTopics.clear();
+        activeSubTopics.clear();
     }
     public static final class Builder {
 

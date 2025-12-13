@@ -42,6 +42,8 @@ public class RedissonEventStore implements EventStore {
     private final EventStoreMode eventStoreMode;
 
     private final ConcurrentMap<EventType, Queue<Integer>> map = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Integer, RTopic> activeSubTopics = new ConcurrentHashMap<>();
+    private final ConcurrentMap<EventType, RTopic> activePubTopics = new ConcurrentHashMap<>();
     private static final Logger log = LoggerFactory.getLogger(RedissonEventStore.class);
 
     // ----------------------------------------------------------------------
@@ -69,7 +71,11 @@ public class RedissonEventStore implements EventStore {
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        redissonPub.getTopic(getStreamName(type)).publish(msg);
+        RTopic topic = activePubTopics.computeIfAbsent(type, k -> {
+            String topicName = getStreamName(k);
+            return redissonPub.getTopic(topicName);
+        });
+        topic.publish(msg);
     }
 
     @Override
@@ -80,6 +86,7 @@ public class RedissonEventStore implements EventStore {
                 listener.onMessage(msg);
             }
         });
+        activeSubTopics.put(regId, topic);
         map.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>()).add(regId);
     }
     private String getStreamName(EventType type) {
@@ -95,13 +102,11 @@ public class RedissonEventStore implements EventStore {
         if (regIds == null || regIds.isEmpty()) {
             return;
         }
-
-        RTopic topic = redissonSub.getTopic(getStreamName(type));
-        if (topic == null) {
-            return;
-        }
-
         for (Integer id : regIds) {
+            RTopic topic = activeSubTopics.remove(id);
+            if (topic == null) {
+                continue;
+            }
             try {
                 topic.removeListener(id);
             } catch (Exception ex) {
@@ -114,5 +119,7 @@ public class RedissonEventStore implements EventStore {
     public void shutdown0() {
         Arrays.stream(EventType.values()).forEach(this::unsubscribe);
         map.clear();
+        activePubTopics.clear();
+        activeSubTopics.clear();
     }
 }
