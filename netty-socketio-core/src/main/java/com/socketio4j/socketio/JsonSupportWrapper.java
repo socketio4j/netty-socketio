@@ -44,7 +44,7 @@ class JsonSupportWrapper implements JsonSupport {
             return delegate.readAckArgs(src, callback);
         } catch (Exception e) {
             src.reset();
-            log.error("Can't read ack args: " + src.readLine() + " for type: " + callback.getResultClass(), e);
+            log.error("Can't read ack args: {} for type: {}", src.readLine(), callback.getResultClass(), e);
             throw new IOException(e);
         }
     }
@@ -55,7 +55,7 @@ class JsonSupportWrapper implements JsonSupport {
             return delegate.readValue(namespaceName, src, valueType);
         } catch (Exception e) {
             src.reset();
-            log.error("Can't read value: " + src.readLine() + " for type: " + valueType, e);
+            log.error("Can't read value: {} for type: {}", src.readLine(), valueType, e);
             throw new IOException(e);
         }
     }
@@ -65,7 +65,7 @@ class JsonSupportWrapper implements JsonSupport {
         try {
             delegate.writeValue(out, value);
         } catch (Exception e) {
-            log.error("Can't write value: " + value, e);
+            log.error("Can't write value: {}", value, e);
             throw new IOException(e);
         }
     }

@@ -40,7 +40,7 @@ public abstract class AbstractStoreTest {
 
     protected Store store;
     protected UUID sessionId;
-    protected static GenericContainer<?> container;
+    protected GenericContainer<?> container;
 
     @BeforeEach
     public void setUp() throws Exception {
@@ -62,15 +62,6 @@ public abstract class AbstractStoreTest {
             cleanupStore();
         }
     }
-
-    @AfterAll
-    public static void cleanup() {
-        if (container != null) {
-            container.close();
-        }
-
-    }
-
     /**
      * Create the container for testing
      */

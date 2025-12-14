@@ -28,9 +28,15 @@ import org.mockito.MockitoAnnotations;
 import com.socketio4j.socketio.handler.AuthorizeHandler;
 import com.socketio4j.socketio.namespace.NamespacesHub;
 import com.socketio4j.socketio.protocol.JsonSupport;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
+import com.socketio4j.socketio.store.event.EventStore;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Test class for StoreFactory implementations
@@ -77,11 +83,11 @@ public abstract class StoreFactoryTest {
     }
 
     @Test
-    public void testCreatePubSubStore() {
-        PubSubStore pubSubStore = storeFactory.pubSubStore();
+    public void testCreateEventStore() {
+        EventStore eventStore = storeFactory.eventStore();
         
-        assertNotNull(pubSubStore, "PubSubStore should not be null");
-        assertInstanceOf(PubSubStore.class, pubSubStore, "PubSubStore should implement PubSubStore interface");
+        assertNotNull(eventStore, "EventStore should not be null");
+        assertInstanceOf(EventStore.class, eventStore, "EventStore should implement PubSubStore interface");
     }
 
     @Test
@@ -131,7 +137,7 @@ public abstract class StoreFactoryTest {
         // Create some stores first
         UUID sessionId = UUID.randomUUID();
         Store store = storeFactory.createStore(sessionId);
-        PubSubStore pubSubStore = storeFactory.pubSubStore();
+        EventStore eventStore = storeFactory.eventStore();
         
         // Shutdown should not throw exception
         storeFactory.shutdown();

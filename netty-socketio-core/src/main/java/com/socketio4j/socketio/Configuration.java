@@ -16,12 +16,16 @@
  */
 package com.socketio4j.socketio;
 
+
 import com.socketio4j.socketio.handler.SuccessAuthorizationListener;
 import com.socketio4j.socketio.listener.DefaultExceptionListener;
 import com.socketio4j.socketio.listener.ExceptionListener;
 import com.socketio4j.socketio.protocol.JsonSupport;
-import com.socketio4j.socketio.store.MemoryStoreFactory;
 import com.socketio4j.socketio.store.StoreFactory;
+import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
+import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
+import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
+
 
 import io.netty.handler.codec.http.HttpDecoderConfig;
 
@@ -106,9 +110,9 @@ public class Configuration extends BasicConfiguration {
      *
      * @param clientStoreFactory - implements StoreFactory
      *
-     * @see com.socketio4j.socketio.store.MemoryStoreFactory
-     * @see com.socketio4j.socketio.store.RedissonStoreFactory
-     * @see com.socketio4j.socketio.store.HazelcastStoreFactory
+     * @see MemoryStoreFactory
+     * @see RedissonStoreFactory
+     * @see HazelcastStoreFactory
      */
     public void setStoreFactory(StoreFactory clientStoreFactory) {
         this.storeFactory = clientStoreFactory;

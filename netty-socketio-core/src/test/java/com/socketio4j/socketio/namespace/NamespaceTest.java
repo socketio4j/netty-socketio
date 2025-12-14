@@ -35,7 +35,7 @@ import com.socketio4j.socketio.listener.DataListener;
 import com.socketio4j.socketio.listener.DefaultExceptionListener;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.store.StoreFactory;
-import com.socketio4j.socketio.store.pubsub.PubSubStore;
+import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.transport.NamespaceClient;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -88,8 +88,8 @@ class NamespaceTest extends BaseNamespaceTest {
         when(mockClient.getAllRooms()).thenReturn(Collections.emptySet());
         when(mockNamespaceClient.getSessionId()).thenReturn(CLIENT_SESSION_ID);
 
-        // Mock StoreFactory pubSubStore to avoid NullPointerException
-        when(storeFactory.pubSubStore()).thenReturn(mock(PubSubStore.class));
+        // Mock StoreFactory eventStore to avoid NullPointerException
+        when(storeFactory.eventStore()).thenReturn(mock(EventStore.class));
     }
 
     @AfterEach

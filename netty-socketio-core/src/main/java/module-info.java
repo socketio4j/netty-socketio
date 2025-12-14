@@ -10,10 +10,14 @@ module netty.socketio.core {
   exports com.socketio4j.socketio.protocol;
   exports com.socketio4j.socketio.scheduler;
   exports com.socketio4j.socketio.store;
-  exports com.socketio4j.socketio.store.pubsub;
+  exports com.socketio4j.socketio.store.event;
   exports com.socketio4j.socketio.transport;
   exports com.socketio4j.socketio.nativeio;
-  requires com.fasterxml.jackson.core;
+    exports com.socketio4j.socketio.store.hazelcast;
+    exports com.socketio4j.socketio.store.memory;
+    exports com.socketio4j.socketio.store.redis_pubsub;
+    exports com.socketio4j.socketio.store.redis_reliable;
+    requires com.fasterxml.jackson.core;
   requires com.fasterxml.jackson.annotation;
   requires com.fasterxml.jackson.databind;
 
@@ -30,5 +34,6 @@ module netty.socketio.core {
   requires io.netty.handler;
   requires io.netty.codec.http;
   requires org.slf4j;
+    requires org.jetbrains.annotations;
 
 }
