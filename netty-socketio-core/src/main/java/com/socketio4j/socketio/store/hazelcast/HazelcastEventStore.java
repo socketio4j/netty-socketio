@@ -95,9 +95,9 @@ public class HazelcastEventStore implements EventStore {
     }
     private String getTopicName(EventType type) {
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            return EventType.ALL_SINGLE_CHANNEL.name();
+            return topicPrefix + EventType.ALL_SINGLE_CHANNEL.name();
         }
-        return type.name();
+        return topicPrefix + type.name();
     }
     @Override
     public EventStoreMode getEventStoreMode(){
