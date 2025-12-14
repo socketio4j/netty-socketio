@@ -32,13 +32,9 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.store.event.EventStore;
-import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.event.PublishConfig;
 import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
-import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastRingBufferEventStore;
-import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastRingBufferStoreFactory;
 
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -50,7 +46,7 @@ import static org.mockito.Mockito.when;
 /**
  * Test class for HazelcastRingBufferStoreFactory using testcontainers
  */
-public class HazelcastRingBufferStoreFactoryTest extends StoreFactoryTest {
+public class HazelcastStoreFactoryTest extends StoreFactoryTest {
 
     private static GenericContainer<?> container;
     private HazelcastInstance hazelcastInstance;
@@ -70,8 +66,8 @@ public class HazelcastRingBufferStoreFactoryTest extends StoreFactoryTest {
 
         hazelcastInstance = HazelcastClient.newHazelcastClient(config);
 
-        return new HazelcastRingBufferStoreFactory(hazelcastInstance,
-                new HazelcastRingBufferEventStore.Builder(hazelcastInstance).build()
+        return new HazelcastStoreFactory(hazelcastInstance,
+                new HazelcastEventStore.Builder(hazelcastInstance).build()
                 );
     }
 

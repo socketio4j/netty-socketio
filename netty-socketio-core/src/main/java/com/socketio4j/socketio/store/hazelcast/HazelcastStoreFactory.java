@@ -45,7 +45,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
      * @param hazelcastClient
      * @param eventStore
      */
-    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, HazelcastEventStore eventStore) {
+    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, EventStore eventStore) {
 
         Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
         Objects.requireNonNull(eventStore, "eventStore cannot be null");
