@@ -35,7 +35,6 @@ import org.redisson.api.RedissonClient;
 import org.redisson.api.StreamMessageId;
 import org.redisson.api.stream.StreamAddArgs;
 import org.redisson.api.stream.StreamReadArgs;
-import org.redisson.api.stream.StreamTrimArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
