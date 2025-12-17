@@ -35,7 +35,6 @@ import org.redisson.api.RedissonClient;
 import org.redisson.api.StreamMessageId;
 import org.redisson.api.stream.StreamAddArgs;
 import org.redisson.api.stream.StreamReadArgs;
-import org.redisson.api.stream.StreamTrimArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,7 +69,6 @@ public class RedisStreamEventStore implements EventStore {
     private final EventStoreMode eventStoreMode;
     private final String streamNamePrefix;
     private final int streamMaxLength;
-    private final Duration trimEvery;
 
     // ---------------------------------------------------------------------
     // Runtime
@@ -92,13 +90,6 @@ public class RedisStreamEventStore implements EventStore {
     private final ConcurrentMap<EventType, ScheduledExecutorService> pollers =
             new ConcurrentHashMap<>();
 
-    private final ScheduledExecutorService trimExecutor =
-            Executors.newSingleThreadScheduledExecutor(r -> {
-                Thread t = new Thread(r, "socketio4j-redis-stream-trimmer");
-                t.setDaemon(true);
-                return t;
-            });
-
     // ---------------------------------------------------------------------
     // Constructor
     // ---------------------------------------------------------------------
@@ -109,8 +100,7 @@ public class RedisStreamEventStore implements EventStore {
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
             @Nullable String streamNamePrefix,
-            @Nullable Integer streamMaxLength,
-            @Nullable Duration trimEvery
+            @Nullable Integer streamMaxLength
     ) {
 
         this.redissonPub = Objects.requireNonNull(redissonPub, "redissonPub");
@@ -145,8 +135,6 @@ public class RedisStreamEventStore implements EventStore {
 
 
         initStreams();
-        this.trimEvery = trimEvery;
-        initTrimmer();
     }
 
     // ---------------------------------------------------------------------
@@ -170,17 +158,6 @@ public class RedisStreamEventStore implements EventStore {
         offsets.put(type, StreamMessageId.NEWEST);
     }
 
-    private void initTrimmer() {
-        if (trimEvery != null && streamMaxLength != Integer.MAX_VALUE) {
-            trimExecutor.scheduleAtFixedRate(
-                    this::trimAll,
-                    5,
-                    trimEvery.getSeconds(),
-                    TimeUnit.SECONDS
-            );
-        }
-    }
-
     // ---------------------------------------------------------------------
     // Metadata
     // ---------------------------------------------------------------------
@@ -201,14 +178,12 @@ public class RedisStreamEventStore implements EventStore {
 
     @Override
     public void publish0(EventType type, EventMessage msg) {
-
         msg.setNodeId(nodeId);
 
         pubStreams.computeIfAbsent(
                 resolve(type),
                 t -> redissonPub.getStream(streamName(t))
-        ).add(StreamAddArgs.entry(type.name(), msg));
-
+        ).add(StreamAddArgs.entry(type.name(), msg).trimNonStrict().maxLen(streamMaxLength).noLimit());
 
     }
 
@@ -337,29 +312,6 @@ public class RedisStreamEventStore implements EventStore {
     }
 
     // ---------------------------------------------------------------------
-    // Trim
-    // ---------------------------------------------------------------------
-
-    private void trimAll() {
-        try {
-            pubStreams.forEach(this::trimOne);
-        } catch (Exception e) {
-            log.warn("Stream trim cycle failed", e);
-        }
-    }
-
-    private void trimOne(EventType type, RStream<String, EventMessage> stream) {
-
-        stream.trimNonStrictAsync(
-                StreamTrimArgs.maxLen(streamMaxLength).noLimit()
-        ).whenComplete((res, err) -> {
-            if (err != null) {
-                log.warn("Trim failed {}", streamName(type), err);
-            }
-        });
-    }
-
-    // ---------------------------------------------------------------------
     // Unsubscribe / Shutdown
     // ---------------------------------------------------------------------
 
@@ -387,7 +339,6 @@ public class RedisStreamEventStore implements EventStore {
         offsets.clear();
         pubStreams.clear();
         subStreams.clear();
-        trimExecutor.shutdownNow();
     }
 
     // ---------------------------------------------------------------------
@@ -481,11 +432,6 @@ public class RedisStreamEventStore implements EventStore {
             return this;
         }
 
-        public Builder trimEvery(@NotNull Duration trimEvery) {
-            this.trimEvery = Objects.requireNonNull(trimEvery, "trimEvery");
-            return this;
-        }
-
         // -------------------------
         // Build
         // -------------------------
@@ -497,8 +443,7 @@ public class RedisStreamEventStore implements EventStore {
                     nodeId,
                     mode,
                     prefix,
-                    streamMaxLen,
-                    trimEvery
+                    streamMaxLen
             );
         }
     }
