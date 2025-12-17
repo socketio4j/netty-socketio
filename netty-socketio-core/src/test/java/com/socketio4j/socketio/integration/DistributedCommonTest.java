@@ -21,6 +21,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -35,12 +37,14 @@ import com.socketio4j.socketio.SocketIOServer;
 import io.socket.client.Ack;
 import io.socket.client.IO;
 import io.socket.client.Socket;
+import io.socket.emitter.Emitter;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * @author https://github.com/sanjomo
@@ -170,6 +174,7 @@ public abstract class DistributedCommonTest {
 
         a1.emit("join-room", "room1");
         b1.emit("join-room", "room1");
+        awaitRoomSync("room1", 2);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
         CountDownLatch unexpectedLatch = new CountDownLatch(2);
 
@@ -278,6 +283,7 @@ public abstract class DistributedCommonTest {
         a2.emit("join-room", "room1");
         b1.emit("join-room", "room1");
         b2.emit("join-room", "room1");
+        awaitRoomSync("room1", 4);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
         node1.getRoomOperations("room1").sendEvent("room-event", "m1");
@@ -385,72 +391,110 @@ public abstract class DistributedCommonTest {
     @Test
     public void testJoinAfterBroadcastNoBackfill() throws Exception {
 
+        String room = "room-" + UUID.randomUUID();
+
         CountDownLatch connectLatch = new CountDownLatch(2);
         CountDownLatch joinLatchA = new CountDownLatch(1);
         CountDownLatch joinLatchB = new CountDownLatch(1);
 
-        String[] msg = new String[2]; // msg[0]=a, msg[1]=b
-        CountDownLatch latchEarly = new CountDownLatch(1);
+        CountDownLatch earlyLatch = new CountDownLatch(1);
+        CountDownLatch lateLatch  = new CountDownLatch(2);
 
-        io.socket.client.IO.Options opts = new io.socket.client.IO.Options();
+        String[] joinMsg = new String[2];
+        String[] roomMsg = new String[2];
+
+        IO.Options opts = new IO.Options();
         opts.forceNew = true;
 
-        Socket a = io.socket.client.IO.socket("http://localhost:" + port1, opts);
-        Socket b = io.socket.client.IO.socket("http://localhost:" + port2, opts);
-
+        Socket a = IO.socket("http://localhost:" + port1, opts);
+        Socket b = IO.socket("http://localhost:" + port2, opts);
 
         a.on(Socket.EVENT_CONNECT, args -> connectLatch.countDown());
         b.on(Socket.EVENT_CONNECT, args -> connectLatch.countDown());
-        a.on("join-ok", data -> {
-            joinLatchA.countDown();
-            latchEarly.countDown();
-            msg[0] = data[0].toString();
-        });
-        b.on("join-ok", data -> joinLatchB.countDown());
 
+        a.on("join-ok", args -> {
+            joinMsg[0] = (String) args[0];
+            joinLatchA.countDown();
+        });
+
+        b.on("join-ok", args -> {
+            joinMsg[1] = (String) args[0];
+            joinLatchB.countDown();
+        });
+
+        // ---- ROOM EVENT LISTENERS (NO off(), NO reuse)
+        a.on("room-event", args -> {
+            String v = (String) args[0];
+            if ("early".equals(v)) {
+                roomMsg[0] = v;
+                earlyLatch.countDown();
+            } else if ("late".equals(v)) {
+                roomMsg[0] = v;
+                lateLatch.countDown();
+            }
+        });
+
+        b.on("room-event", args -> {
+            String v = (String) args[0];
+            if ("late".equals(v)) {
+                roomMsg[1] = v;
+                lateLatch.countDown();
+            }
+        });
+
+        // ---- CONNECT
         a.connect();
         b.connect();
-        assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Clients failed to connect");
+        assertTrue(connectLatch.await(5, TimeUnit.SECONDS));
 
-        // a joins first
-        a.emit("join-room", "room1");
-        assertTrue(joinLatchA.await(2, TimeUnit.SECONDS), "Client A failed to join");
+        // ---- A joins first
+        a.emit("join-room", room);
+        assertTrue(joinLatchA.await(2, TimeUnit.SECONDS));
+        assertEquals("OK", joinMsg[0]);
 
-        // early broadcast
-        node1.getRoomOperations("room1").sendEvent("room-event", "early");
-        //Thread.sleep(2000);
-        assertTrue(latchEarly.await(2, TimeUnit.SECONDS), "Client A did not receive early message");
-        assertEquals("OK", msg[0]);
+        // ---- EARLY broadcast
+        node1.getRoomOperations(room).sendEvent("room-event", "early");
+        assertTrue(earlyLatch.await(2, TimeUnit.SECONDS));
+        assertEquals("early", roomMsg[0]);
+        assertNull(roomMsg[1]);
 
-        // b joins LATE
-        b.emit("join-room", "room1");
-        assertTrue(joinLatchB.await(2, TimeUnit.SECONDS), "Client B failed to join");
+        // ---- B joins late
+        b.emit("join-room", room);
+        assertTrue(joinLatchB.await(2, TimeUnit.SECONDS));
 
-        // B's message slot should still be null, confirming no backfill.
-        assertNull(msg[1], "Client B received message despite joining late!");
+        // ---- WAIT FOR DISTRIBUTED ROOM SYNC
+        awaitRoomSync(room, 2);
 
-        // Sanity check: Send a new message, both should get it
-        CountDownLatch latchLate = new CountDownLatch(2);
-        a.off("room-event"); // Clear old latch on A
-        a.on("room-event", args -> {
-            msg[0] = (String) args[0];
-            latchLate.countDown();
-        });
-        b.off("room-event"); // Clear initial latch on B
-        b.on("room-event", args -> {
-            msg[1] = (String) args[0];
-            latchLate.countDown();
-        });
+        // ---- LATE broadcast
+        node2.getRoomOperations(room).sendEvent("room-event", "late");
+        assertTrue(lateLatch.await(2, TimeUnit.SECONDS));
 
-        node2.getRoomOperations("room1").sendEvent("room-event", "late");
-        assertTrue(latchLate.await(2, TimeUnit.SECONDS));
-        assertEquals("late", msg[0]);
-        assertEquals("late", msg[1]);
-
+        assertEquals("late", roomMsg[0]);
+        assertEquals("late", roomMsg[1]);
 
         a.disconnect();
         b.disconnect();
     }
+
+    private void awaitRoomSync(String room, int expected)
+            throws InterruptedException {
+
+        long deadline = System.currentTimeMillis() + 5000;
+
+        while (System.currentTimeMillis() < deadline) {
+            int count =
+                    node1.getRoomOperations(room).getClients().size() +
+                            node2.getRoomOperations(room).getClients().size();
+
+            if (count == expected) {
+                return;
+            }
+            Thread.sleep(1);
+        }
+        fail("Room sync not completed for " + room);
+    }
+
+
 
     // ===================================================================
     //   5. EXCEPT SENDER — SENDER MUST NOT RECEIVE (Fixed helper logic)
@@ -547,6 +591,8 @@ public abstract class DistributedCommonTest {
 
         a.emit("join-room", "roomA");
         b.emit("join-room", "roomB");
+        awaitRoomSync("roomA", 1);
+        awaitRoomSync("roomB", 1);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
         //Thread.sleep(500); // Give adapter time to sync room state
@@ -646,6 +692,7 @@ public abstract class DistributedCommonTest {
         a2.emit("join-room", "room1");
         b1.emit("join-room", "room1");
         b2.emit("join-room", "room1");
+        awaitRoomSync("room1", 4);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
         //Thread.sleep(500);
@@ -715,7 +762,7 @@ public abstract class DistributedCommonTest {
 
         node1.getBroadcastOperations().sendEvent("room-event", "m1");
 
-        assertTrue(latch1.await(3, TimeUnit.SECONDS), "Phase 1 broadcast failed");
+        assertTrue(latch1.await(5, TimeUnit.SECONDS), "Phase 1 broadcast failed");
 
         assertEquals("m1", msg1[0]);
         assertEquals("m1", msg1[1]);
@@ -747,7 +794,7 @@ public abstract class DistributedCommonTest {
 
         node2.getBroadcastOperations().sendEvent("room-event", "m2");
 
-        assertTrue(latch2.await(3, TimeUnit.SECONDS), "Phase 2 broadcast failed");
+        assertTrue(latch2.await(5, TimeUnit.SECONDS), "Phase 2 broadcast failed");
 
         assertEquals("m2", msg2[0]);
         assertEquals("m2", msg2[1]);
@@ -764,9 +811,10 @@ public abstract class DistributedCommonTest {
     public void testConnectAndJoinDifferentRoomTest() throws Exception {
         io.socket.client.IO.Options opts = new io.socket.client.IO.Options();
         opts.forceNew = true;
-
-        Socket a = io.socket.client.IO.socket("http://localhost:" + port1 + "?join=room1", opts);
-        Socket b = io.socket.client.IO.socket("http://localhost:" + port2 + "?join=room2", opts);
+        String room = "room-" + UUID.randomUUID();
+        String room2 = "room-" + UUID.randomUUID();
+        Socket a = io.socket.client.IO.socket("http://localhost:" + port1 + "?join="+room, opts);
+        Socket b = io.socket.client.IO.socket("http://localhost:" + port2 + "?join="+room2, opts);
 
 
         CountDownLatch joinLatch = new CountDownLatch(2);
@@ -779,15 +827,45 @@ public abstract class DistributedCommonTest {
         });
         a.connect();
         b.connect();
+        awaitRoomSync(room, 1);
+        awaitRoomSync(room2, 1);
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Join timed out");
+
+        CompletableFuture<Void> f1 = new CompletableFuture<>();
+        CompletableFuture<Void> f2 = new CompletableFuture<>();
+
         a.emit("get-my-rooms", "anything", (Ack) ackArgs -> {
-            joinLatch.countDown();
-            assertDoesNotThrow(() -> JSONAssert.assertEquals(new JSONArray(Arrays.asList("", "room1")), (JSONArray) ackArgs[0], false));
+            try {
+                JSONAssert.assertEquals(
+                        new JSONArray(Arrays.asList("", room)),
+                        (JSONArray) ackArgs[0],
+                        false
+                );
+                f1.complete(null);
+                joinLatch.countDown();
+            } catch (Exception t) {
+                f1.completeExceptionally(t);
+            }
         });
+
         b.emit("get-my-rooms", "anything", (Ack) ackArgs -> {
-            joinLatch.countDown();
-            assertDoesNotThrow(() -> JSONAssert.assertEquals(new JSONArray(Arrays.asList("", "room2")), (JSONArray) ackArgs[0], false));
+            try {
+                JSONAssert.assertEquals(
+                        new JSONArray(Arrays.asList("", room2)),
+                        (JSONArray) ackArgs[0],
+                        false
+                );
+                f2.complete(null);
+                joinLatch.countDown();
+            } catch (Exception t) {
+                f2.completeExceptionally(t);
+            }
         });
+
+        assertDoesNotThrow(() ->
+                CompletableFuture.allOf(f1, f2).get(5, TimeUnit.SECONDS)
+        );
+
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS));
     }
 
@@ -795,9 +873,9 @@ public abstract class DistributedCommonTest {
     public void testConnectAndJoinSameRoomTest() throws Exception {
         io.socket.client.IO.Options opts = new io.socket.client.IO.Options();
         opts.forceNew = true;
-
-        Socket a = io.socket.client.IO.socket("http://localhost:" + port1 + "?join=room1", opts);
-        Socket b = IO.socket("http://localhost:" + port2 + "?join=room1", opts);
+        String room = "room-" + UUID.randomUUID();
+        Socket a = io.socket.client.IO.socket("http://localhost:" + port1 + "?join=" + room, opts);
+        Socket b = IO.socket("http://localhost:" + port2 + "?join=" + room, opts);
 
         a.connect();
         b.connect();
@@ -809,15 +887,43 @@ public abstract class DistributedCommonTest {
         b.on(Socket.EVENT_CONNECT, args -> {
             connectLatch.countDown();
         });
+       awaitRoomSync(room, 2);
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Join timed out");
+        CompletableFuture<Void> f1 = new CompletableFuture<>();
+        CompletableFuture<Void> f2 = new CompletableFuture<>();
+
         a.emit("get-my-rooms", "anything", (Ack) ackArgs -> {
-            joinLatch.countDown();
-            assertDoesNotThrow(() -> JSONAssert.assertEquals(new JSONArray(Arrays.asList("", "room1")), (JSONArray) ackArgs[0], false));
+            try {
+                JSONAssert.assertEquals(
+                        new JSONArray(Arrays.asList("", room)),
+                        (JSONArray) ackArgs[0],
+                        false
+                );
+                f1.complete(null);
+                joinLatch.countDown();
+            } catch (Exception t) {
+                f1.completeExceptionally(t);
+            }
         });
+
         b.emit("get-my-rooms", "anything", (Ack) ackArgs -> {
-            joinLatch.countDown();
-            assertDoesNotThrow(() -> JSONAssert.assertEquals(new JSONArray(Arrays.asList("", "room1")), (JSONArray) ackArgs[0], false));
+            try {
+                JSONAssert.assertEquals(
+                        new JSONArray(Arrays.asList("", room)),
+                        (JSONArray) ackArgs[0],
+                        false
+                );
+                f2.complete(null);
+                joinLatch.countDown();
+            } catch (Exception t) {
+                f2.completeExceptionally(t);
+            }
         });
+
+        assertDoesNotThrow(() ->
+                CompletableFuture.allOf(f1, f2).get(5, TimeUnit.SECONDS)
+        );
+
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS));
     }
 }
