@@ -23,3 +23,4 @@ jobs:
         uses: JetBrains/qodana-action@v2025.2
         with:
           pr-mode: false
+          args: --image jetbrains/qodana-jvm-community:latest

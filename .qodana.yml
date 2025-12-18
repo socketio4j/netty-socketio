@@ -1,3 +1,2 @@
-version: "1.0"
 linter: jetbrains/qodana-jvm-community:latest
 
