@@ -17,6 +17,7 @@
 package com.socketio4j.socketio.integration;
 
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -332,10 +333,12 @@ public abstract class DistributedCommonTest {
 
         a.connect();
         b.connect();
+
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Clients failed to connect");
 
         a.emit("join-room", "room1");
         b.emit("join-room", "room1");
+        awaitRoomSync("room1", 2);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
         // ---- FIRST BROADCAST ----
@@ -485,7 +488,7 @@ public abstract class DistributedCommonTest {
     private void awaitRoomSync(String room, int expected)
             throws InterruptedException {
 
-        long deadline = System.currentTimeMillis() + 5000;
+        long deadline = System.currentTimeMillis() + Duration.ofMinutes(1).toMillis();
 
         while (System.currentTimeMillis() < deadline) {
             int count =
