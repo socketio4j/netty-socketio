@@ -17,6 +17,7 @@
 package com.socketio4j.socketio.store.memory;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -33,6 +34,7 @@ public class MemoryStoreFactory extends BaseStoreFactory {
     }
 
     public MemoryStoreFactory(EventStore eventStore) {
+        Objects.requireNonNull(eventStore, "eventStore can not be null");
         this.eventStore = eventStore;
     }
     @Override
