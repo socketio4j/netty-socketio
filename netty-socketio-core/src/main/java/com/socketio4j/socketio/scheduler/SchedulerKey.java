@@ -34,12 +34,12 @@ public class SchedulerKey {
         final int prime = 31;
         int result = 1;
         if (sessionId == null) {
-            result = prime * result + 0;
+            result = prime * result;
         } else {
             result = prime * result + sessionId.hashCode();
         }
         if (type == null) {
-            result = prime * result + 0;
+            result = prime * result;
         } else {
             result = prime * result + type.hashCode();
         }
@@ -60,9 +60,7 @@ public class SchedulerKey {
                 return false;
         } else if (!sessionId.equals(other.sessionId))
             return false;
-        if (type != other.type)
-            return false;
-        return true;
+        return type == other.type;
     }
 
 }

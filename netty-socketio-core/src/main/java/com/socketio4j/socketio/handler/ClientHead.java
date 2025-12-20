@@ -158,18 +158,15 @@ public class ClientHead {
     public void schedulePing() {
         cancelPing();
         final SchedulerKey key = new SchedulerKey(Type.PING, sessionId);
-        scheduler.schedule(key, new Runnable() {
-            @Override
-            public void run() {
-                ClientHead client = clientsBox.get(sessionId);
-                if (client != null) {
-                    EngineIOVersion version = client.getEngineIOVersion();
-                    //only send ping packet for engine.io version 4
-                    if (EngineIOVersion.V4.equals(version)) {
-                        client.send(new Packet(PacketType.PING, version));
-                    }
-                    schedulePing();
+        scheduler.schedule(key, () -> {
+            ClientHead client = clientsBox.get(sessionId);
+            if (client != null) {
+                EngineIOVersion version = client.getEngineIOVersion();
+                //only send ping packet for engine.io version 4
+                if (EngineIOVersion.V4.equals(version)) {
+                    client.send(new Packet(PacketType.PING, version));
                 }
+                schedulePing();
             }
         }, configuration.getPingInterval(), TimeUnit.MILLISECONDS);
     }
@@ -177,14 +174,11 @@ public class ClientHead {
     public void schedulePingTimeout() {
         cancelPingTimeout();
         SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, sessionId);
-        scheduler.schedule(key, new Runnable() {
-            @Override
-            public void run() {
-                ClientHead client = clientsBox.get(sessionId);
-                if (client != null) {
-                    client.disconnect();
-                    log.debug("{} removed due to ping timeout", sessionId);
-                }
+        scheduler.schedule(key, () -> {
+            ClientHead client = clientsBox.get(sessionId);
+            if (client != null) {
+                client.disconnect();
+                log.debug("{} removed due to ping timeout", sessionId);
             }
         }, configuration.getPingTimeout() + configuration.getPingInterval(), TimeUnit.MILLISECONDS);
     }

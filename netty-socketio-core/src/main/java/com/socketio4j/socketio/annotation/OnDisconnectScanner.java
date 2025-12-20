@@ -34,16 +34,13 @@ public class OnDisconnectScanner implements AnnotationScanner {
 
     @Override
     public void addListener(Namespace namespace, final Object object, final Method method, Annotation annotation) {
-        namespace.addDisconnectListener(new DisconnectListener() {
-            @Override
-            public void onDisconnect(SocketIOClient client) {
-                try {
-                    method.invoke(object, client);
-                } catch (InvocationTargetException e) {
-                    throw new SocketIOException(e.getCause());
-                } catch (Exception e) {
-                    throw new SocketIOException(e);
-                }
+        namespace.addDisconnectListener(client -> {
+            try {
+                method.invoke(object, client);
+            } catch (InvocationTargetException e) {
+                throw new SocketIOException(e.getCause());
+            } catch (Exception e) {
+                throw new SocketIOException(e);
             }
         });
     }

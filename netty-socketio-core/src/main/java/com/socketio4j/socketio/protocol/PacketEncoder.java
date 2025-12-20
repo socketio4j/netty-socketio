@@ -208,14 +208,12 @@ public class PacketEncoder {
 
         // Fall thru to fast mode for smaller numbers
         // assert(i <= 65536, i);
-        for (;;) {
+        do {
             q = (i * 52429) >>> (16 + 3);
             r = i - ((q << 3) + (q << 1)); // r = i-(q*10) ...
             buf[--charPos] = (byte) DIGITS[(int) r];
             i = q;
-            if (i == 0)
-                break;
-        }
+        } while (i != 0);
         if (sign != 0) {
             buf[--charPos] = sign;
         }
