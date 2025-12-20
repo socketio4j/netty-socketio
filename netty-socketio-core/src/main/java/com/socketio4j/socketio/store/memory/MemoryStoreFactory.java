@@ -26,8 +26,15 @@ import com.socketio4j.socketio.store.event.EventStore;
 
 public class MemoryStoreFactory extends BaseStoreFactory {
 
-    private final MemoryEventStore memoryEventStore = new MemoryEventStore();
+    private final EventStore eventStore;
 
+    public MemoryStoreFactory() {
+        this.eventStore = new MemoryEventStore();
+    }
+
+    public MemoryStoreFactory(EventStore eventStore) {
+        this.eventStore = eventStore;
+    }
     @Override
     public Store createStore(UUID sessionId) {
         return new MemoryStore();
@@ -35,7 +42,7 @@ public class MemoryStoreFactory extends BaseStoreFactory {
 
     @Override
     public EventStore eventStore() {
-        return memoryEventStore;
+        return eventStore;
     }
 
     @Override
