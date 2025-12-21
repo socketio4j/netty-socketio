@@ -17,6 +17,11 @@
 package com.socketio4j.socketio.integration;
 
 import java.net.ServerSocket;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -77,6 +82,30 @@ public class DistributedRedissonReliableMultiChannelTest extends DistributedComm
             c.leaveRoom(room);
             c.sendEvent("leave-ok", "OK");
         });
+        node1.addEventListener("get-my-rooms", String.class, (client, data, ackSender) ->{
+            if (ackSender.isAckRequested()){
+                ackSender.sendAckData(client.getAllRooms());
+            }
+        });
+        node1.addConnectListener(client -> {
+
+            Map<String, List<String>> params =
+                    client.getHandshakeData().getUrlParams();
+
+            List<String> joinParams = params.get("join");
+            if (joinParams == null || joinParams.isEmpty()) {
+                return;
+            }
+
+            // Convert to Set to avoid duplicates
+            Set<String> rooms = joinParams.stream()
+                    .flatMap(v -> Arrays.stream(v.split(","))) // supports join=a,b
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toSet());
+
+            rooms.forEach(client::joinRoom);
+        });
         node1.start();
         port1 = cfg1.getPort();
 
@@ -98,6 +127,30 @@ public class DistributedRedissonReliableMultiChannelTest extends DistributedComm
         node2.addEventListener("leave-room", String.class, (c, room, ack) -> {
             c.leaveRoom(room);
             c.sendEvent("leave-ok", "OK");
+        });
+        node2.addEventListener("get-my-rooms", String.class, (client, data, ackSender) ->{
+            if (ackSender.isAckRequested()){
+                ackSender.sendAckData(client.getAllRooms());
+            }
+        });
+        node2.addConnectListener(client -> {
+
+            Map<String, List<String>> params =
+                    client.getHandshakeData().getUrlParams();
+
+            List<String> joinParams = params.get("join");
+            if (joinParams == null || joinParams.isEmpty()) {
+                return;
+            }
+
+            // Convert to Set to avoid duplicates
+            Set<String> rooms = joinParams.stream()
+                    .flatMap(v -> Arrays.stream(v.split(","))) // supports join=a,b
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toSet());
+
+            rooms.forEach(client::joinRoom);
         });
         node2.start();
         port2 = cfg2.getPort();

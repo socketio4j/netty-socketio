@@ -17,11 +17,15 @@
 package com.socketio4j.socketio.integration;
 
 import java.net.ServerSocket;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
-import org.redisson.config.Config;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
@@ -29,12 +33,9 @@ import com.hazelcast.core.HazelcastInstance;
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
-import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.event.PublishConfig;
 import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
-import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -86,6 +87,30 @@ public class DistributedHazelcastPubSubSingleChannelUnreliableTest extends Distr
             c.leaveRoom(room);
             c.sendEvent("leave-ok", "OK");
         });
+        node1.addEventListener("get-my-rooms", String.class, (client, data, ackSender) ->{
+            if (ackSender.isAckRequested()){
+                ackSender.sendAckData(client.getAllRooms());
+            }
+        });
+        node1.addConnectListener(client -> {
+
+            Map<String, List<String>> params =
+                    client.getHandshakeData().getUrlParams();
+
+            List<String> joinParams = params.get("join");
+            if (joinParams == null || joinParams.isEmpty()) {
+                return;
+            }
+
+            // Convert to Set to avoid duplicates
+            Set<String> rooms = joinParams.stream()
+                    .flatMap(v -> Arrays.stream(v.split(","))) // supports join=a,b
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toSet());
+
+            rooms.forEach(client::joinRoom);
+        });
         node1.start();
         port1 = cfg1.getPort();
 
@@ -106,16 +131,34 @@ public class DistributedHazelcastPubSubSingleChannelUnreliableTest extends Distr
             c.leaveRoom(room);
             c.sendEvent("leave-ok", "OK");
         });
+        node2.addEventListener("get-my-rooms", String.class, (client, data, ackSender) ->{
+            if (ackSender.isAckRequested()){
+                ackSender.sendAckData(client.getAllRooms());
+            }
+        });
+        node2.addConnectListener(client -> {
+
+            Map<String, List<String>> params =
+                    client.getHandshakeData().getUrlParams();
+
+            List<String> joinParams = params.get("join");
+            if (joinParams == null || joinParams.isEmpty()) {
+                return;
+            }
+
+            // Convert to Set to avoid duplicates
+            Set<String> rooms = joinParams.stream()
+                    .flatMap(v -> Arrays.stream(v.split(","))) // supports join=a,b
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .collect(Collectors.toSet());
+
+            rooms.forEach(client::joinRoom);
+        });
         node2.start();
         port2 = cfg2.getPort();
 
         //Thread.sleep(600);
-    }
-
-    private Config redisConfig(String url) {
-        Config c = new Config();
-        c.useSingleServer().setAddress(url);
-        return c;
     }
 
     @AfterAll

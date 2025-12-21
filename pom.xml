@@ -76,7 +76,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <testcontainers.version>2.0.2</testcontainers.version>
-    <netty.version>4.2.7.Final</netty.version>
+    <netty.version>4.2.9.Final</netty.version>
     <jmockit.version>1.50</jmockit.version>
     <byte-buddy.version>1.18.2</byte-buddy.version>
     <junit.version>6.0.1</junit.version>
@@ -568,7 +568,7 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.5.4</version>
         <configuration>
-            <rerunFailingTestsCount>3</rerunFailingTestsCount>
+          <rerunFailingTestsCount>3</rerunFailingTestsCount>
           <argLine>
             -javaagent:"${settings.localRepository}"/org/jmockit/jmockit/${jmockit.version}/jmockit-${jmockit.version}.jar
             <!--For Java 25 support of byte-buddy. Byte-buddy is currently only used in mockito on unit tests within this project, so mitigate this problem by enabling this property-->
