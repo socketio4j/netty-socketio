@@ -22,7 +22,6 @@ import java.lang.reflect.Method;
 
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.handler.SocketIOException;
-import com.socketio4j.socketio.listener.DisconnectListener;
 import com.socketio4j.socketio.namespace.Namespace;
 
 public class OnDisconnectScanner implements AnnotationScanner {

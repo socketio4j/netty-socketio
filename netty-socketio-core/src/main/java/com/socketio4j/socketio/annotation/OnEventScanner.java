@@ -26,7 +26,6 @@ import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.MultiTypeArgs;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.handler.SocketIOException;
-import com.socketio4j.socketio.listener.DataListener;
 import com.socketio4j.socketio.listener.MultiTypeEventListener;
 import com.socketio4j.socketio.namespace.Namespace;
 
