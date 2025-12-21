@@ -22,7 +22,6 @@ import java.lang.reflect.Method;
 
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.handler.SocketIOException;
-import com.socketio4j.socketio.listener.ConnectListener;
 import com.socketio4j.socketio.namespace.Namespace;
 
 public class OnConnectScanner implements AnnotationScanner  {
@@ -34,16 +33,13 @@ public class OnConnectScanner implements AnnotationScanner  {
 
     @Override
     public void addListener(Namespace namespace, final Object object, final Method method, Annotation annotation) {
-        namespace.addConnectListener(new ConnectListener() {
-            @Override
-            public void onConnect(SocketIOClient client) {
-                try {
-                    method.invoke(object, client);
-                } catch (InvocationTargetException e) {
-                    throw new SocketIOException(e.getCause());
-                } catch (Exception e) {
-                    throw new SocketIOException(e);
-                }
+        namespace.addConnectListener(client -> {
+            try {
+                method.invoke(object, client);
+            } catch (InvocationTargetException e) {
+                throw new SocketIOException(e.getCause());
+            } catch (Exception e) {
+                throw new SocketIOException(e);
             }
         });
     }
