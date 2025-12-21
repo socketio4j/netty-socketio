@@ -18,6 +18,24 @@ package com.socketio4j.socketio.store.event;
 
 import java.io.Serializable;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+
+@JsonTypeInfo(
+        use = JsonTypeInfo.Id.NAME,
+        include = JsonTypeInfo.As.PROPERTY,
+        property = "type"
+)
+@JsonSubTypes({
+        @JsonSubTypes.Type(value = DisconnectMessage.class, name = "DISCONNECT"),
+        @JsonSubTypes.Type(value = ConnectMessage.class, name = "CONNECT"),
+        @JsonSubTypes.Type(value = BulkJoinMessage.class, name = "BULK_JOIN"),
+        @JsonSubTypes.Type(value = BulkLeaveMessage.class, name = "BULK_LEAVE"),
+        @JsonSubTypes.Type(value = DispatchMessage.class, name = "DISPATCH"),
+        @JsonSubTypes.Type(value = JoinMessage.class, name = "JOIN"),
+        @JsonSubTypes.Type(value = LeaveMessage.class, name = "LEAVE")
+})
 public abstract class EventMessage implements Serializable {
 
     private static final long serialVersionUID = -8789343104393884987L;
@@ -41,4 +59,7 @@ public abstract class EventMessage implements Serializable {
     public void setOffset(String offset) {
         this.offset = offset;
     }
+
+    @JsonProperty(value = "type", required = true)
+    public abstract String getType();
 }

@@ -43,4 +43,9 @@ public class TestMessage extends EventMessage implements Serializable {
     public String toString() {
         return "TestMessage{content='" + content + "', nodeId=" + getNodeId() + "}";
     }
+
+    @Override
+    public String getType() {
+        return "";
+    }
 }
