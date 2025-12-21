@@ -21,6 +21,8 @@ package com.socketio4j.socketio.store;
  * @date 15/12/25 6:16 pm
  */
 
+import java.time.Duration;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.KafkaContainer;
@@ -33,7 +35,9 @@ public class CustomizedKafkaContainer extends KafkaContainer {
 
     public CustomizedKafkaContainer() {
         super(DockerImageName.parse("confluentinc/cp-kafka:7.6.1"));
-        withReuse(true);
+        withReuse(false)
+                .withStartupAttempts(3)
+                .withStartupTimeout(Duration.ofMinutes(2));
     }
 
     @Override

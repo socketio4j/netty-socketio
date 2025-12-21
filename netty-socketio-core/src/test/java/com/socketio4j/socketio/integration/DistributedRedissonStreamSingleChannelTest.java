@@ -43,7 +43,7 @@ import com.socketio4j.socketio.store.redis_stream.RedisStreamEventStore;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedRedissonStreamSingleChannelTest extends DistributedCommonTest {
 
-    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(true);
+    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(false);
     private RedissonClient redisClient1;
     private RedissonClient redisClient2;
     // -------------------------------------------

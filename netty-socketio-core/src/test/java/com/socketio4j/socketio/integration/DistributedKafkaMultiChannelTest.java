@@ -56,7 +56,7 @@ public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
 
     private static final CustomizedKafkaContainer KAFKA =
             new CustomizedKafkaContainer();
-    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(true);
+    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(false);
     private RedissonClient redisClient1;
     private RedissonClient redisClient2;
 

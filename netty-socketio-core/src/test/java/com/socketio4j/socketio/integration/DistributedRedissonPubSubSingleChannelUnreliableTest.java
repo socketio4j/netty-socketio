@@ -42,7 +42,7 @@ import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedRedissonPubSubSingleChannelUnreliableTest extends DistributedCommonTest {
 
-    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(true);
+    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(false);
     private RedissonClient redisClient1;
     private RedissonClient redisClient2;
     // -------------------------------------------
