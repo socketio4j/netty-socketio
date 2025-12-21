@@ -37,28 +37,22 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
-import org.redisson.Redisson;
-import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedKafkaContainer;
-import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.kafka.KafkaEventStore;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageDeserializer;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageSerializer;
-import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
+import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
+public class DistributedKafkaSingleChannelMemoryTest extends DistributedCommonTest {
 
     private static final CustomizedKafkaContainer KAFKA =
             new CustomizedKafkaContainer();
-    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(true);
-    private RedissonClient redisClient1;
-    private RedissonClient redisClient2;
 
 
     // -------------------------------------------
@@ -83,10 +77,6 @@ public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
     public void setup() throws Exception {
 
         KAFKA.start();
-        REDIS_CONTAINER.start();
-        String redisURL = "redis://" + REDIS_CONTAINER.getHost() + ":" + REDIS_CONTAINER.getRedisPort();
-        redisClient1 = Redisson.create(redisConfig(redisURL));
-        redisClient2 = Redisson.create(redisConfig(redisURL));
         String bootstrap = KAFKA.getBootstrapServers();
 
         // ---------- NODE 1 ----------
@@ -95,7 +85,7 @@ public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
         cfg1.setPort(findAvailablePort());
 
         cfg1.setStoreFactory(
-                new RedissonStoreFactory(redisClient1,
+                new MemoryStoreFactory(
                         kafkaEventStore(bootstrap, "node1")
                 )
         );
@@ -142,7 +132,7 @@ public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
         cfg2.setPort(findAvailablePort());
 
         cfg2.setStoreFactory(
-                new RedissonStoreFactory(redisClient2,
+                new MemoryStoreFactory(
                         kafkaEventStore(bootstrap, "node2")
                 )
         );
@@ -225,7 +215,7 @@ public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
                 new KafkaProducer<>(producerProps),
                 consumerProps,
                 null,
-                EventStoreMode.MULTI_CHANNEL,
+                EventStoreMode.SINGLE_CHANNEL,
                 "SOCKETIO4J-"
         );
     }

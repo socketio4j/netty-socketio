@@ -38,10 +38,13 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 import org.redisson.Redisson;
+import org.redisson.api.RedissonClient;
+import org.redisson.config.Config;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedKafkaContainer;
+import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.kafka.KafkaEventStore;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageDeserializer;
@@ -49,13 +52,13 @@ import com.socketio4j.socketio.store.kafka.serialization.EventMessageSerializer;
 import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class
-
-
-DistributedKafkaSingleChannelTest extends DistributedCommonTest {
+public class DistributedKafkaSingleChannelTest extends DistributedCommonTest {
 
     private static final CustomizedKafkaContainer KAFKA =
             new CustomizedKafkaContainer();
+    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(true);
+    private RedissonClient redisClient1;
+    private RedissonClient redisClient2;
 
     // -------------------------------------------
     // Utility
@@ -70,11 +73,19 @@ DistributedKafkaSingleChannelTest extends DistributedCommonTest {
     // -------------------------------------------
     // Setup
     // -------------------------------------------
-
+    private Config redisConfig(String url) {
+        Config c = new Config();
+        c.useSingleServer().setAddress(url);
+        return c;
+    }
     @BeforeAll
     public void setup() throws Exception {
 
         KAFKA.start();
+        REDIS_CONTAINER.start();
+        String redisURL = "redis://" + REDIS_CONTAINER.getHost() + ":" + REDIS_CONTAINER.getRedisPort();
+        redisClient1 = Redisson.create(redisConfig(redisURL));
+        redisClient2 = Redisson.create(redisConfig(redisURL));
         String bootstrap = KAFKA.getBootstrapServers();
 
         // ---------- NODE 1 ----------
@@ -83,7 +94,7 @@ DistributedKafkaSingleChannelTest extends DistributedCommonTest {
         cfg1.setPort(findAvailablePort());
 
         cfg1.setStoreFactory(
-                new RedissonStoreFactory(Redisson.create(),
+                new RedissonStoreFactory(redisClient1,
                         kafkaEventStore(bootstrap, "node1")
                 )
         );
@@ -130,7 +141,7 @@ DistributedKafkaSingleChannelTest extends DistributedCommonTest {
         cfg2.setPort(findAvailablePort());
 
         cfg2.setStoreFactory(
-                new RedissonStoreFactory(Redisson.create(),
+                new RedissonStoreFactory(redisClient2,
                         kafkaEventStore(bootstrap, "node2")
                 )
         );

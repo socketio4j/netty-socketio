@@ -52,7 +52,7 @@ import com.socketio4j.socketio.store.kafka.serialization.EventMessageSerializer;
 import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
+public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTest {
 
     private static final CustomizedKafkaContainer KAFKA =
             new CustomizedKafkaContainer();
