@@ -49,6 +49,7 @@ import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.kafka.KafkaEventStore;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageDeserializer;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageSerializer;
+import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -56,9 +57,6 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
 
     private static final CustomizedKafkaContainer KAFKA =
             new CustomizedKafkaContainer();
-    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(false);
-    private RedissonClient redisClient1;
-    private RedissonClient redisClient2;
 
 
     // -------------------------------------------
@@ -83,10 +81,6 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
     public void setup() throws Exception {
 
         KAFKA.start();
-        REDIS_CONTAINER.start();
-        String redisURL = "redis://" + REDIS_CONTAINER.getHost() + ":" + REDIS_CONTAINER.getRedisPort();
-        redisClient1 = Redisson.create(redisConfig(redisURL));
-        redisClient2 = Redisson.create(redisConfig(redisURL));
         String bootstrap = KAFKA.getBootstrapServers();
 
         // ---------- NODE 1 ----------
@@ -95,7 +89,7 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
         cfg1.setPort(findAvailablePort());
 
         cfg1.setStoreFactory(
-                new RedissonStoreFactory(redisClient1,
+                new MemoryStoreFactory(
                         kafkaEventStore(bootstrap, "node1")
                 )
         );
@@ -142,7 +136,7 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
         cfg2.setPort(findAvailablePort());
 
         cfg2.setStoreFactory(
-                new RedissonStoreFactory(redisClient2,
+                new MemoryStoreFactory(
                         kafkaEventStore(bootstrap, "node2")
                 )
         );
@@ -242,6 +236,9 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
         }
         if (node2 != null) {
             node2.stop();
+        }
+        if (KAFKA != null) {
+            KAFKA.stop();
         }
     }
 }

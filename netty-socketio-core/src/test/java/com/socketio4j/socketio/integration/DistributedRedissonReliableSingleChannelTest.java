@@ -178,5 +178,8 @@ public class DistributedRedissonReliableSingleChannelTest extends DistributedCom
         if (redisClient2 != null) {
             redisClient2.shutdown();
         }
+        if (REDIS_CONTAINER!=null){
+            REDIS_CONTAINER.stop();
+        }
     }
 }

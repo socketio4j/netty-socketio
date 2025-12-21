@@ -22,16 +22,29 @@ package com.socketio4j.socketio.store;
  */
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import com.socketio4j.socketio.store.event.EventType;
+
 public class CustomizedKafkaContainer extends KafkaContainer {
 
     private static final Logger log =
             LoggerFactory.getLogger(CustomizedKafkaContainer.class);
+
+    private static final List<String> TOPICS = new ArrayList<>();
+
+    static {
+        Arrays.stream(EventType.values()).forEach(eventType -> {
+            TOPICS.add("SOCKETIO4J-"+eventType.name());
+        });
+    }
 
     public CustomizedKafkaContainer() {
         super(DockerImageName.parse("confluentinc/cp-kafka:7.6.1"));
@@ -43,7 +56,23 @@ public class CustomizedKafkaContainer extends KafkaContainer {
     @Override
     public void start() {
         super.start();
+        createTopics();
         log.info("Kafka started at {}", getBootstrapServers());
+    }
+    private void createTopics() {
+        try {
+            for (String topic : TOPICS) {
+                execInContainer(
+                        "/bin/bash", "-c",
+                        "kafka-topics --bootstrap-server localhost:9092 " +
+                                "--create --if-not-exists " +
+                                "--topic " + topic +
+                                " --partitions 1 --replication-factor 1"
+                );
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create Kafka topics", e);
+        }
     }
 
     @Override
