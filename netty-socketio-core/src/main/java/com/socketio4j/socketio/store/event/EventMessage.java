@@ -60,6 +60,5 @@ public abstract class EventMessage implements Serializable {
         this.offset = offset;
     }
 
-    @JsonProperty(value = "type", required = true)
     public abstract String getType();
 }

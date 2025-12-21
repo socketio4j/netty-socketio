@@ -176,8 +176,5 @@ public class DistributedHazelcastPubSubSingleChannelUnreliableTest extends Distr
         if (hazelcastInstance1 != null) {
             hazelcastInstance1.shutdown();
         }
-        if (HAZELCAST_CONTAINER != null) {
-            HAZELCAST_CONTAINER.stop();
-        }
     }
 }

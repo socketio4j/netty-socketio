@@ -231,6 +231,5 @@ DistributedKafkaMultiChannelTest extends DistributedCommonTest {
         if (node2 != null) {
             node2.stop();
         }
-        KAFKA.stop();
     }
 }
