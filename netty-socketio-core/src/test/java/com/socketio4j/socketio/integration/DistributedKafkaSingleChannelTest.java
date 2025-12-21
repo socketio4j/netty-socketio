@@ -52,7 +52,7 @@ import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 public class
 
 
-DistributedKafkaMultiChannelTest extends DistributedCommonTest {
+DistributedKafkaSingleChannelTest extends DistributedCommonTest {
 
     private static final CustomizedKafkaContainer KAFKA =
             new CustomizedKafkaContainer();
@@ -213,7 +213,7 @@ DistributedKafkaMultiChannelTest extends DistributedCommonTest {
                 new KafkaProducer<>(producerProps),
                 consumerProps,
                 null,
-                EventStoreMode.MULTI_CHANNEL,
+                EventStoreMode.SINGLE_CHANNEL,
                 "SOCKETIO4J-"
         );
     }
