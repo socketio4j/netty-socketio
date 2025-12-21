@@ -320,33 +320,50 @@ public final class KafkaEventStore implements EventStore {
 
         listeners.remove(type);
 
-        ExecutorService exec = pollers.remove(type);
-        if (exec != null) {
-            exec.shutdownNow();
-        }
-
         KafkaConsumer<?, ?> consumer = consumers.remove(type);
         if (consumer != null) {
-            consumer.wakeup();
+            consumer.wakeup(); // primary shutdown signal
+        }
+
+        ExecutorService exec = pollers.remove(type);
+        if (exec != null) {
+            exec.shutdown(); // graceful
+
+            try {
+                if (!exec.awaitTermination(2, TimeUnit.SECONDS)) {
+                    exec.shutdownNow(); // safety
+                }
+            } catch (InterruptedException e) {
+                exec.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+
+            if (exec.isTerminated()) {
+                log.info("exec {} terminated", type);
+            }
         }
     }
 
+
     @Override
     public void shutdown0() {
-
         running.set(false);
 
-        pollers.values().forEach(ExecutorService::shutdownNow);
-        pollers.clear();
+        listeners.clear();
 
         consumers.values().forEach(KafkaConsumer::wakeup);
         consumers.clear();
 
-        listeners.clear();
+        pollers.values().forEach(ExecutorService::shutdownNow);
+        pollers.clear();
 
-        producer.flush();
-        producer.close();
+        try {
+            producer.flush();
+        } finally {
+            producer.close();
+        }
     }
+
 
     // ---------------------------------------------------------------------
     // Utils
@@ -357,21 +374,20 @@ public final class KafkaEventStore implements EventStore {
     }
 
     private EventType resolve(EventType type) {
-        return mode == EventStoreMode.SINGLE_CHANNEL
-                ? EventType.ALL_SINGLE_CHANNEL
-                : type;
+        if (mode == EventStoreMode.SINGLE_CHANNEL) {
+                return EventType.ALL_SINGLE_CHANNEL;
+        }
+        return type;
     }
 
     private void validateSubscribe(EventType type) {
 
-        if (mode == EventStoreMode.SINGLE_CHANNEL &&
-                type != EventType.ALL_SINGLE_CHANNEL) {
+        if (mode == EventStoreMode.SINGLE_CHANNEL && type != EventType.ALL_SINGLE_CHANNEL) {
             throw new UnsupportedOperationException(
                     "Only ALL_SINGLE_CHANNEL allowed");
         }
 
-        if (mode == EventStoreMode.MULTI_CHANNEL &&
-                type == EventType.ALL_SINGLE_CHANNEL) {
+        if (mode == EventStoreMode.MULTI_CHANNEL && type == EventType.ALL_SINGLE_CHANNEL) {
             throw new UnsupportedOperationException(
                     "ALL_SINGLE_CHANNEL not allowed");
         }

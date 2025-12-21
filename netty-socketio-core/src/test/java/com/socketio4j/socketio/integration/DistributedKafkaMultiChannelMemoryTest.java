@@ -37,20 +37,16 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
-import org.redisson.Redisson;
-import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedKafkaContainer;
-import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.kafka.KafkaEventStore;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageDeserializer;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageSerializer;
 import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
-import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTest {

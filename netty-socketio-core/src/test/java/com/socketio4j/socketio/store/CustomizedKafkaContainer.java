@@ -16,15 +16,10 @@
  */
 package com.socketio4j.socketio.store;
 
-/**
- * @author https://github.com/sanjomo
- * @date 15/12/25 6:16 pm
- */
-
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,13 +33,10 @@ public class CustomizedKafkaContainer extends KafkaContainer {
     private static final Logger log =
             LoggerFactory.getLogger(CustomizedKafkaContainer.class);
 
-    private static final List<String> TOPICS = new ArrayList<>();
+    private static final List<String> TOPICS =
+            Arrays.stream(EventType.values())
+                    .map(e -> "SOCKETIO4J-" + e.name()).collect(Collectors.toList());
 
-    static {
-        Arrays.stream(EventType.values()).forEach(eventType -> {
-            TOPICS.add("SOCKETIO4J-"+eventType.name());
-        });
-    }
 
     public CustomizedKafkaContainer() {
         super(DockerImageName.parse("confluentinc/cp-kafka:7.6.1"));
@@ -56,8 +48,19 @@ public class CustomizedKafkaContainer extends KafkaContainer {
     @Override
     public void start() {
         super.start();
+        waitUntilKafkaReady();
         createTopics();
         log.info("Kafka started at {}", getBootstrapServers());
+    }
+    private void waitUntilKafkaReady() {
+        try {
+            execInContainer(
+                    "/bin/bash", "-c",
+                    "kafka-broker-api-versions --bootstrap-server localhost:9092"
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Kafka broker not ready", e);
+        }
     }
     private void createTopics() {
         try {
