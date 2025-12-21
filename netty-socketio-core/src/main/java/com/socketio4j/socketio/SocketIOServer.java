@@ -20,7 +20,6 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -413,13 +412,25 @@ public class SocketIOServer implements ClientListeners {
             case AUTO:
                 if (isIoUringAvailable()) {
                     IoHandlerFactory factory = getIoUringIoHandlerFactory();
-                    handler = Objects.requireNonNullElseGet(factory, NioIoHandler::newFactory);
+                    if (factory != null) {
+                        handler = factory;
+                    } else {
+                        handler = NioIoHandler.newFactory();
+                    }
                 } else if (isEpollAvailable()) {
                     IoHandlerFactory factory = getEpollIoHandlerFactory();
-                    handler = Objects.requireNonNullElseGet(factory, NioIoHandler::newFactory);
+                    if (factory != null) {
+                        handler = factory;
+                    } else {
+                        handler = NioIoHandler.newFactory();
+                    }
                 } else if (isKQueueAvailable()) {
                     IoHandlerFactory factory = getKQueueIoHandlerFactory();
-                    handler = Objects.requireNonNullElseGet(factory, NioIoHandler::newFactory);
+                    if (factory != null) {
+                        handler = factory;
+                    } else {
+                        handler = NioIoHandler.newFactory();
+                    }
                 } else {
                     handler = NioIoHandler.newFactory();
                 }
