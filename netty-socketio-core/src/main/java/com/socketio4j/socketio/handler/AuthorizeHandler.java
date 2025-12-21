@@ -282,7 +282,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
     }
 
     private void writeAndFlushTransportError(Channel channel, String origin) {
-        Map<String, Object> errorData = new HashMap<String, Object>();
+        Map<String, Object> errorData = new HashMap<>();
         errorData.put("code", 0);
         errorData.put("message", "Transport unknown");
 

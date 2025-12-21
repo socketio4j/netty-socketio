@@ -23,10 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.socketio4j.socketio.AckRequest;
-import com.socketio4j.socketio.MultiTypeArgs;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.handler.SocketIOException;
-import com.socketio4j.socketio.listener.MultiTypeEventListener;
 import com.socketio4j.socketio.namespace.Namespace;
 
 public class OnEventScanner implements AnnotationScanner {
@@ -48,34 +46,31 @@ public class OnEventScanner implements AnnotationScanner {
         final List<Integer> dataIndexes = dataIndexes(method);
 
         if (dataIndexes.size() > 1) {
-            List<Class<?>> classes = new ArrayList<Class<?>>();
+            List<Class<?>> classes = new ArrayList<>();
             for (int index : dataIndexes) {
                 Class<?> param = method.getParameterTypes()[index];
                 classes.add(param);
             }
 
-            namespace.addMultiTypeEventListener(annotation.value(), new MultiTypeEventListener() {
-                @Override
-                public void onData(SocketIOClient client, MultiTypeArgs data, AckRequest ackSender) {
-                    try {
-                        Object[] args = new Object[method.getParameterTypes().length];
-                        if (socketIOClientIndex != -1) {
-                            args[socketIOClientIndex] = client;
-                        }
-                        if (ackRequestIndex != -1) {
-                            args[ackRequestIndex] = ackSender;
-                        }
-                        int i = 0;
-                        for (int index : dataIndexes) {
-                            args[index] = data.get(i);
-                            i++;
-                        }
-                        method.invoke(object, args);
-                    } catch (InvocationTargetException e) {
-                        throw new SocketIOException(e.getCause());
-                    } catch (Exception e) {
-                        throw new SocketIOException(e);
+            namespace.addMultiTypeEventListener(annotation.value(), (client, data, ackSender) -> {
+                try {
+                    Object[] args = new Object[method.getParameterTypes().length];
+                    if (socketIOClientIndex != -1) {
+                        args[socketIOClientIndex] = client;
                     }
+                    if (ackRequestIndex != -1) {
+                        args[ackRequestIndex] = ackSender;
+                    }
+                    int i = 0;
+                    for (int index : dataIndexes) {
+                        args[index] = data.get(i);
+                        i++;
+                    }
+                    method.invoke(object, args);
+                } catch (InvocationTargetException e) {
+                    throw new SocketIOException(e.getCause());
+                } catch (Exception e) {
+                    throw new SocketIOException(e);
                 }
             }, classes.toArray(new Class[0]));
         } else {
