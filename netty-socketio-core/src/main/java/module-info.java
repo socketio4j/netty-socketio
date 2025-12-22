@@ -36,5 +36,6 @@ module netty.socketio.core {
   requires io.netty.codec.http;
   requires org.slf4j;
     requires org.jetbrains.annotations;
+    requires io.nats.jnats;
 
 }
