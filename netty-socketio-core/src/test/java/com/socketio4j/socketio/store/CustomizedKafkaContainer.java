@@ -43,7 +43,7 @@ public class CustomizedKafkaContainer extends KafkaContainer {
                     .map(e -> "SOCKETIO4J-" + e.name()).collect(Collectors.toList());
 
     public CustomizedKafkaContainer() {
-        super(DockerImageName.parse("confluentinc/cp-kafka:7.6.1"));
+        super(DockerImageName.parse("confluentinc/cp-kafka:7.7.7"));
 
         withReuse(false);
         withStartupAttempts(3);
