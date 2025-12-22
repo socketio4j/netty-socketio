@@ -77,8 +77,7 @@ public class JacksonJsonSupport implements JsonSupport {
         }
 
         @Override
-        public AckArgs deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException,
-                JsonProcessingException {
+        public AckArgs deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException {
             List<Object> args = new ArrayList<Object>();
             AckArgs result = new AckArgs(args);
 
@@ -126,12 +125,12 @@ public class JacksonJsonSupport implements JsonSupport {
             final int prime = 31;
             int result = 1;
             if (eventName == null) {
-                result = prime * result + 0;
+                result = prime * result;
             } else {
                 result = prime * result + eventName.hashCode();
             }
             if (namespaceName == null) {
-                result = prime * result + 0;
+                result = prime * result;
             } else {
                 result = prime * result + namespaceName.hashCode();
             }
@@ -153,11 +152,8 @@ public class JacksonJsonSupport implements JsonSupport {
             } else if (!eventName.equals(other.eventName))
                 return false;
             if (namespaceName == null) {
-                if (other.namespaceName != null)
-                    return false;
-            } else if (!namespaceName.equals(other.namespaceName))
-                return false;
-            return true;
+                return other.namespaceName == null;
+            } else return namespaceName.equals(other.namespaceName);
         }
 
     }
@@ -199,7 +195,7 @@ public class JacksonJsonSupport implements JsonSupport {
             }
 
 
-            List<Object> eventArgs = new ArrayList<Object>();
+            List<Object> eventArgs = new ArrayList<>();
             Event event = new Event(eventName, eventArgs);
             List<Class<?>> eventClasses = eventMapping.get(ek);
             int i = 0;
@@ -226,12 +222,7 @@ public class JacksonJsonSupport implements JsonSupport {
 
         private static final long serialVersionUID = 3420082888596468148L;
 
-        private final ThreadLocal<List<byte[]>> arrays = new ThreadLocal<List<byte[]>>() {
-            @Override
-            protected List<byte[]> initialValue() {
-                return new ArrayList<byte[]>();
-            };
-        };
+        private final ThreadLocal<List<byte[]>> arrays = ThreadLocal.withInitial(ArrayList::new);
 
         public ByteArraySerializer() {
             super(byte[].class);
@@ -282,7 +273,7 @@ public class JacksonJsonSupport implements JsonSupport {
         }
 
         public void clear() {
-            arrays.set(new ArrayList<byte[]>());
+            arrays.set(new ArrayList<>());
         }
 
     }
@@ -309,8 +300,8 @@ public class JacksonJsonSupport implements JsonSupport {
     }
 
     protected final ExBeanSerializerModifier modifier = new ExBeanSerializerModifier();
-    protected final ThreadLocal<String> namespaceClass = new ThreadLocal<String>();
-    protected final ThreadLocal<AckCallback<?>> currentAckClass = new ThreadLocal<AckCallback<?>>();
+    protected final ThreadLocal<String> namespaceClass = new ThreadLocal<>();
+    protected final ThreadLocal<AckCallback<?>> currentAckClass = new ThreadLocal<>();
     protected final ObjectMapper objectMapper = new ObjectMapper();
     protected final EventDeserializer eventDeserializer = new EventDeserializer();
     protected final AckArgsDeserializer ackArgsDeserializer = new AckArgsDeserializer();

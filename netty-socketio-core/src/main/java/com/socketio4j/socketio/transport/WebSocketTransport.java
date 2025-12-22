@@ -167,18 +167,15 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
         if (handshaker != null) {
             try {
                 ChannelFuture f = handshaker.handshake(channel, req);
-                f.addListener(new ChannelFutureListener() {
-                    @Override
-                    public void operationComplete(ChannelFuture future) throws Exception {
-                        if (!future.isSuccess()) {
-                            log.error("Can't handshake {}", sessionId, future.cause());
-                            closeClient(sessionId, channel);
-                            return;
-                        }
-                        channel.pipeline().addBefore(SocketIOChannelInitializer.WEB_SOCKET_TRANSPORT, SocketIOChannelInitializer.WEB_SOCKET_AGGREGATOR,
-                                new WebSocketFrameAggregator(configuration.getMaxFramePayloadLength()));
-                        connectClient(channel, sessionId);
+                f.addListener((ChannelFutureListener) future -> {
+                    if (!future.isSuccess()) {
+                        log.error("Can't handshake {}", sessionId, future.cause());
+                        closeClient(sessionId, channel);
+                        return;
                     }
+                    channel.pipeline().addBefore(SocketIOChannelInitializer.WEB_SOCKET_TRANSPORT, SocketIOChannelInitializer.WEB_SOCKET_AGGREGATOR,
+                            new WebSocketFrameAggregator(configuration.getMaxFramePayloadLength()));
+                    connectClient(channel, sessionId);
                 });
             } catch (Exception e) {
                 log.warn("Can't handshake {}, {}", sessionId, e.getMessage(), e);

@@ -37,7 +37,7 @@ public class AckSchedulerKey extends SchedulerKey {
     public int hashCode() {
         final int prime = 31;
         int result = super.hashCode();
-        result = prime * result + (int) (index ^ (index >>> 32));
+        result = prime * result + Long.hashCode(index);
         return result;
     }
 

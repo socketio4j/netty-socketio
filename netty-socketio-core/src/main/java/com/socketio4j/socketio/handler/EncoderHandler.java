@@ -223,10 +223,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         }
 
         if (log.isDebugEnabled()) {
-            String sessionId = "N/A";
-            if (msg instanceof HttpMessage) {
-                sessionId = String.valueOf(((HttpMessage) msg).getSessionId());
-            }
+            String sessionId = String.valueOf(((HttpMessage) msg).getSessionId());
             log.debug("Processing message type: {}, sessionId: {}", 
                 msg.getClass().getSimpleName(), sessionId);
         }
@@ -404,7 +401,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
      */
     private static class ChannelFutureList implements GenericFutureListener<Future<Void>> {
 
-        private List<ChannelFuture> futureList = new ArrayList<ChannelFuture>();
+        private List<ChannelFuture> futureList = new ArrayList<>();
         private ChannelPromise promise = null;
 
         private void cleanup() {
@@ -450,7 +447,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         }
 
         @Override
-        public void operationComplete(Future<Void> voidFuture) throws Exception {
+        public void operationComplete(Future<Void> voidFuture) {
             if (promise != null) validate();
         }
     }

@@ -79,11 +79,11 @@ public class Namespace implements SocketIONamespace {
     private final ScannerEngine engine = new ScannerEngine();
     private final ConcurrentMap<String, EventEntry<?>> eventListeners = new ConcurrentHashMap<>();
     private final Queue<CatchAllEventListener> catchAllEventListeners = new ConcurrentLinkedQueue<>();
-    private final Queue<ConnectListener> connectListeners = new ConcurrentLinkedQueue<ConnectListener>();
-    private final Queue<DisconnectListener> disconnectListeners = new ConcurrentLinkedQueue<DisconnectListener>();
-    private final Queue<PingListener> pingListeners = new ConcurrentLinkedQueue<PingListener>();
-    private final Queue<PongListener> pongListeners = new ConcurrentLinkedQueue<PongListener>();
-    private final Queue<EventInterceptor> eventInterceptors = new ConcurrentLinkedQueue<EventInterceptor>();
+    private final Queue<ConnectListener> connectListeners = new ConcurrentLinkedQueue<>();
+    private final Queue<DisconnectListener> disconnectListeners = new ConcurrentLinkedQueue<>();
+    private final Queue<PingListener> pingListeners = new ConcurrentLinkedQueue<>();
+    private final Queue<PongListener> pongListeners = new ConcurrentLinkedQueue<>();
+    private final Queue<EventInterceptor> eventInterceptors = new ConcurrentLinkedQueue<>();
 
     private final Queue<AuthTokenListener> authDataInterceptors = new ConcurrentLinkedQueue<>();
 
@@ -211,7 +211,7 @@ public class Namespace implements SocketIONamespace {
 
     private void sendAck(AckRequest ackRequest) {
         if (ackMode == AckMode.AUTO || ackMode == AckMode.AUTO_SUCCESS_ONLY) {
-            // send ack response if it not executed
+            // send ack response if it did not execute
             // during {@link DataListener#onData} invocation
             ackRequest.sendAckData(Collections.emptyList());
         }
@@ -332,7 +332,7 @@ public class Namespace implements SocketIONamespace {
         final int prime = 31;
         int result = 1;
         if (name == null) {
-            result = prime * result + 0;
+            result = prime * result;
         } else {
             result = prime * result + name.hashCode();
         }
@@ -349,17 +349,14 @@ public class Namespace implements SocketIONamespace {
             return false;
         Namespace other = (Namespace) obj;
         if (name == null) {
-            if (other.name != null)
-                return false;
-        } else if (!name.equals(other.name))
-            return false;
-        return true;
+            return other.name == null;
+        } else return name.equals(other.name);
     }
 
     @Override
     public void addListeners(Object listeners) {
         if (listeners instanceof Iterable) {
-            addListeners((Iterable<? extends Object>) listeners);
+            addListeners((Iterable<?>) listeners);
             return;
         }
         addListeners(listeners, listeners.getClass());
@@ -375,7 +372,7 @@ public class Namespace implements SocketIONamespace {
     @Override
     public void addListeners(Object listeners, Class<?> listenersClass) {
         if (listeners instanceof Iterable) {
-            addListeners((Iterable<? extends Object>) listeners);
+            addListeners((Iterable<?>) listeners);
             return;
         }
         engine.scan(this, listeners, listenersClass);
@@ -471,7 +468,7 @@ public class Namespace implements SocketIONamespace {
             return Collections.emptyList();
         }
 
-        List<SocketIOClient> result = new ArrayList<SocketIOClient>();
+        List<SocketIOClient> result = new ArrayList<>();
         for (UUID sessionId : sessionIds) {
             SocketIOClient client = allClients.get(sessionId);
             if (client != null) {
