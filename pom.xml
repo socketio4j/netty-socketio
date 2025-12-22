@@ -78,7 +78,7 @@
     <testcontainers.version>2.0.2</testcontainers.version>
     <netty.version>4.2.9.Final</netty.version>
     <jmockit.version>1.50</jmockit.version>
-    <byte-buddy.version>1.18.2</byte-buddy.version>
+    <byte-buddy.version>1.18.3</byte-buddy.version>
     <junit.version>6.0.1</junit.version>
     <junit-platform-launcher.version>6.0.1</junit-platform-launcher.version>
     <slf4j.version>2.0.17</slf4j.version>
