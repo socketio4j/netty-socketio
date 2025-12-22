@@ -24,7 +24,8 @@ module netty.socketio.core {
 
   requires static com.hazelcast.core;
   requires static redisson;
-
+  requires static io.nats.jnats;
+  
   requires static io.netty.transport.classes.epoll;
   requires static io.netty.transport.classes.io_uring;
   requires static io.netty.transport.classes.kqueue;
@@ -35,7 +36,6 @@ module netty.socketio.core {
   requires io.netty.handler;
   requires io.netty.codec.http;
   requires org.slf4j;
-    requires org.jetbrains.annotations;
-    requires io.nats.jnats;
+  requires org.jetbrains.annotations;
 
 }
