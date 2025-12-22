@@ -14,7 +14,7 @@
   <description>Socket.IO server Spring integration</description>
 
   <properties>
-    <spring-framework.version>7.0.1</spring-framework.version>
+    <spring-framework.version>7.0.2</spring-framework.version>
   </properties>
 
   <dependencies>
