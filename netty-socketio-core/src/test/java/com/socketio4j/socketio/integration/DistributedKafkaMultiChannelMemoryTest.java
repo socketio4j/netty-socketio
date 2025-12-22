@@ -37,7 +37,6 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
-import org.redisson.config.Config;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
@@ -65,14 +64,6 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
         }
     }
 
-    // -------------------------------------------
-    // Setup
-    // -------------------------------------------
-    private Config redisConfig(String url) {
-        Config c = new Config();
-        c.useSingleServer().setAddress(url);
-        return c;
-    }
     @BeforeAll
     public void setup() throws Exception {
 
