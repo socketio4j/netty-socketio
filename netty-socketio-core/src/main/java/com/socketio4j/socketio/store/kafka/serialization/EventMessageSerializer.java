@@ -22,16 +22,19 @@ package com.socketio4j.socketio.store.kafka.serialization;
  */
 
 import org.apache.kafka.common.serialization.Serializer;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.socketio4j.socketio.listener.DefaultExceptionListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 
 public final class EventMessageSerializer
         implements Serializer<EventMessage> {
+    private static final Logger log = LoggerFactory.getLogger(EventMessageSerializer.class);
 
     private static final ObjectMapper MAPPER =
             JsonMapper.builder()
@@ -49,8 +52,7 @@ public final class EventMessageSerializer
         try {
             return MAPPER.writeValueAsBytes(data);
         } catch (Exception e) {
-            LoggerFactory.getLogger(getClass())
-                    .error("Failed to serialize EventMessage for topic {}", topic, e);
+           log.error("Failed to serialize EventMessage for topic {}", topic, e);
             return null;
         }
     }

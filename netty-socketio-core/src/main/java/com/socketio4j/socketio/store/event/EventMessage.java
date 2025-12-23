@@ -25,7 +25,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 @JsonTypeInfo(
         use = JsonTypeInfo.Id.NAME,
         include = JsonTypeInfo.As.PROPERTY,
-        property = "type"
+        property = "type",
+        visible = true
 )
 @JsonSubTypes({
         @JsonSubTypes.Type(value = DisconnectMessage.class, name = "DISCONNECT"),
@@ -60,5 +61,6 @@ public abstract class EventMessage implements Serializable {
         this.offset = offset;
     }
 
+    @JsonProperty("type")
     public abstract String getType();
 }
