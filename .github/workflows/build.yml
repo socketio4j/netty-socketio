@@ -1,4 +1,5 @@
 name: Build
+
 permissions:
   contents: read
 
@@ -16,39 +17,38 @@ jobs:
     env:
       # Allow Testcontainers to control Docker
       DOCKER_HOST: "unix:///var/run/docker.sock"
-      # Ryuk must be enabled for cleanup
       TESTCONTAINERS_RYUK_DISABLED: false
 
     steps:
+      # --- Checkout ---
       - name: Checkout
         uses: actions/checkout@v4
 
-      # --- Docker setup (required for Testcontainers) ---
-      - name: Install Docker engine
+      # --- Enable Docker (already preinstalled on runners) ---
+      - name: Start Docker daemon
         run: |
-          sudo apt-get update
-          sudo apt-get install -y docker.io
-          sudo usermod -aG docker $USER
           sudo systemctl start docker
+          sudo systemctl status docker --no-pager
 
-      - name: Check Docker status
+      # --- Validate Docker works ---
+      - name: Docker Info
         run: docker info
 
-      # --- Java / Maven setup ---
-      - name: Set Up Java
+      # --- Java / Maven Setup ---
+      - name: Set up Java
         uses: actions/setup-java@v3
         with:
           java-version: ${{ inputs.javaVersion }}
           distribution: temurin
           cache: maven
 
-      # --- Testcontainers configuration ---
-      - name: Disable Testcontainers reuse (CI)
+      # --- Testcontainers configuration for CI ---
+      - name: Disable Testcontainers reuse
         run: |
-          echo "testcontainers.reuse.enable=false" >> ~/.testcontainers.properties
+          echo "testcontainers.reuse.enable=false" > ~/.testcontainers.properties
           cat ~/.testcontainers.properties
 
-      # --- Build + Integration Tests ---
+      # --- Build + Tests ---
       - name: Build Project
         run: |
           export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN"
