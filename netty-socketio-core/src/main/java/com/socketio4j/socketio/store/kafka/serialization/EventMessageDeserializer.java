@@ -29,9 +29,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.socketio4j.socketio.store.event.EventMessage;
-import com.socketio4j.socketio.transport.PollingTransport;
-
-import static com.socketio4j.socketio.store.event.EventStore.log;
 
 public final class EventMessageDeserializer
         implements Deserializer<EventMessage> {
