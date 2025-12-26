@@ -22,17 +22,20 @@ package com.socketio4j.socketio.store.kafka.serialization;
  */
 
 import org.apache.kafka.common.serialization.Deserializer;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.socketio4j.socketio.store.event.EventMessage;
+import com.socketio4j.socketio.transport.PollingTransport;
 
 import static com.socketio4j.socketio.store.event.EventStore.log;
 
 public final class EventMessageDeserializer
         implements Deserializer<EventMessage> {
+    private static final Logger log = LoggerFactory.getLogger(EventMessageDeserializer.class);
 
     private static final ObjectMapper MAPPER =
             JsonMapper.builder()
@@ -51,8 +54,7 @@ public final class EventMessageDeserializer
             return MAPPER.readValue(data, EventMessage.class);
         } catch (Exception e) {
             // IMPORTANT: do not throw
-            LoggerFactory.getLogger(getClass())
-                    .error("Failed to deserialize EventMessage on topic {}", topic, e);
+            log.error("Failed to deserialize EventMessage on topic {}", topic, e);
             return null;
         }
     }

@@ -50,6 +50,7 @@ import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTest {
 
+
     private static final CustomizedKafkaContainer KAFKA =
             new CustomizedKafkaContainer();
 
@@ -184,7 +185,7 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
                 StringSerializer.class);
         producerProps.put(
                 ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,
-                EventMessageSerializer.class);
+                EventMessageSerializer.class.getName());
 
         Properties consumerProps = new Properties();
         consumerProps.put(
@@ -200,7 +201,7 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
                 StringDeserializer.class);
         consumerProps.put(
                 ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
-                EventMessageDeserializer.class);
+                EventMessageDeserializer.class.getName());
 
         return new KafkaEventStore(
                 new KafkaProducer<>(producerProps),
@@ -225,7 +226,7 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
             node2.stop();
         }
         if (KAFKA != null) {
-            KAFKA.stop();
+            KAFKA.close();
         }
     }
 }

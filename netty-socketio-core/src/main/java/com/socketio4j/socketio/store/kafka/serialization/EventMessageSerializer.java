@@ -29,7 +29,6 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.socketio4j.socketio.listener.DefaultExceptionListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 
 public final class EventMessageSerializer
