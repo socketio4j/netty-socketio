@@ -9,24 +9,47 @@ on:
         required: true
         type: string
 
-
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    env:
+      # Allow Testcontainers to control Docker
+      DOCKER_HOST: "unix:///var/run/docker.sock"
+      # Ryuk must be enabled for cleanup
+      TESTCONTAINERS_RYUK_DISABLED: false
+
     steps:
-      - name: 'Checkout'
+      - name: Checkout
         uses: actions/checkout@v4
-      - name: 'Set Up Java'
+
+      # --- Docker setup (required for Testcontainers) ---
+      - name: Install Docker engine
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker.io
+          sudo usermod -aG docker $USER
+          sudo systemctl start docker
+
+      - name: Check Docker status
+        run: docker info
+
+      # --- Java / Maven setup ---
+      - name: Set Up Java
         uses: actions/setup-java@v3
         with:
           java-version: ${{ inputs.javaVersion }}
-          distribution: 'temurin'
-          cache: 'maven'
-      - name: Enable Testcontainers reuse
+          distribution: temurin
+          cache: maven
+
+      # --- Testcontainers configuration ---
+      - name: Disable Testcontainers reuse (CI)
         run: |
-          echo "testcontainers.reuse.enable=true" >> $HOME/.testcontainers.properties
-      - run: cat ~/.testcontainers.properties
-      - name: 'Build Project'
+          echo "testcontainers.reuse.enable=false" >> ~/.testcontainers.properties
+          cat ~/.testcontainers.properties
+
+      # --- Build + Integration Tests ---
+      - name: Build Project
         run: |
           export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN"
-          mvn --batch-mode --errors --fail-at-end verify
+          mvn --batch-mode --errors --fail-at-end -DforkCount=1 verify
