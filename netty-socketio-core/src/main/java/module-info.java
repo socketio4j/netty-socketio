@@ -57,6 +57,8 @@ module netty.socketio.core {
   opens com.socketio4j.socketio.store.kafka.serialization to kafka.clients;
   // allow Jackson reflective access
   opens com.socketio4j.socketio.store.event to com.fasterxml.jackson.databind;
+  opens com.socketio4j.socketio.protocol to com.fasterxml.jackson.databind;
+
 
   // ============================================================
   // JSON serialization
