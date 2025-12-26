@@ -179,11 +179,10 @@ public class NamespaceClient implements SocketIOClient {
         } else if (!getSessionId().equals(other.getSessionId()))
             return false;
         if (getNamespace().getName() == null) {
-            if (other.getNamespace().getName() != null)
-                return false;
-        } else if (!getNamespace().getName().equals(other.getNamespace().getName()))
-            return false;
-        return true;
+            return other.getNamespace().getName() == null;
+        } else {
+            return getNamespace().getName().equals(other.getNamespace().getName());
+        }
     }
 
     @Override

@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
-import io.netty.util.TimerTask;
+
 
 public class HashedWheelTimeoutScheduler implements CancelableScheduler {
 
@@ -65,40 +65,24 @@ public class HashedWheelTimeoutScheduler implements CancelableScheduler {
 
     @Override
     public void schedule(final Runnable runnable, long delay, TimeUnit unit) {
-        executorService.newTimeout(new TimerTask() {
-            @Override
-            public void run(Timeout timeout) throws Exception {
-                runnable.run();
-            }
-        }, delay, unit);
+        executorService.newTimeout(timeout -> runnable.run(), delay, unit);
     }
 
     @Override
     public void scheduleCallback(final SchedulerKey key, final Runnable runnable, long delay, TimeUnit unit) {
-        Timeout timeout = executorService.newTimeout(new TimerTask() {
-            @Override
-            public void run(Timeout timeout) throws Exception {
-                ctx.executor().execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        scheduledFutures.remove(key);
-                        runnable.run();
-                    }
-                });
-            }
-        }, delay, unit);
+        Timeout timeout = executorService.newTimeout(timeout1 -> ctx.executor().execute(() -> {
+            scheduledFutures.remove(key);
+            runnable.run();
+        }), delay, unit);
 
         replaceScheduledFuture(key, timeout);
     }
 
     @Override
     public void schedule(final SchedulerKey key, final Runnable runnable, long delay, TimeUnit unit) {
-        Timeout timeout = executorService.newTimeout(new TimerTask() {
-            @Override
-            public void run(Timeout timeout) throws Exception {
-                scheduledFutures.remove(key);
-                runnable.run();
-            }
+        Timeout timeout = executorService.newTimeout(timeout1 -> {
+            scheduledFutures.remove(key);
+            runnable.run();
         }, delay, unit);
 
         replaceScheduledFuture(key, timeout);

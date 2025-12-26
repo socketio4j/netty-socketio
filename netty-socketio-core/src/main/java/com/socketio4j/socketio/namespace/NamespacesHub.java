@@ -54,7 +54,7 @@ public class NamespacesHub {
             Iterable<SocketIOClient> clients = ((Namespace) namespace).getRoomClients(room);
             allClients.add(clients);
         }
-        return new CompositeIterable<SocketIOClient>(allClients);
+        return new CompositeIterable<>(allClients);
     }
 
     public Namespace get(String name) {

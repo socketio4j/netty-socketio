@@ -39,7 +39,7 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
     @Override
     public Collection<SocketIOClient> getClients() {
         Set<SocketIOClient> clients = new HashSet<SocketIOClient>();
-        if (this.broadcastOperations == null || this.broadcastOperations.size() == 0) {
+        if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
             return clients;
         }
         for (BroadcastOperations b : this.broadcastOperations) {
@@ -50,7 +50,7 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public <T> void send(Packet packet, BroadcastAckCallback<T> ackCallback) {
-        if (this.broadcastOperations == null || this.broadcastOperations.size() == 0) {
+        if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
             return;
         }
         for (BroadcastOperations b : this.broadcastOperations) {
@@ -68,7 +68,7 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public void sendEvent(String name, Predicate<SocketIOClient> excludePredicate, Object... data) {
-        if (this.broadcastOperations == null || this.broadcastOperations.size() == 0) {
+        if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
             return;
         }
         for (BroadcastOperations b : this.broadcastOperations) {
@@ -78,7 +78,7 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public <T> void sendEvent(String name, Object data, BroadcastAckCallback<T> ackCallback) {
-        if (this.broadcastOperations == null || this.broadcastOperations.size() == 0) {
+        if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
             return;
         }
         for (BroadcastOperations b : this.broadcastOperations) {
@@ -96,7 +96,7 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public <T> void sendEvent(String name, Object data, Predicate<SocketIOClient> excludePredicate, BroadcastAckCallback<T> ackCallback) {
-        if (this.broadcastOperations == null || this.broadcastOperations.size() == 0) {
+        if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
             return;
         }
         for (BroadcastOperations b : this.broadcastOperations) {
@@ -106,7 +106,7 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public void send(Packet packet) {
-        if (this.broadcastOperations == null || this.broadcastOperations.size() == 0) {
+        if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
             return;
         }
         for (BroadcastOperations b : this.broadcastOperations) {
@@ -116,7 +116,7 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public void disconnect() {
-        if (this.broadcastOperations == null || this.broadcastOperations.size() == 0) {
+        if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
             return;
         }
         for (BroadcastOperations b : this.broadcastOperations) {
@@ -126,7 +126,7 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public void sendEvent(String name, Object... data) {
-        if (this.broadcastOperations == null || this.broadcastOperations.size() == 0) {
+        if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
             return;
         }
         for (BroadcastOperations b : this.broadcastOperations) {

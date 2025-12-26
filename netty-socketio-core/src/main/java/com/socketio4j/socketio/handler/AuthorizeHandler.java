@@ -101,13 +101,10 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
     public void channelActive(final ChannelHandlerContext ctx) throws Exception {
         log.debug("Channel activated for client: {}", ctx.channel().remoteAddress());
         SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, ctx.channel());
-        scheduler.schedule(key, new Runnable() {
-            @Override
-            public void run() {
-                log.debug("Ping timeout triggered for client: {}, closing channel", ctx.channel().remoteAddress());
-                ctx.channel().close();
-                log.debug("Client with ip {} opened channel but doesn't send any data! Channel closed!", ctx.channel().remoteAddress());
-            }
+        scheduler.schedule(key, () -> {
+            log.debug("Ping timeout triggered for client: {}, closing channel", ctx.channel().remoteAddress());
+            ctx.channel().close();
+            log.debug("Client with ip {} opened channel but doesn't send any data! Channel closed!", ctx.channel().remoteAddress());
         }, configuration.getFirstDataTimeout(), TimeUnit.MILLISECONDS);
         super.channelActive(ctx);
     }
@@ -285,7 +282,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
     }
 
     private void writeAndFlushTransportError(Channel channel, String origin) {
-        Map<String, Object> errorData = new HashMap<String, Object>();
+        Map<String, Object> errorData = new HashMap<>();
         errorData.put("code", 0);
         errorData.put("message", "Transport unknown");
 

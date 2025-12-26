@@ -55,7 +55,7 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public Collection<SocketIOClient> getClients() {
-        return new IterableCollection<SocketIOClient>(clients);
+        return new IterableCollection<>(clients);
     }
 
     @Override

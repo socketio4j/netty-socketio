@@ -24,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
-import io.netty.util.TimerTask;
 
 public class HashedWheelScheduler implements CancelableScheduler {
 
@@ -56,31 +55,18 @@ public class HashedWheelScheduler implements CancelableScheduler {
 
     @Override
     public void schedule(final Runnable runnable, long delay, TimeUnit unit) {
-        executorService.newTimeout(new TimerTask() {
-            @Override
-            public void run(Timeout timeout) throws Exception {
-                runnable.run();
-            }
-        }, delay, unit);
+        executorService.newTimeout(timeout -> runnable.run(), delay, unit);
     }
 
     @Override
     public void scheduleCallback(final SchedulerKey key, final Runnable runnable, long delay, TimeUnit unit) {
-        Timeout timeout = executorService.newTimeout(new TimerTask() {
-            @Override
-            public void run(Timeout timeout) throws Exception {
-                ctx.executor().execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            runnable.run();
-                        } finally {
-                            scheduledFutures.remove(key);
-                        }
-                    }
-                });
+        Timeout timeout = executorService.newTimeout(timeout1 -> ctx.executor().execute(() -> {
+            try {
+                runnable.run();
+            } finally {
+                scheduledFutures.remove(key);
             }
-        }, delay, unit);
+        }), delay, unit);
 
         if (!timeout.isExpired()) {
             scheduledFutures.put(key, timeout);
@@ -89,14 +75,11 @@ public class HashedWheelScheduler implements CancelableScheduler {
 
     @Override
     public void schedule(final SchedulerKey key, final Runnable runnable, long delay, TimeUnit unit) {
-        Timeout timeout = executorService.newTimeout(new TimerTask() {
-            @Override
-            public void run(Timeout timeout) throws Exception {
-                try {
-                    runnable.run();
-                } finally {
-                    scheduledFutures.remove(key);
-                }
+        Timeout timeout = executorService.newTimeout(timeout1 -> {
+            try {
+                runnable.run();
+            } finally {
+                scheduledFutures.remove(key);
             }
         }, delay, unit);
 

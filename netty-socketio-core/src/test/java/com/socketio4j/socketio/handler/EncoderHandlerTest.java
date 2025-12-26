@@ -275,7 +275,7 @@ public class EncoderHandlerTest {
             if (frame instanceof ContinuationWebSocketFrame) {
                 ContinuationWebSocketFrame continuationFrame = (ContinuationWebSocketFrame) frame;
                 // Last frame should be final
-                if (channel.outboundMessages().size() == 0) {
+                if (channel.outboundMessages().isEmpty()) {
                     assertThat(continuationFrame.isFinalFragment()).isTrue();
                 } else {
                     assertThat(continuationFrame.isFinalFragment()).isFalse();
