@@ -47,4 +47,8 @@ public class DispatchMessage extends EventMessage {
         return room;
     }
 
+    @Override
+    public String getType() {
+        return EventType.DISPATCH.name();
+    }
 }

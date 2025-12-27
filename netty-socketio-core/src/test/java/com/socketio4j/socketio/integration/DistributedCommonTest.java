@@ -733,10 +733,10 @@ public abstract class DistributedCommonTest {
 
         Set<String> expected = new HashSet<>(Arrays.asList("m1", "m2"));
 
-        assertEquals(expected, a1Data, "a1 mismatch");
-        assertEquals(expected, a2Data, "a2 mismatch");
-        assertEquals(expected, b1Data, "b1 mismatch");
-        assertEquals(expected, b2Data, "b2 mismatch");
+        assertEquals(expected, new HashSet<>(a1Data), "a1 mismatch");
+        assertEquals(expected, new HashSet<>(a2Data), "a2 mismatch");
+        assertEquals(expected, new HashSet<>(b1Data), "b1 mismatch");
+        assertEquals(expected, new HashSet<>(b2Data), "b2 mismatch");
 
         a1.disconnect();
         a2.disconnect();

@@ -34,7 +34,6 @@ import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.event.PublishConfig;
 import com.socketio4j.socketio.store.redis_pubsub.RedissonEventStore;
 import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 
@@ -42,7 +41,7 @@ import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedRedissonPubSubSingleChannelUnreliableTest extends DistributedCommonTest {
 
-    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(true);
+    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(false);
     private RedissonClient redisClient1;
     private RedissonClient redisClient2;
     // -------------------------------------------
@@ -178,7 +177,7 @@ public class DistributedRedissonPubSubSingleChannelUnreliableTest extends Distri
         if (redisClient2 != null) {
             redisClient2.shutdown();
         }
-        if (REDIS_CONTAINER != null) {
+        if (REDIS_CONTAINER!=null){
             REDIS_CONTAINER.stop();
         }
     }

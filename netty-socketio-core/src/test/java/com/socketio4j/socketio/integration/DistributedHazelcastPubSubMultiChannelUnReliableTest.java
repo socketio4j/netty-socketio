@@ -41,7 +41,7 @@ import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedHazelcastPubSubMultiChannelUnReliableTest extends DistributedCommonTest {
 
-    private static final CustomizedHazelcastContainer HAZELCAST_CONTAINER = new CustomizedHazelcastContainer().withReuse(true);
+    private static final CustomizedHazelcastContainer HAZELCAST_CONTAINER = new CustomizedHazelcastContainer().withReuse(false);
     private HazelcastInstance hazelcastClient;
     private HazelcastInstance hazelcastClient1;
     // -------------------------------------------

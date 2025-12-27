@@ -48,4 +48,9 @@ public class LeaveMessage extends EventMessage {
         return room;
     }
 
+    @Override
+    public String getType() {
+        return EventType.LEAVE.name();
+    }
+
 }

@@ -47,5 +47,9 @@ public class JoinMessage extends EventMessage {
     public String getRoom() {
         return room;
     }
+    @Override
+    public String getType() {
+        return EventType.JOIN.name();
+    }
 
 }

@@ -42,7 +42,7 @@ import com.socketio4j.socketio.store.redis_reliable.RedissonReliableEventStore;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedRedissonReliableSingleChannelTest extends DistributedCommonTest {
 
-    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(true);
+    private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(false);
     private RedissonClient redisClient1;
     private RedissonClient redisClient2;
     // -------------------------------------------
@@ -178,7 +178,7 @@ public class DistributedRedissonReliableSingleChannelTest extends DistributedCom
         if (redisClient2 != null) {
             redisClient2.shutdown();
         }
-        if (REDIS_CONTAINER != null) {
+        if (REDIS_CONTAINER!=null){
             REDIS_CONTAINER.stop();
         }
     }
