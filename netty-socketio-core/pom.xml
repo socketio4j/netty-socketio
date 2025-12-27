@@ -79,6 +79,11 @@
       <artifactId>hazelcast</artifactId>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>io.nats</groupId>
+      <artifactId>jnats</artifactId>
+      <scope>provided</scope>
+    </dependency>
 
     <!-- Test dependencies -->
     <dependency>
