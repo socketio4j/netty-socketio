@@ -34,7 +34,6 @@ import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.event.PublishConfig;
 import com.socketio4j.socketio.store.redis_pubsub.RedissonEventStore;
 import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
 
