@@ -108,15 +108,15 @@ public final class KafkaEventStore implements EventStore {
         if (nodeId == null){
             nodeId = getNodeId();
         }
-        this.nodeId = nodeId;
+        this.nodeId = Objects.requireNonNull(nodeId);
         if (mode == null) {
            mode =  EventStoreMode.MULTI_CHANNEL;
         }
-        this.mode = mode;
+        this.mode = Objects.requireNonNull(mode);
         if (topicPrefix == null || topicPrefix.isEmpty()) {
             topicPrefix = "SOCKETIO4J-";
         }
-        this.topicPrefix = topicPrefix;
+        this.topicPrefix = Objects.requireNonNull(topicPrefix);
     }
 
     // ---------------------------------------------------------------------

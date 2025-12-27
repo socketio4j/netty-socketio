@@ -224,9 +224,7 @@ public class DistributedKafkaSingleChannelMemoryTest extends DistributedCommonTe
         if (node2 != null) {
             node2.stop();
         }
-        if (KAFKA != null) {
-            KAFKA.close();
-        }
+        KAFKA.close();
 
     }
 }

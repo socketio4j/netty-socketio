@@ -20,12 +20,14 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.common.errors.TopicExistsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
@@ -90,6 +92,11 @@ public class CustomizedKafkaContainer extends ConfluentKafkaContainer {
                     .collect(Collectors.toList());
 
             admin.createTopics(topics).all().get(30, TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof TopicExistsException) {
+                // Topics already exist, continue
+                return;
+            }
         } catch (Exception e) {
             throw new RuntimeException("Failed to create Kafka topics", e);
         }

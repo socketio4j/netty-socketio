@@ -91,7 +91,7 @@
     <logback.version>1.5.23</logback.version>
     <socketio.version>2.1.2</socketio.version>
     <javafaker.version>1.0.2</javafaker.version>
-    <kafka.version>3.7.0</kafka.version>
+    <kafka.version>4.1.1</kafka.version>
     <commons-lang3.version>3.20.0</commons-lang3.version>
   </properties>
 

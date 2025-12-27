@@ -243,11 +243,12 @@ public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
         if (node2 != null) {
             node2.stop();
         }
-        if (KAFKA != null) {
-            KAFKA.close();
-        }
+        KAFKA.close();
+
         if (REDIS_CONTAINER!=null){
             REDIS_CONTAINER.stop();
+            redisClient1.shutdown();
+            redisClient2.shutdown();
         }
     }
 }

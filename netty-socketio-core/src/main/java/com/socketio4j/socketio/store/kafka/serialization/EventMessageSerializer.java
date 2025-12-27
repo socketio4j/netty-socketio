@@ -21,6 +21,7 @@ package com.socketio4j.socketio.store.kafka.serialization;
  * @date 15/12/25 6:21 pm
  */
 
+import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +53,7 @@ public final class EventMessageSerializer
             return MAPPER.writeValueAsBytes(data);
         } catch (Exception e) {
            log.error("Failed to serialize EventMessage for topic {}", topic, e);
-            return null;
+            throw new SerializationException("Failed to serialize EventMessage", e);
         }
     }
 }

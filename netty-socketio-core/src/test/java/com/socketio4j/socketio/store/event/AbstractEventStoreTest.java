@@ -263,7 +263,7 @@ public abstract class AbstractEventStoreTest {
         CountDownLatch connectLatch = new CountDownLatch(1);
 
         AtomicReference<DispatchMessage> dispatchRef = new AtomicReference<>();
-        AtomicReference<DispatchMessage> connectRef = new AtomicReference<>();
+        AtomicReference<ConnectMessage> connectRef = new AtomicReference<>();
 
         // Subscribe to DISPATCH
         subscriberStore.subscribe(
@@ -286,7 +286,7 @@ public abstract class AbstractEventStoreTest {
                         connectLatch.countDown();
                     }
                 },
-                DispatchMessage.class
+                ConnectMessage.class
         );
 
         // --- DISPATCH message ---
@@ -310,10 +310,7 @@ public abstract class AbstractEventStoreTest {
         connectPacket.setNsp("/");
         connectPacket.setData("connect message");
 
-        DispatchMessage connectMsg = new DispatchMessage(
-                "room1",
-                connectPacket,
-                "/"
+        ConnectMessage connectMsg = new ConnectMessage(
         );
         connectMsg.setNodeId(publisherNodeId);
 
@@ -342,8 +339,8 @@ public abstract class AbstractEventStoreTest {
         );
 
         assertEquals(
-                "connect message",
-                connectRef.get().getPacket().getData()
+                EventType.CONNECT.name(),
+                connectRef.get().getType()
         );
     }
 

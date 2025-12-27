@@ -48,6 +48,7 @@ module netty.socketio.core {
   exports com.socketio4j.socketio.store.redis_pubsub;
   exports com.socketio4j.socketio.store.redis_reliable;
   exports com.socketio4j.socketio.store.redis_stream;
+  exports com.socketio4j.socketio.store.kafka;
 
   // ============================================================
   // Kafka-specific store
