@@ -304,14 +304,7 @@ public abstract class AbstractEventStoreTest {
         dispatchMsg.setNodeId(publisherNodeId);
 
         // --- CONNECT message ---
-        Packet connectPacket = new Packet(PacketType.MESSAGE);
-        connectPacket.setSubType(PacketType.EVENT);
-        connectPacket.setName("connect-event");
-        connectPacket.setNsp("/");
-        connectPacket.setData("connect message");
-
-        ConnectMessage connectMsg = new ConnectMessage(
-        );
+        ConnectMessage connectMsg = new ConnectMessage();
         connectMsg.setNodeId(publisherNodeId);
 
         // Publish to different topics
