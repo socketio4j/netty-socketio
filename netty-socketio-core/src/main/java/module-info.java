@@ -51,12 +51,10 @@ module netty.socketio.core {
   exports com.socketio4j.socketio.store.kafka;
 
   // ============================================================
-  // Kafka-specific store
-  // DO NOT export publicly
-  // Only allow runtime reflection by Kafka client
+  // Reflective-only packages (not exported)
+  // Opened for runtime access by serialization frameworks
   // ============================================================
   opens com.socketio4j.socketio.store.kafka.serialization to kafka.clients;
-  // allow Jackson reflective access
   opens com.socketio4j.socketio.store.event to com.fasterxml.jackson.databind;
   opens com.socketio4j.socketio.protocol to com.fasterxml.jackson.databind;
 
