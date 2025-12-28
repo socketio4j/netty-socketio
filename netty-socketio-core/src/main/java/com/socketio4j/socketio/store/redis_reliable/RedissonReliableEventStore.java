@@ -159,8 +159,9 @@ public class RedissonReliableEventStore implements EventStore {
      * Trims a single Redis stream to the configured maximum length.
      * 
      * <p>Uses {@code trimNonStrictAsync()} with {@code noLimit()} to perform non-blocking
-     * trimming. The {@code noLimit()} parameter allows trimming to proceed without strict
-     * length enforcement, which is more efficient for large streams.
+     * trimming. The {@code noLimit()} parameter removes the cap on the number of evicted
+     * objects for the trim command, allowing a single trim operation to evict more entries
+     * (i.e., be more aggressive) rather than limiting evictions per call.
      * 
      * <p>After trimming, the stream size is checked and logged for monitoring purposes.
      * Failures are logged but don't throw exceptions to prevent interrupting the trim cycle.
