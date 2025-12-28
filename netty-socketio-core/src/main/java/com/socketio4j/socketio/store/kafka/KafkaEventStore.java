@@ -137,6 +137,22 @@ public final class KafkaEventStore implements EventStore {
     // Publish (async, non-blocking)
     // ---------------------------------------------------------------------
 
+    /**
+     * Publishes an event message to Kafka asynchronously.
+     * 
+     * <p>Design decisions:
+     * <ul>
+     *   <li><b>Async non-blocking</b>: Uses {@code producer.send()} with a callback to avoid
+     *       blocking the Netty event loop. Failures are logged but don't throw exceptions.</li>
+     *   <li><b>Node ID filtering</b>: Sets the nodeId on the message so consumers can filter out
+     *       messages from their own node, preventing duplicate processing.</li>
+     *   <li><b>Topic resolution</b>: In SINGLE_CHANNEL mode, all events go to one topic;
+     *       in MULTI_CHANNEL mode, each event type has its own topic.</li>
+     * </ul>
+     * 
+     * @param type the event type
+     * @param msg the message to publish
+     */
     @Override
     public void publish0(EventType type, EventMessage msg) {
 
@@ -209,12 +225,34 @@ public final class KafkaEventStore implements EventStore {
         });
     }
 
+    /**
+     * Creates a Kafka consumer for the specified event type.
+     * 
+     * <p>Design decisions:
+     * <ul>
+     *   <li><b>No consumer group</b>: Uses {@code assign()} instead of {@code subscribe()} to directly
+     *       assign partitions. This ensures each node consumes all messages (broadcast mode), similar
+     *       to Redis Stream's XREAD pattern. Consumer groups would cause messages to be consumed by only
+     *       one node, breaking distributed synchronization.</li>
+     *   <li><b>Start from newest</b>: Uses {@code seekToEnd()} to start consuming from the latest offset,
+     *       ignoring historical messages. This matches Redis Stream's NEWEST behavior and ensures nodes
+     *       only process new events after startup.</li>
+     *   <li><b>Topic auto-creation</b>: Retries partition discovery to handle cases where topics are
+     *       auto-created by Kafka (when auto.create.topics.enable=true).</li>
+     * </ul>
+     * 
+     * @param type the event type to create a consumer for
+     * @return a configured Kafka consumer
+     * @throws IllegalStateException if topic partitions cannot be discovered after retries
+     */
     private KafkaConsumer<String, EventMessage> createConsumer(EventType type) {
 
         Properties props = new Properties();
         props.putAll(consumerProps);
 
-        // IMPORTANT: No group.id
+        // IMPORTANT: Remove group.id to use direct partition assignment (XREAD-style)
+        // Consumer groups would cause messages to be consumed by only one node,
+        // but we need all nodes to receive all messages for distributed synchronization
         props.remove(ConsumerConfig.GROUP_ID_CONFIG);
 
         KafkaConsumer<String, EventMessage> consumer =
@@ -222,13 +260,41 @@ public final class KafkaEventStore implements EventStore {
 
         String topic = topic(resolve(type));
 
-        // Discover partitions
-        List<PartitionInfo> infos =
-                consumer.partitionsFor(topic);
+        // Discover partitions with retry logic
+        // Topics may be auto-created by Kafka, so we retry a few times
+        List<PartitionInfo> infos = null;
+        int maxRetries = 5;
+        long retryDelayMs = 500;
+        
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            infos = consumer.partitionsFor(topic);
+            if (infos != null && !infos.isEmpty()) {
+                break;
+            }
+            
+            if (attempt < maxRetries) {
+                log.debug(
+                    "Topic {} not found (attempt {}/{}), retrying in {}ms...",
+                    topic, attempt, maxRetries, retryDelayMs
+                );
+                try {
+                    Thread.sleep(retryDelayMs);
+                    retryDelayMs *= 2; // Exponential backoff
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(
+                        "Interrupted while waiting for topic " + topic + " to be available"
+                    );
+                }
+            }
+        }
 
         if (infos == null || infos.isEmpty()) {
             throw new IllegalStateException(
-                    "No partitions found for topic " + topic);
+                "No partitions found for topic " + topic + 
+                " after " + maxRetries + " attempts. " +
+                "Please ensure the topic exists or enable auto-creation (auto.create.topics.enable=true)"
+            );
         }
 
         List<TopicPartition> partitions = new ArrayList<>();
@@ -236,12 +302,13 @@ public final class KafkaEventStore implements EventStore {
             partitions.add(new TopicPartition(topic, info.partition()));
         }
 
-        // Assign directly (XREAD-style)
+        // Assign directly (XREAD-style) - all nodes consume all messages
         consumer.assign(partitions);
 
-        // Start from newest (like StreamMessageId.NEWEST)
+        // Start from newest (like StreamMessageId.NEWEST) - ignore historical messages
         consumer.seekToEnd(partitions);
 
+        log.debug("Created consumer for topic {} with {} partitions", topic, partitions.size());
         return consumer;
     }
 
@@ -249,6 +316,26 @@ public final class KafkaEventStore implements EventStore {
     // Poll loop (never blocks Netty)
     // ---------------------------------------------------------------------
 
+    /**
+     * Main polling loop for consuming messages from Kafka.
+     * 
+     * <p>Design decisions:
+     * <ul>
+     *   <li><b>Runs in separate thread</b>: Each event type has its own daemon thread to avoid
+     *       blocking the Netty event loop. Threads are named for easy debugging.</li>
+     *   <li><b>Node ID filtering</b>: Skips messages from the same node to prevent duplicate
+     *       processing. Local operations are already applied, so we only need to process
+     *       messages from other nodes.</li>
+     *   <li><b>Poison pill handling</b>: When deserialization fails, we skip the bad message
+     *       and continue (similar to Redis Stream's behavior). This prevents a single corrupted
+     *       message from blocking the entire consumer.</li>
+     *   <li><b>Short poll timeout</b>: 1 second timeout ensures the loop can check the
+     *       running flag frequently for graceful shutdown.</li>
+     * </ul>
+     * 
+     * @param type the event type being consumed
+     * @param consumer the Kafka consumer instance
+     */
     private void pollLoop(EventType type,
                           KafkaConsumer<String, EventMessage> consumer) {
 
@@ -261,10 +348,12 @@ public final class KafkaEventStore implements EventStore {
                     for (ConsumerRecord<String, EventMessage> rec : records) {
 
                         EventMessage msg = rec.value();
+                        // Skip null messages and messages from this node (already processed locally)
                         if (msg == null || nodeId.equals(msg.getNodeId())) {
                             continue;
                         }
 
+                        // Set offset for potential message replay or debugging
                         msg.setOffset(
                                 rec.topic() + ":" +
                                         rec.partition() + ":" +
@@ -275,7 +364,7 @@ public final class KafkaEventStore implements EventStore {
                     }
 
                 } catch (RecordDeserializationException e) {
-
+                    // Handle poison pill messages (corrupted/unparseable data)
                     TopicPartition tp = e.topicPartition();
                     long badOffset = e.offset();
 
@@ -284,12 +373,12 @@ public final class KafkaEventStore implements EventStore {
                             tp, badOffset, e
                     );
 
-                    // Skip poison pill (Redis-style)
+                    // Skip the bad message and continue (Redis Stream-style)
                     consumer.seek(tp, badOffset + 1);
 
                     // Continue loop → next poll()
                 } catch (WakeupException e) {
-                    // Expected during shutdown
+                    // Expected during shutdown - consumer.wakeup() was called
                     break;
                 }
             }
@@ -393,6 +482,19 @@ public final class KafkaEventStore implements EventStore {
         return topicPrefix + type.name();
     }
 
+    /**
+     * Resolves the event type based on the store mode.
+     * 
+     * <p>In SINGLE_CHANNEL mode, all events are routed to a single topic (ALL_SINGLE_CHANNEL).
+     * This ensures event ordering across all event types but requires all nodes to process
+     * all events.
+     * 
+     * <p>In MULTI_CHANNEL mode, each event type has its own topic, allowing independent
+     * scaling and processing of different event types.
+     * 
+     * @param type the original event type
+     * @return the resolved event type (may be ALL_SINGLE_CHANNEL in single channel mode)
+     */
     private EventType resolve(EventType type) {
         if (mode == EventStoreMode.SINGLE_CHANNEL) {
                 return EventType.ALL_SINGLE_CHANNEL;
@@ -400,16 +502,22 @@ public final class KafkaEventStore implements EventStore {
         return type;
     }
 
+    /**
+     * Validates that the subscription request is compatible with the current store mode.
+     * 
+     * @param type the event type to subscribe to
+     * @throws UnsupportedOperationException if the subscription is invalid for the current mode
+     */
     private void validateSubscribe(EventType type) {
 
         if (mode == EventStoreMode.SINGLE_CHANNEL && type != EventType.ALL_SINGLE_CHANNEL) {
             throw new UnsupportedOperationException(
-                    "Only ALL_SINGLE_CHANNEL allowed");
+                    "Only ALL_SINGLE_CHANNEL allowed in SINGLE_CHANNEL mode");
         }
 
         if (mode == EventStoreMode.MULTI_CHANNEL && type == EventType.ALL_SINGLE_CHANNEL) {
             throw new UnsupportedOperationException(
-                    "ALL_SINGLE_CHANNEL not allowed");
+                    "ALL_SINGLE_CHANNEL not allowed in MULTI_CHANNEL mode");
         }
     }
 }

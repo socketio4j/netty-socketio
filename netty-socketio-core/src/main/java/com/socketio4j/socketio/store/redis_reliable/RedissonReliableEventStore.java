@@ -95,8 +95,13 @@ public class RedissonReliableEventStore implements EventStore {
         }
         this.streamMaxLength = streamMaxLength;
 
-        if (streamMaxLength != Integer.MAX_VALUE) {
+        // Set default trim interval only if:
+        // 1. User did not provide a custom trimEvery value (trimEvery is null)
+        // 2. Stream max length is limited (not Integer.MAX_VALUE)
+        // This ensures we don't override user's explicit configuration
+        if (trimEvery == null && streamMaxLength != Integer.MAX_VALUE) {
             trimEvery = Duration.ofSeconds(60);
+            log.debug("Auto-trim enabled with default interval: 60 seconds (streamMaxLength: {})", streamMaxLength);
         }
 
         this.redissonPub = redissonPub;
@@ -123,6 +128,15 @@ public class RedissonReliableEventStore implements EventStore {
         }
 
     }
+    /**
+     * Trims all reliable streams to maintain the configured maximum length.
+     * 
+     * <p>This method is called periodically by the scheduled executor to prevent streams
+     * from growing unbounded. The trimming is done asynchronously to avoid blocking.
+     * 
+     * <p>In SINGLE_CHANNEL mode, only the ALL_SINGLE_CHANNEL stream is trimmed.
+     * In MULTI_CHANNEL mode, all event type streams are trimmed.
+     */
     private void trimAllReliableStreams() {
 
         try {
@@ -141,6 +155,18 @@ public class RedissonReliableEventStore implements EventStore {
         return redissonPub.getStream(getStreamName(type));
     }
 
+    /**
+     * Trims a single Redis stream to the configured maximum length.
+     * 
+     * <p>Uses {@code trimNonStrictAsync()} with {@code noLimit()} to perform non-blocking
+     * trimming. The {@code noLimit()} parameter allows trimming to proceed without strict
+     * length enforcement, which is more efficient for large streams.
+     * 
+     * <p>After trimming, the stream size is checked and logged for monitoring purposes.
+     * Failures are logged but don't throw exceptions to prevent interrupting the trim cycle.
+     * 
+     * @param type the event type whose stream should be trimmed
+     */
     private void trimStream(EventType type) {
         try {
             RStream<String, EventMessage> stream =
@@ -154,6 +180,7 @@ public class RedissonReliableEventStore implements EventStore {
                     return;
                 }
 
+                // Log stream size after trimming for monitoring
                 stream.sizeAsync()
                         .whenComplete((length, sizeErr) -> {
                             if (sizeErr != null) {
@@ -241,10 +268,25 @@ public class RedissonReliableEventStore implements EventStore {
 
     @Override
     public void shutdown0() {
+        // Gracefully shutdown trim executor
         trimExecutor.shutdown();
+        try {
+            // Wait for ongoing trim operations to complete
+            if (!trimExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                log.warn("Trim executor did not terminate gracefully, forcing shutdown");
+                trimExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            log.warn("Interrupted while waiting for trim executor to shutdown");
+            trimExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+
+        // Unsubscribe from all event types
         Arrays.stream(EventType.values()).forEach(this::unsubscribe);
         map.clear();
-        trimExecutor.shutdownNow();
+
+        // Clear all topic references
         activePubTopics.clear();
         activeSubTopics.clear();
         trimTopics.clear();
