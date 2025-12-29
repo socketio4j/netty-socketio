@@ -75,22 +75,23 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <testcontainers.version>2.0.2</testcontainers.version>
+    <testcontainers.version>2.0.3</testcontainers.version>
     <netty.version>4.2.9.Final</netty.version>
     <jmockit.version>1.50</jmockit.version>
-    <byte-buddy.version>1.18.2</byte-buddy.version>
+    <byte-buddy.version>1.18.3</byte-buddy.version>
     <junit.version>6.0.1</junit.version>
     <junit-platform-launcher.version>6.0.1</junit-platform-launcher.version>
     <slf4j.version>2.0.17</slf4j.version>
     <jackson.version>2.20.1</jackson.version>
-    <redisson.version>3.52.0</redisson.version>
+    <redisson.version>4.0.0</redisson.version>
     <hazelcast.version>5.2.5</hazelcast.version>
     <awaitility.version>4.3.0</awaitility.version>
     <assertj.version>3.27.6</assertj.version>
-    <mockito.version>5.20.0</mockito.version>
-    <logback.version>1.5.21</logback.version>
+    <mockito.version>5.21.0</mockito.version>
+    <logback.version>1.5.23</logback.version>
     <socketio.version>2.1.2</socketio.version>
     <javafaker.version>1.0.2</javafaker.version>
+    <kafka.version>4.1.1</kafka.version>
     <commons-lang3.version>3.20.0</commons-lang3.version>
     <nats.version>2.24.1</nats.version>
   </properties>
@@ -320,6 +321,13 @@
         <version>${hazelcast.version}</version>
         <scope>provided</scope>
       </dependency>
+      <dependency>
+        <groupId>org.apache.kafka</groupId>
+        <artifactId>kafka-clients</artifactId>
+        <version>${kafka.version}</version>
+        <scope>provided</scope>
+      </dependency>
+
 
       <!-- Test dependencies -->
       <dependency>
@@ -432,7 +440,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-release-plugin</artifactId>
-        <version>3.2.0</version>
+        <version>3.3.1</version>
         <configuration>
           <autoVersionSubmodules>true</autoVersionSubmodules>
           <useReleaseProfile>true</useReleaseProfile>

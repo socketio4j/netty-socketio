@@ -41,7 +41,7 @@ import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastRingBufferEve
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedHazelcastRingBufferMultiChannelTest extends DistributedCommonTest {
 
-    private static final CustomizedHazelcastContainer HAZELCAST_CONTAINER = new CustomizedHazelcastContainer().withReuse(true);
+    private static final CustomizedHazelcastContainer HAZELCAST_CONTAINER = new CustomizedHazelcastContainer().withReuse(false);
     private HazelcastInstance hazelcastInstance;
     private HazelcastInstance hazelcastInstance1;
     // -------------------------------------------

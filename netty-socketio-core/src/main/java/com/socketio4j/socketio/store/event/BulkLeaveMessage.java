@@ -48,5 +48,9 @@ public class BulkLeaveMessage extends EventMessage {
     public Set<String> getRooms() {
         return rooms;
     }
+    @Override
+    public String getType() {
+        return EventType.BULK_LEAVE.name();
+    }
 
 }

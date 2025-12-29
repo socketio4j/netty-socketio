@@ -54,7 +54,7 @@ public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
 
     @Override
     protected StoreFactory createStoreFactory() throws Exception {
-        container = new CustomizedRedisContainer().withReuse(true);
+        container = new CustomizedRedisContainer().withReuse(false);
         container.start();
         
         CustomizedRedisContainer customizedRedisContainer = (CustomizedRedisContainer) container;

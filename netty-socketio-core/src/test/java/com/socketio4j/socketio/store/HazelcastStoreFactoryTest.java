@@ -54,7 +54,7 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
 
     @Override
     protected StoreFactory createStoreFactory() throws Exception {
-        container = new CustomizedHazelcastContainer().withReuse(true);
+        container = new CustomizedHazelcastContainer().withReuse(false);
         container.start();
         CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
 
