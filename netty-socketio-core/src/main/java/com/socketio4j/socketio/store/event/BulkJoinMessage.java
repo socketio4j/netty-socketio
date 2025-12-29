@@ -49,4 +49,8 @@ public class BulkJoinMessage extends EventMessage {
         return rooms;
     }
 
+    @Override
+    public String getType() {
+        return EventType.BULK_JOIN.name();
+    }
 }

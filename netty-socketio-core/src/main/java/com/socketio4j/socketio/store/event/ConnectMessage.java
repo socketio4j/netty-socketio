@@ -35,5 +35,9 @@ public class ConnectMessage extends EventMessage {
     public UUID getSessionId() {
         return sessionId;
     }
+    @Override
+    public String getType() {
+        return EventType.CONNECT.name();
+    }
 
 }

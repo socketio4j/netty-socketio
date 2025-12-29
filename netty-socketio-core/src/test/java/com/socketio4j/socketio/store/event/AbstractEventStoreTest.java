@@ -25,6 +25,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
 
+import com.socketio4j.socketio.protocol.Packet;
+import com.socketio4j.socketio.protocol.PacketType;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -77,130 +80,262 @@ public abstract class AbstractEventStoreTest {
 
     @Test
     public void testBasicPublishSubscribe() throws InterruptedException {
+
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<TestMessage> receivedMessage = new AtomicReference<>();
+        AtomicReference<DispatchMessage> receivedRef = new AtomicReference<>();
 
-        // Subscribe to a topic using subscriber store
-        subscriberStore.subscribe(EventType.DISPATCH, message -> {
-            // Should receive messages from different nodes
-            if (!subscriberNodeId.equals(message.getNodeId())) {
-                receivedMessage.set(message);
-                latch.countDown();
-            }
-        }, TestMessage.class);
+        // Subscribe on subscriber node
+        subscriberStore.subscribe(
+                EventType.DISPATCH,
+                message -> {
+                    // Ignore messages from same node
+                    if (!subscriberNodeId.equals(message.getNodeId())) {
+                        receivedRef.set(message);
+                        latch.countDown();
+                    }
+                },
+                DispatchMessage.class
+        );
 
-        // Publish a message using publisher store (different nodeId)
-        TestMessage testMessage = new TestMessage();
-        testMessage.setContent("test content from different node");
-        
-        publisherStore.publish(EventType.DISPATCH, testMessage);
+        // Create Packet (protocol-level)
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setSubType(PacketType.EVENT);
+        packet.setName("test-event");
+        packet.setNsp("/test");
+        packet.setData("test content from different node");
 
-        // Wait for message to be received
-        assertTrue(latch.await(5, TimeUnit.SECONDS), "Message should be received within 5 seconds");
-        
-        TestMessage received = receivedMessage.get();
-        assertNotNull(received, "Message should not be null");
-        assertEquals("test content from different node", received.getContent());
+        // Create DispatchMessage (cluster-level)
+        DispatchMessage outgoing = new DispatchMessage(
+                "room1",
+                packet,
+                "/test"
+        );
+        outgoing.setNodeId(publisherNodeId);
+
+        // Publish
+        publisherStore.publish(EventType.DISPATCH, outgoing);
+
+        // Await delivery
+        assertTrue(
+                latch.await(5, TimeUnit.SECONDS),
+                "Message should be received within 5 seconds"
+        );
+
+        // Validate
+        DispatchMessage received = receivedRef.get();
+        assertNotNull(received, "Received DispatchMessage must not be null");
+
+        assertEquals("room1", received.getRoom());
+        assertEquals("/test", received.getNamespace());
         assertEquals(publisherNodeId, received.getNodeId());
+
+        Packet receivedPacket = received.getPacket();
+        assertNotNull(receivedPacket, "Packet must not be null");
+
+        assertEquals(PacketType.MESSAGE, receivedPacket.getType());
+        assertEquals(PacketType.EVENT, receivedPacket.getSubType());
+        assertEquals("test-event", receivedPacket.getName());
+        assertEquals("/test", receivedPacket.getNsp());
+        assertEquals(
+                "test content from different node",
+                receivedPacket.getData()
+        );
     }
+
 
     @Test
     public void testMessageFiltering() throws InterruptedException {
+
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<TestMessage> receivedMessage = new AtomicReference<>();
+        AtomicReference<DispatchMessage> receivedRef = new AtomicReference<>();
 
-        // Subscribe to a topic using subscriber store
-        subscriberStore.subscribe(EventType.DISPATCH, message -> {
-            // Should not receive messages from the same node
-            if (!subscriberNodeId.equals(message.getNodeId())) {
-                receivedMessage.set(message);
-                latch.countDown();
-            }
-        }, TestMessage.class);
+        // Subscribe on subscriber node
+        subscriberStore.subscribe(
+                EventType.DISPATCH,
+                message -> {
+                    // Should NOT receive messages from the same node
+                    if (!subscriberNodeId.equals(message.getNodeId())) {
+                        receivedRef.set(message);
+                        latch.countDown();
+                    }
+                },
+                DispatchMessage.class
+        );
 
-        // Publish a message using publisher store (different nodeId)
-        TestMessage testMessage = new TestMessage();
-        testMessage.setContent("test content from different node");
-        
-        publisherStore.publish(EventType.DISPATCH, testMessage);
+        // Create protocol packet
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setSubType(PacketType.EVENT);
+        packet.setName("filter-test");
+        packet.setNsp("/");
 
-        // Wait for message to be received
-        assertTrue(latch.await(5, TimeUnit.SECONDS), "Message should be received within 5 seconds");
-        
-        TestMessage received = receivedMessage.get();
-        assertNotNull(received, "Message should not be null");
-        assertEquals("test content from different node", received.getContent());
+        packet.setData("test content from different node");
+
+        // Create dispatch message
+        DispatchMessage outgoing = new DispatchMessage(
+                "room1",
+                packet,
+                "/"
+        );
+        outgoing.setNodeId(publisherNodeId);
+
+        // Publish from publisher node
+        publisherStore.publish(EventType.DISPATCH, outgoing);
+
+        // Await delivery
+        assertTrue(
+                latch.await(5, TimeUnit.SECONDS),
+                "Message should be received within 5 seconds"
+        );
+
+        // Validate received message
+        DispatchMessage received = receivedRef.get();
+        assertNotNull(received, "DispatchMessage must not be null");
+
+        // Ensure filtering worked
         assertEquals(publisherNodeId, received.getNodeId());
+
+        Packet receivedPacket = received.getPacket();
+        assertNotNull(receivedPacket);
+
+        assertEquals("filter-test", receivedPacket.getName());
+        assertEquals(
+                "test content from different node",
+                receivedPacket.getData()
+        );
     }
+
 
     @Test
     public void testUnsubscribe() throws InterruptedException {
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<TestMessage> receivedMessage = new AtomicReference<>();
 
-        // Subscribe to a topic using subscriber store
-        subscriberStore.subscribe(EventType.DISPATCH, message -> {
-            // Should receive messages from different nodes
-            if (!subscriberNodeId.equals(message.getNodeId())) {
-                receivedMessage.set(message);
-                latch.countDown();
-            }
-        }, TestMessage.class);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<DispatchMessage> receivedRef = new AtomicReference<>();
+
+        // Subscribe on subscriber node
+        subscriberStore.subscribe(
+                EventType.DISPATCH,
+                message -> {
+                    // Should receive messages only if still subscribed
+                    if (!subscriberNodeId.equals(message.getNodeId())) {
+                        receivedRef.set(message);
+                        latch.countDown();
+                    }
+                },
+                DispatchMessage.class
+        );
 
         // Unsubscribe immediately
         subscriberStore.unsubscribe(EventType.DISPATCH);
 
-        // Publish a message using publisher store (different nodeId)
-        TestMessage testMessage = new TestMessage();
-        testMessage.setContent("test content");
-        
-        publisherStore.publish(EventType.DISPATCH, testMessage);
+        // Create protocol packet
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setSubType(PacketType.EVENT);
+        packet.setName("unsubscribe-test");
+        packet.setNsp("/");
+        packet.setData("test content");
 
-        // Message should not be received
-        assertFalse(latch.await(2, TimeUnit.SECONDS), "Message should not be received after unsubscribe");
-        assertNull(receivedMessage.get(), "No message should be received");
+        // Create dispatch message
+        DispatchMessage outgoing = new DispatchMessage(
+                "room1",
+                packet,
+                "/"
+        );
+        outgoing.setNodeId(publisherNodeId);
+
+        // Publish from publisher node
+        publisherStore.publish(EventType.DISPATCH, outgoing);
+
+        // Message should NOT be received
+        assertFalse(
+                latch.await(2, TimeUnit.SECONDS),
+                "Message should not be received after unsubscribe"
+        );
+
+        assertNull(
+                receivedRef.get(),
+                "No DispatchMessage should be received"
+        );
     }
-
     @Test
     public void testMultipleTopics() throws InterruptedException {
+
         CountDownLatch dispatchLatch = new CountDownLatch(1);
         CountDownLatch connectLatch = new CountDownLatch(1);
-        AtomicReference<TestMessage> dispatchMessage = new AtomicReference<>();
-        AtomicReference<TestMessage> connectMessage = new AtomicReference<>();
 
-        // Subscribe to multiple topics using subscriber store
-        subscriberStore.subscribe(EventType.DISPATCH, message -> {
-            // Should receive messages from different nodes
-            if (!subscriberNodeId.equals(message.getNodeId())) {
-                dispatchMessage.set(message);
-                dispatchLatch.countDown();
-            }
-        }, TestMessage.class);
+        AtomicReference<DispatchMessage> dispatchRef = new AtomicReference<>();
+        AtomicReference<ConnectMessage> connectRef = new AtomicReference<>();
 
-        subscriberStore.subscribe(EventType.CONNECT, message -> {
-            // Should receive messages from different nodes
-            if (!subscriberNodeId.equals(message.getNodeId())) {
-                connectMessage.set(message);
-                connectLatch.countDown();
-            }
-        }, TestMessage.class);
+        // Subscribe to DISPATCH
+        subscriberStore.subscribe(
+                EventType.DISPATCH,
+                message -> {
+                    if (!subscriberNodeId.equals(message.getNodeId())) {
+                        dispatchRef.set(message);
+                        dispatchLatch.countDown();
+                    }
+                },
+                DispatchMessage.class
+        );
 
-        // Publish messages to different topics using publisher store
-        TestMessage dispatchMsg = new TestMessage();
-        dispatchMsg.setContent("dispatch message");
-        
-        TestMessage connectMsg = new TestMessage();
-        connectMsg.setContent("connect message");
+        // Subscribe to CONNECT
+        subscriberStore.subscribe(
+                EventType.CONNECT,
+                message -> {
+                    if (!subscriberNodeId.equals(message.getNodeId())) {
+                        connectRef.set(message);
+                        connectLatch.countDown();
+                    }
+                },
+                ConnectMessage.class
+        );
 
+        // --- DISPATCH message ---
+        Packet dispatchPacket = new Packet(PacketType.MESSAGE);
+        dispatchPacket.setSubType(PacketType.EVENT);
+        dispatchPacket.setName("dispatch-event");
+        dispatchPacket.setNsp("/");
+        dispatchPacket.setData("dispatch message");
+
+        DispatchMessage dispatchMsg = new DispatchMessage(
+                "room1",
+                dispatchPacket,
+                "/"
+        );
+        dispatchMsg.setNodeId(publisherNodeId);
+
+        // --- CONNECT message ---
+        ConnectMessage connectMsg = new ConnectMessage();
+        connectMsg.setNodeId(publisherNodeId);
+
+        // Publish to different topics
         publisherStore.publish(EventType.DISPATCH, dispatchMsg);
         publisherStore.publish(EventType.CONNECT, connectMsg);
 
-        // Wait for both messages
-        assertTrue(dispatchLatch.await(5, TimeUnit.SECONDS), "Dispatch message should be received");
-        assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Connect message should be received");
+        // Wait for both
+        assertTrue(
+                dispatchLatch.await(5, TimeUnit.SECONDS),
+                "Dispatch message should be received"
+        );
 
-        assertEquals("dispatch message", dispatchMessage.get().getContent());
-        assertEquals("connect message", connectMessage.get().getContent());
+        assertTrue(
+                connectLatch.await(5, TimeUnit.SECONDS),
+                "Connect message should be received"
+        );
+
+        // Validate isolation
+        assertNotNull(dispatchRef.get());
+        assertNotNull(connectRef.get());
+
+        assertEquals(
+                "dispatch message",
+                dispatchRef.get().getPacket().getData()
+        );
+
+        assertEquals(
+                EventType.CONNECT.name(),
+                connectRef.get().getType()
+        );
     }
+
 
 }

@@ -35,7 +35,7 @@ public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
 
     @Override
     protected GenericContainer<?> createContainer() {
-        return new CustomizedHazelcastContainer().withReuse(true);  // This is now single-server safe
+        return new CustomizedHazelcastContainer().withReuse(false);  // This is now single-server safe
     }
 
     @Override
