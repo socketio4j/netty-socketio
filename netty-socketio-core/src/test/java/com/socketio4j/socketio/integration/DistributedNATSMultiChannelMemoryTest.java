@@ -50,7 +50,8 @@ public class DistributedNATSMultiChannelMemoryTest extends DistributedCommonTest
     private static final CustomizedNatsContainer NATS_CONTAINER =
             new CustomizedNatsContainer();
 
-
+    private Connection nc;
+    private Connection nc1;
     // -------------------------------------------
     // Utility
     // -------------------------------------------
@@ -81,7 +82,7 @@ public class DistributedNATSMultiChannelMemoryTest extends DistributedCommonTest
                 .build();
 
 
-        Connection nc = Nats.connect(options);
+        nc = Nats.connect(options);
         cfg1.setStoreFactory(
                 new MemoryStoreFactory(
                         new NatsEventStore(nc, EventStoreMode.MULTI_CHANNEL, null)
@@ -137,7 +138,7 @@ public class DistributedNATSMultiChannelMemoryTest extends DistributedCommonTest
                 .maxPingsOut(3)
                 .build();
 
-        Connection nc1 = Nats.connect(options1);
+        nc1 = Nats.connect(options1);
         cfg2.setStoreFactory(
                 new MemoryStoreFactory(
                         new NatsEventStore(nc1, EventStoreMode.MULTI_CHANNEL, null)
@@ -190,14 +191,29 @@ public class DistributedNATSMultiChannelMemoryTest extends DistributedCommonTest
     @AfterAll
     public void stop() {
 
+        if(nc != null) {
+            try {
+                nc.close();
+            } catch (InterruptedException ignored) {
+             
+            }
+        }
+        if (nc1 != null) {
+            try {
+                nc1.close();
+            } catch (InterruptedException ignored) {
+        
+            }
+        }
+
         if (node1 != null) {
             node1.stop();
         }
         if (node2 != null) {
             node2.stop();
         }
-        if (NATS_CONTAINER != null) {
-            NATS_CONTAINER.stop();
-        }
+
+        NATS_CONTAINER.stop();
+    
     }
 }

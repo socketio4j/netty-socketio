@@ -87,12 +87,20 @@ public class CustomizedNatsContainer extends GenericContainer<CustomizedNatsCont
         long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(30);
 
         while (true) {
+            Connection tempConnection = null;
             try {
-                connection = Nats.connect(getNatsUrl());
-                connection.publish("socketio4j.ready", "ping".getBytes());
-                connection.flush(Duration.ofSeconds(2));
+                tempConnection = Nats.connect(getNatsUrl());
+                tempConnection.publish("socketio4j.ready", "ping".getBytes());
+                tempConnection.flush(Duration.ofSeconds(2));
+                connection = tempConnection;
                 return; // ready
             } catch (Exception e) {
+                if (tempConnection != null) {
+                    try {
+                        tempConnection.close();
+                    } catch (Exception ignored) {
+                    }
+                }
                 if (System.currentTimeMillis() > deadline) {
                     throw new RuntimeException(
                             "NATS not ready after 30s", e);

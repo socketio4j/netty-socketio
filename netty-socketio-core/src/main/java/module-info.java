@@ -95,5 +95,5 @@ module netty.socketio.core {
   // Logging + annotations
   // ============================================================
   requires org.slf4j;
-  requires org.jetbrains.annotations;
+  requires static org.jetbrains.annotations;
 }

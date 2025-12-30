@@ -152,7 +152,9 @@ public class NatsEventStore implements EventStore {
             try {
                 Dispatcher dispatcher = activeDispatchers.remove(sub);
                 if (dispatcher != null) {
+                    dispatcher.unsubscribe(sub);
                     sub.unsubscribe();
+                    nats.closeDispatcher(dispatcher);
                 }
             } catch (Exception e) {
                 log.warn("Failed to unsubscribe from {}", type, e);
