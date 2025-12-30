@@ -34,16 +34,6 @@
 
   <developers>
     <developer>
-      <id>mrniko</id>
-      <name>Nikita Koksharov</name>
-      <email>abracham.mitchell@gmail.com</email>
-      <roles>
-        <role>Architect</role>
-        <role>Developer</role>
-      </roles>
-      <timezone>+4</timezone>
-    </developer>
-    <developer>
       <id>NeatGuyCoding</id>
       <name>NeatGuyCoding</name>
       <roles>
