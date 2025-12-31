@@ -15,7 +15,7 @@
 
 [![Java](https://img.shields.io/badge/Java-8%2B-orange.svg?style=flat-square&logo=java&logoColor=white)](https://www.oracle.com/java/)
 [![Maven](https://img.shields.io/badge/Maven-3.0.5%2B-red.svg?style=flat-square&logo=apache-maven&logoColor=white)](https://maven.apache.org/)
-[![Netty](https://img.shields.io/badge/Netty-4.2.7-green.svg?style=flat-square)](https://netty.io/)
+[![Netty](https://img.shields.io/badge/Netty-4.2.9-green.svg?style=flat-square)](https://netty.io/)
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-1.x--4.x-black.svg?style=flat-square&logo=socket.io&logoColor=white)](https://socket.io/)
 
 </div>
