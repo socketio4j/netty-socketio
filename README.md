@@ -1,6 +1,10 @@
-# Netty-SocketIO
+<img src="https://github.com/user-attachments/assets/6ca6b863-7d6d-4582-be5c-a594bb6e425c" width="60" style="vertical-align: middle; margin-right: 10px;" />
 
-<div align="center">
+<span style="font-size: 2.4em; font-weight: bold; vertical-align: middle;">
+  <h1> Socketio4j : Netty-Socket.IO </h1>
+</span>
+
+
 
 [![Maven Central](https://img.shields.io/maven-central/v/com.socketio4j/netty-socketio-core.svg?style=flat-square&label=Maven%20Central)](https://mvnrepository.com/artifact/com.socketio4j/netty-socketio-core)
 [![GitHub release](https://img.shields.io/github/release/socketio4j/netty-socketio.svg?style=flat-square&logo=github)](https://github.com/socketio4j/netty-socketio/releases)
@@ -20,45 +24,13 @@ Socket.IO server implementation for Java based on Netty framework.
 
 ## Documentation
 
-📚 **Full documentation is available at: [https://socketio4j.com](https://socketio4j.com)**
+📚 **Full documentation is available at: [https://www.socketio4j.org](https://www.socketio4j.org)**
 
 The documentation includes:
-- [Getting Started Guide](https://socketio4j.com/getting-started/)
-- [Installation Instructions](https://socketio4j.com/installation/)
-- [Configuration Options](https://socketio4j.com/configuration/)
-- [Code Examples](https://socketio4j.com/examples/)
-- [Integration Guides](https://socketio4j.com/guides/)
-- [API Documentation](https://socketio4j.com/api/)
-- [Performance Reports](https://socketio4j.com/performance/)
-
-
-## Migration from Original netty-socketio
-
-3.0.0 is the same as 2.0.13 with split modules, integration tests, and some CI/CD improvements. Replace old dependency:
-
-```xml
-<dependency>
-  <groupId>com.corundumstudio.socketio</groupId>
-  <artifactId>netty-socketio</artifactId>
-  <version>2.0.13</version>
-</dependency>
-```
-
-with new one:
-```xml
-<dependency>
-  <groupId>com.socketio4j</groupId>
-  <artifactId>netty-socketio-core</artifactId>
-  <version>LATEST-VERSION</version>
-</dependency>
-```
-
-If you use Spring integration (Just one class: `SpringAnnotationScanner`), you should use the new dependency:
-```xml
-<dependency>
-  <groupId>com.socketio4j</groupId>
-  <artifactId>netty-socketio-spring</artifactId>
-  <version>LATEST-VERSION</version>
-</dependency>
-```
-
+- [Getting Started Guide](https://www.socketio4j.org)
+- [Installation Instructions](https://www.socketio4j.org/installation)
+- [Configuration Options](https://www.socketio4j.org/server-api)
+- [Code Examples](https://www.socketio4j.org/example-projects)
+- [Integration Guides](https://www.socketio4j.org/adapters)
+- [API Documentation](https://www.socketio4j.org/server-api/getting-started/server-instance)
+- [Performance Reports](https://www.socketio4j.org/performance)
