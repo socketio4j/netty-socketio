@@ -28,10 +28,10 @@ Add the Quarkus integration dependency:
 ### application.properties
 
 ```properties
-socketio.hostname=localhost
-socketio.port=9092
-socketio.ping-timeout=60000
-socketio.ping-interval=25000
+netty-socket-io.hostname=localhost
+netty-socket-io.port=9092
+netty-socket-io.ping-timeout=60000
+netty-socket-io.ping-interval=25000
 ```
 
 ## Main Application
