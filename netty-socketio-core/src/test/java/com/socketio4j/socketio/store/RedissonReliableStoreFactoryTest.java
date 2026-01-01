@@ -19,8 +19,6 @@ package com.socketio4j.socketio.store;
 import java.util.Map;
 import java.util.UUID;
 
-import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.event.PublishConfig;
 import com.socketio4j.socketio.store.redis_pubsub.RedisPubSubEventStore;
 import com.socketio4j.socketio.store.redis_pubsub.RedisStore;
 import com.socketio4j.socketio.store.redis_pubsub.RedisStoreFactory;
@@ -95,7 +93,7 @@ public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
         Store store = storeFactory.createStore(sessionId);
         
         assertNotNull(store, "Store should not be null");
-        assertTrue(store instanceof RedisStore, "Store should be RedissonStore");
+        assertTrue(store instanceof RedisStore, "Store should be RedisStore");
         
         // Test that the store works with Redisson
         store.set("redissonKey", "redissonValue");
@@ -107,7 +105,7 @@ public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
         EventStore eventStore = storeFactory.eventStore();
         
         assertNotNull(eventStore, "PubSubStore should not be null");
-        assertTrue(eventStore instanceof RedisPubSubEventStore, "PubSubStore should be RedissonPubSubStore");
+        assertTrue(eventStore instanceof RedisPubSubEventStore, "PubSubStore should be RedisPubSubEventStore");
     }
 
     @Test

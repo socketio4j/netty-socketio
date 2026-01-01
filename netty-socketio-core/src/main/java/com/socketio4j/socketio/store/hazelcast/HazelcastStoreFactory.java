@@ -80,7 +80,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
      */
     public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient) {
         this(hazelcastClient,
-             new HazelcastPubSubEventStore(hazelcastClient, hazelcastClient, null, null, ""));
+             new HazelcastPubSubEventStore(hazelcastClient, hazelcastClient, null, null, null));
     }
 
     @Override

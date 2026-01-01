@@ -16,7 +16,6 @@
  */
 package com.socketio4j.socketio.store.event;
 
-import org.junit.jupiter.api.TestInstance;
 import org.testcontainers.containers.GenericContainer;
 
 import com.hazelcast.client.HazelcastClient;

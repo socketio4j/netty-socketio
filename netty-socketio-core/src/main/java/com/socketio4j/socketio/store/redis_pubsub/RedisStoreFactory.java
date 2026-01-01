@@ -31,7 +31,7 @@ import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 
 /**
- * {@code RedissonStoreFactory} provides session-scoped storage backed by Redis,
+ * {@code RedisStoreFactory} provides session-scoped storage backed by Redis,
  * using Redisson as the storage driver. Each connected session receives its own
  * {@link RedisStore}, allowing per-session key/value data to be shared across
  * multiple nodes when running in a clustered environment.
@@ -50,7 +50,7 @@ import com.socketio4j.socketio.store.event.EventStoreMode;
  * and therefore visible across nodes that share the same Redis cluster.
  *
  * <h3>Default Behavior</h3>
- * When instantiated using {@link #RedissonStoreFactory(RedissonClient)}, this factory
+ * When instantiated using {@link #RedisStoreFactory(RedissonClient)}, this factory
  * configures a {@link RedisPubSubEventStore} in
  * {@link com.socketio4j.socketio.store.event.EventStoreMode#MULTI_CHANNEL MULTI_CHANNEL} mode.
  * Under this configuration:
@@ -67,7 +67,7 @@ import com.socketio4j.socketio.store.event.EventStoreMode;
  * EventStore es = new KafkaEventStore(...);
  *
  * // Redis-backed session storage, Kafka event distribution
- * RedissonStoreFactory factory = new RedissonStoreFactory(redis, es);
+ * RedisStoreFactory factory = new RedisStoreFactory(redis, es);
  * }</pre>
  *
  * <h3>Lifecycle</h3>
@@ -112,7 +112,7 @@ public class RedisStoreFactory extends BaseStoreFactory {
     private final EventStore eventStore;
 
     /**
-     * Creates a {@code RedissonStoreFactory} using the provided Redis client and
+     * Creates a {@code RedisStoreFactory} using the provided Redis client and
      * user-supplied {@link EventStore}. Session data is stored via Redis, while the
      * event store determines whether event propagation is local or distributed.
      *
@@ -128,7 +128,7 @@ public class RedisStoreFactory extends BaseStoreFactory {
     }
 
     /**
-     * Creates a {@code RedissonStoreFactory} using default Redis-backed event distribution.
+     * Creates a {@code RedisStoreFactory} using default Redis-backed event distribution.
      * Session data is stored in Redis, and events are propagated using {@link RedisPubSubEventStore}
      * in {@link EventStoreMode#MULTI_CHANNEL} mode.
      *
