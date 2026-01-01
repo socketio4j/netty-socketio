@@ -33,7 +33,7 @@ import com.socketio4j.socketio.store.event.EventStoreMode;
 /**
  * {@code RedissonStoreFactory} provides session-scoped storage backed by Redis,
  * using Redisson as the storage driver. Each connected session receives its own
- * {@link RedissonStore}, allowing per-session key/value data to be shared across
+ * {@link RedisStore}, allowing per-session key/value data to be shared across
  * multiple nodes when running in a clustered environment.
  * <p>
  * Event propagation is handled by the supplied {@link EventStore}. This design
@@ -51,7 +51,7 @@ import com.socketio4j.socketio.store.event.EventStoreMode;
  *
  * <h3>Default Behavior</h3>
  * When instantiated using {@link #RedissonStoreFactory(RedissonClient)}, this factory
- * configures a {@link RedissonEventStore} in
+ * configures a {@link RedisPubSubEventStore} in
  * {@link com.socketio4j.socketio.store.event.EventStoreMode#MULTI_CHANNEL MULTI_CHANNEL} mode.
  * Under this configuration:
  * <ul>
@@ -72,7 +72,7 @@ import com.socketio4j.socketio.store.event.EventStoreMode;
  *
  * <h3>Lifecycle</h3>
  * <ul>
- *     <li>{@link #createStore(UUID)} returns a new distributed {@link RedissonStore}</li>
+ *     <li>{@link #createStore(UUID)} returns a new distributed {@link RedisStore}</li>
  *     <li>{@link #createMap(String)} returns a named Redis-backed map for shared state</li>
  *     <li>{@link #shutdown()} gracefully shuts down the configured {@link EventStore}</li>
  * </ul>
@@ -104,9 +104,9 @@ import com.socketio4j.socketio.store.event.EventStoreMode;
  * </blockquote>
  */
 
-public class RedissonStoreFactory extends BaseStoreFactory {
+public class RedisStoreFactory extends BaseStoreFactory {
 
-    private static final Logger log = LoggerFactory.getLogger(RedissonStoreFactory.class);
+    private static final Logger log = LoggerFactory.getLogger(RedisStoreFactory.class);
 
     private final RedissonClient redisClient;
     private final EventStore eventStore;
@@ -121,7 +121,7 @@ public class RedissonStoreFactory extends BaseStoreFactory {
      * @param redisClient non-null Redis client
      * @param eventStore  non-null event store implementation
      */
-    public RedissonStoreFactory(@NotNull RedissonClient redisClient,
+    public RedisStoreFactory(@NotNull RedissonClient redisClient,
                                 @NotNull EventStore eventStore) {
         this.redisClient = Objects.requireNonNull(redisClient, "redisClient cannot be null");
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore cannot be null");
@@ -129,21 +129,21 @@ public class RedissonStoreFactory extends BaseStoreFactory {
 
     /**
      * Creates a {@code RedissonStoreFactory} using default Redis-backed event distribution.
-     * Session data is stored in Redis, and events are propagated using {@link RedissonEventStore}
+     * Session data is stored in Redis, and events are propagated using {@link RedisPubSubEventStore}
      * in {@link EventStoreMode#MULTI_CHANNEL} mode.
      *
      * @apiNote Added in API version {@code 4.0.0}
      * 
      * @param redisClient non-null Redis client
      */
-    public RedissonStoreFactory(@NotNull RedissonClient redisClient) {
+    public RedisStoreFactory(@NotNull RedissonClient redisClient) {
         this(redisClient,
-             new RedissonEventStore(redisClient, redisClient, EventStoreMode.MULTI_CHANNEL, null));
+             new RedisPubSubEventStore(redisClient, redisClient, EventStoreMode.MULTI_CHANNEL, null));
     }
 
     @Override
     public Store createStore(UUID sessionId) {
-        return new RedissonStore(sessionId, redisClient);
+        return new RedisStore(sessionId, redisClient);
     }
 
     @Override

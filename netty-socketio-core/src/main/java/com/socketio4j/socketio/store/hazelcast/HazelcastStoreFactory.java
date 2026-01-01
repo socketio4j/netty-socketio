@@ -43,7 +43,7 @@ import com.socketio4j.socketio.store.event.EventStoreMode;
  *     <li>Hazelcast session storage + in-memory event propagation (local only)</li>
  * </ul>
  * <p>
- * If no {@link EventStore} is supplied, {@link HazelcastEventStore} is used by default.
+ * If no {@link EventStore} is supplied, {@link HazelcastPubSubEventStore} is used by default.
  */
 public class HazelcastStoreFactory extends BaseStoreFactory {
 
@@ -71,7 +71,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     /**
      * Creates a {@code HazelcastStoreFactory} using default Hazelcast-backed event distribution.
      * <p>
-     * Session data remains in Hazelcast, while events are propagated via {@link HazelcastEventStore}
+     * Session data remains in Hazelcast, while events are propagated via {@link HazelcastPubSubEventStore}
      * in {@link EventStoreMode#MULTI_CHANNEL} mode.
      *
      * @apiNote Added in API version {@code 4.0.0}
@@ -80,7 +80,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
      */
     public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient) {
         this(hazelcastClient,
-             new HazelcastEventStore(hazelcastClient, hazelcastClient, null, null, ""));
+             new HazelcastPubSubEventStore(hazelcastClient, hazelcastClient, null, null, ""));
     }
 
     @Override

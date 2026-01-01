@@ -35,7 +35,7 @@ import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
-import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastRingBufferEventStore;
+import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastPubSubRingBufferEventStore;
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -75,7 +75,7 @@ public class DistributedHazelcastRingBufferMultiChannelTest extends DistributedC
         cfg1.setPort(findAvailablePort());
 
         cfg1.setStoreFactory(new HazelcastStoreFactory(
-                hazelcastInstance, new HazelcastRingBufferEventStore.Builder(hazelcastInstance).eventStoreMode(EventStoreMode.MULTI_CHANNEL).build()
+                hazelcastInstance, new HazelcastPubSubRingBufferEventStore.Builder(hazelcastInstance).eventStoreMode(EventStoreMode.MULTI_CHANNEL).build()
         ));
 
         node1 = new SocketIOServer(cfg1);
@@ -120,7 +120,7 @@ public class DistributedHazelcastRingBufferMultiChannelTest extends DistributedC
         cfg2.setPort(findAvailablePort());
 
         cfg2.setStoreFactory(new HazelcastStoreFactory(
-                hazelcastInstance1, new HazelcastRingBufferEventStore.Builder(hazelcastInstance1).eventStoreMode(EventStoreMode.MULTI_CHANNEL).build()
+                hazelcastInstance1, new HazelcastPubSubRingBufferEventStore.Builder(hazelcastInstance1).eventStoreMode(EventStoreMode.MULTI_CHANNEL).build()
         ));
 
         node2 = new SocketIOServer(cfg2);
