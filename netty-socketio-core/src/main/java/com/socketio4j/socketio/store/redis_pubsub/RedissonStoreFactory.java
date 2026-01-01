@@ -116,7 +116,7 @@ public class RedissonStoreFactory extends BaseStoreFactory {
      * user-supplied {@link EventStore}. Session data is stored via Redis, while the
      * event store determines whether event propagation is local or distributed.
      *
-     * @apiNote Added in API version{@code 4.0.0}
+     * @apiNote Added in API version {@code 4.0.0}
      * 
      * @param redisClient non-null Redis client
      * @param eventStore  non-null event store implementation
@@ -132,7 +132,7 @@ public class RedissonStoreFactory extends BaseStoreFactory {
      * Session data is stored in Redis, and events are propagated using {@link RedissonEventStore}
      * in {@link EventStoreMode#MULTI_CHANNEL} mode.
      *
-     * @apiNote Added in API version{@code 4.0.0}
+     * @apiNote Added in API version {@code 4.0.0}
      * 
      * @param redisClient non-null Redis client
      */

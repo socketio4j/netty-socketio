@@ -56,7 +56,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
      * Creates a {@code HazelcastStoreFactory} using the provided Hazelcast instance and
      * a caller-supplied {@link EventStore}.
      *
-     * @apiNote Added in API version{@code 4.0.0}
+     * @apiNote Added in API version {@code 4.0.0}
      * 
      * @param hazelcastClient non-null Hazelcast instance
      * @param eventStore      non-null event store implementation
@@ -74,7 +74,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
      * Session data remains in Hazelcast, while events are propagated via {@link HazelcastEventStore}
      * in {@link EventStoreMode#MULTI_CHANNEL} mode.
      *
-     * @apiNote Added in API version{@code 4.0.0}
+     * @apiNote Added in API version {@code 4.0.0}
      * 
      * @param hazelcastClient non-null Hazelcast instance
      */

@@ -47,7 +47,7 @@ public class MemoryStoreFactory extends BaseStoreFactory {
     /**
      * Creates a new {@code MemoryStoreFactory} using {@link MemoryEventStore}.
      * Both session data and events remain local to the JVM.
-     * @apiNote Added in API version{@code 4.0.0}
+     * @apiNote Added in API version {@code 4.0.0}
      */
     public MemoryStoreFactory() {
         this.eventStore = new MemoryEventStore();
@@ -57,7 +57,7 @@ public class MemoryStoreFactory extends BaseStoreFactory {
      * Creates a new {@code MemoryStoreFactory} using the provided {@link EventStore}.
      * Session data remains local, but event propagation depends on the given implementation.
      *
-     * @apiNote Added in API version{@code 4.0.0}
+     * @apiNote Added in API version {@code 4.0.0}
      * 
      * @param eventStore non-null event store
      * @throws NullPointerException if {@code eventStore} is {@code null}
