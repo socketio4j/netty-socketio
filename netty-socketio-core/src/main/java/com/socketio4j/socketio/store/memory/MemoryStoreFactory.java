@@ -23,9 +23,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.jetbrains.annotations.NotNull;
 
-import com.socketio4j.socketio.handler.AuthorizeHandler;
-import com.socketio4j.socketio.namespace.NamespacesHub;
-import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
