@@ -26,9 +26,9 @@ import org.slf4j.LoggerFactory;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
-import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.Store;
 
 /**
  * A {@code StoreFactory} implementation that provides session-scoped storage backed
