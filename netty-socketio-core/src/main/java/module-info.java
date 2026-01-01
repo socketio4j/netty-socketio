@@ -71,6 +71,7 @@ module netty.socketio.core {
   // ============================================================
   requires static com.hazelcast.core;
   requires static redisson;
+  requires static io.nats.jnats;
   requires static kafka.clients;
 
   // ============================================================
@@ -94,5 +95,5 @@ module netty.socketio.core {
   // Logging + annotations
   // ============================================================
   requires org.slf4j;
-  requires org.jetbrains.annotations;
+  requires static org.jetbrains.annotations;
 }

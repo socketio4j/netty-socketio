@@ -5,6 +5,9 @@
 **/target
 
 **/gnupg
+**/.DS_Store
+**/.idea_modules
+**/.vscode
 **/.idea
 **/*.iml
 **/dependency-reduced-pom.xml
