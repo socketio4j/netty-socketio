@@ -21,22 +21,54 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.jetbrains.annotations.NotNull;
+
+import com.socketio4j.socketio.handler.AuthorizeHandler;
+import com.socketio4j.socketio.namespace.NamespacesHub;
+import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
 
+/**
+ * A {@code StoreFactory} implementation that provides per-session in-memory storage.
+ * <p>
+ * Session data is stored locally in JVM memory via {@link MemoryStore}. Event propagation
+ * is determined entirely by the provided {@link EventStore}. This allows combinations like:
+ * <ul>
+ *     <li>Memory session storage + Kafka event distribution</li>
+ *     <li>Memory session storage + Redis Streams event distribution</li>
+ *     <li>Memory session storage + in-memory event propagation (local only)</li>
+ * </ul>
+ * <p>
+ * If no {@link EventStore} is supplied, {@link MemoryEventStore} is used by default.
+ */
 public class MemoryStoreFactory extends BaseStoreFactory {
 
     private final EventStore eventStore;
 
+    /**
+     * Creates a new {@code MemoryStoreFactory} using {@link MemoryEventStore}.
+     * Both session data and events remain local to the JVM.
+     * @apiNote Added in API version{@code 4.0.0}
+     */
     public MemoryStoreFactory() {
         this.eventStore = new MemoryEventStore();
     }
 
-    public MemoryStoreFactory(EventStore eventStore) {
-        Objects.requireNonNull(eventStore, "eventStore can not be null");
-        this.eventStore = eventStore;
+    /**
+     * Creates a new {@code MemoryStoreFactory} using the provided {@link EventStore}.
+     * Session data remains local, but event propagation depends on the given implementation.
+     *
+     * @apiNote Added in API version{@code 4.0.0}
+     * 
+     * @param eventStore non-null event store
+     * @throws NullPointerException if {@code eventStore} is {@code null}
+     */
+    public MemoryStoreFactory(@NotNull EventStore eventStore) {
+        this.eventStore = Objects.requireNonNull(eventStore, "eventStore can not be null");
     }
+
     @Override
     public Store createStore(UUID sessionId) {
         return new MemoryStore();
@@ -47,13 +79,10 @@ public class MemoryStoreFactory extends BaseStoreFactory {
         return eventStore;
     }
 
-    @Override
-    public void shutdown() {
-    }
 
     @Override
-    public String toString() {
-        return getClass().getSimpleName() + " (local session store only)";
+    public void shutdown() {
+        // no-op
     }
 
     @Override
@@ -61,4 +90,8 @@ public class MemoryStoreFactory extends BaseStoreFactory {
         return new ConcurrentHashMap<>();
     }
 
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + " (memory session store)";
+    }
 }

@@ -20,18 +20,30 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
+import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.EventStore;
-
+import com.socketio4j.socketio.store.event.EventStoreMode;
 
 /**
- * WARN: It's necessary to add netty-socketio.jar in hazelcast server classpath.
- *
+ * A {@code StoreFactory} implementation that provides session-scoped storage backed
+ * by Hazelcast and allows users to supply an {@link EventStore} of their choice.
+ * <p>
+ * Session data is stored in Hazelcast via {@link HazelcastStore}, while event
+ * propagation is determined entirely by the provided {@link EventStore}. This
+ * design allows hybrid configurations such as:
+ * <ul>
+ *     <li>Hazelcast session storage + Kafka event distribution</li>
+ *     <li>Hazelcast session storage + Redis Streams event distribution</li>
+ *     <li>Hazelcast session storage + in-memory event propagation (local only)</li>
+ * </ul>
+ * <p>
+ * If no {@link EventStore} is supplied, {@link HazelcastEventStore} is used by default.
  */
 public class HazelcastStoreFactory extends BaseStoreFactory {
 
@@ -41,17 +53,34 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     private final EventStore eventStore;
 
     /**
-     * API 4.y.z
-     * @param hazelcastClient
-     * @param eventStore
+     * Creates a {@code HazelcastStoreFactory} using the provided Hazelcast instance and
+     * a caller-supplied {@link EventStore}.
+     *
+     * @apiNote Added in API version{@code 4.0.0}
+     * 
+     * @param hazelcastClient non-null Hazelcast instance
+     * @param eventStore      non-null event store implementation
+     * @throws NullPointerException if either argument is {@code null}
      */
-    public HazelcastStoreFactory(HazelcastInstance hazelcastClient, EventStore eventStore) {
+    public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient,
+                                 @NotNull EventStore eventStore) {
+        this.hazelcastClient = Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
+        this.eventStore = Objects.requireNonNull(eventStore, "eventStore cannot be null");
+    }
 
-        Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
-        Objects.requireNonNull(eventStore, "eventStore cannot be null");
-
-        this.hazelcastClient = hazelcastClient;
-        this.eventStore = eventStore;
+    /**
+     * Creates a {@code HazelcastStoreFactory} using default Hazelcast-backed event distribution.
+     * <p>
+     * Session data remains in Hazelcast, while events are propagated via {@link HazelcastEventStore}
+     * in {@link EventStoreMode#MULTI_CHANNEL} mode.
+     *
+     * @apiNote Added in API version{@code 4.0.0}
+     * 
+     * @param hazelcastClient non-null Hazelcast instance
+     */
+    public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient) {
+        this(hazelcastClient,
+             new HazelcastEventStore(hazelcastClient, hazelcastClient, null, null, ""));
     }
 
     @Override
@@ -60,14 +89,17 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     }
 
     @Override
-    public void shutdown() {
-        eventStore.shutdown();
-    }
-
-
-    @Override
     public EventStore eventStore() {
         return eventStore;
+    }
+
+    @Override
+    public void shutdown() {
+        try {
+            eventStore.shutdown();
+        } catch (Exception e) {
+            log.error("Failed to shut down event store", e);
+        }
     }
 
     @Override
@@ -75,4 +107,8 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
         return hazelcastClient.getMap(name);
     }
 
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + " (Hazelcast session store)";
+    }
 }
