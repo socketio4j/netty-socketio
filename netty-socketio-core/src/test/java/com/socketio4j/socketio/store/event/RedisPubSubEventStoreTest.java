@@ -25,9 +25,9 @@ import com.socketio4j.socketio.store.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.redis_pubsub.RedisPubSubEventStore;
 
 /**
- * Test class for RedissonReliableEventStore using testcontainers
+ * Test class for RedisPubSubEventStoreTest using testcontainers
  */
-public class RedisEventStoreTest extends AbstractEventStoreTest {
+public class RedisPubSubEventStoreTest extends AbstractEventStoreTest {
 
     private RedissonClient redissonPub;
     private RedissonClient redissonSub;
