@@ -40,7 +40,7 @@ import com.socketio4j.socketio.store.event.EventType;
  * Unreliable Redis Pub/Sub based EventStore.
  * Events are ephemeral and not replayed.
  */
-public class RedissonEventStore implements EventStore {
+public class RedisPubSubEventStore implements EventStore {
 
     private final RedissonClient redissonPub;
     private final RedissonClient redissonSub;
@@ -51,7 +51,7 @@ public class RedissonEventStore implements EventStore {
     private final ConcurrentMap<Integer, RTopic> activeSubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RTopic> activePubTopics = new ConcurrentHashMap<>();
 
-    private static final Logger log = LoggerFactory.getLogger(RedissonEventStore.class);
+    private static final Logger log = LoggerFactory.getLogger(RedisPubSubEventStore.class);
 
     // ----------------------------------------------------------------------
     // Constructors
@@ -63,7 +63,7 @@ public class RedissonEventStore implements EventStore {
      * @param eventStoreMode
      * @param nodeId
      */
-    public RedissonEventStore(@NotNull RedissonClient redissonPub,
+    public RedisPubSubEventStore(@NotNull RedissonClient redissonPub,
                               @NotNull RedissonClient redissonSub,
                               @Nullable EventStoreMode eventStoreMode,
                               @Nullable Long nodeId) {
@@ -187,8 +187,8 @@ public class RedissonEventStore implements EventStore {
         // Build
         // -------------------------
 
-        public RedissonEventStore build() {
-            return new RedissonEventStore(
+        public RedisPubSubEventStore build() {
+            return new RedisPubSubEventStore(
                     redissonPub,
                     redissonSub,
                     eventStoreMode,

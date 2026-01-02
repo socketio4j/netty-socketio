@@ -18,7 +18,7 @@ package com.socketio4j.socketio.store;
 
 import java.util.UUID;
 
-import com.socketio4j.socketio.store.redis_pubsub.RedissonStore;
+import com.socketio4j.socketio.store.redis_pubsub.RedisStore;
 import org.junit.jupiter.api.Test;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
@@ -51,7 +51,7 @@ public class RedissonStoreTest extends AbstractStoreTest {
                 .setAddress("redis://" + customizedRedisContainer.getHost() + ":" + customizedRedisContainer.getRedisPort());
         
         redissonClient = Redisson.create(config);
-        return new RedissonStore(sessionId, redissonClient);
+        return new RedisStore(sessionId, redissonClient);
     }
 
     @Override

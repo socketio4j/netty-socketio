@@ -32,7 +32,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.store.event.EventStore;
-import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
+import com.socketio4j.socketio.store.hazelcast.HazelcastPubSubEventStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 
@@ -67,7 +67,7 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
         hazelcastInstance = HazelcastClient.newHazelcastClient(config);
 
         return new HazelcastStoreFactory(hazelcastInstance,
-                new HazelcastEventStore.Builder(hazelcastInstance).build()
+                new HazelcastPubSubEventStore.Builder(hazelcastInstance).build()
                 );
     }
 
@@ -111,7 +111,7 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
         EventStore eventStore = storeFactory.eventStore();
         
         assertNotNull(eventStore, "EventStore should not be null");
-        assertInstanceOf(HazelcastEventStore.class, eventStore, "EventStore should be HazelcastStore");
+        assertInstanceOf(HazelcastPubSubEventStore.class, eventStore, "EventStore should be HazelcastStore");
     }
 
     @Test

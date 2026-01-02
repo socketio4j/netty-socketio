@@ -49,7 +49,7 @@ import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.kafka.KafkaEventStore;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageDeserializer;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageSerializer;
-import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
+import com.socketio4j.socketio.store.redis_pubsub.RedisStoreFactory;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedKafkaSingleChannelTest extends DistributedCommonTest {
@@ -94,7 +94,7 @@ public class DistributedKafkaSingleChannelTest extends DistributedCommonTest {
         cfg1.setPort(findAvailablePort());
 
         cfg1.setStoreFactory(
-                new RedissonStoreFactory(redisClient1,
+                new RedisStoreFactory(redisClient1,
                         kafkaEventStore(bootstrap, "node1")
                 )
         );
@@ -141,7 +141,7 @@ public class DistributedKafkaSingleChannelTest extends DistributedCommonTest {
         cfg2.setPort(findAvailablePort());
 
         cfg2.setStoreFactory(
-                new RedissonStoreFactory(redisClient2,
+                new RedisStoreFactory(redisClient2,
                         kafkaEventStore(bootstrap, "node2")
                 )
         );

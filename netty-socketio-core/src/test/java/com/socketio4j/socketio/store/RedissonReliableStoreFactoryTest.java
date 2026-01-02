@@ -19,11 +19,9 @@ package com.socketio4j.socketio.store;
 import java.util.Map;
 import java.util.UUID;
 
-import com.socketio4j.socketio.store.event.EventStoreMode;
-import com.socketio4j.socketio.store.event.PublishConfig;
-import com.socketio4j.socketio.store.redis_pubsub.RedissonEventStore;
-import com.socketio4j.socketio.store.redis_pubsub.RedissonStore;
-import com.socketio4j.socketio.store.redis_pubsub.RedissonStoreFactory;
+import com.socketio4j.socketio.store.redis_pubsub.RedisPubSubEventStore;
+import com.socketio4j.socketio.store.redis_pubsub.RedisStore;
+import com.socketio4j.socketio.store.redis_pubsub.RedisStoreFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -63,8 +61,8 @@ public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
                 .setAddress("redis://" + customizedRedisContainer.getHost() + ":" + customizedRedisContainer.getRedisPort());
         
         redissonClient = Redisson.create(config);
-        return new RedissonStoreFactory(redissonClient,
-                new RedissonEventStore.Builder(redissonClient).build());
+        return new RedisStoreFactory(redissonClient,
+                new RedisPubSubEventStore.Builder(redissonClient).build());
     }
 
     @AfterEach
@@ -95,7 +93,7 @@ public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
         Store store = storeFactory.createStore(sessionId);
         
         assertNotNull(store, "Store should not be null");
-        assertTrue(store instanceof RedissonStore, "Store should be RedissonStore");
+        assertTrue(store instanceof RedisStore, "Store should be RedisStore");
         
         // Test that the store works with Redisson
         store.set("redissonKey", "redissonValue");
@@ -107,7 +105,7 @@ public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
         EventStore eventStore = storeFactory.eventStore();
         
         assertNotNull(eventStore, "PubSubStore should not be null");
-        assertTrue(eventStore instanceof RedissonEventStore, "PubSubStore should be RedissonPubSubStore");
+        assertTrue(eventStore instanceof RedisPubSubEventStore, "PubSubStore should be RedisPubSubEventStore");
     }
 
     @Test

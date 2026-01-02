@@ -24,11 +24,11 @@ import org.redisson.api.RedissonClient;
 import com.socketio4j.socketio.store.Store;
 
 
-public class RedissonStore implements Store {
+public class RedisStore implements Store {
 
     private final RMap<String, Object> map;
 
-    public RedissonStore(UUID sessionId, RedissonClient redisson) {
+    public RedisStore(UUID sessionId, RedissonClient redisson) {
         this.map = redisson.getMap(sessionId.toString());
     }
 

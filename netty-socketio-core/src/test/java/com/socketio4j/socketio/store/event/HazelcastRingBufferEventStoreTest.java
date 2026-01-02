@@ -16,14 +16,13 @@
  */
 package com.socketio4j.socketio.store.event;
 
-import org.junit.jupiter.api.TestInstance;
 import org.testcontainers.containers.GenericContainer;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.HazelcastInstance;
 import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
-import com.socketio4j.socketio.store.hazelcast.HazelcastEventStore;
+import com.socketio4j.socketio.store.hazelcast.HazelcastPubSubEventStore;
 
 /**
  * Test class for HazelcastPubSubStore using testcontainers
@@ -51,7 +50,7 @@ public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
         hazelcastPub = HazelcastClient.newHazelcastClient(config);
         hazelcastSub = HazelcastClient.newHazelcastClient(config);
 
-        return new HazelcastEventStore.Builder(hazelcastPub, hazelcastSub).nodeId(nodeId).build();
+        return new HazelcastPubSubEventStore.Builder(hazelcastPub, hazelcastSub).nodeId(nodeId).build();
     }
 
     @Override

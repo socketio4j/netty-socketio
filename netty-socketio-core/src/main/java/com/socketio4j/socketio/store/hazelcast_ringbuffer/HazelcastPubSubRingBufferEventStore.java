@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.store.hazelcast;
+package com.socketio4j.socketio.store.hazelcast_ringbuffer;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -35,38 +35,40 @@ import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
 
 
-public class HazelcastEventStore implements EventStore {
+public class HazelcastPubSubRingBufferEventStore implements EventStore {
 
     private final HazelcastInstance hazelcastPub;
     private final HazelcastInstance hazelcastSub;
     private final Long nodeId;
     private final EventStoreMode eventStoreMode;
-    private final String topicPrefix;
-    private static final String DEFAULT_TOPIC_NAME_PREFIX = "SOCKETIO4J:";
 
     private final ConcurrentMap<EventType, Queue<UUID>> listenerMap = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, ITopic<EventMessage>> activePubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<UUID, ITopic<?>> activeSubTopics = new ConcurrentHashMap<>();
 
-    private static final Logger log = LoggerFactory.getLogger(HazelcastEventStore.class);
+    private static final Logger log = LoggerFactory.getLogger(HazelcastPubSubRingBufferEventStore.class);
+    private final String ringBufferNamePrefix;
 
-    public HazelcastEventStore(
+    private static final String DEFAULT_RING_BUFFER_NAME_PREFIX = "SOCKETIO4J:";
+
+    public HazelcastPubSubRingBufferEventStore(
             @NotNull HazelcastInstance hazelcastPub,
             @NotNull HazelcastInstance hazelcastSub,
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
-            @Nullable String topicPrefix
+            @Nullable String ringBufferNamePrefix
     ) {
         Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
         Objects.requireNonNull(hazelcastSub, "hazelcastSub cannot be null");
 
-        if (topicPrefix == null || topicPrefix.isEmpty()) {
-            topicPrefix = DEFAULT_TOPIC_NAME_PREFIX;
+        if (ringBufferNamePrefix == null || ringBufferNamePrefix.isEmpty()) {
+            ringBufferNamePrefix = DEFAULT_RING_BUFFER_NAME_PREFIX;
         }
-        this.topicPrefix = topicPrefix;
+        this.ringBufferNamePrefix = ringBufferNamePrefix;
 
         if (eventStoreMode == null) {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
@@ -82,38 +84,46 @@ public class HazelcastEventStore implements EventStore {
 
     }
 
+
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
 
         ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> {
-            String topicName = getTopicName(k);
-            return hazelcastPub.getTopic(topicName);
+            String topicName = getRingBufferName(k);
+            return hazelcastPub.getReliableTopic(topicName);
         });
 
         topic.publish(msg);
     }
-    private String getTopicName(EventType type) {
+    private String getRingBufferName(EventType type) {
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            return topicPrefix + EventType.ALL_SINGLE_CHANNEL.name();
+            return ringBufferNamePrefix + EventType.ALL_SINGLE_CHANNEL.name();
         }
-        return topicPrefix + type.name();
+        return ringBufferNamePrefix + type.name();
     }
+
     @Override
     public EventStoreMode getEventStoreMode(){
         return eventStoreMode;
     }
 
     @Override
+    public EventStoreType getEventStoreType() {
+        return EventStoreType.STREAM;
+    }
+
+    @Override
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
 
-        ITopic<T> topic = hazelcastSub.getTopic(getTopicName(type));
+        ITopic<T> topic = hazelcastSub.getReliableTopic(getRingBufferName(type));
 
         UUID regId = topic.addMessageListener(msg -> {
             if (!nodeId.equals(msg.getMessageObject().getNodeId())) {
                 listener.onMessage(msg.getMessageObject());
             }
         });
+
         activeSubTopics.put(regId, topic);
 
         listenerMap.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
@@ -122,20 +132,20 @@ public class HazelcastEventStore implements EventStore {
 
     @Override
     public void unsubscribe0(EventType type) {
+
         Queue<UUID> regIds = listenerMap.remove(type);
         if (regIds == null || regIds.isEmpty()) {
             return;
         }
-
         for (UUID id : regIds) {
             ITopic<?> topic = activeSubTopics.remove(id);
-            if (topic == null) {
+            if (topic == null){
                 continue;
             }
             try {
                 topic.removeMessageListener(id);
             } catch (Exception ex) {
-                log.warn("Failed to remove listener {} from topic {}", id, getTopicName(type), ex);
+                log.warn("Failed to remove listener {} from topic {}", id, getRingBufferName(type), ex);
             }
         }
     }
@@ -158,7 +168,7 @@ public class HazelcastEventStore implements EventStore {
         // optional
         private Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
-        private String topicNamePrefix = DEFAULT_TOPIC_NAME_PREFIX;
+        private String ringBufferNamePrefix = DEFAULT_RING_BUFFER_NAME_PREFIX;
 
         // --------------------------------------------------
         // Constructors
@@ -178,21 +188,21 @@ public class HazelcastEventStore implements EventStore {
         // Optional setters (fluent)
         // --------------------------------------------------
 
-        public HazelcastEventStore.Builder nodeId(long nodeId) {
+        public Builder nodeId(long nodeId) {
             this.nodeId = nodeId;
             return this;
         }
 
-        public HazelcastEventStore.Builder eventStoreMode(@NotNull EventStoreMode mode) {
+        public Builder eventStoreMode(@NotNull EventStoreMode mode) {
             this.eventStoreMode = Objects.requireNonNull(mode, "eventStoreMode");
             return this;
         }
 
-        public HazelcastEventStore.Builder topicNamePrefix(@NotNull String prefix) {
+        public Builder ringBufferNamePrefix(@NotNull String prefix) {
             if (prefix.isEmpty()) {
                 throw new IllegalArgumentException("ringBufferNamePrefix cannot be empty");
             }
-            this.topicNamePrefix = prefix;
+            this.ringBufferNamePrefix = prefix;
             return this;
         }
 
@@ -200,15 +210,16 @@ public class HazelcastEventStore implements EventStore {
         // Build
         // --------------------------------------------------
 
-        public HazelcastEventStore build() {
-            return new HazelcastEventStore(
+        public HazelcastPubSubRingBufferEventStore build() {
+            return new HazelcastPubSubRingBufferEventStore(
                     hazelcastPub,
                     hazelcastSub,
                     nodeId,
                     eventStoreMode,
-                    topicNamePrefix
+                    ringBufferNamePrefix
             );
         }
     }
+
 
 }

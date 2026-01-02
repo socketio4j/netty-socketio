@@ -44,7 +44,7 @@ import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
 import com.socketio4j.socketio.store.event.PublishMode;
 
-public class RedissonReliableEventStore implements EventStore {
+public class RedisPubSubReliableEventStore implements EventStore {
 
     private final RedissonClient redissonPub;
     private final RedissonClient redissonSub;
@@ -60,7 +60,7 @@ public class RedissonReliableEventStore implements EventStore {
     private final ConcurrentMap<String, RReliableTopic> activeSubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RReliableTopic> activePubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RStream<String, EventMessage>> trimTopics = new ConcurrentHashMap<>();
-    private static final Logger log = LoggerFactory.getLogger(RedissonReliableEventStore.class);
+    private static final Logger log = LoggerFactory.getLogger(RedisPubSubReliableEventStore.class);
 
 
     // ----------------------------------------------------------------------
@@ -68,7 +68,7 @@ public class RedissonReliableEventStore implements EventStore {
     // ----------------------------------------------------------------------
 
 
-    public RedissonReliableEventStore(@NotNull RedissonClient redissonPub,
+    public RedisPubSubReliableEventStore(@NotNull RedissonClient redissonPub,
                                       @NotNull RedissonClient redissonSub,
                                       @Nullable Long nodeId, EventStoreMode eventStoreMode,
                                       @Nullable String streamNamePrefix,
@@ -363,8 +363,8 @@ public class RedissonReliableEventStore implements EventStore {
         // Build
         // -------------------------
 
-        public RedissonReliableEventStore build() {
-            return new RedissonReliableEventStore(
+        public RedisPubSubReliableEventStore build() {
+            return new RedisPubSubReliableEventStore(
                     redissonPub,
                     redissonSub,
                     nodeId,
