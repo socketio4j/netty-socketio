@@ -43,6 +43,8 @@ import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.namespace.NamespacesHub;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.DefaultEventLoop;
 import io.netty.channel.EventLoopGroup;
@@ -67,7 +69,11 @@ public class SocketIOServer implements ClientListeners {
     private final List<ServerStartListener> startListeners = new CopyOnWriteArrayList<>();
     private final List<ServerStopListener> stopListeners = new CopyOnWriteArrayList<>();
 
+    private final AtomicReference<Channel> serverChannel = new AtomicReference<>();
+
+
     private final AtomicBoolean shutdownHookInstalled = new AtomicBoolean();
+    private Thread shutdownHook;
 
     private final AtomicReference<ServerStatus> serverStatus = new AtomicReference<>(ServerStatus.INIT);
 
@@ -79,6 +85,15 @@ public class SocketIOServer implements ClientListeners {
     public void addStopListener(@NotNull ServerStopListener listener) {
         stopListeners.add(Objects.requireNonNull(listener));
     }
+
+    public boolean removeStartListener(@NotNull ServerStartListener listener) {
+        return startListeners.remove(Objects.requireNonNull(listener));
+    }
+
+    public boolean removeStopListener(@NotNull ServerStopListener listener) {
+        return stopListeners.remove(Objects.requireNonNull(listener));
+    }
+
 
     private void fireServerStarted() {
         startListeners.forEach(l -> {
@@ -364,6 +379,8 @@ public class SocketIOServer implements ClientListeners {
 
             return bootstrap.bind(address).addListener((FutureListener<Void>) future -> {
                 if (future.isSuccess()) {
+                    ChannelFuture cf = (ChannelFuture) future;
+                    serverChannel.set(cf.channel());
                     serverStatus.set(ServerStatus.STARTED);
                     log.info("SocketIO server started on port {}", configCopy.getPort());
                     installShutdownHookOnce();
@@ -489,27 +506,37 @@ public class SocketIOServer implements ClientListeners {
 
     public void stop() {
         if (!serverStatus.compareAndSet(ServerStatus.STARTED, ServerStatus.STOPPING)) {
-            log.debug("Server not in STARTED state ({}), ignoring stop()", serverStatus.get());
+            log.warn("Server not in STARTED state ({}), ignoring stop()", serverStatus.get());
             return;
         }
 
         log.info("Stopping SocketIO server...");
 
-        // stop pipeline first
-        try {
-            pipelineFactory.stop();
-        } catch (Exception t) {
-            log.warn("Pipeline stop failed: {}", t.getMessage(), t);
+        if (shutdownHookInstalled.get() && shutdownHook != null) {
+            try {
+                Runtime.getRuntime().removeShutdownHook(shutdownHook);
+                shutdownHookInstalled.set(false);
+            } catch (IllegalStateException ignored) {
+            }
         }
 
-        // safe to notify listeners
+        Channel ch = serverChannel.getAndSet(null);
+        if (ch != null && ch.isOpen()) {
+            ch.close().syncUninterruptibly();
+        }
+
         try {
             fireServerStopped();
         } catch (Exception t) {
-            log.warn("Stop listeners failed: {}", t.getMessage(), t);
+            log.warn("Stop listeners failed", t);
         }
 
-        // after pipeline & events, shutdown event loops
+        try {
+            pipelineFactory.stop();
+        } catch (Exception t) {
+            log.warn("Pipeline stop failed", t);
+        }
+
         try {
             bossGroup.shutdownGracefully().syncUninterruptibly();
             workerGroup.shutdownGracefully().syncUninterruptibly();
@@ -520,16 +547,18 @@ public class SocketIOServer implements ClientListeners {
     }
 
 
+
     // ========= SHUTDOWN HOOK =========
 
     private void installShutdownHookOnce() {
         if (shutdownHookInstalled.compareAndSet(false, true)) {
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            shutdownHook = new Thread(() -> {
                 if (isStarted()) {
                     log.info("JVM shutdown detected — stopping server...");
                     stop();
                 }
-            }, "socketio4j-shutdown-hook-thread"));
+            }, "socketio4j-shutdown-hook-thread");
+            Runtime.getRuntime().addShutdownHook(shutdownHook);
         }
     }
 
