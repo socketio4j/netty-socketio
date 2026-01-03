@@ -21,5 +21,10 @@ package com.socketio4j.socketio;
  * @date 28/12/25 3:03 pm
  */
 public interface ServerStopListener {
-    void onStop(SocketIOServer server);
+    /**
+ * Invoked when a SocketIOServer instance stops.
+ *
+ * @param server the SocketIOServer that has stopped
+ */
+void onStop(SocketIOServer server);
 }

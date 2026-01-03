@@ -151,6 +151,11 @@ public class SocketIOServer implements ClientListeners {
         return stopListeners.remove(Objects.requireNonNull(listener));
     }
 
+    /**
+     * Notifies all registered ServerStartListener instances that the server has started.
+     *
+     * Invokes each listener's onStart method and logs any exception thrown by a listener without interrupting other listeners.
+     */
     private void fireServerStarted() {
         startListeners.forEach(l -> {
             try {
@@ -161,6 +166,11 @@ public class SocketIOServer implements ClientListeners {
         });
     }
 
+    /**
+     * Invokes all registered ServerStopListener instances to notify them that the server has stopped.
+     *
+     * Any exception thrown by a listener is caught and logged; notification continues for remaining listeners.
+     */
     private void fireServerStopped() {
         stopListeners.forEach(l -> {
             try {
@@ -171,6 +181,12 @@ public class SocketIOServer implements ClientListeners {
         });
     }
 
+    /**
+     * Checks whether a class with the given fully-qualified name is present on the classpath.
+     *
+     * @param className the fully-qualified name of the class to check
+     * @return `true` if a class with the specified name can be loaded, `false` otherwise
+     */
     private static boolean isClassAvailable(String className) {
         try {
             Class.forName(className);
@@ -332,6 +348,11 @@ public class SocketIOServer implements ClientListeners {
         startAsync().syncUninterruptibly();
     }
 
+    /**
+     * Indicates whether the server has been started and is currently running.
+     *
+     * @return `true` if the server is in the STARTED state, `false` otherwise.
+     */
     public boolean isStarted() {
         return serverStatus.get() == ServerStatus.STARTED;
     }
@@ -537,6 +558,15 @@ public class SocketIOServer implements ClientListeners {
         }
     }
 
+    /**
+     * Apply socket and channel options from the server's SocketConfig to the provided Netty ServerBootstrap.
+     *
+     * <p>Configures child and parent channel options such as TCP_NODELAY, send/receive buffer sizes,
+     * receive buffer allocator, write buffer water mark (when both low and high are set), SO_KEEPALIVE,
+     * SO_LINGER, SO_REUSEADDR, and SO_BACKLOG according to the current configuration copy.</p>
+     *
+     * @param bootstrap the Netty ServerBootstrap to configure
+     */
     protected void applyConnectionOptions(ServerBootstrap bootstrap) {
         SocketConfig config = configCopy.getSocketConfig();
 
@@ -563,6 +593,13 @@ public class SocketIOServer implements ClientListeners {
         bootstrap.option(ChannelOption.SO_BACKLOG, config.getAcceptBackLog());
     }
 
+    /**
+     * Selects an appropriate I/O transport based on the current configuration and
+     * initializes the bossGroup and workerGroup event loop groups with that transport.
+     *
+     * The method honors the configured transport type when available and falls back
+     * to NIO when the requested transport is not available.
+     */
     protected void initGroups() {
 
         IoHandlerFactory handler = NioIoHandler.newFactory();
@@ -747,6 +784,12 @@ public class SocketIOServer implements ClientListeners {
     }
 
 
+    /**
+     * Installs a JVM shutdown hook once that stops the server if it is running when the JVM exits.
+     *
+     * The hook runs on a dedicated thread named "socketio4j-shutdown-hook-thread" and invokes
+     * stop() only when the server is currently started. Subsequent calls to this method have no effect.
+     */
     private void installShutdownHookOnce() {
         if (shutdownHookInstalled.compareAndSet(false, true)) {
             shutdownHook = new Thread(() -> {
@@ -800,20 +843,20 @@ public class SocketIOServer implements ClientListeners {
     }
 
     /**
-     * Returns the {@link SocketIONamespace} associated with the given name.
+     * Retrieves the {@link SocketIONamespace} with the specified name.
      *
      * @param name the namespace name
-     * @return the namespace instance, or {@code null} if no such namespace exists
+     * @return the namespace instance, or {@code null} if no namespace with the given name exists
      */
     public SocketIONamespace getNamespace(String name) {
         return namespacesHub.get(name);
     }
 
     /**
-     * Removes the namespace with the given name.
-     * <p>
-     * Once removed, all listeners and rooms associated with the namespace
-     * are discarded and the namespace becomes inaccessible.
+     * Removes the namespace identified by the given name.
+     *
+     * After removal, all listeners and rooms associated with the namespace are discarded
+     * and the namespace becomes inaccessible.
      *
      * @param name the namespace name to remove
      */
@@ -822,12 +865,11 @@ public class SocketIOServer implements ClientListeners {
     }
 
     /**
-     * Returns the server configuration used to initialize this instance.
-     * <p>
-     * The returned configuration represents the effective runtime configuration
-     * and should be treated as read-only.
+     * Gets the Configuration used to initialize this server.
      *
-     * @return the server {@link Configuration}
+     * The returned object represents the effective runtime configuration and must be treated as read-only.
+     *
+     * @return the server {@link Configuration} used to initialize this instance
      */
     public Configuration getConfiguration() {
         return configuration;
@@ -915,9 +957,9 @@ public class SocketIOServer implements ClientListeners {
     }
 
     /**
-     * Alias for {@link #addOnAnyEventListener(CatchAllEventListener)}.
+     * Register a catch-all event listener that will be invoked for any event on the main namespace.
      *
-     * @param listener the catch-all event listener
+     * @param listener the listener to invoke for every received event
      */
     @Override
     public void onAny(CatchAllEventListener listener) {
@@ -925,10 +967,10 @@ public class SocketIOServer implements ClientListeners {
     }
 
     /**
-     * Alias for {@link #removeOnAnyEventListener(CatchAllEventListener)}.
-     *
-     * @param listener the catch-all event listener to remove
-     */
+         * Unregisters the given catch-all event listener from the main namespace.
+         *
+         * @param listener the catch-all event listener to remove
+         */
     @Override
     public void offAny(CatchAllEventListener listener) {
         removeOnAnyEventListener(listener);
@@ -993,10 +1035,10 @@ public class SocketIOServer implements ClientListeners {
     }
 
     /**
-     * Registers multiple listener objects with the main namespace.
+     * Registers listener objects from the provided iterable on the server's main namespace.
      *
-     * @param <L>       the listener type
-     * @param listeners an iterable of listener instances
+     * @param <L>       the listener object type
+     * @param listeners an iterable of listener instances whose listener methods will be registered
      */
     @Override
     public <L> void addListeners(Iterable<L> listeners) {

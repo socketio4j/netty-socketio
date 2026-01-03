@@ -21,5 +21,10 @@ package com.socketio4j.socketio;
  * @date 28/12/25 3:02 pm
  */
 public interface ServerStartListener {
-    void onStart(SocketIOServer server);
+    /**
+ * Invoked when the SocketIOServer has started.
+ *
+ * @param server the started SocketIOServer instance
+ */
+void onStart(SocketIOServer server);
 }
