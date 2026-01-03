@@ -705,6 +705,21 @@ public class SocketIOServer implements ClientListeners {
 
         log.info("Stopping SocketIO server...");
 
+        // Remove shutdown hook if installed, but only if we're not already inside it
+        if (shutdownHookInstalled.get() && shutdownHook != null) {
+            if (Thread.currentThread() != shutdownHook) {
+                try {
+                    Runtime.getRuntime().removeShutdownHook(shutdownHook);
+                    shutdownHookInstalled.set(false);
+                } catch (IllegalStateException ignored) {
+                    // JVM is already shutting down
+                }
+            } else {
+                // We're inside the hook thread, just mark as uninstalled
+                shutdownHookInstalled.set(false);
+            }
+        }
+
         Channel ch = serverChannel.getAndSet(null);
         if (ch != null && ch.isOpen()) {
             ch.close().syncUninterruptibly();
