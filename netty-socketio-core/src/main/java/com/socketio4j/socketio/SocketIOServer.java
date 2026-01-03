@@ -71,12 +71,10 @@ public class SocketIOServer implements ClientListeners {
 
     private final AtomicReference<Channel> serverChannel = new AtomicReference<>();
 
-
     private final AtomicBoolean shutdownHookInstalled = new AtomicBoolean();
     private Thread shutdownHook;
 
     private final AtomicReference<ServerStatus> serverStatus = new AtomicReference<>(ServerStatus.INIT);
-
 
     /**
      * Registers a {@link ServerStartListener} that will be invoked when the server
@@ -84,15 +82,17 @@ public class SocketIOServer implements ClientListeners {
      * <p>
      * Start listeners are executed:
      * <ul>
-     *   <li>After all transports, event loops, and internal resources are initialized</li>
-     *   <li>Exactly once per successful server start</li>
-     *   <li>In a safe execution context with exception isolation</li>
+     * <li>After all transports, event loops, and internal resources are
+     * initialized</li>
+     * <li>Exactly once per successful server start</li>
+     * <li>In a safe execution context with exception isolation</li>
      * </ul>
      * <p>
      * Implementations should keep listener logic lightweight and non-blocking.
      * Heavy or blocking work should be offloaded to a separate thread or executor.
      *
-     * @param listener the listener to be notified on server start; must not be {@code null}
+     * @param listener the listener to be notified on server start; must not be
+     *                 {@code null}
      * @throws NullPointerException if {@code listener} is {@code null}
      */
     public void addStartListener(@NotNull ServerStartListener listener) {
@@ -105,15 +105,16 @@ public class SocketIOServer implements ClientListeners {
      * <p>
      * Stop listeners are executed:
      * <ul>
-     *   <li>During an orderly shutdown or JVM termination</li>
-     *   <li>Exactly once per server stop invocation</li>
-     *   <li>After connection acceptance has stopped</li>
+     * <li>During an orderly shutdown or JVM termination</li>
+     * <li>Exactly once per server stop invocation</li>
+     * <li>After connection acceptance has stopped</li>
      * </ul>
      * <p>
      * Listener implementations should not assume that network resources
      * are still available and must tolerate partial shutdown states.
      *
-     * @param listener the listener to be notified on server stop; must not be {@code null}
+     * @param listener the listener to be notified on server stop; must not be
+     *                 {@code null}
      * @throws NullPointerException if {@code listener} is {@code null}
      */
     public void addStopListener(@NotNull ServerStopListener listener) {
@@ -150,7 +151,6 @@ public class SocketIOServer implements ClientListeners {
         return stopListeners.remove(Objects.requireNonNull(listener));
     }
 
-
     private void fireServerStarted() {
         startListeners.forEach(l -> {
             try {
@@ -170,6 +170,7 @@ public class SocketIOServer implements ClientListeners {
             }
         });
     }
+
     private static boolean isClassAvailable(String className) {
         try {
             Class.forName(className);
@@ -340,66 +341,82 @@ public class SocketIOServer implements ClientListeners {
      * <p>
      * This method initiates the full server startup sequence, including:
      * <ul>
-     *   <li>Validating and transitioning the server lifecycle state</li>
-     *   <li>Initializing event loop groups and internal pipelines</li>
-     *   <li>Selecting the most appropriate transport (IO_URING, EPOLL, KQUEUE, or NIO)</li>
-     *   <li>Binding the server to the configured address</li>
+     * <li>Validating and transitioning the server lifecycle state</li>
+     * <li>Initializing event loop groups and internal pipelines</li>
+     * <li>Selecting the most appropriate transport (IO_URING, EPOLL, KQUEUE, or
+     * NIO)</li>
+     * <li>Binding the server to the configured address</li>
      * </ul>
      *
      * <h3>Lifecycle semantics</h3>
      * <ul>
-     *   <li>This method may be invoked only when the server is in {@link ServerStatus#INIT}</li>
-     *   <li>If the server is already starting or running, the call is ignored</li>
-     *   <li>On success, the server transitions to {@link ServerStatus#STARTED}</li>
-     *   <li>On failure, the server state is reset back to {@link ServerStatus#INIT}</li>
+     * <li>This method may be invoked only when the server is in
+     * {@link ServerStatus#INIT}</li>
+     * <li>If the server is already starting or running, the call is ignored</li>
+     * <li>On success, the server transitions to {@link ServerStatus#STARTED}</li>
+     * <li>On failure, the server state is reset back to
+     * {@link ServerStatus#INIT}</li>
      * </ul>
      *
      * <h3>Asynchronous behavior</h3>
-     * The server startup is non-blocking. The returned {@link Future} completes when the
-     * underlying Netty {@link ServerChannel} has been successfully bound or when the bind
+     * The server startup is non-blocking. The returned {@link Future} completes
+     * when the
+     * underlying Netty {@link ServerChannel} has been successfully bound or when
+     * the bind
      * operation fails.
      * <p>
-     * Callers may attach listeners to the returned future to be notified of startup completion.
+     * Callers may attach listeners to the returned future to be notified of startup
+     * completion.
      *
      * <h3>Transport selection</h3>
-     * The transport implementation is chosen based on the configured transport type and
+     * The transport implementation is chosen based on the configured transport type
+     * and
      * platform capabilities:
      * <ul>
-     *   <li>{@code IO_URING} – preferred when available on supported Linux kernels</li>
-     *   <li>{@code EPOLL} – used on Linux when io_uring is unavailable</li>
-     *   <li>{@code KQUEUE} – used on macOS and BSD systems</li>
-     *   <li>{@code AUTO} – selects the best available transport in the above order</li>
-     *   <li>{@code NIO} – used as a universal fallback</li>
+     * <li>{@code IO_URING} – preferred when available on supported Linux
+     * kernels</li>
+     * <li>{@code EPOLL} – used on Linux when io_uring is unavailable</li>
+     * <li>{@code KQUEUE} – used on macOS and BSD systems</li>
+     * <li>{@code AUTO} – selects the best available transport in the above
+     * order</li>
+     * <li>{@code NIO} – used as a universal fallback</li>
      * </ul>
      * If a requested native transport is unavailable, the server logs a warning and
      * transparently falls back to NIO.
      *
      * <h3>Threading model</h3>
-     * The startup process executes on the calling thread until the bind operation is submitted.
-     * The completion of the returned {@link Future} occurs on the Netty event loop thread
+     * The startup process executes on the calling thread until the bind operation
+     * is submitted.
+     * The completion of the returned {@link Future} occurs on the Netty event loop
+     * thread
      * associated with the bind operation.
      *
      * <h3>Failure handling</h3>
      * <ul>
-     *   <li>If startup fails asynchronously (e.g., bind error), the returned future completes
-     *       with failure and the server state is reverted</li>
-     *   <li>If an exception occurs synchronously during initialization, it is propagated to
-     *       the caller and the server state is reverted</li>
+     * <li>If startup fails asynchronously (e.g., bind error), the returned future
+     * completes
+     * with failure and the server state is reverted</li>
+     * <li>If an exception occurs synchronously during initialization, it is
+     * propagated to
+     * the caller and the server state is reverted</li>
      * </ul>
      *
      * <h3>Post-start actions</h3>
      * On successful startup, the following actions are performed:
      * <ul>
-     *   <li>The bound server channel is recorded</li>
-     *   <li>A JVM shutdown hook is installed (once)</li>
-     *   <li>Registered {@link ServerStartListener}s are notified</li>
+     * <li>The bound server channel is recorded</li>
+     * <li>A JVM shutdown hook is installed (once)</li>
+     * <li>Registered {@link ServerStartListener}s are notified</li>
      * </ul>
      *
-     * @return a {@link Future} that completes when the server bind operation succeeds or fails;
-     *         if the server was already started or starting, a successfully completed future
+     * @return a {@link Future} that completes when the server bind operation
+     *         succeeds or fails;
+     *         if the server was already started or starting, a successfully
+     *         completed future
      *         is returned and the request is ignored
      *
-     * @throws RuntimeException if a synchronous error occurs during startup initialization
+     * @throws RuntimeException if a synchronous error occurs during startup
+     *                          initialization
      */
     public Future<Void> startAsync() {
         if (!serverStatus.compareAndSet(ServerStatus.INIT, ServerStatus.STARTING)) {
@@ -530,13 +547,13 @@ public class SocketIOServer implements ClientListeners {
         }
         if (config.getTcpReceiveBufferSize() != -1) {
             bootstrap.childOption(ChannelOption.SO_RCVBUF, config.getTcpReceiveBufferSize());
-            bootstrap.childOption(ChannelOption.RECVBUF_ALLOCATOR, new FixedRecvByteBufAllocator(config.getTcpReceiveBufferSize()));
+            bootstrap.childOption(ChannelOption.RECVBUF_ALLOCATOR,
+                    new FixedRecvByteBufAllocator(config.getTcpReceiveBufferSize()));
         }
-        //default value @see WriteBufferWaterMark.DEFAULT
+        // default value @see WriteBufferWaterMark.DEFAULT
         if (config.getWriteBufferWaterMarkLow() != -1 && config.getWriteBufferWaterMarkHigh() != -1) {
             bootstrap.childOption(ChannelOption.WRITE_BUFFER_WATER_MARK, new WriteBufferWaterMark(
-                    config.getWriteBufferWaterMarkLow(), config.getWriteBufferWaterMarkHigh()
-            ));
+                    config.getWriteBufferWaterMarkLow(), config.getWriteBufferWaterMarkHigh()));
         }
 
         bootstrap.childOption(ChannelOption.SO_KEEPALIVE, config.isTcpKeepAlive());
@@ -624,44 +641,48 @@ public class SocketIOServer implements ClientListeners {
         workerGroup = new MultiThreadIoEventLoopGroup(configCopy.getWorkerThreads(), handler);
     }
 
-
     /**
      * Stops the server synchronously and releases all associated resources.
      * <p>
      * This method initiates an orderly shutdown sequence and blocks the calling
-     * thread until all network resources and event loop groups have been terminated.
+     * thread until all network resources and event loop groups have been
+     * terminated.
      *
      * <h3>Lifecycle semantics</h3>
      * <ul>
-     *   <li>This method is effective only when the server is in {@link ServerStatus#STARTED}</li>
-     *   <li>If the server is not started, the stop request is ignored</li>
-     *   <li>The server transitions through {@link ServerStatus#STOPPING} and finally
-     *       returns to {@link ServerStatus#INIT}</li>
+     * <li>This method is effective only when the server is in
+     * {@link ServerStatus#STARTED}</li>
+     * <li>If the server is not started, the stop request is ignored</li>
+     * <li>The server transitions through {@link ServerStatus#STOPPING} and finally
+     * returns to {@link ServerStatus#INIT}</li>
      * </ul>
      *
      * <h3>Shutdown sequence</h3>
      * The shutdown process is performed in the following order:
      * <ol>
-     *   <li>Transition server state to {@code STOPPING}</li>
-     *   <li>Remove the JVM shutdown hook, if installed</li>
-     *   <li>Close the bound server channel and stop accepting new connections</li>
-     *   <li>Notify registered {@link ServerStopListener}s</li>
-     *   <li>Stop the internal channel pipeline</li>
-     *   <li>Gracefully shut down boss and worker event loop groups</li>
+     * <li>Transition server state to {@code STOPPING}</li>
+     * <li>Remove the JVM shutdown hook, if installed</li>
+     * <li>Close the bound server channel and stop accepting new connections</li>
+     * <li>Notify registered {@link ServerStopListener}s</li>
+     * <li>Stop the internal channel pipeline</li>
+     * <li>Gracefully shut down boss and worker event loop groups</li>
      * </ol>
      *
      * <h3>Threading behavior</h3>
      * This method blocks the calling thread until:
      * <ul>
-     *   <li>The server channel is closed</li>
-     *   <li>All event loop threads have terminated</li>
+     * <li>The server channel is closed</li>
+     * <li>All event loop threads have terminated</li>
      * </ul>
-     * It is therefore recommended to invoke this method from a non-event-loop thread.
+     * It is therefore recommended to invoke this method from a non-event-loop
+     * thread.
      *
      * <h3>Failure isolation</h3>
      * <ul>
-     *   <li>Exceptions thrown by stop listeners or pipeline shutdown logic are caught and logged</li>
-     *   <li>Failures in one shutdown phase do not prevent subsequent cleanup steps</li>
+     * <li>Exceptions thrown by stop listeners or pipeline shutdown logic are caught
+     * and logged</li>
+     * <li>Failures in one shutdown phase do not prevent subsequent cleanup
+     * steps</li>
      * </ul>
      *
      * <h3>Idempotency</h3>
@@ -671,9 +692,9 @@ public class SocketIOServer implements ClientListeners {
      * <h3>Post-conditions</h3>
      * After this method returns:
      * <ul>
-     *   <li>No new client connections are accepted</li>
-     *   <li>All network resources have been released</li>
-     *   <li>The server may be started again by invoking {@link #startAsync()}</li>
+     * <li>No new client connections are accepted</li>
+     * <li>All network resources have been released</li>
+     * <li>The server may be started again by invoking {@link #startAsync()}</li>
      * </ul>
      */
     public void stop() {
@@ -683,14 +704,6 @@ public class SocketIOServer implements ClientListeners {
         }
 
         log.info("Stopping SocketIO server...");
-
-        if (shutdownHookInstalled.get() && shutdownHook != null) {
-            try {
-                Runtime.getRuntime().removeShutdownHook(shutdownHook);
-                shutdownHookInstalled.set(false);
-            } catch (IllegalStateException ignored) {
-            }
-        }
 
         Channel ch = serverChannel.getAndSet(null);
         if (ch != null && ch.isOpen()) {
@@ -719,9 +732,6 @@ public class SocketIOServer implements ClientListeners {
     }
 
 
-
-    // ========= SHUTDOWN HOOK =========
-
     private void installShutdownHookOnce() {
         if (shutdownHookInstalled.compareAndSet(false, true)) {
             shutdownHook = new Thread(() -> {
@@ -733,8 +743,31 @@ public class SocketIOServer implements ClientListeners {
             Runtime.getRuntime().addShutdownHook(shutdownHook);
         }
     }
+    /**
+     * Removes the JVM shutdown hook previously installed by this server.
+     * <p>
+     * This method allows external lifecycle managers (e.g. application frameworks,
+     * containers, or test harnesses) to take full control over server shutdown.
+     * <p>
+     * If the JVM shutdown sequence has already started, the hook cannot be removed
+     * and the request is ignored.
+     */
+    public void removeShutdownHook() {
+        if (!shutdownHookInstalled.get() || shutdownHook == null) {
+            return;
+        }
 
-
+        try {
+            boolean removed = Runtime.getRuntime().removeShutdownHook(shutdownHook);
+            if (removed) {
+                shutdownHookInstalled.set(false);
+                log.debug("Shutdown hook removed");
+            }
+        } catch (IllegalStateException e) {
+            // JVM is already shutting down
+            log.warn("Shutdown in progress, cannot remove shutdown hook");
+        }
+    }
 
     /**
      * Creates and registers a new {@link SocketIONamespace} with the given name.
@@ -743,7 +776,8 @@ public class SocketIOServer implements ClientListeners {
      * If a namespace with the given name already exists, the existing instance
      * may be returned depending on the underlying implementation.
      *
-     * @param name the namespace name (e.g. {@code "/chat"}); must not be {@code null}
+     * @param name the namespace name (e.g. {@code "/chat"}); must not be
+     *             {@code null}
      * @return the created or existing {@link SocketIONamespace}
      */
     public SocketIONamespace addNamespace(String name) {
@@ -790,14 +824,14 @@ public class SocketIOServer implements ClientListeners {
      * <p>
      * This listener is registered on the main (default) namespace.
      *
-     * @param eventName the event name
-     * @param listener the multi-type event listener
+     * @param eventName  the event name
+     * @param listener   the multi-type event listener
      * @param eventClass one or more supported payload classes
      */
     @Override
     public void addMultiTypeEventListener(String eventName,
-                                        MultiTypeEventListener listener,
-                                        Class<?>... eventClass) {
+            MultiTypeEventListener listener,
+            Class<?>... eventClass) {
         mainNamespace.addMultiTypeEventListener(eventName, listener, eventClass);
     }
 
@@ -807,15 +841,15 @@ public class SocketIOServer implements ClientListeners {
      * Incoming event payloads are deserialized into the provided event class
      * before being delivered to the listener.
      *
-     * @param <T> the event payload type
-     * @param eventName the event name
+     * @param <T>        the event payload type
+     * @param eventName  the event name
      * @param eventClass the expected payload class
-     * @param listener the listener to invoke when the event is received
+     * @param listener   the listener to invoke when the event is received
      */
     @Override
     public <T> void addEventListener(String eventName,
-                                    Class<T> eventClass,
-                                    DataListener<T> listener) {
+            Class<T> eventClass,
+            DataListener<T> listener) {
         mainNamespace.addEventListener(eventName, eventClass, listener);
     }
 
@@ -946,7 +980,7 @@ public class SocketIOServer implements ClientListeners {
     /**
      * Registers multiple listener objects with the main namespace.
      *
-     * @param <L> the listener type
+     * @param <L>       the listener type
      * @param listeners an iterable of listener instances
      */
     @Override
@@ -962,12 +996,11 @@ public class SocketIOServer implements ClientListeners {
      * interfaces or contains handlers for different namespaces.
      *
      * @param listeners the listener object
-     * @param clazz the class used to filter listener methods
+     * @param clazz     the class used to filter listener methods
      */
     @Override
     public void addListeners(Object listeners, Class<?> clazz) {
         mainNamespace.addListeners(listeners, clazz);
     }
-
 
 }
