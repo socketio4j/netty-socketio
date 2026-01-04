@@ -84,6 +84,8 @@
     <kafka.version>4.1.1</kafka.version>
     <commons-lang3.version>3.20.0</commons-lang3.version>
     <nats.version>2.24.1</nats.version>
+    <!-- Skip central-publishing-maven-plugin for SNAPSHOT versions (set to true via -DskipCentralPublishing=true) -->
+    <skipCentralPublishing>false</skipCentralPublishing>
   </properties>
 
   <profiles>
@@ -147,6 +149,18 @@
             <artifactId>central-publishing-maven-plugin</artifactId>
             <version>0.9.0</version>
             <extensions>true</extensions>
+            <executions>
+              <execution>
+                <id>publish-to-central</id>
+                <phase>deploy</phase>
+                <goals>
+                  <goal>publish</goal>
+                </goals>
+                <configuration>
+                  <skip>${skipCentralPublishing}</skip>
+                </configuration>
+              </execution>
+            </executions>
             <configuration>
               <publishingServerId>ossrh</publishingServerId>
               <tokenAuth>true</tokenAuth>
