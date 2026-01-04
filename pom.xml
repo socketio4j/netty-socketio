@@ -147,6 +147,18 @@
             <artifactId>central-publishing-maven-plugin</artifactId>
             <version>0.9.0</version>
             <extensions>true</extensions>
+            <executions>
+              <execution>
+                <id>publish-to-central</id>
+                <phase>deploy</phase>
+                <goals>
+                  <goal>publish</goal>
+                </goals>
+                <configuration>
+                  <skip>${skipCentralPublishing}</skip>
+                </configuration>
+              </execution>
+            </executions>
             <configuration>
               <publishingServerId>ossrh</publishingServerId>
               <tokenAuth>true</tokenAuth>
