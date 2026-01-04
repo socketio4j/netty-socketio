@@ -23,20 +23,9 @@ jobs:
       run: |
           cat <(echo -e "${{ secrets.OSSRH_GPG_SECRET_KEY }}") | gpg --batch --import
           gpg --list-secret-keys --keyid-format LONG
-    - name: Detect version and set skip flag
-      id: version
-      run: |
-          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          if [[ "$VERSION" == *"-SNAPSHOT"* ]]; then
-            echo "skipCentralPublishing=true" >> $GITHUB_OUTPUT
-          else
-            echo "skipCentralPublishing=false" >> $GITHUB_OUTPUT
-          fi
     - name: Publish package
       env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
       # for publish, skip test, because test is in CI
-      # Skip central-publishing-maven-plugin for SNAPSHOT versions
-      run: mvn --batch-mode -DskipTests -Dgpg.passphrase=${{ secrets.OSSRH_GPG_SECRET_KEY_PASSWORD }} -DskipCentralPublishing=${{ steps.version.outputs.skipCentralPublishing }} clean deploy -P release  -pl '!netty-socketio-smoke-test'
+      run: mvn --batch-mode -DskipTests -Dgpg.passphrase=${{ secrets.OSSRH_GPG_SECRET_KEY_PASSWORD }} clean deploy -P release  -pl '!netty-socketio-smoke-test'
