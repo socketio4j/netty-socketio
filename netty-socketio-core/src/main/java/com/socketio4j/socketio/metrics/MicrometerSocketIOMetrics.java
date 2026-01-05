@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import net.agkn.hll.HLL;
 import net.jpountz.xxhash.XXHash64;
 import net.jpountz.xxhash.XXHashFactory;
@@ -159,6 +160,10 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
         if (v < 0) {
             m.roomMembers.compareAndSet(v, 0); // underflow protection
         }
+    }
+
+    public PrometheusMeterRegistry prometheus() {
+        return (PrometheusMeterRegistry) registry;
     }
 
 

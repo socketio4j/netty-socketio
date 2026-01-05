@@ -111,7 +111,7 @@ public class Namespace implements SocketIONamespace {
         this.exceptionListener = configuration.getExceptionListener();
         this.ackMode = configuration.getAckMode();
         if (configuration.isMetricsEnabled()) {
-            this.metrics = new MicrometerSocketIOMetrics(configuration.getMeterRegistry(), configuration.isMicrometerHistogramEnabled());
+            this.metrics = configuration.getMetrics();
         } else {
             this.metrics = SocketIOMetrics.noop();
         }

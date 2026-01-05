@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.Arrays;
 import java.util.List;
@@ -72,23 +73,26 @@ public abstract class BasicConfiguration {
 
     protected boolean needClientAuth = false;
     protected boolean metricsEnabled = false;
-    protected MeterRegistry meterRegistry;
-    protected boolean micrometerHistogramEnabled;
+    protected SocketIOMetrics metrics;
+    protected boolean micrometerHistogramEnabled = false;
+
+    public SocketIOMetrics getMetrics() {
+        return metrics;
+    }
+
+    public void setMetrics(SocketIOMetrics metrics) {
+        this.metrics = metrics;
+    }
 
     public boolean isMetricsEnabled() {
         return metricsEnabled;
     }
-    public MeterRegistry getMeterRegistry() {
-        return meterRegistry;
-    }
+
 
     public void setMetricsEnabled(boolean metricsEnabled) {
         this.metricsEnabled = metricsEnabled;
     }
 
-    public void setMeterRegistry(MeterRegistry meterRegistry) {
-        this.meterRegistry = meterRegistry;
-    }
 
     public boolean isMicrometerHistogramEnabled() {
         return micrometerHistogramEnabled;
@@ -133,7 +137,7 @@ public abstract class BasicConfiguration {
         setWebsocketCompression(conf.isWebsocketCompression());
         setRandomSession(conf.randomSession);
         setNeedClientAuth(conf.isNeedClientAuth());
-        setMeterRegistry(conf.getMeterRegistry());
+        setMetrics(conf.getMetrics());
         setMetricsEnabled(conf.isMetricsEnabled());
         setMicrometerHistogramEnabled(conf.isMicrometerHistogramEnabled());
     }

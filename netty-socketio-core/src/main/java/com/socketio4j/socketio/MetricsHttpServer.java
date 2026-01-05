@@ -68,6 +68,22 @@ public final class MetricsHttpServer {
         this.metricsUrl = "/metrics";
     }
 
+    public PrometheusMeterRegistry getRegistry() {
+        return registry;
+    }
+
+    public String getHost() {
+        return host;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public String getMetricsUrl() {
+        return metricsUrl;
+    }
+
     public void start() throws InterruptedException {
 
         bossGroup =  new MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory());

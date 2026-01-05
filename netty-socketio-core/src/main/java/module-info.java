@@ -96,8 +96,12 @@ module netty.socketio.core {
   // ============================================================
   requires org.slf4j;
   requires static org.jetbrains.annotations;
-  requires micrometer.core;
-  requires micrometer.registry.prometheus;
-  requires hll;
-  requires org.lz4.java;
+
+  // ============================================================
+  // metrics
+  // ============================================================
+  requires static micrometer.core;
+  requires static micrometer.registry.prometheus;
+  requires static hll;
+  requires static org.lz4.java;
 }
