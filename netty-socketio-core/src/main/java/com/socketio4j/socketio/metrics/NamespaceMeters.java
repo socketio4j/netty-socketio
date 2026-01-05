@@ -16,13 +16,13 @@
  */
 package com.socketio4j.socketio.metrics;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import net.agkn.hll.HLL;
-
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Per-namespace metric container.
