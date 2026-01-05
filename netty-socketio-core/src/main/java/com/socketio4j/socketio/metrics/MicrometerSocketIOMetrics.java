@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
-import net.agkn.hll.HLL;
 import net.jpountz.xxhash.XXHash64;
 import net.jpountz.xxhash.XXHashFactory;
 
@@ -32,7 +31,6 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     private final MeterRegistry registry;
     private final boolean histogramEnabled;
-    private final HLL unknownEventHll = new HLL(14, 5);
     private static final XXHash64 XX_HASH =
             XXHashFactory.fastestInstance().hash64();
 
