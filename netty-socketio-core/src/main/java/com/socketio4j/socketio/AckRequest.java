@@ -44,6 +44,10 @@ public class AckRequest {
     private final SocketIOClient client;
     private final AtomicBoolean sended = new AtomicBoolean();
 
+    public boolean getSended() {
+        return sended.get();
+    }
+
     public AckRequest(Packet originalPacket, SocketIOClient client) {
         this.originalPacket = originalPacket;
         this.client = client;

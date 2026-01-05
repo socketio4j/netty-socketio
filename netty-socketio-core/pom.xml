@@ -14,6 +14,27 @@
   <description>Socket.IO server core implementation</description>
 
   <dependencies>
+  <dependency>
+          <groupId>io.micrometer</groupId>
+          <artifactId>micrometer-core</artifactId>
+          <scope>provided</scope>
+      </dependency>
+      <dependency>
+          <groupId>io.micrometer</groupId>
+          <artifactId>micrometer-registry-prometheus</artifactId>
+          <scope>provided</scope>
+      </dependency>
+    <dependency>
+      <groupId>net.agkn</groupId>
+      <artifactId>hll</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <!-- https://mvnrepository.com/artifact/org.lwjgl/lwjgl-xxhash -->
+    <dependency>
+      <groupId>org.lwjgl</groupId>
+      <artifactId>lwjgl-xxhash</artifactId>
+      <scope>provided</scope>
+    </dependency>
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-buffer</artifactId>

@@ -23,11 +23,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,6 +55,8 @@ import com.socketio4j.socketio.listener.ExceptionListener;
 import com.socketio4j.socketio.listener.MultiTypeEventListener;
 import com.socketio4j.socketio.listener.PingListener;
 import com.socketio4j.socketio.listener.PongListener;
+import com.socketio4j.socketio.metrics.MicrometerSocketIOMetrics;
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.store.StoreFactory;
@@ -97,6 +101,8 @@ public class Namespace implements SocketIONamespace {
     private final StoreFactory storeFactory;
     private final ExceptionListener exceptionListener;
 
+    private final SocketIOMetrics metrics;
+
     public Namespace(String name, Configuration configuration) {
         super();
         this.name = name;
@@ -104,6 +110,12 @@ public class Namespace implements SocketIONamespace {
         this.storeFactory = configuration.getStoreFactory();
         this.exceptionListener = configuration.getExceptionListener();
         this.ackMode = configuration.getAckMode();
+        if (configuration.isMetricsEnabled()) {
+            this.metrics = new MicrometerSocketIOMetrics(configuration.getMeterRegistry(), configuration.isMicrometerHistogramEnabled());
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+
     }
 
     public void addClient(SocketIOClient client) {
@@ -182,10 +194,12 @@ public class Namespace implements SocketIONamespace {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     public void onEvent(NamespaceClient client, String eventName, List<Object> args, AckRequest ackRequest) {
+        long start = System.nanoTime();
         EventEntry entry = eventListeners.get(eventName);
-
+        metrics.eventReceived(name);
         try {
             if (entry != null) {
+                
                 Queue<DataListener> listeners = entry.getListeners();
                 for (DataListener dataListener : listeners) {
                     Object data = getEventData(args, dataListener);
@@ -194,27 +208,44 @@ public class Namespace implements SocketIONamespace {
                 for (EventInterceptor eventInterceptor : eventInterceptors) {
                     eventInterceptor.onEvent(client, eventName, args, ackRequest);
                 }
+                metrics.eventHandled(name, System.nanoTime() - start);
+            } else {
+                metrics.unknownEventReceived(name);
+                metrics.unknownEventNames(name, eventName);
             }
             
             for (CatchAllEventListener catchAllEventListener : catchAllEventListeners) {
                 catchAllEventListener.onEvent(client, eventName, args, ackRequest);
             }
         } catch (Exception e) {
+            metrics.eventFailed(name);
             exceptionListener.onEventException(e, args, client);
             if (ackMode == AckMode.AUTO_SUCCESS_ONLY) {
+                metrics.ackMissing(name);
                 return;
             }
         }
+        // entry != null is important or unwanted ack track for unknown events
+        if (sendAck(ackRequest) && entry != null) {
+            metrics.ackSent(client.getNamespace().name, System.nanoTime() - start);
+        }
 
-        sendAck(ackRequest);
     }
 
-    private void sendAck(AckRequest ackRequest) {
+    private boolean sendAck(AckRequest ackRequest) {
         if (ackMode == AckMode.AUTO || ackMode == AckMode.AUTO_SUCCESS_ONLY) {
             // send ack response if it did not execute
             // during {@link DataListener#onData} invocation
             ackRequest.sendAckData(Collections.emptyList());
+            return true;
         }
+        if (ackMode == AckMode.MANUAL
+                && ackRequest != null
+                && !ackRequest.getSended()) {
+            metrics.ackMissing(name);
+            return false;
+        }
+        return true;
     }
 
     private Object getEventData(List<Object> args, DataListener<?> dataListener) {
@@ -253,6 +284,7 @@ public class Namespace implements SocketIONamespace {
         } catch (Exception e) {
             exceptionListener.onDisconnectException(e, client);
         }
+        metrics.disconnect(name);
     }
 
     @Override
@@ -276,6 +308,7 @@ public class Namespace implements SocketIONamespace {
         } catch (Exception e) {
             exceptionListener.onConnectException(e, client);
         }
+        metrics.connect(name);
     }
 
     @Override
@@ -390,30 +423,50 @@ public class Namespace implements SocketIONamespace {
         storeFactory.eventStore().publish(EventType.BULK_JOIN, new BulkJoinMessage(sessionId, rooms, getName()));
     }
 
-        public void dispatch(String room, Packet packet) {
-            Iterable<SocketIOClient> clients = getRoomClients(room);
+    public void dispatch(String room, Packet packet) {
+        int size = forEachRoomClient(room, client -> {
+            client.send(packet);
+        });
 
-            for (SocketIOClient socketIOClient : clients) {
-                socketIOClient.send(packet);
-            }
-        }
-
-    private <K, V> void join(ConcurrentMap<K, Set<V>> map, K key, V value) {
-        Set<V> clients = map.get(key);
-        if (clients == null) {
-            clients = Collections.newSetFromMap(new ConcurrentHashMap<>());
-            Set<V> oldClients = map.putIfAbsent(key, clients);
-            if (oldClients != null) {
-                clients = oldClients;
-            }
-        }
-        clients.add(value);
-        // object may be changed due to other concurrent call
-        if (clients != map.get(key)) {
-            // re-join if queue has been replaced
-            join(map, key, value);
+        if (size > 0) {
+            metrics.eventSent(name, size);
         }
     }
+
+    public int forEachRoomClient(String room, Consumer<SocketIOClient> action) {
+        Set<UUID> sessionIds = roomClients.get(room);
+
+        if (sessionIds == null || sessionIds.isEmpty()) {
+            return 0;
+        }
+
+        int count = 0;
+        for (UUID sessionId : sessionIds) {
+            SocketIOClient client = allClients.get(sessionId);
+            if (client != null) {
+                action.accept(client);
+                count++;
+            }
+        }
+        return count;
+    }
+
+
+    private <K, V> void join(ConcurrentMap<K, Set<V>> map, K room, V value) {
+
+        Set<V> clients = map.computeIfAbsent(
+                room,
+                r -> Collections.newSetFromMap(new ConcurrentHashMap<>())
+        );
+
+       if (clients.add(value)) {
+           if (room instanceof String) {
+               metrics.roomJoin(name); // EXACTLY once
+           }
+       }
+
+    }
+
 
     public void join(String room, UUID sessionId) {
         join(roomClients, room, sessionId);
@@ -433,16 +486,26 @@ public class Namespace implements SocketIONamespace {
     }
 
     private <K, V> void leave(ConcurrentMap<K, Set<V>> map, K room, V sessionId) {
+
         Set<V> clients = map.get(room);
         if (clients == null) {
             return;
         }
-        clients.remove(sessionId);
+
+        boolean removed = clients.remove(sessionId);
+        if (!removed) {
+            return; // nothing changed → do NOT count
+        }
+
+        if (room instanceof String) {
+            metrics.roomLeave(name); // EXACTLY once
+        }
 
         if (clients.isEmpty()) {
             map.remove(room, Collections.emptySet());
         }
     }
+
 
     public void leave(String room, UUID sessionId) {
         leave(roomClients, room, sessionId);

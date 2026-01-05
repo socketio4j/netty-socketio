@@ -84,6 +84,10 @@
     <kafka.version>4.1.1</kafka.version>
     <commons-lang3.version>3.20.0</commons-lang3.version>
     <nats.version>2.24.1</nats.version>
+    <micrometer-core.version>1.16.1</micrometer-core.version>
+    <micrometer-registry-prometheus>1.16.1</micrometer-registry-prometheus>
+    <hll.version>1.6.0</hll.version>
+    <lwjgl-xxhash.version>3.3.6</lwjgl-xxhash.version>
   </properties>
 
   <profiles>
@@ -221,6 +225,27 @@
 
   <dependencyManagement>
     <dependencies>
+      <dependency>
+          <groupId>io.micrometer</groupId>
+          <artifactId>micrometer-core</artifactId>
+          <version>${micrometer-core.version}</version>
+      </dependency>
+      <dependency>
+          <groupId>io.micrometer</groupId>
+          <artifactId>micrometer-registry-prometheus</artifactId>
+          <version>${micrometer-registry-prometheus}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.agkn</groupId>
+        <artifactId>hll</artifactId>
+        <version>${hll.version}</version>
+      </dependency>
+      <!-- https://mvnrepository.com/artifact/org.lwjgl/lwjgl-xxhash -->
+      <dependency>
+        <groupId>org.lwjgl</groupId>
+        <artifactId>lwjgl-xxhash</artifactId>
+        <version>${lwjgl-xxhash.version}</version>
+      </dependency>
       <dependency>
         <groupId>org.testcontainers</groupId>
         <artifactId>testcontainers-bom</artifactId>
