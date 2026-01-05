@@ -70,21 +70,21 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void eventReceived(String ns) {
-        ns(ns).eventReceived.increment();
+        ns(ns).getEventReceived().increment();
     }
 
     @Override
     public void eventHandled(String ns, long durationNanos) {
         NamespaceMeters m = ns(ns);
         if (durationNanos > 0) {
-            m.eventProcessing.record(durationNanos, TimeUnit.NANOSECONDS);
+            m.getEventProcessing().record(durationNanos, TimeUnit.NANOSECONDS);
         }
-        m.eventHandled.increment();
+        m.getEventHandled().increment();
     }
 
     @Override
     public void eventFailed(String ns) {
-        ns(ns).eventFailed.increment();
+        ns(ns).getEventFailed().increment();
     }
 
     @Override
@@ -92,13 +92,13 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
         NamespaceMeters m = ns(ns);
 
         if (recipients > 0) {
-            m.eventSent.increment(recipients);
+            m.getEventSent().increment(recipients);
         }
     }
 
     @Override
     public void unknownEventReceived(String ns) {
-        ns(ns).eventUnknown.increment();
+        ns(ns).getEventUnknown().increment();
     }
 
     @Override
@@ -106,7 +106,7 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
         if (eventName == null) {
             return;
         }
-        ns(ns).unknownEventHll.addRaw(hashToLong(ns + ":" + eventName));
+        ns(ns).getUnknownEventHll().addRaw(hashToLong(ns + ":" + eventName));
     }
 
     /* ===================== ACK ===================== */
@@ -115,14 +115,14 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
     public void ackSent(String ns, long latencyNanos) {
         NamespaceMeters m = ns(ns);
         if (latencyNanos > 0) {
-            m.ackLatency.record(latencyNanos, TimeUnit.NANOSECONDS);
+            m.getAckLatency().record(latencyNanos, TimeUnit.NANOSECONDS);
         }
-        m.ackSent.increment();
+        m.getAckSent().increment();
     }
 
     @Override
     public void ackMissing(String ns) {
-        ns(ns).ackMissing.increment();
+        ns(ns).getAckMissing().increment();
     }
 
     /* ===================== Connections ===================== */
@@ -130,15 +130,15 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
     @Override
     public void connect(String ns) {
         NamespaceMeters m = ns(ns);
-        m.connect.increment();
-        m.connected.incrementAndGet();
+        m.getConnect().increment();
+        m.getConnected().incrementAndGet();
     }
 
     @Override
     public void disconnect(String ns) {
         NamespaceMeters m = ns(ns);
-        m.disconnect.increment();
-        m.connected.decrementAndGet();
+        m.getDisconnect().increment();
+        m.getConnected().decrementAndGet();
     }
 
     /* ===================== Rooms ===================== */
@@ -146,17 +146,17 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
     @Override
     public void roomJoin(String ns) {
         NamespaceMeters m = ns(ns);
-        m.roomJoin.increment();
-        m.roomMembers.incrementAndGet();
+        m.getRoomJoin().increment();
+        m.getRoomMembers().incrementAndGet();
     }
 
     @Override
     public void roomLeave(String ns) {
         NamespaceMeters m = ns(ns);
-        m.roomLeave.increment();
-        int v = m.roomMembers.decrementAndGet();
+        m.getRoomLeave().increment();
+        int v = m.getRoomMembers().decrementAndGet();
         if (v < 0) {
-            m.roomMembers.compareAndSet(v, 0); // underflow protection
+            m.getRoomMembers().compareAndSet(v, 0); // underflow protection
         }
     }
 

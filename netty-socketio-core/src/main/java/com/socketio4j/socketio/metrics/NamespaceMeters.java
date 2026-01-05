@@ -33,43 +33,107 @@ import net.agkn.hll.HLL;
  * @author https://github.com/sanjomo
  * @date 05/01/26 3:10 pm
  */
-final class NamespaceMeters {
+public final class NamespaceMeters {
 
     /* ===================== Event Counters ===================== */
 
-    final Counter eventReceived;
-    final Counter eventHandled;
-    final Counter eventFailed;
-    final Counter eventSent;
-    final Counter eventUnknown;
+    private final Counter eventReceived;
+    private final Counter eventHandled;
+    private final Counter eventFailed;
+    private final Counter eventSent;
+    private final Counter eventUnknown;
     /**
      * HyperLogLog for distinct unknown event names.
      * (namespace:eventName hashed outside)
      */
-    final HLL unknownEventHll;
+    private final HLL unknownEventHll;
     /* ===================== ACK ===================== */
 
-    final Counter ackSent;
-    final Counter ackMissing;
+    private final Counter ackSent;
+    private final Counter ackMissing;
 
     /* ===================== Connections ===================== */
 
-    final Counter connect;
-    final Counter disconnect;
+    private final Counter connect;
+    private final Counter disconnect;
 
-    final AtomicInteger connected;
+    private final AtomicInteger connected;
 
     /* ===================== Rooms ===================== */
 
-    final Counter roomJoin;
-    final Counter roomLeave;
+    private final Counter roomJoin;
+    private final Counter roomLeave;
 
-    final AtomicInteger roomMembers;
+    private final AtomicInteger roomMembers;
 
     /* ===================== Timers ===================== */
 
-    final Timer eventProcessing;
-    final Timer ackLatency;
+    private final Timer eventProcessing;
+    private final Timer ackLatency;
+
+    public Counter getEventReceived() {
+        return eventReceived;
+    }
+
+    public Counter getEventHandled() {
+        return eventHandled;
+    }
+
+    public Counter getEventFailed() {
+        return eventFailed;
+    }
+
+    public Counter getEventSent() {
+        return eventSent;
+    }
+
+    public Counter getEventUnknown() {
+        return eventUnknown;
+    }
+
+    public HLL getUnknownEventHll() {
+        return unknownEventHll;
+    }
+
+    public Counter getAckSent() {
+        return ackSent;
+    }
+
+    public Counter getAckMissing() {
+        return ackMissing;
+    }
+
+    public Counter getConnect() {
+        return connect;
+    }
+
+    public Counter getDisconnect() {
+        return disconnect;
+    }
+
+    public AtomicInteger getConnected() {
+        return connected;
+    }
+
+    public Counter getRoomJoin() {
+        return roomJoin;
+    }
+
+    public Counter getRoomLeave() {
+        return roomLeave;
+    }
+
+    public AtomicInteger getRoomMembers() {
+        return roomMembers;
+    }
+
+    public Timer getEventProcessing() {
+        return eventProcessing;
+    }
+
+    public Timer getAckLatency() {
+        return ackLatency;
+    }
 
     NamespaceMeters(MeterRegistry registry, String ns, boolean histogramEnabled) {
 
