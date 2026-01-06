@@ -16,8 +16,13 @@
  */
 package com.socketio4j.socketio.metrics;
 
+import io.micrometer.core.instrument.Clock;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
+import io.micrometer.registry.otlp.OtlpConfig;
+import io.micrometer.registry.otlp.OtlpMeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author https://github.com/sanjomo
@@ -25,14 +30,35 @@ import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
  */
 public final class MicrometerMetricsFactory {
 
-    public static MicrometerSocketIOMetrics prometheusDefault() {
-        return new MicrometerSocketIOMetrics(
-                new PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
-        );
+    private static final Logger log = LoggerFactory.getLogger(MicrometerMetricsFactory.class);
+
+    private MicrometerMetricsFactory() {
     }
-    public static MicrometerSocketIOMetrics prometheusDefault(boolean isHistogramEnabled) {
+
+    /* ===================== OTLP (DEFAULT) ===================== */
+
+    public static MicrometerSocketIOMetrics otlpDefault() {
+        return otlpDefault(false);
+    }
+
+    public static MicrometerSocketIOMetrics otlpDefault(boolean histogramEnabled) {
+        OtlpMeterRegistry registry =
+                new OtlpMeterRegistry(OtlpConfig.DEFAULT, Clock.SYSTEM);
+        log.info("OTLP endpoint = {}", OtlpConfig.DEFAULT.url());
+
+        return new MicrometerSocketIOMetrics(registry, histogramEnabled);
+    }
+
+    /* ===================== Prometheus (OPTIONAL) ===================== */
+
+    public static MicrometerSocketIOMetrics prometheus() {
+        return prometheus(false);
+    }
+
+    public static MicrometerSocketIOMetrics prometheus(boolean histogramEnabled) {
         return new MicrometerSocketIOMetrics(
-                new PrometheusMeterRegistry(PrometheusConfig.DEFAULT), isHistogramEnabled
+                new PrometheusMeterRegistry(PrometheusConfig.DEFAULT),
+                histogramEnabled
         );
     }
 }

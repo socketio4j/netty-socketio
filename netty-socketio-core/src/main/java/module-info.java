@@ -104,4 +104,5 @@ module netty.socketio.core {
   requires static micrometer.registry.prometheus;
   requires static hll;
   requires static org.lz4.java;
+  requires static micrometer.registry.otlp;
 }

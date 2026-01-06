@@ -14,16 +14,21 @@
   <description>Socket.IO server core implementation</description>
 
   <dependencies>
+
   <dependency>
           <groupId>io.micrometer</groupId>
           <artifactId>micrometer-core</artifactId>
-          <scope>provided</scope>
+
       </dependency>
       <dependency>
           <groupId>io.micrometer</groupId>
           <artifactId>micrometer-registry-prometheus</artifactId>
-          <scope>provided</scope>
+
       </dependency>
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-otlp</artifactId>
+    </dependency>
     <dependency>
       <groupId>net.agkn</groupId>
       <artifactId>hll</artifactId>

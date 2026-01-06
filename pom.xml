@@ -83,8 +83,7 @@
     <kafka.version>4.1.1</kafka.version>
     <commons-lang3.version>3.20.0</commons-lang3.version>
     <nats.version>2.24.1</nats.version>
-    <micrometer-core.version>1.16.1</micrometer-core.version>
-    <micrometer-registry-prometheus>1.16.1</micrometer-registry-prometheus>
+    <micrometer-bom.version>1.16.1</micrometer-bom.version>
     <hll.version>1.6.0</hll.version>
     <lwjgl-xxhash.version>3.3.6</lwjgl-xxhash.version>
   </properties>
@@ -224,16 +223,13 @@
 
   <dependencyManagement>
     <dependencies>
-      <dependency>
+        <dependency>
           <groupId>io.micrometer</groupId>
-          <artifactId>micrometer-core</artifactId>
-          <version>${micrometer-core.version}</version>
-      </dependency>
-      <dependency>
-          <groupId>io.micrometer</groupId>
-          <artifactId>micrometer-registry-prometheus</artifactId>
-          <version>${micrometer-registry-prometheus}</version>
-      </dependency>
+          <artifactId>micrometer-bom</artifactId>
+          <version>${micrometer-bom.version}</version>
+          <type>pom</type>
+          <scope>import</scope>
+        </dependency>
       <dependency>
         <groupId>net.agkn</groupId>
         <artifactId>hll</artifactId>

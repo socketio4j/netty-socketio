@@ -30,6 +30,8 @@ import net.agkn.hll.HLL;
  * All meters are registered exactly once during construction.
  * Runtime code must only mutate counters, timers, and atomic values.
  *
+ * Units are explicitly defined to guarantee Prometheus + OTLP consistency.
+ *
  * @author https://github.com/sanjomo
  * @date 05/01/26 3:10 pm
  */
@@ -42,11 +44,13 @@ public final class NamespaceMeters {
     private final Counter eventFailed;
     private final Counter eventSent;
     private final Counter eventUnknown;
+
     /**
      * HyperLogLog for distinct unknown event names.
-     * (namespace:eventName hashed outside)
+     * (namespace:eventName hashed externally)
      */
     private final HLL unknownEventHll;
+
     /* ===================== ACK ===================== */
 
     private final Counter ackSent;
@@ -56,14 +60,12 @@ public final class NamespaceMeters {
 
     private final Counter connect;
     private final Counter disconnect;
-
     private final AtomicInteger connected;
 
     /* ===================== Rooms ===================== */
 
     private final Counter roomJoin;
     private final Counter roomLeave;
-
     private final AtomicInteger roomMembers;
 
     /* ===================== Timers ===================== */
@@ -71,73 +73,34 @@ public final class NamespaceMeters {
     private final Timer eventProcessing;
     private final Timer ackLatency;
 
-    public Counter getEventReceived() {
-        return eventReceived;
-    }
+    /* ===================== Accessors ===================== */
 
-    public Counter getEventHandled() {
-        return eventHandled;
-    }
+    public Counter getEventReceived() { return eventReceived; }
+    public Counter getEventHandled() { return eventHandled; }
+    public Counter getEventFailed() { return eventFailed; }
+    public Counter getEventSent() { return eventSent; }
+    public Counter getEventUnknown() { return eventUnknown; }
+    public HLL getUnknownEventHll() { return unknownEventHll; }
 
-    public Counter getEventFailed() {
-        return eventFailed;
-    }
+    public Counter getAckSent() { return ackSent; }
+    public Counter getAckMissing() { return ackMissing; }
 
-    public Counter getEventSent() {
-        return eventSent;
-    }
+    public Counter getConnect() { return connect; }
+    public Counter getDisconnect() { return disconnect; }
+    public AtomicInteger getConnected() { return connected; }
 
-    public Counter getEventUnknown() {
-        return eventUnknown;
-    }
+    public Counter getRoomJoin() { return roomJoin; }
+    public Counter getRoomLeave() { return roomLeave; }
+    public AtomicInteger getRoomMembers() { return roomMembers; }
 
-    public HLL getUnknownEventHll() {
-        return unknownEventHll;
-    }
+    public Timer getEventProcessing() { return eventProcessing; }
+    public Timer getAckLatency() { return ackLatency; }
 
-    public Counter getAckSent() {
-        return ackSent;
-    }
-
-    public Counter getAckMissing() {
-        return ackMissing;
-    }
-
-    public Counter getConnect() {
-        return connect;
-    }
-
-    public Counter getDisconnect() {
-        return disconnect;
-    }
-
-    public AtomicInteger getConnected() {
-        return connected;
-    }
-
-    public Counter getRoomJoin() {
-        return roomJoin;
-    }
-
-    public Counter getRoomLeave() {
-        return roomLeave;
-    }
-
-    public AtomicInteger getRoomMembers() {
-        return roomMembers;
-    }
-
-    public Timer getEventProcessing() {
-        return eventProcessing;
-    }
-
-    public Timer getAckLatency() {
-        return ackLatency;
-    }
+    /* ===================== Constructor ===================== */
 
     NamespaceMeters(MeterRegistry registry, String ns, boolean histogramEnabled) {
 
-        /* ---------- Events ---------- */
+        /* ---------- Event Counters ---------- */
 
         this.eventReceived = Counter.builder("socketio.event.received")
                 .tag("namespace", ns)
@@ -212,7 +175,7 @@ public final class NamespaceMeters {
                 AtomicInteger::get
         ).tag("namespace", ns).register(registry);
 
-        /* ---------- Timers ---------- */
+        /* ---------- Timers (CRITICAL) ---------- */
 
         Timer.Builder eventTimer = Timer.builder("socketio.event.processing.time")
                 .tag("namespace", ns);

@@ -53,6 +53,9 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
         this.registry = registry;
         this.histogramEnabled = histogramEnabled;
     }
+    public MeterRegistry getRegistry() {
+        return registry;
+    }
 
     /* ===================== Helpers ===================== */
 
