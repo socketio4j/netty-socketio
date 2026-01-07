@@ -28,6 +28,7 @@ module netty.socketio.core {
   exports com.socketio4j.socketio.scheduler;
   exports com.socketio4j.socketio.transport;
   exports com.socketio4j.socketio.nativeio;
+  exports com.socketio4j.socketio.metrics;
 
   // ============================================================
   // Core store interfaces + event APIs

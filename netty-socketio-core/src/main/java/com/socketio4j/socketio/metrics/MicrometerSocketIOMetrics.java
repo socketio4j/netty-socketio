@@ -73,11 +73,17 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void eventReceived(String ns) {
+        if (ns.isEmpty()) {
+            ns = "default";
+        }
         ns(ns).getEventReceived().increment();
     }
 
     @Override
     public void eventHandled(String ns, long durationNanos) {
+        if (ns.isEmpty()) {
+            ns = "default";
+        }
         NamespaceMeters m = ns(ns);
         if (durationNanos > 0) {
             m.getEventProcessing().record(durationNanos, TimeUnit.NANOSECONDS);
@@ -87,11 +93,17 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void eventFailed(String ns) {
+        if (ns.isEmpty()) {
+            ns = "default";
+        }
         ns(ns).getEventFailed().increment();
     }
 
     @Override
     public void eventSent(String ns, int recipients) {
+        if (ns.isEmpty()) {
+            ns = "default";
+        }
         NamespaceMeters m = ns(ns);
 
         if (recipients > 0) {
@@ -101,11 +113,17 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void unknownEventReceived(String ns) {
+        if (ns.isEmpty()) {
+            ns = "default";
+        }
         ns(ns).getEventUnknown().increment();
     }
 
     @Override
     public void unknownEventNames(String ns, String eventName) {
+        if (ns.isEmpty()) {
+            ns = "default";
+        }
         if (eventName == null) {
             return;
         }
@@ -116,6 +134,9 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void ackSent(String ns, long latencyNanos) {
+        if (ns.isEmpty()) {
+            ns = "default";
+        }
         NamespaceMeters m = ns(ns);
         if (latencyNanos > 0) {
             m.getAckLatency().record(latencyNanos, TimeUnit.NANOSECONDS);
@@ -125,6 +146,9 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void ackMissing(String ns) {
+        if (ns.isEmpty()) {
+            ns = "default";
+        }
         ns(ns).getAckMissing().increment();
     }
 
@@ -132,6 +156,9 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void connect(String ns) {
+        if (ns.isEmpty()) {
+            ns = "default";
+        }
         NamespaceMeters m = ns(ns);
         m.getConnect().increment();
         m.getConnected().incrementAndGet();
@@ -139,6 +166,9 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void disconnect(String ns) {
+        if (ns.isEmpty()) {
+            ns = "default";
+        }
         NamespaceMeters m = ns(ns);
         m.getDisconnect().increment();
         m.getConnected().decrementAndGet();
@@ -148,6 +178,9 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void roomJoin(String ns) {
+        if (ns.isEmpty()) {
+            ns = "default";
+        }
         NamespaceMeters m = ns(ns);
         m.getRoomJoin().increment();
         m.getRoomMembers().incrementAndGet();
@@ -155,6 +188,9 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void roomLeave(String ns) {
+        if (ns.isEmpty()) {
+            ns = "default";
+        }
         NamespaceMeters m = ns(ns);
         m.getRoomLeave().increment();
         int v = m.getRoomMembers().decrementAndGet();

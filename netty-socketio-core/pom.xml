@@ -35,11 +35,7 @@
       <scope>provided</scope>
     </dependency>
     <!-- https://mvnrepository.com/artifact/org.lwjgl/lwjgl-xxhash -->
-    <dependency>
-      <groupId>org.lwjgl</groupId>
-      <artifactId>lwjgl-xxhash</artifactId>
-      <scope>provided</scope>
-    </dependency>
+
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-buffer</artifactId>
