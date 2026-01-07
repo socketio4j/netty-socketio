@@ -65,6 +65,11 @@
 
     <module name="SuppressWarningsFilter" />
 
+    <module name="RegexpMultiline">
+        <property name="format" value="\n\s*\n\s*\n"/>
+        <property name="message" value="Multiple empty lines (more than 1) are not allowed."/>
+    </module>
+
     <module name="TreeWalker">
         <module name="SuppressWarningsHolder" />
 
