@@ -16,13 +16,11 @@
  */
 package com.socketio4j.socketio;
 
-import com.socketio4j.socketio.metrics.SocketIOMetrics;
-import io.micrometer.core.instrument.MeterRegistry;
 import java.util.Arrays;
 import java.util.List;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.nativeio.TransportType;
-
 
 /**
  * Basic configuration class, contains only primitive, String and enum types

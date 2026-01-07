@@ -75,26 +75,58 @@ public final class NamespaceMeters {
 
     /* ===================== Accessors ===================== */
 
-    public Counter getEventReceived() { return eventReceived; }
-    public Counter getEventHandled() { return eventHandled; }
-    public Counter getEventFailed() { return eventFailed; }
-    public Counter getEventSent() { return eventSent; }
-    public Counter getEventUnknown() { return eventUnknown; }
-    public HLL getUnknownEventHll() { return unknownEventHll; }
+    public Counter getEventReceived() {
+        return eventReceived;
+    }
+    public Counter getEventHandled() {
+        return eventHandled;
+    }
+    public Counter getEventFailed() {
+        return eventFailed;
+    }
+    public Counter getEventSent() {
+        return eventSent;
+    }
+    public Counter getEventUnknown() {
+        return eventUnknown;
+    }
+    public HLL getUnknownEventHll() {
+        return unknownEventHll;
+    }
 
-    public Counter getAckSent() { return ackSent; }
-    public Counter getAckMissing() { return ackMissing; }
+    public Counter getAckSent() {
+        return ackSent;
+    }
+    public Counter getAckMissing() {
+        return ackMissing;
+    }
 
-    public Counter getConnect() { return connect; }
-    public Counter getDisconnect() { return disconnect; }
-    public AtomicInteger getConnected() { return connected; }
+    public Counter getConnect() {
+        return connect;
+    }
+    public Counter getDisconnect() {
+        return disconnect;
+    }
+    public AtomicInteger getConnected() {
+        return connected;
+    }
 
-    public Counter getRoomJoin() { return roomJoin; }
-    public Counter getRoomLeave() { return roomLeave; }
-    public AtomicInteger getRoomMembers() { return roomMembers; }
+    public Counter getRoomJoin() {
+        return roomJoin;
+    }
+    public Counter getRoomLeave() {
+        return roomLeave;
+    }
+    public AtomicInteger getRoomMembers() {
+        return roomMembers;
+    }
 
-    public Timer getEventProcessing() { return eventProcessing; }
-    public Timer getAckLatency() { return ackLatency; }
+    public Timer getEventProcessing() {
+        return eventProcessing;
+    }
+    public Timer getAckLatency() {
+        return ackLatency;
+    }
 
     /* ===================== Constructor ===================== */
 
