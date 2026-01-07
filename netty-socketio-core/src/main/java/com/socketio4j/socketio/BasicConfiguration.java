@@ -71,7 +71,7 @@ public abstract class BasicConfiguration {
 
     protected boolean needClientAuth = false;
     protected boolean metricsEnabled = false;
-    protected SocketIOMetrics metrics;
+    protected SocketIOMetrics metrics = SocketIOMetrics.noop();
     protected boolean micrometerHistogramEnabled = false;
 
     public SocketIOMetrics getMetrics() {
