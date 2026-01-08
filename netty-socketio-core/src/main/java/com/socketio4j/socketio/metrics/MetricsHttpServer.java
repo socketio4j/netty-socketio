@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.metrics;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
@@ -46,12 +47,12 @@ public final class MetricsHttpServer {
 
     private final AtomicReference<ServerStatus> status =
             new AtomicReference<>(ServerStatus.INIT);
-
+    private final AtomicBoolean shutdownHookInstalled = new AtomicBoolean();
     private final PrometheusMeterRegistry registry;
     private final String host;
     private final int port;
     private final String metricsUrl;
-
+    private Thread shutdownHook;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
 
@@ -110,13 +111,12 @@ public final class MetricsHttpServer {
                         }
                     });
 
-            Runtime.getRuntime().addShutdownHook(
-                    new Thread(this::stop, "metrics-http-shutdown"));
 
             return bootstrap.bind(host, port)
                     .addListener((FutureListener<Void>) future -> {
                         if (future.isSuccess()) {
                             status.set(ServerStatus.STARTED);
+                            installShutdownHookOnce();
                             log.info("Metrics HTTP server started at {}:{}{}",
                                     host, port, metricsUrl);
                         } else {
@@ -127,6 +127,12 @@ public final class MetricsHttpServer {
 
         } catch (Exception e) {
             status.set(ServerStatus.INIT);
+            if (bossGroup != null) {
+                bossGroup.shutdownGracefully();
+            }
+            if (workerGroup != null) {
+                workerGroup.shutdownGracefully();
+            }
             log.error("Metrics server startup error", e);
             throw e;
         }
@@ -138,7 +144,7 @@ public final class MetricsHttpServer {
             log.warn("Invalid state {}, stop() ignored", status.get());
             return;
         }
-
+        removeShutdownHook();
         try {
             if (bossGroup != null) {
                 bossGroup.shutdownGracefully().syncUninterruptibly();
@@ -149,6 +155,46 @@ public final class MetricsHttpServer {
             log.info("Metrics HTTP server stopped");
         } finally {
             status.set(ServerStatus.INIT);
+        }
+    }
+
+    private void installShutdownHookOnce() {
+        if (shutdownHookInstalled.compareAndSet(false, true)) {
+            shutdownHook = new Thread(() -> {
+                if (isStarted()) {
+                    log.info("JVM shutdown detected — stopping server...");
+                    stop();
+                }
+            }, "socketio4j-metrics-server-shutdown-hook-thread");
+            Runtime.getRuntime().addShutdownHook(shutdownHook);
+        }
+    }
+    /**
+     * Removes the JVM shutdown hook previously installed by this server.
+     * <p>
+     * This method allows external lifecycle managers (e.g. application frameworks,
+     * containers, or test harnesses) to take full control over server shutdown.
+     * <p>
+     * If the JVM shutdown sequence has already started, the hook cannot be removed
+     * and the request is ignored.
+     */
+    public void removeShutdownHook() {
+        if (!shutdownHookInstalled.get() || shutdownHook == null) {
+            return;
+        }
+        if (shutdownHookInstalled.compareAndSet(true, false)) {
+            Thread hook = shutdownHook;
+            if (hook != null && Thread.currentThread() != hook) {
+                try {
+                    Runtime.getRuntime().removeShutdownHook(hook);
+                } catch (IllegalStateException e) {
+                    // JVM is already shutting down
+                    log.debug("Shutdown hook already triggered");
+                } catch (IllegalArgumentException e) {
+                    // Hook was already removed
+                    log.debug("Shutdown hook already removed");
+                }
+            }
         }
     }
 
