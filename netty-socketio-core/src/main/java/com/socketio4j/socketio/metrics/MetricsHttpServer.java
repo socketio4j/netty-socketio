@@ -61,10 +61,10 @@ public final class MetricsHttpServer {
                              String host,
                              int port,
                              String metricsUrl) {
-        
-        Objects.requireNonNull(registry);
-        Objects.requireNonNull(host);
-        Objects.requireNonNull(metricsUrl);
+
+        Objects.requireNonNull(registry, "registry must not be null");
+        Objects.requireNonNull(host, "host must not be null");
+        Objects.requireNonNull(metricsUrl, "metricsUrl must not be null");
 
         this.registry = registry;
         this.host = host;
