@@ -223,27 +223,25 @@ public class Namespace implements SocketIONamespace {
                 return;
             }
         }
-        // entry != null is important or unwanted ack track for unknown events
-        if (sendAck(ackRequest) && entry != null) {
-            metrics.ackSent(client.getNamespace().name, System.nanoTime() - start);
+        sendAck(ackRequest);
+        if (ackRequest.isSent() && entry != null) {
+            metrics.ackSent(name, System.nanoTime() - start);
         }
 
     }
 
-    private boolean sendAck(AckRequest ackRequest) {
+    private void sendAck(AckRequest ackRequest) {
         if (ackMode == AckMode.AUTO || ackMode == AckMode.AUTO_SUCCESS_ONLY) {
             // send ack response if it did not execute
             // during {@link DataListener#onData} invocation
             ackRequest.sendAckData(Collections.emptyList());
-            return true;
+            return;
         }
         if (ackMode == AckMode.MANUAL
                 && ackRequest != null
                 && !ackRequest.isSent()) {
             metrics.ackMissing(name);
-            return false;
         }
-        return false;
     }
 
     private Object getEventData(List<Object> args, DataListener<?> dataListener) {
@@ -499,9 +497,8 @@ public class Namespace implements SocketIONamespace {
             metrics.roomLeave(name); // EXACTLY once
         }
 
-        if (clients.isEmpty()) {
-            map.remove(room, Collections.emptySet());
-        }
+        map.remove(room, clients);
+
     }
 
 

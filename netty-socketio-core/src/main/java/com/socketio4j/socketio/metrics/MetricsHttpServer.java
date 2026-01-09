@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.metrics;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -60,6 +61,11 @@ public final class MetricsHttpServer {
                              String host,
                              int port,
                              String metricsUrl) {
+        
+        Objects.requireNonNull(registry);
+        Objects.requireNonNull(host);
+        Objects.requireNonNull(metricsUrl);
+
         this.registry = registry;
         this.host = host;
         this.port = port;

@@ -121,15 +121,21 @@ public final class MicrometerMetricsFactory {
      * (e.g., debugging Prometheus locally while pushing to Datadog).
      */
     public static MicrometerSocketIOMetrics composite(boolean histogramEnabled, MeterRegistry... registries) {
+        if (registries == null || registries.length == 0) {
+            throw new IllegalArgumentException("At least one MeterRegistry must be provided for composite");
+        }
         CompositeMeterRegistry composite = new CompositeMeterRegistry();
         List<String> names = new ArrayList<>();
 
         for (MeterRegistry r : registries) {
+            if (r == null) {
+                throw new IllegalArgumentException("MeterRegistry array contains null element");
+            }
             composite.add(r);
             names.add(r.getClass().getSimpleName());
         }
 
-        log.warn("Composite MeterRegistry enabled with: {}", names);
+        log.info("Composite MeterRegistry enabled with: {}", names);
         return new MicrometerSocketIOMetrics(composite, histogramEnabled);
     }
 }
