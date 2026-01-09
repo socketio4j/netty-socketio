@@ -438,15 +438,6 @@ public final class KafkaEventStore implements EventStore {
         if (exec != null) {
             exec.shutdown(); // graceful
 
-            try {
-                if (!exec.awaitTermination(2, TimeUnit.SECONDS)) {
-                    exec.shutdownNow(); // safety
-                }
-            } catch (InterruptedException e) {
-                exec.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-
             if (exec.isTerminated()) {
                 log.info("exec {} terminated", type);
             }

@@ -21,12 +21,8 @@ public final class CoreExampleMain {
         Configuration config = new Configuration();
         config.setPort(4000);
         config.setMetricsEnabled(true);
-
         config.setAckMode(AckMode.AUTO_SUCCESS_ONLY);
-
-
         config.setMicrometerHistogramEnabled(true);
-        config.setMetricsEnabled(true);
         MicrometerSocketIOMetrics mic = MicrometerMetricsFactory.otlpDefault(config.isMicrometerHistogramEnabled());
         config.setMetrics(mic);
         SocketIOServer server = new SocketIOServer(config);

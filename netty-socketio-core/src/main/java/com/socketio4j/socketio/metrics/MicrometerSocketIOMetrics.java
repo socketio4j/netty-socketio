@@ -17,12 +17,14 @@
 package com.socketio4j.socketio.metrics;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import net.jpountz.xxhash.XXHash64;
 import net.jpountz.xxhash.XXHashFactory;
 
@@ -33,7 +35,11 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
     private final boolean histogramEnabled;
     private static final XXHash64 XX_HASH =
             XXHashFactory.fastestInstance().hash64();
-
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r);
+        t.setDaemon(true);
+        return t;
+    });
     private static long hashToLong(String key) {
         byte[] bytes = key.getBytes(StandardCharsets.UTF_8);
         return XX_HASH.hash(bytes, 0, bytes.length, 0);
@@ -50,6 +56,7 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
      * @param histogramEnabled true = Prometheus histogram (recommended for clusters)
      */
     public MicrometerSocketIOMetrics(MeterRegistry registry, boolean histogramEnabled) {
+        Objects.requireNonNull(registry, "registry can not be null");
         this.registry = registry;
         this.histogramEnabled = histogramEnabled;
     }
@@ -127,7 +134,8 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
         if (eventName == null) {
             return;
         }
-        ns(ns).getUnknownEventHll().addRaw(hashToLong(ns + ":" + eventName));
+        final String finalNs = ns;
+        executorService.execute(() -> ns(finalNs).getUnknownEventHll().addRaw(hashToLong(finalNs + ":" + eventName)));
     }
 
     /* ===================== ACK ===================== */
@@ -193,14 +201,15 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
         }
         NamespaceMeters m = ns(ns);
         m.getRoomLeave().increment();
-        int v = m.getRoomMembers().decrementAndGet();
-        if (v < 0) {
-            m.getRoomMembers().compareAndSet(v, 0); // underflow protection
-        }
+        m.getRoomMembers().getAndUpdate(v -> Math.max(0, v - 1));
     }
 
-    public PrometheusMeterRegistry prometheus() {
-        return (PrometheusMeterRegistry) registry;
+    public MeterRegistry registry() {
+        return  registry;
+    }
+
+    public void close() {
+        executorService.shutdown();
     }
 
 
