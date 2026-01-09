@@ -88,7 +88,6 @@ public final class MetricsHttpServer {
             log.warn("Invalid state {}, start() ignored", status.get());
             return new SucceededFuture<>(ImmediateEventExecutor.INSTANCE, null);
         }
-
         try {
             bossGroup =
                     new MultiThreadIoEventLoopGroup(

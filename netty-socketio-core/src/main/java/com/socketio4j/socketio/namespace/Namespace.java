@@ -239,11 +239,11 @@ public class Namespace implements SocketIONamespace {
         }
         if (ackMode == AckMode.MANUAL
                 && ackRequest != null
-                && !ackRequest.getSended()) {
+                && !ackRequest.isSent()) {
             metrics.ackMissing(name);
             return false;
         }
-        return true;
+        return false;
     }
 
     private Object getEventData(List<Object> args, DataListener<?> dataListener) {

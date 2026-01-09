@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.metrics;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.micrometer.core.instrument.Counter;
@@ -131,7 +132,8 @@ public final class NamespaceMeters {
     /* ===================== Constructor ===================== */
 
     NamespaceMeters(MeterRegistry registry, String ns, boolean histogramEnabled) {
-
+        Objects.requireNonNull(registry);
+        Objects.requireNonNull(ns); //can be empty
         /* ---------- Event Counters ---------- */
 
         this.eventReceived = Counter.builder("socketio.event.received")

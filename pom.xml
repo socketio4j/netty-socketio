@@ -85,7 +85,6 @@
     <nats.version>2.24.1</nats.version>
     <micrometer-bom.version>1.16.1</micrometer-bom.version>
     <hll.version>1.6.0</hll.version>
-    <lwjgl-xxhash.version>3.3.6</lwjgl-xxhash.version>
   </properties>
 
   <profiles>

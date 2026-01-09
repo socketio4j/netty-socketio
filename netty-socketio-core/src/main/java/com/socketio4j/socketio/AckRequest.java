@@ -42,10 +42,10 @@ public class AckRequest {
 
     private final Packet originalPacket;
     private final SocketIOClient client;
-    private final AtomicBoolean sended = new AtomicBoolean();
+    private final AtomicBoolean sent = new AtomicBoolean();
 
-    public boolean getSended() {
-        return sended.get();
+    public boolean isSent() {
+        return sent.get();
     }
 
     public AckRequest(Packet originalPacket, SocketIOClient client) {
@@ -82,7 +82,7 @@ public class AckRequest {
      * @param objs - ack data object list
      */
     public void sendAckData(List<Object> objs) {
-        if (!isAckRequested() || !sended.compareAndSet(false, true)) {
+        if (!isAckRequested() || !sent.compareAndSet(false, true)) {
             return;
         }
         Packet ackPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
