@@ -16,25 +16,10 @@
  */
 package com.socketio4j.socketio.metrics;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.micrometer.core.instrument.Clock;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
-import io.micrometer.datadog.DatadogConfig;
-import io.micrometer.datadog.DatadogMeterRegistry;
-import io.micrometer.influx.InfluxConfig;
-import io.micrometer.influx.InfluxMeterRegistry;
-import io.micrometer.newrelic.NewRelicConfig;
-import io.micrometer.newrelic.NewRelicMeterRegistry;
-import io.micrometer.prometheusmetrics.PrometheusConfig;
-import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
-import io.micrometer.registry.otlp.OtlpConfig;
-import io.micrometer.registry.otlp.OtlpMeterRegistry;
 
 /**
  * Factory for creating {@link MicrometerSocketIOMetrics} instances from a

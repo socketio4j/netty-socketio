@@ -483,6 +483,7 @@ public class Namespace implements SocketIONamespace {
         storeFactory.eventStore().publish(EventType.BULK_LEAVE, new BulkLeaveMessage(sessionId, rooms, getName()));
     }
 
+    @SuppressWarnings("checkstyle:AvoidInlineConditionals")
     private <K, V> void leave(ConcurrentMap<K, Set<V>> map, K room, V sessionId) {
 
         Set<V> clients = map.get(room);
