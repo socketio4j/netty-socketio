@@ -70,6 +70,9 @@ public final class MetricsHttpServer {
         Objects.requireNonNull(registry, "registry must not be null");
         Objects.requireNonNull(host, "host must not be null");
         Objects.requireNonNull(metricsUrl, "metricsUrl must not be null");
+        if (port < 0 || port > 65535) {
+            throw new IllegalArgumentException("port must be between 0 and 65535");
+        }
 
         this.registry = registry;
         this.host = host;
