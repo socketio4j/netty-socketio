@@ -52,8 +52,9 @@ public final class MetricsHandler
     protected void channelRead0(ChannelHandlerContext ctx,
                                 FullHttpRequest req) {
 
+        String path = new QueryStringDecoder(req.uri()).path();
         if (!HttpMethod.GET.equals(req.method())
-                || !metricsUrl.equals(req.uri())) {
+                || !metricsUrl.equals(path)) {
 
             send(ctx);
             return;
