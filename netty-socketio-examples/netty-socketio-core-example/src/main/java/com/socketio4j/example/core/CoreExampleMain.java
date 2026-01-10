@@ -10,8 +10,6 @@ import java.util.UUID;
 import com.socketio4j.socketio.metrics.MicrometerMetricsFactory;
 import com.socketio4j.socketio.metrics.MicrometerSocketIOMetrics;
 import io.micrometer.core.instrument.Clock;
-import io.micrometer.prometheusmetrics.PrometheusConfig;
-import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import io.micrometer.registry.otlp.OtlpConfig;
 import io.micrometer.registry.otlp.OtlpMeterRegistry;
 import org.slf4j.Logger;
