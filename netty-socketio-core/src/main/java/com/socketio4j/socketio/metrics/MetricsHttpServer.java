@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.metrics;
 
+import java.net.InetSocketAddress;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,6 +26,8 @@ import org.slf4j.LoggerFactory;
 
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
@@ -32,9 +35,10 @@ import io.netty.channel.MultiThreadIoEventLoopGroup;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.concurrent.DefaultPromise;
 import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.FutureListener;
 import io.netty.util.concurrent.ImmediateEventExecutor;
+import io.netty.util.concurrent.Promise;
 import io.netty.util.concurrent.SucceededFuture;
 
 public final class MetricsHttpServer {
@@ -45,6 +49,7 @@ public final class MetricsHttpServer {
     private enum ServerStatus {
         INIT, STARTING, STARTED, STOPPING
     }
+    private final AtomicReference<Channel> serverChannelRef = new AtomicReference<>();
 
     private final AtomicReference<ServerStatus> status =
             new AtomicReference<>(ServerStatus.INIT);
@@ -76,6 +81,14 @@ public final class MetricsHttpServer {
                              String host,
                              int port) {
         this(registry, host, port, "/metrics");
+    }
+
+    @SuppressWarnings("checkstyle:AvoidInlineConditionals")
+    public int getBoundPort() {
+        Channel ch = serverChannelRef.get();
+        return ch != null
+                ? ((InetSocketAddress) ch.localAddress()).getPort()
+                : -1;
     }
 
     /* ===================== Lifecycle ===================== */
@@ -117,26 +130,32 @@ public final class MetricsHttpServer {
                     });
 
 
-            return bootstrap.bind(host, port)
-                    .addListener((FutureListener<Void>) future -> {
-                        if (future.isSuccess()) {
-                            status.set(ServerStatus.STARTED);
-                            installShutdownHookOnce();
-                            log.info("Metrics HTTP server started at {}:{}{}",
-                                    host, port, metricsUrl);
-                        } else {
-                            status.set(ServerStatus.INIT);
-                            log.error("Failed to start metrics server", future.cause());
-                        }
-                    });
+            Promise<Void> promise =
+                    new DefaultPromise<>(ImmediateEventExecutor.INSTANCE);
+            ChannelFuture bindFuture = bootstrap.bind(host, port);
+            bindFuture.addListener(f -> {
+                if (f.isSuccess()) {
+                    serverChannelRef.compareAndSet(null, bindFuture.channel());
+                    status.set(ServerStatus.STARTED);
+                    installShutdownHookOnce();
+                    promise.setSuccess(null);
+                } else {
+                    status.set(ServerStatus.INIT);
+                    if (bossGroup != null) bossGroup.shutdownGracefully();
+                    if (workerGroup != null) workerGroup.shutdownGracefully();
+                    promise.setFailure(f.cause());
+                }
+            });
+
+            return promise;
 
         } catch (Exception e) {
             status.set(ServerStatus.INIT);
             if (bossGroup != null) {
-                bossGroup.shutdownGracefully();
+                bossGroup.shutdownGracefully().syncUninterruptibly();
             }
             if (workerGroup != null) {
-                workerGroup.shutdownGracefully();
+                workerGroup.shutdownGracefully().syncUninterruptibly();
             }
             log.error("Metrics server startup error", e);
             throw e;
@@ -151,6 +170,10 @@ public final class MetricsHttpServer {
         }
         removeShutdownHook();
         try {
+            if (serverChannelRef.get() != null) {
+                serverChannelRef.get().close().syncUninterruptibly();
+                serverChannelRef.set(null);
+            }
             if (bossGroup != null) {
                 bossGroup.shutdownGracefully().syncUninterruptibly();
             }
@@ -189,7 +212,7 @@ public final class MetricsHttpServer {
         }
         if (shutdownHookInstalled.compareAndSet(true, false)) {
             Thread hook = shutdownHook;
-            if (hook != null && Thread.currentThread() != hook) {
+            if (Thread.currentThread() != hook) {
                 try {
                     Runtime.getRuntime().removeShutdownHook(hook);
                 } catch (IllegalStateException e) {
