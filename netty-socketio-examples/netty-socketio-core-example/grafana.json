@@ -1,4 +1,13 @@
 {
+  "templating": {
+    "list": [
+      {
+        "type": "datasource", "name": "DS_PROMETHEUS",
+        "label": "Prometheus",
+        "query": "prometheus"
+      }
+    ]
+  },
   "annotations": {
     "list": [
       {

@@ -18,6 +18,8 @@ package com.socketio4j.socketio.metrics;
 
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
@@ -26,6 +28,7 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.CharsetUtil;
 
@@ -56,7 +59,13 @@ public final class MetricsHandler
             return;
         }
 
-        String body = registry.scrape();
+        String body;
+        try {
+            body = registry.scrape();
+        } catch (Exception e) {
+            sendError(ctx);
+            return;
+        }
 
         FullHttpResponse response =
                 new DefaultFullHttpResponse(
@@ -69,8 +78,23 @@ public final class MetricsHandler
                 .set(HttpHeaderNames.CONTENT_TYPE,
                         "text/plain; version=0.0.4")
                 .set(HttpHeaderNames.CONTENT_LENGTH,
-                        response.content().readableBytes());
+                        response.content().readableBytes())
+                        .set(HttpHeaderNames.CONNECTION, HttpUtil.isKeepAlive(req) ? "keep-alive" : "close");
 
+        ChannelFuture future = ctx.writeAndFlush(response);
+        if (!HttpUtil.isKeepAlive(req)) {
+            future.addListener(ChannelFutureListener.CLOSE);
+        }
+
+    }
+
+    private void sendError(ChannelHandlerContext ctx) {
+        FullHttpResponse response =
+                new DefaultFullHttpResponse(
+                        HttpVersion.HTTP_1_1,
+                        HttpResponseStatus.INTERNAL_SERVER_ERROR,
+                        Unpooled.copiedBuffer("Scrape failed", CharsetUtil.UTF_8)
+                );
         ctx.writeAndFlush(response);
     }
 

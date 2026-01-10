@@ -269,12 +269,11 @@ public final class MetricsHttpServer {
             combiner.add(workerGroup.shutdownGracefully());
         }
 
-        bossGroup = null;
-        workerGroup = null;
-
         combiner.finish(stopPromise);
 
         stopPromise.addListener(f -> {
+            bossGroup = null;
+            workerGroup = null;
             status.set(ServerStatus.INIT);
             log.info("Metrics HTTP server stopped");
         });
@@ -323,13 +322,14 @@ public final class MetricsHttpServer {
         if (!shutdownHookInstalled.get() || shutdownHook == null) {
             return;
         }
-        if (shutdownHookInstalled.compareAndSet(true, false)) {
-            try {
-                Runtime.getRuntime().removeShutdownHook(shutdownHook);
-            } catch (IllegalStateException | IllegalArgumentException ignored) {
-                log.debug("Shutdown hook already executing or removed");
-            }
+
+        try {
+            Runtime.getRuntime().removeShutdownHook(shutdownHook);
+            shutdownHookInstalled.set(false);
             shutdownHook = null;
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            log.debug("Failed to remove shutdown hook; JVM may be shutting down", e);
+            // IMPORTANT: do NOT flip the flag here
         }
     }
 }
