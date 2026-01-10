@@ -26,8 +26,7 @@ public final class CoreExampleMain {
         MicrometerSocketIOMetrics mic = MicrometerMetricsFactory.otlpDefault(config.isMicrometerHistogramEnabled());
         config.setMetrics(mic);
         SocketIOServer server = new SocketIOServer(config);
-        Namespace namespace = new Namespace("/example", config);
-        server.addNamespace(namespace.getName());
+        server.addNamespace("/example");
         /*
         MicrometerSocketIOMetrics micrometerSocketIOMetrics = (MicrometerSocketIOMetrics) config.getMetrics();
         MetricsHttpServer metricsServer =

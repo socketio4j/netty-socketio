@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
@@ -430,6 +431,7 @@ public class Namespace implements SocketIONamespace {
     }
 
     public int forEachRoomClient(String room, Consumer<SocketIOClient> action) {
+        Objects.requireNonNull(action, "action must not be null");
         Set<UUID> sessionIds = roomClients.get(room);
 
         if (sessionIds == null || sessionIds.isEmpty()) {
