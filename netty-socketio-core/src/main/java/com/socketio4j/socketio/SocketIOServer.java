@@ -39,6 +39,10 @@ import com.socketio4j.socketio.listener.EventInterceptor;
 import com.socketio4j.socketio.listener.MultiTypeEventListener;
 import com.socketio4j.socketio.listener.PingListener;
 import com.socketio4j.socketio.listener.PongListener;
+import com.socketio4j.socketio.listener.ServerAfterStartListener;
+import com.socketio4j.socketio.listener.ServerAfterStopListener;
+import com.socketio4j.socketio.listener.ServerBeforeStartListener;
+import com.socketio4j.socketio.listener.ServerBeforeStopListener;
 import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.namespace.NamespacesHub;
 
@@ -66,8 +70,10 @@ public class SocketIOServer implements ClientListeners {
 
     private static final Logger log = LoggerFactory.getLogger(SocketIOServer.class);
 
-    private final List<ServerStartListener> startListeners = new CopyOnWriteArrayList<>();
-    private final List<ServerStopListener> stopListeners = new CopyOnWriteArrayList<>();
+    private final List<ServerBeforeStartListener> beforeStartListeners = new CopyOnWriteArrayList<>();
+    private final List<ServerAfterStartListener>  afterStartListeners  = new CopyOnWriteArrayList<>();
+    private final List<ServerBeforeStopListener>  beforeStopListeners  = new CopyOnWriteArrayList<>();
+    private final List<ServerAfterStopListener>   afterStopListeners   = new CopyOnWriteArrayList<>();
 
     private final AtomicReference<Channel> serverChannel = new AtomicReference<>();
 
@@ -77,99 +83,170 @@ public class SocketIOServer implements ClientListeners {
     private final AtomicReference<ServerStatus> serverStatus = new AtomicReference<>(ServerStatus.INIT);
 
     /**
-     * Registers a {@link ServerStartListener} that will be invoked when the server
-     * has successfully started and is ready to accept connections.
+     * Registers a {@link ServerBeforeStartListener} that will be invoked
+     * immediately before the server startup sequence begins.
      * <p>
-     * Start listeners are executed:
+     * Before-start listeners are executed:
      * <ul>
-     * <li>After all transports, event loops, and internal resources are
-     * initialized</li>
+     * <li>After lifecycle state validation but before any network resources
+     * are initialized</li>
+     * <li>Exactly once per successful start attempt</li>
+     * <li>On the calling thread initiating the startup</li>
+     * </ul>
+     * <p>
+     * Implementations should perform only lightweight, non-blocking preparation
+     * logic. Expensive work should be delegated to another thread or executor.
+     *
+     * @param listener the listener to be notified before server start; must not be
+     *                 {@code null}
+     * @throws NullPointerException if {@code listener} is {@code null}
+     */
+    public void addBeforeStartListener(@NotNull ServerBeforeStartListener listener) {
+        beforeStartListeners.add(Objects.requireNonNull(listener));
+    }
+    /**
+     * Removes a previously registered {@link ServerBeforeStartListener}.
+     *
+     * @param listener the listener to remove; must not be {@code null}
+     * @return {@code true} if the listener was present and removed,
+     *         {@code false} otherwise
+     * @throws NullPointerException if {@code listener} is {@code null}
+     */
+    public boolean removeBeforeStartListener(@NotNull ServerBeforeStartListener listener) {
+        return beforeStartListeners.remove(Objects.requireNonNull(listener));
+    }
+    /**
+     * Registers a {@link ServerAfterStartListener} that will be invoked
+     * after the server has successfully started and is ready to accept connections.
+     * <p>
+     * After-start listeners are executed:
+     * <ul>
+     * <li>After the server channel has been bound</li>
+     * <li>After all transports, pipelines, and event loops are initialized</li>
      * <li>Exactly once per successful server start</li>
-     * <li>In a safe execution context with exception isolation</li>
      * </ul>
-     * <p>
-     * Implementations should keep listener logic lightweight and non-blocking.
-     * Heavy or blocking work should be offloaded to a separate thread or executor.
      *
-     * @param listener the listener to be notified on server start; must not be
+     * @param listener the listener to be notified after server start; must not be
      *                 {@code null}
      * @throws NullPointerException if {@code listener} is {@code null}
      */
-    public void addStartListener(@NotNull ServerStartListener listener) {
-        startListeners.add(Objects.requireNonNull(listener));
+    public void addAfterStartListener(@NotNull ServerAfterStartListener listener) {
+        afterStartListeners.add(Objects.requireNonNull(listener));
     }
-
     /**
-     * Registers a {@link ServerStopListener} that will be invoked when the server
-     * is shutting down and all client connections are being closed.
+     * Removes a previously registered {@link ServerAfterStartListener}.
+     *
+     * @param listener the listener to remove; must not be {@code null}
+     * @return {@code true} if the listener was present and removed,
+     *         {@code false} otherwise
+     * @throws NullPointerException if {@code listener} is {@code null}
+     */
+    public boolean removeAfterStartListener(@NotNull ServerAfterStartListener listener) {
+        return afterStartListeners.remove(Objects.requireNonNull(listener));
+    }
+    /**
+     * Registers a {@link ServerBeforeStopListener} that will be invoked
+     * immediately before the server shutdown sequence begins.
      * <p>
-     * Stop listeners are executed:
+     * Before-stop listeners are executed:
      * <ul>
-     * <li>During an orderly shutdown or JVM termination</li>
+     * <li>After the server has transitioned to a stopping state</li>
+     * <li>Before client connections and network resources are closed</li>
      * <li>Exactly once per server stop invocation</li>
-     * <li>After connection acceptance has stopped</li>
      * </ul>
      * <p>
-     * Listener implementations should not assume that network resources
-     * are still available and must tolerate partial shutdown states.
+     * Listener implementations must tolerate a partially active server state
+     * and should not rely on new client connections being accepted.
      *
-     * @param listener the listener to be notified on server stop; must not be
+     * @param listener the listener to be notified before server stop; must not be
      *                 {@code null}
      * @throws NullPointerException if {@code listener} is {@code null}
      */
-    public void addStopListener(@NotNull ServerStopListener listener) {
-        stopListeners.add(Objects.requireNonNull(listener));
+    public void addBeforeStopListener(@NotNull ServerBeforeStopListener listener) {
+        beforeStopListeners.add(Objects.requireNonNull(listener));
     }
-
     /**
-     * Removes a previously registered {@link ServerStartListener}.
-     * <p>
-     * If the listener was registered multiple times, only a single instance
-     * is removed per invocation.
+     * Removes a previously registered {@link ServerBeforeStopListener}.
      *
      * @param listener the listener to remove; must not be {@code null}
      * @return {@code true} if the listener was present and removed,
      *         {@code false} otherwise
      * @throws NullPointerException if {@code listener} is {@code null}
      */
-    public boolean removeStartListener(@NotNull ServerStartListener listener) {
-        return startListeners.remove(Objects.requireNonNull(listener));
+    public boolean removeBeforeStopListener(@NotNull ServerBeforeStopListener listener) {
+        return beforeStopListeners.remove(Objects.requireNonNull(listener));
     }
-
     /**
-     * Removes a previously registered {@link ServerStopListener}.
+     * Registers a {@link ServerAfterStopListener} that will be invoked
+     * after the server has fully stopped and all resources have been released.
      * <p>
-     * Removing a listener after the server has already begun shutdown
-     * does not affect listeners currently being executed.
+     * After-stop listeners are executed:
+     * <ul>
+     * <li>After all client connections are closed</li>
+     * <li>After event loop groups have been terminated</li>
+     * <li>Exactly once per server stop invocation</li>
+     * </ul>
+     *
+     * @param listener the listener to be notified after server stop; must not be
+     *                 {@code null}
+     * @throws NullPointerException if {@code listener} is {@code null}
+     */
+    public void addAfterStopListener(@NotNull ServerAfterStopListener listener) {
+        afterStopListeners.add(Objects.requireNonNull(listener));
+    }
+    /**
+     * Removes a previously registered {@link ServerAfterStopListener}.
      *
      * @param listener the listener to remove; must not be {@code null}
      * @return {@code true} if the listener was present and removed,
      *         {@code false} otherwise
      * @throws NullPointerException if {@code listener} is {@code null}
      */
-    public boolean removeStopListener(@NotNull ServerStopListener listener) {
-        return stopListeners.remove(Objects.requireNonNull(listener));
+    public boolean removeAfterStopListener(@NotNull ServerAfterStopListener listener) {
+        return afterStopListeners.remove(Objects.requireNonNull(listener));
     }
 
-    private void fireServerStarted() {
-        startListeners.forEach(l -> {
+
+    private void fireBeforeStart() {
+        beforeStartListeners.forEach(l -> {
             try {
-                l.onStart(this);
-            } catch (Exception t) {
-                log.error("Exception during server start listener : {} ", t.getMessage(), t);
+                l.beforeStart(this);
+            } catch (Exception e) {
+                log.error("Exception during beforeStart listener", e);
             }
         });
     }
 
-    private void fireServerStopped() {
-        stopListeners.forEach(l -> {
+    private void fireAfterStart() {
+        afterStartListeners.forEach(l -> {
             try {
-                l.onStop(this);
-            } catch (Exception t) {
-                log.error("Exception during server stop listener : {} ", t.getMessage(), t);
+                l.afterStart(this);
+            } catch (Exception e) {
+                log.error("Exception during afterStart listener", e);
             }
         });
     }
+
+    private void fireBeforeStop() {
+        beforeStopListeners.forEach(l -> {
+            try {
+                l.beforeStop(this);
+            } catch (Exception e) {
+                log.error("Exception during beforeStop listener", e);
+            }
+        });
+    }
+
+    private void fireAfterStop() {
+        afterStopListeners.forEach(l -> {
+            try {
+                l.afterStop(this);
+            } catch (Exception e) {
+                log.error("Exception during afterStop listener", e);
+            }
+        });
+    }
+
 
     private static boolean isClassAvailable(String className) {
         try {
@@ -426,6 +503,7 @@ public class SocketIOServer implements ClientListeners {
         }
 
         try {
+            fireBeforeStart();
             log.info("Session store / event store factory: {}", configCopy.getStoreFactory());
             initGroups();
             pipelineFactory.start(configCopy, namespacesHub);
@@ -523,18 +601,55 @@ public class SocketIOServer implements ClientListeners {
                     serverStatus.set(ServerStatus.STARTED);
                     log.info("SocketIO server started on port {}", configCopy.getPort());
                     installShutdownHookOnce();
-                    fireServerStarted();
+                    fireAfterStart();
                 } else {
                     serverStatus.set(ServerStatus.INIT);
                     log.error("Failed to start server on port {}", configCopy.getPort());
+                    cleanUpResources(false);
                 }
             });
 
         } catch (Exception e) {
             serverStatus.set(ServerStatus.INIT);
+            cleanUpResources(false);
             log.error("Server start error on port {}: {}", configCopy.getPort(), e.getMessage(), e);
             throw e;
         }
+    }
+    /**
+     * Triggers the shutdown of the EventLoopGroups (threads).
+     * Does not wait for termination.
+     */
+    private void shutdownGroups() {
+        if (bossGroup != null && !bossGroup.isShuttingDown()) {
+            bossGroup.shutdownGracefully();
+        }
+        if (workerGroup != null && !workerGroup.isShuttingDown()) {
+            workerGroup.shutdownGracefully();
+        }
+    }
+
+
+    private void cleanUpResources(boolean await) {
+        // Close the actual TCP Port (stop accepting connections)
+        Channel ch = serverChannel.getAndSet(null);
+        if (ch != null && ch.isOpen()) {
+            if (await) {
+                ch.close().awaitUninterruptibly();
+            } else {
+                ch.close();
+            }
+        }
+
+        // Stop the internal socket.io logic (Pipeline)
+        try {
+            pipelineFactory.stop();
+        } catch (Exception t) {
+            log.warn("Pipeline stop failed", t);
+        }
+
+        // Kill the threads
+        shutdownGroups();
     }
 
     protected void applyConnectionOptions(ServerBootstrap bootstrap) {
@@ -705,46 +820,29 @@ public class SocketIOServer implements ClientListeners {
 
         log.info("Stopping SocketIO server...");
 
-        // Remove shutdown hook if installed, atomically
-        if (shutdownHookInstalled.compareAndSet(true, false)) {
-            Thread hook = shutdownHook;
-            if (hook != null && Thread.currentThread() != hook) {
-                try {
-                    Runtime.getRuntime().removeShutdownHook(hook);
-                } catch (IllegalStateException e) {
-                    // JVM is already shutting down
-                    log.debug("Shutdown hook already triggered");
-                } catch (IllegalArgumentException e) {
-                    // Hook was already removed
-                    log.debug("Shutdown hook already removed");
-                }
+        Thread hook = shutdownHook;
+        if (hook != null && Thread.currentThread() != hook) {
+            try {
+                Runtime.getRuntime().removeShutdownHook(shutdownHook);
+                shutdownHookInstalled.set(false);
+                shutdownHook = null;
+                log.debug("Shutdown hook removed");
+            } catch (IllegalStateException | IllegalArgumentException e) {
+                // JVM is already shutting down
+                log.warn("Shutdown in progress, cannot remove shutdown hook");
             }
         }
 
-        Channel ch = serverChannel.getAndSet(null);
-        if (ch != null && ch.isOpen()) {
-            ch.close().syncUninterruptibly();
-        }
+        fireBeforeStop();
+        cleanUpResources(true);
+        if (bossGroup != null) bossGroup.terminationFuture().awaitUninterruptibly();
+        if (workerGroup != null) workerGroup.terminationFuture().awaitUninterruptibly();
 
-        try {
-            fireServerStopped();
-        } catch (Exception t) {
-            log.warn("Stop listeners failed", t);
-        }
+        log.info("SocketIO server stopped");
 
-        try {
-            pipelineFactory.stop();
-        } catch (Exception t) {
-            log.warn("Pipeline stop failed", t);
-        }
+        fireAfterStop();
+        serverStatus.set(ServerStatus.INIT);
 
-        try {
-            bossGroup.shutdownGracefully().syncUninterruptibly();
-            workerGroup.shutdownGracefully().syncUninterruptibly();
-            log.info("SocketIO server stopped");
-        } finally {
-            serverStatus.set(ServerStatus.INIT);
-        }
     }
 
 
@@ -759,31 +857,7 @@ public class SocketIOServer implements ClientListeners {
             Runtime.getRuntime().addShutdownHook(shutdownHook);
         }
     }
-    /**
-     * Removes the JVM shutdown hook previously installed by this server.
-     * <p>
-     * This method allows external lifecycle managers (e.g. application frameworks,
-     * containers, or test harnesses) to take full control over server shutdown.
-     * <p>
-     * If the JVM shutdown sequence has already started, the hook cannot be removed
-     * and the request is ignored.
-     */
-    public void removeShutdownHook() {
-        if (!shutdownHookInstalled.get() || shutdownHook == null) {
-            return;
-        }
 
-        try {
-            boolean removed = Runtime.getRuntime().removeShutdownHook(shutdownHook);
-            if (removed) {
-                shutdownHookInstalled.set(false);
-                log.debug("Shutdown hook removed");
-            }
-        } catch (IllegalStateException e) {
-            // JVM is already shutting down
-            log.warn("Shutdown in progress, cannot remove shutdown hook");
-        }
-    }
 
     /**
      * Creates and registers a new {@link SocketIONamespace} with the given name.

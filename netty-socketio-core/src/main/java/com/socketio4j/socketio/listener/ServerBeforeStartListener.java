@@ -14,12 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio;
+package com.socketio4j.socketio.listener;
+
+import com.socketio4j.socketio.SocketIOServer;
 
 /**
  * @author https://github.com/sanjomo
- * @date 28/12/25 3:03 pm
+ * @date 11/01/26 12:04 am
  */
-public interface ServerStopListener {
-    void onStop(SocketIOServer server);
+public interface ServerBeforeStartListener {
+    void beforeStart(SocketIOServer server);
 }
