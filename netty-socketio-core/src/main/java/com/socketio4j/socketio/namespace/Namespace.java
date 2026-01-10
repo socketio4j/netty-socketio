@@ -497,7 +497,9 @@ public class Namespace implements SocketIONamespace {
             metrics.roomLeave(name); // EXACTLY once
         }
 
-        map.remove(room, clients);
+        if (clients.isEmpty()) {
+            map.remove(room, clients); // remove only when empty
+        }
 
     }
 
