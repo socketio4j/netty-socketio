@@ -45,8 +45,8 @@ public final class CoreExampleMain {
             client.joinRoom("room1");
             client.joinRoom("room2");
             //client.leaveRoom("room1");
-            System.out.println("connected: " + sessionRoom + client);
-            System.out.println(server.getNamespace("").getClient(UUID.fromString(sessionRoom)));
+            log.info("connected: {} client : {} {}", sessionRoom, client, client.getSessionId());
+            log.info("cli {}", server.getNamespace("").getClient(UUID.fromString(sessionRoom)));
             // send private welcome
             server.getRoomOperations(sessionRoom)
                     .sendEvent("welcome", "your private room is " + sessionRoom);
@@ -55,8 +55,8 @@ public final class CoreExampleMain {
             String sessionRoom = client.getSessionId().toString(); // automatically exists
             client.joinRoom("room1");
             //client.leaveRoom("room1");
-            System.out.println("connected: " + sessionRoom + client);
-            System.out.println(server.getNamespace("").getClient(UUID.fromString(sessionRoom)));
+            log.info("connected: {} {}", sessionRoom, client);
+            log.info("client {}", server.getNamespace("").getClient(UUID.fromString(sessionRoom)));
             // send private welcome
             server.getRoomOperations(sessionRoom)
                     .sendEvent("welcome", "your private room is " + sessionRoom);
@@ -90,8 +90,7 @@ public final class CoreExampleMain {
                 //metricsServer.stop();
             }
         });
-        System.out.println("Shutdown Hook Attached.");
-        System.out.println("Socket.IO listening @ http://localhost:"+config.getPort());
-        //System.out.println("Metrics exposed @ http://localhost:"+metricsServer.getPort()+"/metrics");
+        log.info("Shutdown Hook Attached.");
+        log.info("Socket.IO listening @ http://localhost: {}", config.getPort());
     }
 }
