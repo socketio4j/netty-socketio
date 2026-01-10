@@ -19,8 +19,8 @@ package com.socketio4j.socketio;
 import java.util.Arrays;
 import java.util.List;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.nativeio.TransportType;
-
 
 /**
  * Basic configuration class, contains only primitive, String and enum types
@@ -70,6 +70,35 @@ public abstract class BasicConfiguration {
     protected boolean randomSession = false;
 
     protected boolean needClientAuth = false;
+    protected boolean metricsEnabled = false;
+    protected SocketIOMetrics metrics = SocketIOMetrics.noop();
+    protected boolean micrometerHistogramEnabled = false;
+
+    public SocketIOMetrics getMetrics() {
+        return metrics;
+    }
+
+    public void setMetrics(SocketIOMetrics metrics) {
+        this.metrics = metrics;
+    }
+
+    public boolean isMetricsEnabled() {
+        return metricsEnabled;
+    }
+
+
+    public void setMetricsEnabled(boolean metricsEnabled) {
+        this.metricsEnabled = metricsEnabled;
+    }
+
+
+    public boolean isMicrometerHistogramEnabled() {
+        return micrometerHistogramEnabled;
+    }
+
+    public void setMicrometerHistogramEnabled(boolean micrometerHistogramEnabled) {
+        this.micrometerHistogramEnabled = micrometerHistogramEnabled;
+    }
 
     protected BasicConfiguration() {
     }
@@ -106,6 +135,9 @@ public abstract class BasicConfiguration {
         setWebsocketCompression(conf.isWebsocketCompression());
         setRandomSession(conf.randomSession);
         setNeedClientAuth(conf.isNeedClientAuth());
+        setMetrics(conf.getMetrics());
+        setMetricsEnabled(conf.isMetricsEnabled());
+        setMicrometerHistogramEnabled(conf.isMicrometerHistogramEnabled());
     }
 
     public String getHostname() {

@@ -28,6 +28,7 @@ module netty.socketio.core {
   exports com.socketio4j.socketio.scheduler;
   exports com.socketio4j.socketio.transport;
   exports com.socketio4j.socketio.nativeio;
+  exports com.socketio4j.socketio.metrics;
 
   // ============================================================
   // Core store interfaces + event APIs
@@ -96,4 +97,17 @@ module netty.socketio.core {
   // ============================================================
   requires org.slf4j;
   requires static org.jetbrains.annotations;
+
+  // ============================================================
+  // metrics
+  // ============================================================
+  requires static micrometer.core;
+  requires static micrometer.registry.prometheus;
+  requires static hll;
+  requires static org.lz4.java;
+  requires static micrometer.registry.otlp;
+  requires static micrometer.registry.datadog;
+  requires static micrometer.registry.influx;
+  requires static micrometer.registry.newrelic;
+
 }
