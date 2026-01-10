@@ -9,8 +9,11 @@ import java.util.UUID;
 
 import com.socketio4j.socketio.metrics.MicrometerMetricsFactory;
 import com.socketio4j.socketio.metrics.MicrometerSocketIOMetrics;
+import io.micrometer.core.instrument.Clock;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
+import io.micrometer.registry.otlp.OtlpConfig;
+import io.micrometer.registry.otlp.OtlpMeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 public final class CoreExampleMain {
@@ -24,7 +27,7 @@ public final class CoreExampleMain {
         config.setMetricsEnabled(true);
         config.setAckMode(AckMode.AUTO_SUCCESS_ONLY);
         config.setMicrometerHistogramEnabled(true);
-        MicrometerSocketIOMetrics mic = MicrometerMetricsFactory.using(new PrometheusMeterRegistry(PrometheusConfig.DEFAULT), config.isMicrometerHistogramEnabled());
+        MicrometerSocketIOMetrics mic = MicrometerMetricsFactory.using(new OtlpMeterRegistry(OtlpConfig.DEFAULT, Clock.SYSTEM), config.isMicrometerHistogramEnabled());
         config.setMetrics(mic);
         SocketIOServer server = new SocketIOServer(config);
         server.addNamespace("/example");
