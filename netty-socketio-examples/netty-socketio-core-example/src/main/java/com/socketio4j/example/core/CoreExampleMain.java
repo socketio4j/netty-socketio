@@ -88,6 +88,7 @@ public final class CoreExampleMain {
             @Override
             public void run() {
                 server.stop();
+                mic.close();
                 //metricsServer.stop();
             }
         });
