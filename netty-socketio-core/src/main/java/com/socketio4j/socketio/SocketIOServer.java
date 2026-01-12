@@ -483,7 +483,7 @@ public class SocketIOServer implements ClientListeners {
      * <ul>
      * <li>The bound server channel is recorded</li>
      * <li>A JVM shutdown hook is installed (once)</li>
-     * <li>Registered {@link ServerStartListener}s are notified</li>
+     * <li>Registered {@link ServerAfterStartListener}s are notified</li>
      * </ul>
      *
      * @return a {@link Future} that completes when the server bind operation
