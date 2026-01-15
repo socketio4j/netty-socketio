@@ -18,6 +18,7 @@ package com.socketio4j.socketio;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.nativeio.TransportType;
@@ -79,6 +80,7 @@ public abstract class BasicConfiguration {
     }
 
     public void setMetrics(SocketIOMetrics metrics) {
+        Objects.requireNonNull(metrics);
         this.metrics = metrics;
     }
 

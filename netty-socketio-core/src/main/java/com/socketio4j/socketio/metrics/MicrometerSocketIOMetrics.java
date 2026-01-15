@@ -135,7 +135,10 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
             return;
         }
         final String finalNs = ns;
-        executorService.execute(() -> ns(finalNs).getUnknownEventHll().addRaw(hashToLong(finalNs + ":" + eventName)));
+        executorService.execute(() -> {
+            ns(finalNs).recordUnknownEvent(hashToLong(finalNs + ":" + eventName));
+
+        });
     }
 
     /* ===================== ACK ===================== */

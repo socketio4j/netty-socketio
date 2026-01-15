@@ -240,7 +240,6 @@
         <artifactId>hll</artifactId>
         <version>${hll.version}</version>
       </dependency>
-      <!-- https://mvnrepository.com/artifact/org.lwjgl/lwjgl-xxhash -->
       <dependency>
         <groupId>org.testcontainers</groupId>
         <artifactId>testcontainers-bom</artifactId>

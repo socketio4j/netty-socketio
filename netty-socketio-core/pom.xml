@@ -55,7 +55,6 @@
       <artifactId>hll</artifactId>
       <scope>provided</scope>
     </dependency>
-    <!-- https://mvnrepository.com/artifact/org.lwjgl/lwjgl-xxhash -->
 
     <dependency>
       <groupId>io.netty</groupId>

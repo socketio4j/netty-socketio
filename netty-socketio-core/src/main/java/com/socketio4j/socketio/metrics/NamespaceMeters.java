@@ -17,7 +17,9 @@
 package com.socketio4j.socketio.metrics;
 
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
@@ -50,7 +52,12 @@ public final class NamespaceMeters {
      * HyperLogLog for distinct unknown event names.
      * (namespace:eventName hashed externally)
      */
-    private final HLL unknownEventHll;
+    // executor-thread only (never exposed)
+    private final HLL unknownEventActive;
+
+    // scraper threads only (immutable snapshot)
+    private final AtomicReference<HLL> unknownEventPublished;
+
 
     /* ===================== ACK ===================== */
 
@@ -91,9 +98,25 @@ public final class NamespaceMeters {
     public Counter getEventUnknown() {
         return eventUnknown;
     }
-    public HLL getUnknownEventHll() {
-        return unknownEventHll;
+
+    private static final long PUBLISH_INTERVAL_NANOS =
+            TimeUnit.SECONDS.toNanos(5);
+
+    private long lastPublishNanos = System.nanoTime();
+
+    /**
+     * MUST be called only from the single-thread executor.
+     */
+    void recordUnknownEvent(long hash) {
+        unknownEventActive.addRaw(hash);
+
+        long now = System.nanoTime();
+        if (now - lastPublishNanos >= PUBLISH_INTERVAL_NANOS) {
+            unknownEventPublished.set(copy(unknownEventActive));
+            lastPublishNanos = now;
+        }
     }
+
 
     public Counter getAckSent() {
         return ackSent;
@@ -129,6 +152,11 @@ public final class NamespaceMeters {
         return ackLatency;
     }
 
+    private static HLL copy(HLL src) {
+        return HLL.fromBytes(src.toBytes());
+    }
+
+
     /* ===================== Constructor ===================== */
 
     NamespaceMeters(MeterRegistry registry, String ns, boolean histogramEnabled) {
@@ -158,12 +186,16 @@ public final class NamespaceMeters {
 
         /* ---------- Unknown Event Cardinality ---------- */
 
-        this.unknownEventHll = new HLL(14, 5);
+        this.unknownEventActive = new HLL(14, 5);
+        this.unknownEventPublished =
+                new AtomicReference<>(copy(unknownEventActive));
+
         Gauge.builder(
                 "socketio.event.unknown.distinct.estimate",
-                unknownEventHll,
-                HLL::cardinality
+                unknownEventPublished,
+                ref -> ref.get().cardinality()
         ).tag("namespace", ns).register(registry);
+
 
         /* ---------- ACK ---------- */
 
