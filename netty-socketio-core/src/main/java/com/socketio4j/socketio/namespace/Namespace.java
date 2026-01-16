@@ -110,7 +110,7 @@ public class Namespace implements SocketIONamespace {
         this.exceptionListener = configuration.getExceptionListener();
         this.ackMode = configuration.getAckMode();
         if (configuration.isMetricsEnabled()) {
-            this.metrics = Objects.requireNonNullElse(configuration.getMetrics(), SocketIOMetrics.noop());
+            this.metrics = configuration.getMetrics();
         } else {
             this.metrics = SocketIOMetrics.noop();
         }
