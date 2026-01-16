@@ -1,0 +1,214 @@
+{
+  "templating": {
+    "list": [
+      {
+        "type": "datasource", "name": "DS_PROMETHEUS",
+        "label": "Prometheus",
+        "query": "prometheus"
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Connected Clients",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "targets": [{ "expr": "socketio_clients_connected", "refId": "A" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total Connects",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "targets": [{ "expr": "socketio_connect_total", "refId": "A" }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Total Disconnects",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "targets": [{ "expr": "socketio_disconnect_total", "refId": "A" }]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Connect Rate",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "expr": "rate(socketio_connect_total[$__rate_interval]) or vector(0)",
+          "legendFormat": "connect/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Disconnect Rate",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "expr": "rate(socketio_disconnect_total[$__rate_interval]) or vector(0)",
+          "legendFormat": "disconnect/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Connection Churn",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "expr": "(rate(socketio_connect_total[$__rate_interval]) or vector(0)) - (rate(socketio_disconnect_total[$__rate_interval]) or vector(0))",
+          "legendFormat": "net",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Events (Selected Window)",
+      "gridPos": { "x": 0, "y": 4, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "increase(socketio_event_received_total[$__range]) or vector(0)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Events Received /s",
+      "gridPos": { "x": 6, "y": 4, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "expr": "rate(socketio_event_received_total[$__rate_interval]) or vector(0)",
+          "legendFormat": "received/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Total ACK Sent",
+      "gridPos": { "x": 10, "y": 4, "w": 4, "h": 4 },
+      "targets": [{ "expr": "socketio_ack_sent_total", "refId": "A" }]
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Total Events Failed",
+      "gridPos": { "x": 14, "y": 4, "w": 5, "h": 4 },
+      "targets": [{ "expr": "socketio_event_failed_total", "refId": "A" }]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Events Failed /s",
+      "gridPos": { "x": 19, "y": 4, "w": 5, "h": 4 },
+      "targets": [
+        {
+          "expr": "rate(socketio_event_failed_total[$__rate_interval]) or vector(0)",
+          "legendFormat": "failed/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "ACK Sent /s",
+      "gridPos": { "x": 0, "y": 8, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "expr": "rate(socketio_ack_sent_total[$__rate_interval]) or vector(0)",
+          "legendFormat": "ack/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "ACK Missing /s",
+      "gridPos": { "x": 4, "y": 8, "w": 4, "h": 4 },
+      "targets": [
+        {
+          "expr": "rate(socketio_ack_missing_total[$__rate_interval]) or vector(0)",
+          "legendFormat": "missing/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Event Processing Latency P95",
+      "gridPos": { "x": 8, "y": 8, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(socketio_event_processing_time_milliseconds_bucket[$__rate_interval])))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Distinct Unknown Events",
+      "gridPos": { "x": 14, "y": 8, "w": 4, "h": 4 },
+      "targets": [{ "expr": "socketio_event_unknown_distinct_estimate", "refId": "A" }]
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Unknown Events /s",
+      "gridPos": { "x": 18, "y": 8, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "rate(socketio_event_unknown_total[$__rate_interval]) or vector(0)",
+          "legendFormat": "unknown/s",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "1s",
+  "schemaVersion": 42,
+  "title": "SocketIO4j Production Metrics (1s, Null-Safe)",
+  "time": {
+    "from": "now-5m",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "uid": "socketio4j-prod-fixed",
+  "version": 1
+}

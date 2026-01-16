@@ -267,21 +267,11 @@ public class RedisPubSubReliableEventStore implements EventStore {
 
     }
 
+
     @Override
     public void shutdown0() {
         // Gracefully shutdown trim executor
         trimExecutor.shutdown();
-        try {
-            // Wait for ongoing trim operations to complete
-            if (!trimExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-                log.warn("Trim executor did not terminate gracefully, forcing shutdown");
-                trimExecutor.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            log.warn("Interrupted while waiting for trim executor to shutdown");
-            trimExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
 
         // Unsubscribe from all event types
         Arrays.stream(EventType.values()).forEach(this::unsubscribe);
