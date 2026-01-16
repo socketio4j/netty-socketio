@@ -431,6 +431,7 @@ public class Namespace implements SocketIONamespace {
     }
 
     public int forEachRoomClient(String room, Consumer<SocketIOClient> action) {
+        Objects.requireNonNull(room, "room must not be null");
         Objects.requireNonNull(action, "action must not be null");
         Set<UUID> sessionIds = roomClients.get(room);
 
@@ -442,8 +443,13 @@ public class Namespace implements SocketIONamespace {
         for (UUID sessionId : sessionIds) {
             SocketIOClient client = allClients.get(sessionId);
             if (client != null) {
-                action.accept(client);
-                count++;
+                count++;  // Increment BEFORE attempting the action
+                try {
+                    action.accept(client);
+                } catch (Exception e) {
+                    log.error("Error executing action on client {}: {}", sessionId, e.getMessage(), e);
+                    // Continue iteration even if this one fails
+                }
             }
         }
         return count;
