@@ -82,7 +82,7 @@
     <javafaker.version>1.0.2</javafaker.version>
     <kafka.version>4.1.1</kafka.version>
     <commons-lang3.version>3.20.0</commons-lang3.version>
-    <nats.version>2.24.1</nats.version>
+    <nats.version>2.25.1</nats.version>
   </properties>
 
   <profiles>
