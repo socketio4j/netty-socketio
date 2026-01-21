@@ -1,0 +1,86 @@
+networks:
+  observability:
+    driver: bridge
+
+services:
+  socketio-app-1:
+    image: socketio4j-core-example:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      JAVA_OPTS: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_TRACES_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_METRIC_EXPORT_INTERVAL: 1000
+      OTEL_RESOURCE_ATTRIBUTES: service.name=socketio4j,service.instance.id=socketio-1
+    depends_on:
+      - otel-collector
+    networks:
+      - observability
+  socketio-app-2:
+    image: socketio4j-core-example:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4001:4000"
+    environment:
+      JAVA_OPTS: ""
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_TRACES_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_METRIC_EXPORT_INTERVAL: 1000
+      OTEL_RESOURCE_ATTRIBUTES: service.name=socketio4j,service.instance.id=socketio-2
+
+    depends_on:
+      - otel-collector
+    networks:
+      - observability
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otel/otel-collector.yaml:/etc/otelcol/config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "9464:9464"
+    depends_on:
+      - prometheus
+    networks:
+      - observability
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.listen-address=0.0.0.0:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - observability
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - observability
+
+volumes:
+  grafana-data:

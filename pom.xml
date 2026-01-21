@@ -83,6 +83,10 @@
     <kafka.version>4.1.1</kafka.version>
     <commons-lang3.version>3.20.0</commons-lang3.version>
     <nats.version>2.25.1</nats.version>
+    <micrometer-bom.version>1.16.1</micrometer-bom.version>
+    <hll.version>1.6.0</hll.version>
+    <lz4.version>1.10.1</lz4.version>
+
   </properties>
 
   <profiles>
@@ -220,6 +224,23 @@
 
   <dependencyManagement>
     <dependencies>
+        <dependency>
+          <groupId>io.micrometer</groupId>
+          <artifactId>micrometer-bom</artifactId>
+          <version>${micrometer-bom.version}</version>
+          <type>pom</type>
+          <scope>import</scope>
+        </dependency>
+      <dependency>
+        <groupId>at.yawk.lz4</groupId>
+        <artifactId>lz4-java</artifactId>
+        <version>${lz4.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>net.agkn</groupId>
+        <artifactId>hll</artifactId>
+        <version>${hll.version}</version>
+      </dependency>
       <dependency>
         <groupId>org.testcontainers</groupId>
         <artifactId>testcontainers-bom</artifactId>

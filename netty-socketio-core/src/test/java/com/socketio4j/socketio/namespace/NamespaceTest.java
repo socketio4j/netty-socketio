@@ -81,7 +81,7 @@ class NamespaceTest extends BaseNamespaceTest {
         when(configuration.getStoreFactory()).thenReturn(storeFactory);
         when(configuration.getAckMode()).thenReturn(AckMode.AUTO);
         when(configuration.getExceptionListener()).thenReturn(new DefaultExceptionListener());
-
+        when(configuration.isMetricsEnabled()).thenReturn(false);
         namespace = new Namespace(NAMESPACE_NAME, configuration);
 
         when(mockClient.getSessionId()).thenReturn(CLIENT_SESSION_ID);
