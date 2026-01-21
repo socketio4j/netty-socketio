@@ -11,7 +11,7 @@
 
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-examples-spring-boot-base</artifactId>
-  <version>4.0.0-SNAPSHOT</version>
+  <version>4.0.0-alpha</version>
   <description>NettySocketIO Spring Boot Examples</description>
 
   <properties>
@@ -22,7 +22,7 @@
     <dependency>
       <groupId>com.socketio4j</groupId>
       <artifactId>netty-socketio-spring-boot-starter</artifactId>
-      <version>4.0.0-SNAPSHOT</version>
+      <version>4.0.0-alpha</version>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
