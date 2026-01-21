@@ -77,15 +77,16 @@
     <awaitility.version>4.3.0</awaitility.version>
     <assertj.version>3.27.6</assertj.version>
     <mockito.version>5.21.0</mockito.version>
-    <logback.version>1.5.24</logback.version>
+    <logback.version>1.5.25</logback.version>
     <socketio.version>2.1.2</socketio.version>
     <javafaker.version>1.0.2</javafaker.version>
     <kafka.version>4.1.1</kafka.version>
     <commons-lang3.version>3.20.0</commons-lang3.version>
-    <nats.version>2.24.1</nats.version>
+    <nats.version>2.25.1</nats.version>
     <micrometer-bom.version>1.16.1</micrometer-bom.version>
     <hll.version>1.6.0</hll.version>
     <lz4.version>1.10.1</lz4.version>
+
   </properties>
 
   <profiles>
