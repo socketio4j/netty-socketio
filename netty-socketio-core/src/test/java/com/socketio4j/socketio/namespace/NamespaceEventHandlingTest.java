@@ -101,10 +101,12 @@ class NamespaceEventHandlingTest extends BaseNamespaceTest {
         when(configuration.getAckMode()).thenReturn(AckMode.AUTO);
         when(configuration.getExceptionListener()).thenReturn(new DefaultExceptionListener());
         when(storeFactory.eventStore()).thenReturn(eventStore);
+        when(configuration.isMetricsEnabled()).thenReturn(false);
 
         namespace = new Namespace(NAMESPACE_NAME, configuration);
 
         when(mockNamespaceClient.getSessionId()).thenReturn(CLIENT_SESSION_ID);
+        when(mockNamespaceClient.getNamespace()).thenReturn(namespace);
         when(mockClient.getSessionId()).thenReturn(CLIENT_SESSION_ID);
         when(mockClient.getAllRooms()).thenReturn(Collections.emptySet());
     }

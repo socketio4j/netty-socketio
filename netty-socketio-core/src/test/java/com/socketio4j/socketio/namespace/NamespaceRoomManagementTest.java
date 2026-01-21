@@ -90,6 +90,7 @@ class NamespaceRoomManagementTest extends BaseNamespaceTest {
         when(configuration.getAckMode()).thenReturn(AckMode.AUTO);
         when(configuration.getExceptionListener())
                 .thenReturn(new DefaultExceptionListener());
+        when(configuration.isMetricsEnabled()).thenReturn(false);
         when(storeFactory.eventStore()).thenReturn(eventStore);
 
         namespace = new Namespace(NAMESPACE_NAME, configuration);
