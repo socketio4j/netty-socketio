@@ -75,7 +75,7 @@
     <redisson.version>4.1.0</redisson.version>
     <hazelcast.version>5.2.5</hazelcast.version>
     <awaitility.version>4.3.0</awaitility.version>
-    <assertj.version>3.27.6</assertj.version>
+    <assertj.version>3.27.7</assertj.version>
     <mockito.version>5.21.0</mockito.version>
     <logback.version>1.5.25</logback.version>
     <socketio.version>2.1.2</socketio.version>
