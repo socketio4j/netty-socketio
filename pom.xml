@@ -85,7 +85,7 @@
     <nats.version>2.25.1</nats.version>
     <micrometer-bom.version>1.16.1</micrometer-bom.version>
     <hll.version>1.6.0</hll.version>
-    <lz4.version>1.10.1</lz4.version>
+    <lz4.version>1.10.3</lz4.version>
 
   </properties>
 
