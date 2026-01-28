@@ -67,7 +67,7 @@
     <testcontainers.version>2.0.3</testcontainers.version>
     <netty.version>4.2.9.Final</netty.version>
     <jmockit.version>1.50</jmockit.version>
-    <byte-buddy.version>1.18.3</byte-buddy.version>
+    <byte-buddy.version>1.18.4</byte-buddy.version>
     <junit.version>6.0.2</junit.version>
     <junit-platform-launcher.version>6.0.2</junit-platform-launcher.version>
     <slf4j.version>2.0.17</slf4j.version>
@@ -85,7 +85,7 @@
     <nats.version>2.25.1</nats.version>
     <micrometer-bom.version>1.16.1</micrometer-bom.version>
     <hll.version>1.6.0</hll.version>
-    <lz4.version>1.10.1</lz4.version>
+    <lz4.version>1.10.3</lz4.version>
 
   </properties>
 
