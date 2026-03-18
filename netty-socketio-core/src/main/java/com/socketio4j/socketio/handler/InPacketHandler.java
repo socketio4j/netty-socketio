@@ -56,18 +56,28 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
     }
 
     @Override
-    protected void channelRead0(io.netty.channel.ChannelHandlerContext ctx, PacketsMessage message)
+    protected void channelRead0(ChannelHandlerContext ctx, PacketsMessage message)
                 throws Exception {
         ByteBuf content = message.getContent();
         ClientHead client = message.getClient();
 
+        if (content.refCnt() <= 0) {
+            return;
+        }
+
+        String debugData = null;
+
         if (log.isTraceEnabled()) {
-            log.trace("In message: {} sessionId: {}", content.toString(CharsetUtil.UTF_8), client.getSessionId());
+            debugData = content.toString(CharsetUtil.UTF_8);
+            log.trace("In message: {} sessionId: {}", debugData, client.getSessionId());
         }
         
         int packetsProcessed = 0;
         while (content.isReadable()) {
             try {
+                if (content.refCnt() <= 0) {
+                    break;
+                }
                 Packet packet = decoder.decodePackets(content, client);
                 packetsProcessed++;
 
@@ -128,8 +138,8 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                              client.getSessionId(), ns.getName());
                 }
             } catch (Exception ex) {
-                String c = content.toString(CharsetUtil.UTF_8);
-                log.error("Error during data processing. Client sessionId: {}, data: {}", client.getSessionId(), c, ex);
+                log.error("Error during data processing. Client sessionId: {}, data: {}",
+                        client.getSessionId(), (debugData != null ? debugData : "NULL"), ex);
                 throw ex;
             }
         }
