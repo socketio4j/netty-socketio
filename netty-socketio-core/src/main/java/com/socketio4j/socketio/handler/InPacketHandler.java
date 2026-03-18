@@ -128,7 +128,12 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                              client.getSessionId(), ns.getName());
                 }
             } catch (Exception ex) {
-                String c = content.toString(CharsetUtil.UTF_8);
+                String c;
+                if (content.refCnt() > 0) {
+                    c = content.toString(CharsetUtil.UTF_8);
+                } else {
+                    c = "<released>";
+                }
                 log.error("Error during data processing. Client sessionId: {}, data: {}", client.getSessionId(), c, ex);
                 throw ex;
             }

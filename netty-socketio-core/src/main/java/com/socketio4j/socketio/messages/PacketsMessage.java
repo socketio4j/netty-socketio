@@ -20,8 +20,9 @@ import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.handler.ClientHead;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.util.ReferenceCounted;
 
-public class PacketsMessage {
+public class PacketsMessage implements ReferenceCounted {
 
     private final ClientHead client;
     private final ByteBuf content;
@@ -43,6 +44,45 @@ public class PacketsMessage {
 
     public ByteBuf getContent() {
         return content;
+    }
+
+    @Override
+    public int refCnt() {
+        return content.refCnt();
+    }
+
+    @Override
+    public ReferenceCounted retain() {
+        content.retain();
+        return this;
+    }
+
+    @Override
+    public ReferenceCounted retain(int increment) {
+        content.retain(increment);
+        return this;
+    }
+
+    @Override
+    public ReferenceCounted touch() {
+        content.touch();
+        return this;
+    }
+
+    @Override
+    public ReferenceCounted touch(Object hint) {
+        content.touch(hint);
+        return this;
+    }
+
+    @Override
+    public boolean release() {
+        return content.release();
+    }
+
+    @Override
+    public boolean release(int decrement) {
+        return content.release(decrement);
     }
 
 }
