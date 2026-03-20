@@ -159,6 +159,9 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             return;
         }
 
+        // FullHttpRequest is reference-counted and can be released by upstream.
+        // Retain the content since we pass it further down the pipeline.
+        content = content.retain();
 
         // release POST response before message processing
         ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId));
