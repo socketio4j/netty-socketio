@@ -93,8 +93,14 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
                 return;
             }
 
-            ctx.pipeline().fireChannelRead(new PacketsMessage(client, frame.content(), Transport.WEBSOCKET));
-            frame.release();
+            // WebSocketFrame is reference-counted and will be released below.
+            // Retain its content since we pass it further down the pipeline.
+            PacketsMessage packetsMessage = new PacketsMessage(client, frame.content().retain(), Transport.WEBSOCKET);
+            try {
+                ctx.pipeline().fireChannelRead(packetsMessage);
+            } finally {
+                frame.release();
+            }
         } else if (msg instanceof FullHttpRequest) {
             FullHttpRequest req = (FullHttpRequest) msg;
             QueryStringDecoder queryDecoder = new QueryStringDecoder(req.uri());
