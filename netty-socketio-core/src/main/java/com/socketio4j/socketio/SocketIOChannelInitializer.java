@@ -186,14 +186,14 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
             pipeline.addLast(HTTP_COMPRESSION, new HttpContentCompressor());
         }
 
+        pipeline.addLast(PACKET_HANDLER, packetHandler);
+
         pipeline.addLast(AUTHORIZE_HANDLER, authorizeHandler);
         pipeline.addLast(XHR_POLLING_TRANSPORT, xhrPollingTransport);
         if (configuration.isWebsocketCompression()) {
             pipeline.addLast(WEB_SOCKET_TRANSPORT_COMPRESSION, new WebSocketServerCompressionHandler());
         }
         pipeline.addLast(WEB_SOCKET_TRANSPORT, webSocketTransport);
-        
-        pipeline.addLast(PACKET_HANDLER, packetHandler);
 
         pipeline.addLast(SOCKETIO_ENCODER, encoderHandler);
 

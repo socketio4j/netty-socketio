@@ -172,7 +172,7 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             content = decoder.preprocessJson(jsonIndex, content);
         }
 
-        ctx.fireChannelRead(new PacketsMessage(client, content, Transport.POLLING));
+        ctx.pipeline().fireChannelRead(new PacketsMessage(client, content, Transport.POLLING));
     }
 
     protected void onGet(UUID sessionId, ChannelHandlerContext ctx, String origin) {
