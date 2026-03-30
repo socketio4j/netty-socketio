@@ -97,7 +97,7 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
             // Retain its content since we pass it further down the pipeline.
             PacketsMessage packetsMessage = new PacketsMessage(client, frame.content().retain(), Transport.WEBSOCKET);
             try {
-                ctx.pipeline().fireChannelRead(packetsMessage);
+                ctx.fireChannelRead(packetsMessage);
             } finally {
                 frame.release();
             }
