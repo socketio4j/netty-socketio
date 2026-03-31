@@ -46,10 +46,16 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpRequest;
+import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocket13FrameDecoder;
 import io.netty.handler.codec.http.websocketx.WebSocketFrameAggregator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory;
@@ -82,6 +88,15 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof CloseWebSocketFrame) {
           ctx.channel().writeAndFlush(msg).addListener(ChannelFutureListener.CLOSE);
+        } else if (msg instanceof PingWebSocketFrame) {
+            // keep connection alive, mirror pong
+            ctx.channel().writeAndFlush(new PongWebSocketFrame(((PingWebSocketFrame) msg).content().retain()));
+            ((PingWebSocketFrame) msg).release();
+            return;
+        } else if (msg instanceof PongWebSocketFrame) {
+            // ignore
+            ((PongWebSocketFrame) msg).release();
+            return;
         } else if (msg instanceof BinaryWebSocketFrame
                     || msg instanceof TextWebSocketFrame) {
             ByteBufHolder frame = (ByteBufHolder) msg;
@@ -97,10 +112,18 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
             // Retain its content since we pass it further down the pipeline.
             PacketsMessage packetsMessage = new PacketsMessage(client, frame.content().retain(), Transport.WEBSOCKET);
             try {
-                ctx.pipeline().fireChannelRead(packetsMessage);
+                firePacketsMessageToPacketHandler(ctx, packetsMessage);
             } finally {
                 frame.release();
             }
+        } else if (msg instanceof WebSocketFrame) {
+            // Some clients may send fragmented frames (ContinuationWebSocketFrame) or other control frames.
+            // Log and release to avoid leaks and to surface missing handling.
+            if (log.isDebugEnabled()) {
+                log.debug("Unhandled WebSocketFrame type: {}", msg.getClass().getName());
+            }
+            ((WebSocketFrame) msg).release();
+            return;
         } else if (msg instanceof FullHttpRequest) {
             FullHttpRequest req = (FullHttpRequest) msg;
             QueryStringDecoder queryDecoder = new QueryStringDecoder(req.uri());
@@ -141,8 +164,28 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
         ClientHead client = clientsBox.get(ctx.channel());
         if (client != null && client.isTransportChannel(ctx.channel(), Transport.WEBSOCKET)) {
             ctx.flush();
+        }
+        super.channelReadComplete(ctx);
+    }
+
+    /**
+     * Deliver engine/socket.io payload to {@link com.socketio4j.socketio.handler.InPacketHandler} without
+     * re-entering the pipeline from the head (avoids passing {@link PacketsMessage} through {@code SslHandler}
+     * and the HTTP/WebSocket frame decoder again).
+     */
+    private static void firePacketsMessageToPacketHandler(ChannelHandlerContext ctx, PacketsMessage packetsMessage) {
+        // After WebSocket handshake, Netty replaces HttpRequestDecoder with WebSocket13FrameDecoder named "wsdecoder".
+        ChannelHandlerContext codecCtx = ctx.pipeline().context(HttpRequestDecoder.class);
+        if (codecCtx == null) {
+            codecCtx = ctx.pipeline().context(WebSocket13FrameDecoder.class);
+        }
+        if (codecCtx == null) {
+            codecCtx = ctx.pipeline().context(HttpServerCodec.class);
+        }
+        if (codecCtx != null) {
+            codecCtx.fireChannelRead(packetsMessage);
         } else {
-            super.channelReadComplete(ctx);
+            ctx.pipeline().fireChannelRead(packetsMessage);
         }
     }
 
@@ -168,7 +211,7 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
         final Channel channel = ctx.channel();
 
         WebSocketServerHandshakerFactory factory =
-                new WebSocketServerHandshakerFactory(getWebSocketLocation(req), null, true, configuration.getMaxFramePayloadLength());
+                new WebSocketServerHandshakerFactory(getWebSocketLocation(req), null, configuration.isWebsocketCompression(), configuration.getMaxFramePayloadLength());
         WebSocketServerHandshaker handshaker = factory.newHandshaker(req);
         if (handshaker != null) {
             try {
