@@ -212,8 +212,17 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         SslProvider sslProvider = OpenSsl.isAvailable() ? SslProvider.OPENSSL : SslProvider.JDK;
 
         SslContextBuilder builder = SslContextBuilder.forServer(kmf).sslProvider(sslProvider);
-        if (socketSslConfig.getSSLProtocol() != null) {
-            builder.protocols(socketSslConfig.getSSLProtocol());
+        String sslProtocol = socketSslConfig.getSSLProtocol();
+        if (sslProtocol != null) {
+            // SocketSslConfig historically accepted SSLContext algorithm names like "TLS".
+            // SslContextBuilder.protocols(...) expects concrete enabled protocol versions.
+            if (isTlsProtocolVersion(sslProtocol)) {
+                builder.protocols(sslProtocol);
+            } else {
+                log.warn("Ignoring SocketSslConfig.sslProtocol='{}' because it is not a concrete TLS protocol " +
+                        "version (expected values like 'TLSv1.2' or 'TLSv1.3'). Using provider defaults instead.",
+                        sslProtocol);
+            }
         }
         if (socketSslConfig.getTrustStore() != null) {
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
@@ -223,6 +232,15 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
             builder.trustManager(tmf);
         }
         return builder.build();
+    }
+
+    private static boolean isTlsProtocolVersion(String value) {
+        // Common enabled-protocol tokens used by JSSE/Netty.
+        // Accept "TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3".
+        if (value == null) {
+            return false;
+        }
+        return value.matches("^TLSv1(\\.[0-3])?$");
     }
 
     @Override
