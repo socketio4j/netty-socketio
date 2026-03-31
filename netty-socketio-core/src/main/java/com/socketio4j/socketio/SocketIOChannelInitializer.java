@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio;
 
+import java.io.InputStream;
 import java.security.KeyStore;
 
 import javax.net.ssl.SSLEngine;
@@ -204,7 +205,9 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
 
     private SslContext createSSLContext(SocketSslConfig socketSslConfig) throws Exception {
         KeyStore ks = KeyStore.getInstance(socketSslConfig.getKeyStoreFormat());
-        ks.load(socketSslConfig.getKeyStore(), socketSslConfig.getKeyStorePassword().toCharArray());
+        try (InputStream keyStoreStream = socketSslConfig.getKeyStore()) {
+            ks.load(keyStoreStream, socketSslConfig.getKeyStorePassword().toCharArray());
+        }
 
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(socketSslConfig.getKeyManagerFactoryAlgorithm());
         kmf.init(ks, socketSslConfig.getKeyStorePassword().toCharArray());
@@ -227,7 +230,9 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         if (socketSslConfig.getTrustStore() != null) {
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             KeyStore ts = KeyStore.getInstance(socketSslConfig.getTrustStoreFormat());
-            ts.load(socketSslConfig.getTrustStore(), socketSslConfig.getTrustStorePassword().toCharArray());
+            try (InputStream trustStoreStream = socketSslConfig.getTrustStore()) {
+                ts.load(trustStoreStream, socketSslConfig.getTrustStorePassword().toCharArray());
+            }
             tmf.init(ts);
             builder.trustManager(tmf);
         }
