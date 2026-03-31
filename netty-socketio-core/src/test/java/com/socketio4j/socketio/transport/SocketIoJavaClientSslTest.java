@@ -17,7 +17,6 @@
 package com.socketio4j.socketio.transport;
 
 import java.io.InputStream;
-import java.net.ServerSocket;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.util.Map;
@@ -64,13 +63,14 @@ public class SocketIoJavaClientSslTest {
 
     @Test
     public void shouldReceiveHelloEventAndAckOverWssFromJavaClient() throws Exception {
-        int port = allocatePort();
         CountDownLatch serverReceivedHello = new CountDownLatch(1);
         CountDownLatch clientReceivedAck = new CountDownLatch(1);
         CountDownLatch engineHandshakeDone = new CountDownLatch(1);
         AtomicReference<Throwable> connectError = new AtomicReference<>();
 
-        server = startServer(port, testSslConfig(), serverReceivedHello);
+        server = startServer(0, testSslConfig(), serverReceivedHello);
+        int port = awaitBoundPort(server);
+        assertTrue(port > 0, "server did not bind an ephemeral port");
 
         X509TrustManager trustAll = new X509TrustManager() {
             @Override
@@ -142,13 +142,14 @@ public class SocketIoJavaClientSslTest {
 
     @Test
     public void shouldReceiveHelloEventAndAckOverPlainWebSocketFromJavaClient() throws Exception {
-        int port = allocatePort();
         CountDownLatch serverReceivedHello = new CountDownLatch(1);
         CountDownLatch clientReceivedAck = new CountDownLatch(1);
         CountDownLatch engineHandshakeDone = new CountDownLatch(1);
         AtomicReference<Throwable> connectError = new AtomicReference<>();
 
-        server = startServer(port, null, serverReceivedHello);
+        server = startServer(0, null, serverReceivedHello);
+        int port = awaitBoundPort(server);
+        assertTrue(port > 0, "server did not bind an ephemeral port");
 
         IO.Options opts = new IO.Options();
         opts.forceNew = true;
@@ -224,10 +225,13 @@ public class SocketIoJavaClientSslTest {
         return ssl;
     }
 
-    private int allocatePort() throws Exception {
-        try (ServerSocket ss = new ServerSocket(0)) {
-            ss.setReuseAddress(true);
-            return ss.getLocalPort();
+    private static int awaitBoundPort(SocketIOServer server) throws InterruptedException {
+        long deadlineNs = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        int port = server.getConfiguration().getPort();
+        while (port == 0 && System.nanoTime() < deadlineNs) {
+            Thread.sleep(10);
+            port = server.getConfiguration().getPort();
         }
+        return port;
     }
 }
