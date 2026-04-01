@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -87,7 +88,13 @@ public class SocketSslConfig {
                 return null;
             }
             try (InputStream in = keyStore) {
-                cachedKeyStoreBytes = in.readAllBytes();
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                byte[] buffer = new byte[4096];
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, read);
+                }
+                cachedKeyStoreBytes = out.toByteArray();
             }
             keyStore = null;
             return cachedKeyStoreBytes;
@@ -147,7 +154,13 @@ public class SocketSslConfig {
                 return null;
             }
             try (InputStream in = trustStore) {
-                cachedTrustStoreBytes = in.readAllBytes();
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                byte[] buffer = new byte[4096];
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, read);
+                }
+                cachedTrustStoreBytes = out.toByteArray();
             }
             trustStore = null;
             return cachedTrustStoreBytes;
