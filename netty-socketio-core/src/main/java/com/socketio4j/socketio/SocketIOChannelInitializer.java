@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.security.KeyStore;
 
@@ -114,7 +115,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         String connectPath = configuration.getContext() + "/";
 
         SocketSslConfig socketSslConfig = configuration.getSocketSslConfig();
-        boolean isSsl = socketSslConfig != null && socketSslConfig.getKeyStore() != null;
+        boolean isSsl = socketSslConfig != null && socketSslConfig.hasKeyStore();
         if (isSsl) {
             try {
                 sslContext = createSSLContext(socketSslConfig);
@@ -161,7 +162,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
             engine.setUseClientMode(false);
             if (configuration.isNeedClientAuth()
                     && configuration.getSocketSslConfig() != null
-                    && configuration.getSocketSslConfig().getTrustStore() != null) {
+                    && configuration.getSocketSslConfig().hasTrustStore()) {
                 engine.setNeedClientAuth(true);
             }
             pipeline.addLast(SSL_HANDLER, new SslHandler(engine));
@@ -204,8 +205,12 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
     }
 
     private SslContext createSSLContext(SocketSslConfig socketSslConfig) throws Exception {
+        byte[] keyMaterial = socketSslConfig.resolveKeyStoreBytes();
+        if (keyMaterial == null) {
+            throw new IllegalStateException("SocketSslConfig key store material is missing");
+        }
         KeyStore ks = KeyStore.getInstance(socketSslConfig.getKeyStoreFormat());
-        try (InputStream keyStoreStream = socketSslConfig.getKeyStore()) {
+        try (InputStream keyStoreStream = new ByteArrayInputStream(keyMaterial)) {
             ks.load(keyStoreStream, socketSslConfig.getKeyStorePassword().toCharArray());
         }
 
@@ -227,10 +232,14 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
                         sslProtocol);
             }
         }
-        if (socketSslConfig.getTrustStore() != null) {
+        if (socketSslConfig.hasTrustStore()) {
+            byte[] trustMaterial = socketSslConfig.resolveTrustStoreBytes();
+            if (trustMaterial == null) {
+                throw new IllegalStateException("SocketSslConfig trust store material is missing");
+            }
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             KeyStore ts = KeyStore.getInstance(socketSslConfig.getTrustStoreFormat());
-            try (InputStream trustStoreStream = socketSslConfig.getTrustStore()) {
+            try (InputStream trustStoreStream = new ByteArrayInputStream(trustMaterial)) {
                 ts.load(trustStoreStream, socketSslConfig.getTrustStorePassword().toCharArray());
             }
             tmf.init(ts);
@@ -241,11 +250,11 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
 
     private static boolean isTlsProtocolVersion(String value) {
         // Common enabled-protocol tokens used by JSSE/Netty.
-        // Accept "TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3".
+        // Accept "TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3"; reject "TLSv1.0" and other dotted minors.
         if (value == null) {
             return false;
         }
-        return value.matches("^TLSv1(\\.[0-3])?$");
+        return value.matches("^TLSv1(\\.(1|2|3))?$");
     }
 
     @Override

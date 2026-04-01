@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio;
 
+import java.io.IOException;
 import java.io.InputStream;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -30,6 +31,10 @@ public class SocketSslConfig {
     private String trustStoreFormat = "JKS";
     private InputStream trustStore;
     private String trustStorePassword;
+
+    private final Object sslMaterialLock = new Object();
+    private byte[] cachedKeyStoreBytes;
+    private byte[] cachedTrustStoreBytes;
 
     private String keyManagerFactoryAlgorithm = KeyManagerFactory.getDefaultAlgorithm();
 
@@ -47,7 +52,12 @@ public class SocketSslConfig {
     }
 
     /**
-     * SSL key store stream, maybe appointed to any source
+     * SSL key store stream, maybe appointed to any source.
+     * <p>
+     * On the first TLS context build when the server starts, the stream is read fully into memory and closed;
+     * later start/stop cycles reuse the buffered bytes so the same {@code SocketSslConfig} instance remains valid.
+     * After buffering, {@link #getKeyStore()} returns {@code null}.
+     * </p>
      *
      * @param keyStore - key store input stream
      */
@@ -57,6 +67,31 @@ public class SocketSslConfig {
 
     public InputStream getKeyStore() {
         return keyStore;
+    }
+
+    /**
+     * Whether a key store is configured (stream not yet consumed or already buffered).
+     */
+    public boolean hasKeyStore() {
+        synchronized (sslMaterialLock) {
+            return keyStore != null || cachedKeyStoreBytes != null;
+        }
+    }
+
+    byte[] resolveKeyStoreBytes() throws IOException {
+        synchronized (sslMaterialLock) {
+            if (cachedKeyStoreBytes != null) {
+                return cachedKeyStoreBytes;
+            }
+            if (keyStore == null) {
+                return null;
+            }
+            try (InputStream in = keyStore) {
+                cachedKeyStoreBytes = in.readAllBytes();
+            }
+            keyStore = null;
+            return cachedKeyStoreBytes;
+        }
     }
 
     /**
@@ -85,8 +120,38 @@ public class SocketSslConfig {
         return trustStore;
     }
 
+    /**
+     * Trust store stream. Same buffering and lifecycle as {@link #setKeyStore(InputStream)}.
+     *
+     * @param trustStore trust store input stream
+     */
     public void setTrustStore(InputStream trustStore) {
         this.trustStore = trustStore;
+    }
+
+    /**
+     * Whether a trust store is configured (stream not yet consumed or already buffered).
+     */
+    public boolean hasTrustStore() {
+        synchronized (sslMaterialLock) {
+            return trustStore != null || cachedTrustStoreBytes != null;
+        }
+    }
+
+    byte[] resolveTrustStoreBytes() throws IOException {
+        synchronized (sslMaterialLock) {
+            if (cachedTrustStoreBytes != null) {
+                return cachedTrustStoreBytes;
+            }
+            if (trustStore == null) {
+                return null;
+            }
+            try (InputStream in = trustStore) {
+                cachedTrustStoreBytes = in.readAllBytes();
+            }
+            trustStore = null;
+            return cachedTrustStoreBytes;
+        }
     }
 
     public String getTrustStorePassword() {
