@@ -20,9 +20,9 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.security.KeyStore;
 
+import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.KeyManagerFactory;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -217,7 +217,12 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(socketSslConfig.getKeyManagerFactoryAlgorithm());
         kmf.init(ks, socketSslConfig.getKeyStorePassword().toCharArray());
 
-        SslProvider sslProvider = OpenSsl.isAvailable() ? SslProvider.OPENSSL : SslProvider.JDK;
+        SslProvider sslProvider;
+        if (OpenSsl.isAvailable()) {
+            sslProvider = SslProvider.OPENSSL;
+        } else {
+            sslProvider = SslProvider.JDK;
+        }
 
         SslContextBuilder builder = SslContextBuilder.forServer(kmf).sslProvider(sslProvider);
         String sslProtocol = socketSslConfig.getSSLProtocol();
