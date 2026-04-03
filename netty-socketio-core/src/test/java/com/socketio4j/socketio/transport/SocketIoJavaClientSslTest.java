@@ -286,6 +286,139 @@ public class SocketIoJavaClientSslTest {
         }
     }
 
+    @Test
+    public void shouldReceiveHelloEventAndAckOverPollingFromJavaClient() throws Exception {
+        CountDownLatch serverReceivedHello = new CountDownLatch(1);
+        CountDownLatch clientReceivedAck = new CountDownLatch(1);
+        CountDownLatch engineHandshakeDone = new CountDownLatch(1);
+        AtomicReference<Throwable> connectError = new AtomicReference<>();
+
+        server = startServer(0, testSslConfig(), serverReceivedHello);
+        int port = awaitBoundPort(server);
+        assertTrue(port > 0, "server did not bind an ephemeral port");
+
+        X509TrustManager trustAll = new X509TrustManager() {
+            @Override
+            public void checkClientTrusted(X509Certificate[] chain, String authType) {
+            }
+
+            @Override
+            public void checkServerTrusted(X509Certificate[] chain, String authType) {
+            }
+
+            @Override
+            public X509Certificate[] getAcceptedIssuers() {
+                return new X509Certificate[0];
+            }
+        };
+        SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(null, new TrustManager[] { trustAll }, new SecureRandom());
+
+        OkHttpClient okHttp = new OkHttpClient.Builder()
+                .sslSocketFactory(sslContext.getSocketFactory(), trustAll)
+                .hostnameVerifier((hostname, session) -> true)
+                .readTimeout(1, TimeUnit.MINUTES)
+                .build();
+
+        IO.Options opts = new IO.Options();
+        opts.forceNew = true;
+        opts.reconnection = false;
+        opts.transports = new String[] { "polling" };
+        opts.webSocketFactory = okHttp;
+        opts.callFactory = okHttp;
+
+        Socket socket = IO.socket("https://127.0.0.1:" + port, opts);
+        try {
+            socket.on(Socket.EVENT_CONNECT_ERROR, args -> {
+                Object first = args.length > 0 ? args[0] : null;
+                if (first instanceof Throwable) {
+                    connectError.set((Throwable) first);
+                } else {
+                    connectError.set(new IllegalStateException(String.valueOf(first)));
+                }
+                engineHandshakeDone.countDown();
+            });
+            socket.on(Socket.EVENT_CONNECT, args -> {
+                try {
+                    JSONObject payload = new JSONObject();
+                    payload.put("a", 1);
+                    socket.emit("hello", payload, (Ack) ackArgs -> {
+                        if (ackArgs.length > 0 && "ok".equals(String.valueOf(ackArgs[0]))) {
+                            clientReceivedAck.countDown();
+                        }
+                    });
+                } catch (Exception e) {
+                    connectError.set(e);
+                } finally {
+                    engineHandshakeDone.countDown();
+                }
+            });
+            socket.connect();
+
+            assertTrue(engineHandshakeDone.await(20, TimeUnit.SECONDS),
+                    () -> "Engine.IO handshake did not complete: " + connectError.get());
+            assertNull(connectError.get(), () -> "connect_error: " + connectError.get());
+            assertTrue(serverReceivedHello.await(15, TimeUnit.SECONDS), "server did not receive hello event");
+            assertTrue(clientReceivedAck.await(15, TimeUnit.SECONDS), "client did not receive ack");
+        } finally {
+            socket.disconnect();
+        }
+    }
+
+    @Test
+    public void shouldReceiveHelloEventAndAckOverPlainPollingFromJavaClient() throws Exception {
+        CountDownLatch serverReceivedHello = new CountDownLatch(1);
+        CountDownLatch clientReceivedAck = new CountDownLatch(1);
+        CountDownLatch engineHandshakeDone = new CountDownLatch(1);
+        AtomicReference<Throwable> connectError = new AtomicReference<>();
+
+        server = startServer(0, null, serverReceivedHello);
+        int port = awaitBoundPort(server);
+        assertTrue(port > 0, "server did not bind an ephemeral port");
+
+        IO.Options opts = new IO.Options();
+        opts.forceNew = true;
+        opts.reconnection = false;
+        opts.transports = new String[] { "polling" };
+
+        Socket socket = IO.socket("http://127.0.0.1:" + port, opts);
+        try {
+            socket.on(Socket.EVENT_CONNECT_ERROR, args -> {
+                Object first = args.length > 0 ? args[0] : null;
+                if (first instanceof Throwable) {
+                    connectError.set((Throwable) first);
+                } else {
+                    connectError.set(new IllegalStateException(String.valueOf(first)));
+                }
+                engineHandshakeDone.countDown();
+            });
+            socket.on(Socket.EVENT_CONNECT, args -> {
+                try {
+                    JSONObject payload = new JSONObject();
+                    payload.put("a", 1);
+                    socket.emit("hello", payload, (Ack) ackArgs -> {
+                        if (ackArgs.length > 0 && "ok".equals(String.valueOf(ackArgs[0]))) {
+                            clientReceivedAck.countDown();
+                        }
+                    });
+                } catch (Exception e) {
+                    connectError.set(e);
+                } finally {
+                    engineHandshakeDone.countDown();
+                }
+            });
+            socket.connect();
+
+            assertTrue(engineHandshakeDone.await(20, TimeUnit.SECONDS),
+                    () -> "Engine.IO handshake did not complete: " + connectError.get());
+            assertNull(connectError.get(), () -> "connect_error: " + connectError.get());
+            assertTrue(serverReceivedHello.await(15, TimeUnit.SECONDS), "server did not receive hello event");
+            assertTrue(clientReceivedAck.await(15, TimeUnit.SECONDS), "client did not receive ack");
+        } finally {
+            socket.disconnect();
+        }
+    }
+
     private SocketIOServer startServer(int port, SocketSslConfig ssl, CountDownLatch hello) {
         return startServer(port, ssl, hello, false);
     }
