@@ -64,34 +64,25 @@ public class PacketDecoder {
      * @throws UnsupportedEncodingException if UTF-8 encoding is not supported
      */
     public ByteBuf preprocessJson(Integer jsonIndex, ByteBuf content) throws UnsupportedEncodingException {
-        // Create a mutable copy of the input ByteBuf for in-place modifications
-        ByteBuf mutableContent = content.slice();
-        try {
-            // Perform URL decoding in-place
-            urlDecodeInPlace(mutableContent);
-            
-            if (jsonIndex != null) {
-                // Handle escaped newlines in-place: replace "\\n" with "\n"
-                replaceEscapedNewlinesInPlace(mutableContent);
-                
-                // Skip "d=" prefix (2 bytes) by adjusting reader index
-                if (mutableContent.readableBytes() >= 2) {
-                    int ri = mutableContent.readerIndex();
-                    // Check for 'd=' prefix
-                    if (mutableContent.getByte(ri) == (byte) 'd'
-                            && mutableContent.getByte(ri + 1) == (byte) '=') {
-                        mutableContent.readerIndex(ri + 2);
-                    } else {
-                        throw new IllegalArgumentException("Invalid JSONP format: missing 'd=' prefix");
-                    }
+        // The caller must ensure the buffer stays alive (retain if needed).
+        // We mutate in-place to avoid creating derived buffers with tricky refCnt ownership.
+        urlDecodeInPlace(content);
+
+        if (jsonIndex != null) {
+            replaceEscapedNewlinesInPlace(content);
+
+            // Skip "d=" prefix (2 bytes) by adjusting reader index
+            if (content.readableBytes() >= 2) {
+                int ri = content.readerIndex();
+                if (content.getByte(ri) == (byte) 'd' && content.getByte(ri + 1) == (byte) '=') {
+                    content.readerIndex(ri + 2);
+                } else {
+                    throw new IllegalArgumentException("Invalid JSONP format: missing 'd=' prefix");
                 }
             }
-            
-            return mutableContent;
-        } catch (Exception e) {
-            mutableContent.release();
-            throw e;
         }
+
+        return content;
     }
     
     /**
