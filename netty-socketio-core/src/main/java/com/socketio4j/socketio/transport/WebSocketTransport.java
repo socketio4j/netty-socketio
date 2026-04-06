@@ -210,6 +210,11 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
     private void handshake(ChannelHandlerContext ctx, final UUID sessionId, String path, FullHttpRequest req) {
         final Channel channel = ctx.channel();
 
+        // RFC 6455 reserves the RSV bits for negotiated WebSocket extensions (not only compression).
+        // In this server, extension handling is effectively tied to WebSocketServerCompressionHandler,
+        // which is installed only when websocketCompression is enabled. Keep the handshake's
+        // allowExtensions flag consistent with that to avoid negotiating extensions the pipeline
+        // won't actually handle.
         WebSocketServerHandshakerFactory factory =
                 new WebSocketServerHandshakerFactory(getWebSocketLocation(req), null, configuration.isWebsocketCompression(), configuration.getMaxFramePayloadLength());
         WebSocketServerHandshaker handshaker = factory.newHandshaker(req);
