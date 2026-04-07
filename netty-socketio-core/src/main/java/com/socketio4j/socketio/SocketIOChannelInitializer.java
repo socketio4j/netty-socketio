@@ -16,12 +16,12 @@
  */
 package com.socketio4j.socketio;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.security.KeyStore;
 
 import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
-import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
 import org.slf4j.Logger;
@@ -57,7 +57,11 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
+import io.netty.handler.ssl.OpenSsl;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.handler.ssl.SslProvider;
 
 public class SocketIOChannelInitializer extends ChannelInitializer<Channel> implements DisconnectableHub {
 
@@ -91,7 +95,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
     private CancelableScheduler scheduler = new HashedWheelTimeoutScheduler();
 
     private InPacketHandler packetHandler;
-    private SSLContext sslContext;
+    private SslContext sslContext;
     private Configuration configuration;
 
     @Override
@@ -111,7 +115,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         String connectPath = configuration.getContext() + "/";
 
         SocketSslConfig socketSslConfig = configuration.getSocketSslConfig();
-        boolean isSsl = socketSslConfig != null && socketSslConfig.getKeyStore() != null;
+        boolean isSsl = socketSslConfig != null && socketSslConfig.hasKeyStore();
         if (isSsl) {
             try {
                 sslContext = createSSLContext(socketSslConfig);
@@ -154,11 +158,11 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
      */
     protected void addSslHandler(ChannelPipeline pipeline) {
         if (sslContext != null) {
-            SSLEngine engine = sslContext.createSSLEngine();
+            SSLEngine engine = sslContext.newEngine(pipeline.channel().alloc());
             engine.setUseClientMode(false);
             if (configuration.isNeedClientAuth()
                     && configuration.getSocketSslConfig() != null
-                    && configuration.getSocketSslConfig().getTrustStore() != null) {
+                    && configuration.getSocketSslConfig().hasTrustStore()) {
                 engine.setNeedClientAuth(true);
             }
             pipeline.addLast(SSL_HANDLER, new SslHandler(engine));
@@ -200,26 +204,62 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         pipeline.addLast(WRONG_URL_HANDLER, wrongUrlHandler);
     }
 
-    private SSLContext createSSLContext(SocketSslConfig socketSslConfig) throws Exception {
-        TrustManager[] managers = null;
-
-        if (socketSslConfig.getTrustStore() != null) {
-            KeyStore ts = KeyStore.getInstance(socketSslConfig.getTrustStoreFormat());
-            ts.load(socketSslConfig.getTrustStore(), socketSslConfig.getTrustStorePassword().toCharArray());
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            tmf.init(ts);
-            managers = tmf.getTrustManagers();
+    private SslContext createSSLContext(SocketSslConfig socketSslConfig) throws Exception {
+        byte[] keyMaterial = socketSslConfig.resolveKeyStoreBytes();
+        if (keyMaterial == null) {
+            throw new IllegalStateException("SocketSslConfig key store material is missing");
         }
-
         KeyStore ks = KeyStore.getInstance(socketSslConfig.getKeyStoreFormat());
-        ks.load(socketSslConfig.getKeyStore(), socketSslConfig.getKeyStorePassword().toCharArray());
+        try (InputStream keyStoreStream = new ByteArrayInputStream(keyMaterial)) {
+            ks.load(keyStoreStream, socketSslConfig.getKeyStorePassword().toCharArray());
+        }
 
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(socketSslConfig.getKeyManagerFactoryAlgorithm());
         kmf.init(ks, socketSslConfig.getKeyStorePassword().toCharArray());
 
-        SSLContext serverContext = SSLContext.getInstance(socketSslConfig.getSSLProtocol());
-        serverContext.init(kmf.getKeyManagers(), managers, null);
-        return serverContext;
+        SslProvider sslProvider;
+        if (OpenSsl.isAvailable()) {
+            sslProvider = SslProvider.OPENSSL;
+        } else {
+            sslProvider = SslProvider.JDK;
+        }
+
+        SslContextBuilder builder = SslContextBuilder.forServer(kmf).sslProvider(sslProvider);
+        String sslProtocol = socketSslConfig.getSSLProtocol();
+        if (sslProtocol != null) {
+            // SocketSslConfig historically accepted SSLContext algorithm names like "TLS".
+            // SslContextBuilder.protocols(...) expects concrete enabled protocol versions.
+            if (isTlsProtocolVersion(sslProtocol)) {
+                builder.protocols(sslProtocol);
+            } else {
+                log.warn("Ignoring SocketSslConfig.sslProtocol='{}' because it is not a concrete TLS protocol " +
+                        "version (expected values like 'TLSv1.2' or 'TLSv1.3'). Using provider defaults instead.",
+                        sslProtocol);
+            }
+        }
+        if (socketSslConfig.hasTrustStore()) {
+            byte[] trustMaterial = socketSslConfig.resolveTrustStoreBytes();
+            if (trustMaterial == null) {
+                throw new IllegalStateException("SocketSslConfig trust store material is missing");
+            }
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            KeyStore ts = KeyStore.getInstance(socketSslConfig.getTrustStoreFormat());
+            try (InputStream trustStoreStream = new ByteArrayInputStream(trustMaterial)) {
+                ts.load(trustStoreStream, socketSslConfig.getTrustStorePassword().toCharArray());
+            }
+            tmf.init(ts);
+            builder.trustManager(tmf);
+        }
+        return builder.build();
+    }
+
+    private static boolean isTlsProtocolVersion(String value) {
+        // Common enabled-protocol tokens used by JSSE/Netty.
+        // Accept "TLSv1", "TLSv1.1", "TLSv1.2", "TLSv1.3"; reject "TLSv1.0" and other dotted minors.
+        if (value == null) {
+            return false;
+        }
+        return value.matches("^TLSv1(\\.(1|2|3))?$");
     }
 
     @Override
