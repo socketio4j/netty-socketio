@@ -8,7 +8,7 @@
 
     <groupId>com.socketio4j.examples</groupId>
     <artifactId>netty-socketio-core-example</artifactId>
-    <version>4.0.0-alpha</version>
+    <version>4.0.0-beta</version>
     <packaging>jar</packaging>
 
     <name>NettySocketIO Core Example</name>
@@ -55,7 +55,7 @@
         <dependency>
             <groupId>com.socketio4j</groupId>
             <artifactId>netty-socketio-core</artifactId>
-            <version>4.0.0-alpha</version>
+            <version>4.0.0-beta</version>
         </dependency>
 
         <!-- Netty -->

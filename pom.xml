@@ -3,7 +3,7 @@
 
   <groupId>com.socketio4j</groupId>
   <artifactId>netty-socketio-parent</artifactId>
-  <version>4.0.0-alpha</version>
+  <version>4.0.0-beta</version>
   <packaging>pom</packaging>
   <name>NettySocketIO</name>
   <description>Socket.IO server implemented on Java</description>
