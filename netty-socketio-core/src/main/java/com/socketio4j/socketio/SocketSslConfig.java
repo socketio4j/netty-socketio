@@ -24,6 +24,7 @@ import javax.net.ssl.KeyManagerFactory;
 
 public class SocketSslConfig {
     private String sslProtocol = "TLSv1";
+    private boolean sslProtocolExplicitlySet;
 
     private String keyStoreFormat = "JKS";
     private InputStream keyStore;
@@ -190,9 +191,21 @@ public class SocketSslConfig {
      */
     public void setSSLProtocol(String sslProtocol) {
         this.sslProtocol = sslProtocol;
+        this.sslProtocolExplicitlySet = true;
     }
 
     public String getSSLProtocol() {
         return sslProtocol;
+    }
+
+    /**
+     * Whether {@link #setSSLProtocol(String)} has been called.
+     * <p>
+     * This allows the server to distinguish between a default value and an explicit configuration,
+     * so modern JSSE defaults (TLSv1.2/1.3) can be used when the user didn't request a specific version.
+     * </p>
+     */
+    public boolean isSslProtocolExplicitlySet() {
+        return sslProtocolExplicitlySet;
     }
 }
