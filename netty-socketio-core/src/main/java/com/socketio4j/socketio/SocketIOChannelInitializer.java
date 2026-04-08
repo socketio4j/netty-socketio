@@ -226,7 +226,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
 
         SslContextBuilder builder = SslContextBuilder.forServer(kmf).sslProvider(sslProvider);
         String sslProtocol = socketSslConfig.getSSLProtocol();
-        if (socketSslConfig.isSslProtocolExplicitlySet() && sslProtocol != null) {
+        if (socketSslConfig.isSSLProtocolExplicitlySet() && sslProtocol != null) {
             // SocketSslConfig historically accepted SSLContext algorithm names like "TLS".
             // SslContextBuilder.protocols(...) expects concrete enabled protocol versions.
             if (isTlsProtocolVersion(sslProtocol)) {

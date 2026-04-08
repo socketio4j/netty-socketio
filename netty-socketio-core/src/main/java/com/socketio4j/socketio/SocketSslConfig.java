@@ -201,11 +201,14 @@ public class SocketSslConfig {
     /**
      * Whether {@link #setSSLProtocol(String)} has been called.
      * <p>
-     * This allows the server to distinguish between a default value and an explicit configuration,
-     * so modern JSSE defaults (TLSv1.2/1.3) can be used when the user didn't request a specific version.
+     * This flag is driven purely by invocation, not by the semantic intent of the value. Integrations that
+     * populate {@link SocketSslConfig} programmatically (e.g., factories, recorders, property binders)
+     * should avoid calling {@link #setSSLProtocol(String)} unless they intentionally want to pin the enabled
+     * TLS protocol version via {@code SslContextBuilder.protocols(...)}. When not explicitly set, the server
+     * will rely on the provider defaults (typically TLSv1.2/1.3 on modern JSSE).
      * </p>
      */
-    public boolean isSslProtocolExplicitlySet() {
+    public boolean isSSLProtocolExplicitlySet() {
         return sslProtocolExplicitlySet;
     }
 }
