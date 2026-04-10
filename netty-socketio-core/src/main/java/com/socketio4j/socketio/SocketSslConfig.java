@@ -24,6 +24,7 @@ import javax.net.ssl.KeyManagerFactory;
 
 public class SocketSslConfig {
     private String sslProtocol = "TLSv1";
+    private boolean sslProtocolExplicitlySet;
 
     private String keyStoreFormat = "JKS";
     private InputStream keyStore;
@@ -190,9 +191,24 @@ public class SocketSslConfig {
      */
     public void setSSLProtocol(String sslProtocol) {
         this.sslProtocol = sslProtocol;
+        this.sslProtocolExplicitlySet = true;
     }
 
     public String getSSLProtocol() {
         return sslProtocol;
+    }
+
+    /**
+     * Whether {@link #setSSLProtocol(String)} has been called.
+     * <p>
+     * This flag is driven purely by invocation, not by the semantic intent of the value. Integrations that
+     * populate {@link SocketSslConfig} programmatically (e.g., factories, recorders, property binders)
+     * should avoid calling {@link #setSSLProtocol(String)} unless they intentionally want to pin the enabled
+     * TLS protocol version via {@code SslContextBuilder.protocols(...)}. When not explicitly set, the server
+     * will rely on the provider defaults (typically TLSv1.2/1.3 on modern JSSE).
+     * </p>
+     */
+    public boolean isSSLProtocolExplicitlySet() {
+        return sslProtocolExplicitlySet;
     }
 }
