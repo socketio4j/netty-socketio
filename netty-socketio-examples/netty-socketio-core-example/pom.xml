@@ -18,7 +18,7 @@
         <micrometer.version>1.16.1</micrometer.version>
         <hll.version>1.6.0</hll.version>
         <netty.version>4.2.9.Final</netty.version>
-        <jackson.version>2.20.1</jackson.version>
+        <jackson.version>2.21.1</jackson.version>
     </properties>
 
     <dependencyManagement>
