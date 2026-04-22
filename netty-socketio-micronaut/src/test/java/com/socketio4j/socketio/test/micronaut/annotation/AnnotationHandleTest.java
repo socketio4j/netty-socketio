@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Property(name = "netty-socket-io.port", value = AnnotationHandleTest.PORT + "")
 public class AnnotationHandleTest extends BaseMicronautApplicationTest {
     private static final Logger log = LoggerFactory.getLogger(AnnotationHandleTest.class);
-    public static final int PORT = 9094;
+    public static final int PORT = 9095;
 
     @Singleton
     public static class TestConnectController {
