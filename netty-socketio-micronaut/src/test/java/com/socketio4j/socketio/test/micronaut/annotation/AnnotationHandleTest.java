@@ -51,12 +51,10 @@ import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-
 @DisplayName("Test for Annotation-based Event Handling")
-@Property(name = "netty-socket-io.port", value = AnnotationHandleTest.PORT + "")
+@Property(name = "netty-socket-io.port", value =  "0")
 public class AnnotationHandleTest extends BaseMicronautApplicationTest {
     private static final Logger log = LoggerFactory.getLogger(AnnotationHandleTest.class);
-    public static final int PORT = 9095;
 
     @Singleton
     public static class TestConnectController {
@@ -219,13 +217,17 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
 
     private Socket socket;
 
+    @Inject
+    private com.socketio4j.socketio.SocketIOServer server;
+
     @BeforeEach
     public void setup() throws Exception {
         testConnectController.reset();
         testDisconnectController.reset();
         testOnEventController.reset();
+
         socket = IO.socket(
-                String.format("http://localhost:%d", PORT),
+                String.format("http://localhost:%d", server.getConfiguration().getPort()),
                 IO.Options.builder().setForceNew(true).build()
         );
         socket.connect();
