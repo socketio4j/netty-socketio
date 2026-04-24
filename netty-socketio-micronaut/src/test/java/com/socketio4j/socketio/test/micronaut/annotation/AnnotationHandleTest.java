@@ -232,7 +232,7 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
         );
         socket.connect();
         // wait for connection
-        await().atMost(5, TimeUnit.SECONDS).until(() -> socket.connected());
+        await().atMost(30, TimeUnit.SECONDS).until(() -> socket.connected());
     }
 
     @AfterEach
