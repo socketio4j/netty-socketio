@@ -598,6 +598,16 @@ public class SocketIOServer implements ClientListeners {
                 if (future.isSuccess()) {
                     ChannelFuture cf = (ChannelFuture) future;
                     serverChannel.set(cf.channel());
+                    if (configCopy.getPort() == 0) {
+                        try {
+                            InetSocketAddress local = (InetSocketAddress) cf.channel().localAddress();
+                            int actualPort = local.getPort();
+                            configCopy.setPort(actualPort);
+                            configuration.setPort(actualPort);
+                        } catch (Exception ignore) {
+                            // keep configured port if localAddress is not InetSocketAddress
+                        }
+                    }
                     serverStatus.set(ServerStatus.STARTED);
                     log.info("SocketIO server started on port {}", configCopy.getPort());
                     installShutdownHookOnce();
