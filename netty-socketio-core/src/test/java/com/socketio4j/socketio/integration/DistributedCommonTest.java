@@ -374,6 +374,7 @@ public abstract class DistributedCommonTest {
         b.on("leave-ok", data -> leaveLatch.countDown()); // Listen for leave ack
         b.emit("leave-room", room);
         assertTrue(leaveLatch.await(2, TimeUnit.SECONDS), "Client B failed to leave room");
+        awaitRoomSync(room, 1);
 
         // Reset message storage for second broadcast
         msg.set(0, null);

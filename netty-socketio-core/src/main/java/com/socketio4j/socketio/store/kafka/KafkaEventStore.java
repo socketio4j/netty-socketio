@@ -207,11 +207,14 @@ public final class KafkaEventStore implements EventStore {
         Queue<ListenerRegistration<? extends EventMessage>> queue =
                 listeners.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>());
         queue.add(registration);
+        boolean consumerReady = false;
         try {
             ensureConsumer(type);
-        } catch (IllegalStateException e) {
-            queue.remove(registration);
-            throw e;
+            consumerReady = true;
+        } finally {
+            if (!consumerReady) {
+                queue.remove(registration);
+            }
         }
     }
 

@@ -26,7 +26,6 @@ import org.redisson.config.Config;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
-import com.socketio4j.socketio.SocketConfig;
 
 /**
  * Shared helpers for multi-node integration tests (socket bind options, Redisson URL config,
@@ -38,9 +37,7 @@ final class DistributedClusterIntegrationSupport {
     }
 
     static void applyReuseListenAddress(Configuration configuration) {
-        SocketConfig socketConfig = new SocketConfig();
-        socketConfig.setReuseAddress(true);
-        configuration.setSocketConfig(socketConfig);
+        configuration.getSocketConfig().setReuseAddress(true);
     }
 
     static Config redisConfig(String url) {
