@@ -56,7 +56,7 @@ module netty.socketio.core {
   // Opened for runtime access by serialization frameworks
   // ============================================================
   opens com.socketio4j.socketio.store.kafka.serialization to kafka.clients;
-  opens com.socketio4j.socketio.store.event to com.fasterxml.jackson.databind;
+  opens com.socketio4j.socketio.store.event to com.fasterxml.jackson.databind, redisson;
   opens com.socketio4j.socketio.protocol to com.fasterxml.jackson.databind;
 
 

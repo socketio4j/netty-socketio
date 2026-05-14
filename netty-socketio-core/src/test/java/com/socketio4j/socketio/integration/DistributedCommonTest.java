@@ -35,7 +35,9 @@ import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 
 import com.socketio4j.socketio.SocketIOClient;
+import com.socketio4j.socketio.SocketIONamespace;
 import com.socketio4j.socketio.SocketIOServer;
+import com.socketio4j.socketio.namespace.Namespace;
 
 import io.socket.client.Ack;
 import io.socket.client.IO;
@@ -49,6 +51,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
+ * Two-node cluster scenarios over a shared {@link com.socketio4j.socketio.store.StoreFactory}.
+ * Single-node room semantics are also covered by {@link RoomBroadcastTest} and namespace tests;
+ * this suite focuses on cross-node JOIN/DISPATCH timing.
+ *
  * @author https://github.com/sanjomo
  * @date 11/12/25 3:53 pm
  */
@@ -65,6 +71,7 @@ public abstract class DistributedCommonTest {
     // ===================================================================
     @Test
     public void testTwoNodesRoomBroadcast() throws Exception {
+        final String room = "room-" + UUID.randomUUID();
         final int clients = 2;
         final int broadcasts = 2;
         final int expectedTotalMsgs = clients * broadcasts;
@@ -108,15 +115,15 @@ public abstract class DistributedCommonTest {
         b.connect();
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Clients failed to connect");
 
-        a.emit("join-room", "room1");
-        b.emit("join-room", "room1");
+        a.emit("join-room", room);
+        b.emit("join-room", room);
         //Thread.sleep(3000);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
-        //Thread.sleep(500); // Buffer for Redis adapter sync
+        awaitRoomSync(room, clients);
 
-        node1.getRoomOperations("room1").sendEvent("room-event", "m1");
-        node2.getRoomOperations("room1").sendEvent("room-event", "m2");
+        node1.getRoomOperations(room).sendEvent("room-event", "m1");
+        node2.getRoomOperations(room).sendEvent("room-event", "m2");
 
         assertTrue(msgLatch.await(5, TimeUnit.SECONDS), "Did not receive all messages");
 
@@ -138,6 +145,7 @@ public abstract class DistributedCommonTest {
     // ===================================================================
     @Test
     public void testRoomBroadcastMultipleClients() throws Exception {
+        final String room = "room-" + UUID.randomUUID();
 
         final int allClients = 4;
         CountDownLatch connectLatch = new CountDownLatch(allClients);
@@ -176,9 +184,9 @@ public abstract class DistributedCommonTest {
         b2.connect();
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "All clients failed to connect");
 
-        a1.emit("join-room", "room1");
-        b1.emit("join-room", "room1");
-        awaitRoomSync("room1", 2);
+        a1.emit("join-room", room);
+        b1.emit("join-room", room);
+        awaitRoomSync(room, 2);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
         CountDownLatch unexpectedLatch = new CountDownLatch(2);
 
@@ -208,7 +216,7 @@ public abstract class DistributedCommonTest {
                 msg.set(3, (String) data[0]);
             }
         });
-        node1.getRoomOperations("room1").sendEvent("room-event", "hello");
+        node1.getRoomOperations(room).sendEvent("room-event", "hello");
 
         //Thread.sleep(2000);
 
@@ -232,6 +240,7 @@ public abstract class DistributedCommonTest {
     // ===================================================================
     @Test
     public void testRoomBroadcastFromBothNodes() throws Exception {
+        final String room = "room-" + UUID.randomUUID();
         final int clientCount = 4;
         final int expectedBroadcasts = 2; // m1 and m2
         CountDownLatch connectLatch = new CountDownLatch(clientCount);
@@ -283,15 +292,15 @@ public abstract class DistributedCommonTest {
         b2.connect();
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Clients failed to connect");
 
-        a1.emit("join-room", "room1");
-        a2.emit("join-room", "room1");
-        b1.emit("join-room", "room1");
-        b2.emit("join-room", "room1");
-        awaitRoomSync("room1", 4);
+        a1.emit("join-room", room);
+        a2.emit("join-room", room);
+        b1.emit("join-room", room);
+        b2.emit("join-room", room);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
+        awaitRoomSync(room, 4);
 
-        node1.getRoomOperations("room1").sendEvent("room-event", "m1");
-        node2.getRoomOperations("room1").sendEvent("room-event", "m2");
+        node1.getRoomOperations(room).sendEvent("room-event", "m1");
+        node2.getRoomOperations(room).sendEvent("room-event", "m2");
 
         //Thread.sleep(1000);
 
@@ -313,6 +322,7 @@ public abstract class DistributedCommonTest {
     // ===================================================================
     @Test
     public void testRoomLeave() throws Exception {
+        final String room = "room-" + UUID.randomUUID();
         CountDownLatch connectLatch = new CountDownLatch(2);
         CountDownLatch joinLatch = new CountDownLatch(2);
 
@@ -336,9 +346,9 @@ public abstract class DistributedCommonTest {
 
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Clients failed to connect");
 
-        a.emit("join-room", "room1");
-        b.emit("join-room", "room1");
-        awaitRoomSync("room1", 2);
+        a.emit("join-room", room);
+        b.emit("join-room", room);
+        awaitRoomSync(room, 2);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
         // ---- FIRST BROADCAST ----
@@ -354,7 +364,7 @@ public abstract class DistributedCommonTest {
             latchFirst.countDown();
         });
 
-        node1.getRoomOperations("room1").sendEvent("room-event", "first");
+        node1.getRoomOperations(room).sendEvent("room-event", "first");
         assertTrue(latchFirst.await(2, TimeUnit.SECONDS), "First broadcast failed");
         assertEquals("first", msg.get(0));
         assertEquals("first", msg.get(1));
@@ -362,7 +372,7 @@ public abstract class DistributedCommonTest {
         // ---- b LEAVES ----
         CountDownLatch leaveLatch = new CountDownLatch(1);
         b.on("leave-ok", data -> leaveLatch.countDown()); // Listen for leave ack
-        b.emit("leave-room", "room1");
+        b.emit("leave-room", room);
         assertTrue(leaveLatch.await(2, TimeUnit.SECONDS), "Client B failed to leave room");
 
         // Reset message storage for second broadcast
@@ -380,13 +390,14 @@ public abstract class DistributedCommonTest {
         // B's listener is still active, but should not receive the message
         // B's listener will NOT countdown the latchSecond (latchSecond = 1)
 
-        node1.getRoomOperations("room1").sendEvent("room-event", "second");
+        node1.getRoomOperations(room).sendEvent("room-event", "second");
 
         assertTrue(latchSecond.await(2, TimeUnit.SECONDS), "Client A did not receive second message");
         assertEquals("second", msg.get(0)); // A MUST receive
 
         assertNull(msg.get(1), "Client B received message despite leaving the room!");
 
+        b.off("room-event");
         a.disconnect();
         b.disconnect();
     }
@@ -485,22 +496,41 @@ public abstract class DistributedCommonTest {
         b.disconnect();
     }
 
-    private void awaitRoomSync(String room, int expected)
-            throws InterruptedException {
-
-        long deadline = System.currentTimeMillis() + Duration.ofMinutes(1).toMillis();
-
+    /**
+     * Waits until both nodes have replicated the room membership (same UUID set size on each).
+     * {@link com.socketio4j.socketio.BroadcastOperations#getClients()} only returns locally connected
+     * clients and is not sufficient as a cross-node barrier.
+     */
+    private void awaitRoomSync(String room, int expected) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + Duration.ofMinutes(2).toMillis();
+        int stableTicks = 0;
         while (System.currentTimeMillis() < deadline) {
-            int count =
-                    node1.getRoomOperations(room).getClients().size() +
-                            node2.getRoomOperations(room).getClients().size();
-
-            if (count == expected) {
-                return;
+            int n1 = roomClientsInCluster(node1, room);
+            int n2 = roomClientsInCluster(node2, room);
+            if (n1 == expected && n2 == expected) {
+                stableTicks++;
+                if (stableTicks >= 3) {
+                    return;
+                }
+            } else {
+                stableTicks = 0;
             }
-            Thread.sleep(1);
+            Thread.sleep(8);
         }
-        fail("Room sync not completed for " + room);
+        fail("Room sync not completed for " + room + " (expected " + expected + " on each node, got "
+                + roomClientsInCluster(node1, room) + " / " + roomClientsInCluster(node2, room) + ")");
+    }
+
+    private static int roomClientsInCluster(SocketIOServer server, String room) {
+        return defaultNamespace(server).getRoomClientsInCluster(room);
+    }
+
+    private static Namespace defaultNamespace(SocketIOServer server) {
+        SocketIONamespace ns = server.getNamespace(Namespace.DEFAULT_NAME);
+        if (!(ns instanceof Namespace)) {
+            throw new IllegalStateException("Default namespace must be " + Namespace.class.getName());
+        }
+        return (Namespace) ns;
     }
 
 
@@ -510,6 +540,7 @@ public abstract class DistributedCommonTest {
     // ===================================================================
     @Test
     public void testSendExceptSender() throws Exception {
+        final String room = "room-" + UUID.randomUUID();
 
         CountDownLatch connectLatch = new CountDownLatch(2);
         CountDownLatch joinLatch = new CountDownLatch(2);
@@ -540,14 +571,14 @@ public abstract class DistributedCommonTest {
         //Thread.sleep(2000);
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Clients failed to connect");
 
-        a.emit("join-room", "room1");
-        b.emit("join-room", "room1");
+        a.emit("join-room", room);
+        b.emit("join-room", room);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
-        //Thread.sleep(500); // Give adapter time to sync room state
+        awaitRoomSync(room, 2);
 
         // Emit from a custom method that finds all clients *except* 'a' and sends to them.
-        sendExcept("room1", "room-event", "hello", a.id());
+        sendExcept(room, "room-event", "hello", a.id());
 
         assertTrue(latchReceive.await(2, TimeUnit.SECONDS), "Client B did not receive message");
         assertEquals("hello", msg.get(1)); // b receives
@@ -575,6 +606,8 @@ public abstract class DistributedCommonTest {
     // ===================================================================
     @Test
     public void testMultipleRoomsNoLeakage() throws Exception {
+        final String roomA = "roomA-" + UUID.randomUUID();
+        final String roomB = "roomB-" + UUID.randomUUID();
 
         CountDownLatch connectLatch = new CountDownLatch(2);
         CountDownLatch joinLatch = new CountDownLatch(2);
@@ -601,10 +634,10 @@ public abstract class DistributedCommonTest {
         b.connect();
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Clients failed to connect");
 
-        a.emit("join-room", "roomA");
-        b.emit("join-room", "roomB");
-        awaitRoomSync("roomA", 1);
-        awaitRoomSync("roomB", 1);
+        a.emit("join-room", roomA);
+        b.emit("join-room", roomB);
+        awaitRoomSync(roomA, 1);
+        awaitRoomSync(roomB, 1);
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS), "Clients failed to join room");
 
         //Thread.sleep(500); // Give adapter time to sync room state
@@ -618,7 +651,7 @@ public abstract class DistributedCommonTest {
         });
         b.off("room-event"); // ensure B is listening but for a different room
 
-        node1.getRoomOperations("roomA").sendEvent("room-event", "a");
+        node1.getRoomOperations(roomA).sendEvent("room-event", "a");
         assertTrue(latchA.await(2, TimeUnit.SECONDS), "Client A did not receive roomA message");
 
         assertEquals("a", msgA.get(0));
@@ -633,7 +666,7 @@ public abstract class DistributedCommonTest {
             latchB.countDown();
         });
 
-        node2.getRoomOperations("roomB").sendEvent("room-event", "b");
+        node2.getRoomOperations(roomB).sendEvent("room-event", "b");
         assertTrue(latchB.await(2, TimeUnit.SECONDS), "Client B did not receive roomB message");
 
         assertEquals("b", msgB.get(0));
@@ -648,6 +681,7 @@ public abstract class DistributedCommonTest {
     // ===================================================================
     @Test
     public void testPureBroadcastFromBothNodes() throws Exception {
+        final String room = "room-" + UUID.randomUUID();
 
         final int clientCount = 4;
         final int expectedBroadcasts = 2;
@@ -708,17 +742,15 @@ public abstract class DistributedCommonTest {
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS),
                 "Clients failed to connect");
 
-        a1.emit("join-room", "room1");
-        a2.emit("join-room", "room1");
-        b1.emit("join-room", "room1");
-        b2.emit("join-room", "room1");
+        a1.emit("join-room", room);
+        a2.emit("join-room", room);
+        b1.emit("join-room", room);
+        b2.emit("join-room", room);
 
         assertTrue(joinLatch.await(5, TimeUnit.SECONDS),
                 "Clients failed to join room");
 
-        // 🔒 Deterministic adapter barrier
-        awaitRoomSync("room1", 4);
-        Thread.sleep(200); // allow cross-node adapter propagation
+        awaitRoomSync(room, 4);
 
         node1.getBroadcastOperations()
                 .sendEvent("room-event", "m1");
@@ -861,9 +893,9 @@ public abstract class DistributedCommonTest {
         });
         a.connect();
         b.connect();
+        assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Clients failed to connect");
         awaitRoomSync(room, 1);
         awaitRoomSync(room2, 1);
-        assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Join timed out");
 
         CompletableFuture<Void> f1 = new CompletableFuture<>();
         CompletableFuture<Void> f2 = new CompletableFuture<>();
@@ -911,8 +943,6 @@ public abstract class DistributedCommonTest {
         Socket a = io.socket.client.IO.socket("http://localhost:" + port1 + "?join=" + room, opts);
         Socket b = IO.socket("http://localhost:" + port2 + "?join=" + room, opts);
 
-        a.connect();
-        b.connect();
         CountDownLatch joinLatch = new CountDownLatch(2);
         CountDownLatch connectLatch = new CountDownLatch(2);
         a.on(Socket.EVENT_CONNECT, args -> {
@@ -921,8 +951,10 @@ public abstract class DistributedCommonTest {
         b.on(Socket.EVENT_CONNECT, args -> {
             connectLatch.countDown();
         });
-       awaitRoomSync(room, 2);
-        assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Join timed out");
+        a.connect();
+        b.connect();
+        assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Clients failed to connect");
+        awaitRoomSync(room, 2);
         CompletableFuture<Void> f1 = new CompletableFuture<>();
         CompletableFuture<Void> f2 = new CompletableFuture<>();
 

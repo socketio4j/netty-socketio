@@ -18,6 +18,7 @@ package com.socketio4j.socketio.integration;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -99,14 +100,18 @@ public class AuthPayloadTest extends AbstractSocketIOIntegrationTest {
             throw new RuntimeException("Failed to create socket client", e);
         }
 
+        CountDownLatch clientConnectLatch = new CountDownLatch(1);
+        client.on(Socket.EVENT_CONNECT, args -> clientConnectLatch.countDown());
         client.connect();
-        // Emit a test event to ensure connection is fully established
+        assertTrue(clientConnectLatch.await(15, SECONDS), "Socket.IO client should connect");
+
+        // Emit after the client handshake completes so the packet is not dropped
         client.emit(testEventName, faker.address().fullAddress());
 
         // Wait for connection
-        await().atMost(10, SECONDS).until(() -> connectedClient.get() != null);
+        await().atMost(15, SECONDS).until(() -> connectedClient.get() != null);
         // Wait for event reception
-        await().atMost(10, SECONDS).until(receivedEvent::get);
+        await().atMost(15, SECONDS).until(receivedEvent::get);
 
         // Verify connection succeeded
         assertNotNull(connectedClient.get(), "Client should be connected");
