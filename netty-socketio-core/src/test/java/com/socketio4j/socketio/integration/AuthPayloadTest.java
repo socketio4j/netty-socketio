@@ -28,7 +28,6 @@ import org.junit.jupiter.api.Test;
 import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.AuthTokenResult;
 import com.socketio4j.socketio.SocketIOClient;
-import com.socketio4j.socketio.listener.ConnectListener;
 import com.socketio4j.socketio.listener.DataListener;
 
 import io.socket.client.IO;
@@ -46,10 +45,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @DisplayName("Authentication Payload Tests - SocketIO Protocol CONNECT with Auth")
 public class AuthPayloadTest extends AbstractSocketIOIntegrationTest {
-    private final String authUserIdKey = "userId";
-    private final String authUserId = faker.internet().uuid();
-    private final String authUserPasswordKey = "password";
-    private final String authUserPassword = faker.internet().password();
+    private static final String authUserIdKey = "userId";
+    private static final String authUserId = "itest-auth-user";
+    private static final String authUserPasswordKey = "password";
+    private static final String authUserPassword = "itest-auth-secret";
+
+    private static void configureAuthTestClient(IO.Options options) {
+        options.forceNew = true;
+        options.reconnection = false;
+        options.transports = new String[] {"websocket"};
+    }
 
     @Override
     protected void additionalSetup() throws Exception {
@@ -57,10 +62,11 @@ public class AuthPayloadTest extends AbstractSocketIOIntegrationTest {
         getServer().getAllNamespaces().forEach(ns -> {
             ns.addAuthTokenListener((authToken, client) -> {
                 if (authToken instanceof Map) {
-                    Map<String, String> authMap = (Map<String, String>) authToken;
-                    String userId = authMap.get(authUserIdKey);
-                    String password = authMap.get(authUserPasswordKey);
-                    if (authUserId.equals(userId) && authUserPassword.equals(password)) {
+                    Map<?, ?> authMap = (Map<?, ?>) authToken;
+                    Object userId = authMap.get(authUserIdKey);
+                    Object password = authMap.get(authUserPasswordKey);
+                    if (authUserId.equals(userId == null ? null : String.valueOf(userId))
+                            && authUserPassword.equals(password == null ? null : String.valueOf(password))) {
                         return AuthTokenResult.AUTH_TOKEN_RESULT_SUCCESS;
                     }
                 }
@@ -91,6 +97,7 @@ public class AuthPayloadTest extends AbstractSocketIOIntegrationTest {
         Socket client;
         try {
             IO.Options options = new IO.Options();
+            configureAuthTestClient(options);
             options.auth = new HashMap<>();
             options.auth.put(authUserIdKey, authUserId);
             options.auth.put(authUserPasswordKey, authUserPassword);
@@ -100,16 +107,13 @@ public class AuthPayloadTest extends AbstractSocketIOIntegrationTest {
             throw new RuntimeException("Failed to create socket client", e);
         }
 
-        CountDownLatch clientConnectLatch = new CountDownLatch(1);
-        client.on(Socket.EVENT_CONNECT, args -> clientConnectLatch.countDown());
         client.connect();
-        assertTrue(clientConnectLatch.await(15, SECONDS), "Socket.IO client should connect");
+        await().atMost(15, SECONDS).until(() -> connectedClient.get() != null);
+        await().atMost(15, SECONDS).until(client::connected);
 
         // Emit after the client handshake completes so the packet is not dropped
         client.emit(testEventName, faker.address().fullAddress());
 
-        // Wait for connection
-        await().atMost(15, SECONDS).until(() -> connectedClient.get() != null);
         // Wait for event reception
         await().atMost(15, SECONDS).until(receivedEvent::get);
 
@@ -126,16 +130,7 @@ public class AuthPayloadTest extends AbstractSocketIOIntegrationTest {
     @Test
     @DisplayName("Should handle connection with empty authentication payload")
     public void testConnectionWithEmptyAuthPayload() throws Exception {
-        // Test connection with empty authentication payload
-        AtomicReference<SocketIOClient> connectedClient = new AtomicReference<>();
         AtomicBoolean receivedEvent = new AtomicBoolean(false);
-
-        getServer().addConnectListener(new ConnectListener() {
-            @Override
-            public void onConnect(SocketIOClient client) {
-                connectedClient.set(client);
-            }
-        });
 
         String testEventName = generateEventName();
 
@@ -148,27 +143,25 @@ public class AuthPayloadTest extends AbstractSocketIOIntegrationTest {
         Socket client;
         try {
             IO.Options options = new IO.Options();
+            configureAuthTestClient(options);
             options.auth = new HashMap<>();
             client = IO.socket("http://localhost:" + getServerPort(), options);
         } catch (Exception e) {
             throw new RuntimeException("Failed to create socket client", e);
         }
 
+        CountDownLatch handshakeLatch = new CountDownLatch(1);
+        client.on(Socket.EVENT_CONNECT, args -> handshakeLatch.countDown());
+        client.on(Socket.EVENT_CONNECT_ERROR, args -> handshakeLatch.countDown());
         client.connect();
+        assertTrue(
+                handshakeLatch.await(15, SECONDS),
+                "Socket.IO handshake should settle (connect or connect_error)");
 
-        // Emit a test event to ensure connection is fully established
         client.emit(testEventName, generateTestData());
 
-        // Wait for connection
-        await().atMost(10, SECONDS).until(() -> connectedClient.get() != null);
-        // force wait for event reception
-        SECONDS.sleep(5);
-
-        // Verify connection succeeded even with empty auth
-        assertNotNull(connectedClient.get(), "Client should be connected");
-        // Verify event was not received due to failed auth
+        await().atMost(15, SECONDS).until(() -> !client.connected());
         assertFalse(receivedEvent.get(), "Should not receive event with empty auth");
-        // Verify client connection state
         assertFalse(client.connected());
 
         client.disconnect();

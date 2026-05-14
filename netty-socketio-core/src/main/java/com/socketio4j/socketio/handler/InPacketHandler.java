@@ -16,6 +16,9 @@
  */
 package com.socketio4j.socketio.handler;
 
+import java.util.Collections;
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -194,10 +197,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                 Packet p = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
                 p.setSubType(PacketType.ERROR);
                 p.setNsp(packet.getNsp());
-                final Object errorData = allowAuth.getErrorData();
-                if (errorData != null) {
-                    p.setData(errorData);
-                }
+                p.setData(toConnectErrorPayload(allowAuth.getErrorData()));
                 client.send(p);
                 return;
             }
@@ -216,6 +216,21 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
             log.debug("Completed Engine.IO v4 connect handling for client: {}, namespace: {}", 
                      client.getSessionId(), ns.getName());
         }
+    }
+
+    /**
+     * The Java socket.io-client parser accepts only JSON objects for CONNECT_ERROR payloads; bare strings fail
+     * validation so connect_error is never emitted to application listeners.
+     */
+    private static Object toConnectErrorPayload(Object errorData) {
+        if (errorData instanceof Map) {
+            return errorData;
+        }
+        String message = "Authentication failed";
+        if (errorData != null) {
+            message = String.valueOf(errorData);
+        }
+        return Collections.singletonMap("message", message);
     }
 
 }

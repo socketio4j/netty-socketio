@@ -202,11 +202,17 @@ public final class KafkaEventStore implements EventStore {
 
         validateSubscribe(type);
 
-        listeners
-                .computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
-                .add(new ListenerRegistration<>(listener, clazz));
-
-        ensureConsumer(type);
+        ListenerRegistration<T> registration =
+                new ListenerRegistration<>(listener, clazz);
+        Queue<ListenerRegistration<? extends EventMessage>> queue =
+                listeners.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>());
+        queue.add(registration);
+        try {
+            ensureConsumer(type);
+        } catch (IllegalStateException e) {
+            queue.remove(registration);
+            throw e;
+        }
     }
 
     private void awaitPollerBootstrap(EventType type) {
@@ -257,8 +263,14 @@ public final class KafkaEventStore implements EventStore {
                         boot.complete(null);
                         pollLoop(t, consumer);
                     } catch (Exception e) {
+                        consumers.remove(t);
+                        ExecutorService dead = pollers.remove(t);
                         boot.completeExceptionally(e);
                         log.error("Kafka consumer bootstrap failed for {}", t, e);
+                        if (dead != null) {
+                            dead.shutdownNow();
+                        }
+                        consumerBootstrapped.remove(t);
                     }
                 });
 
