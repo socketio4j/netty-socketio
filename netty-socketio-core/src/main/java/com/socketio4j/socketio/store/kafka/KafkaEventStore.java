@@ -22,11 +22,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Queue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -85,6 +89,15 @@ public final class KafkaEventStore implements EventStore {
             new ConcurrentHashMap<>();
 
     private final ConcurrentMap<EventType, Queue<ListenerRegistration<? extends EventMessage>>> listeners =
+            new ConcurrentHashMap<>();
+
+    /**
+     * Completes after {@link #createConsumer} finishes (assign + seek) for that poller.
+     * Ensures {@link StoreFactory#init} does not return while consumers are still
+     * discovering partitions; otherwise publishes can land on the log before
+     * {@code seekToEnd} and be skipped, breaking cross-node room sync.
+     */
+    private final ConcurrentMap<EventType, CompletableFuture<Void>> consumerBootstrapped =
             new ConcurrentHashMap<>();
 
     // ---------------------------------------------------------------------
@@ -189,17 +202,53 @@ public final class KafkaEventStore implements EventStore {
 
         validateSubscribe(type);
 
-        listeners
-                .computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
-                .add(new ListenerRegistration<>(listener, clazz));
+        ListenerRegistration<T> registration =
+                new ListenerRegistration<>(listener, clazz);
+        Queue<ListenerRegistration<? extends EventMessage>> queue =
+                listeners.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>());
+        queue.add(registration);
+        boolean consumerReady = false;
+        try {
+            ensureConsumer(type);
+            consumerReady = true;
+        } finally {
+            if (!consumerReady) {
+                queue.remove(registration);
+            }
+        }
+    }
 
-        ensureConsumer(type);
+    private void awaitPollerBootstrap(EventType type) {
+        CompletableFuture<Void> signal = consumerBootstrapped.get(type);
+        if (signal == null) {
+            return;
+        }
+        try {
+            signal.get(2, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+                    "Interrupted waiting for Kafka consumer bootstrap: " + type, e);
+        } catch (ExecutionException e) {
+            Throwable c = e.getCause();
+            if (c == null) {
+                c = e;
+            }
+            throw new IllegalStateException(
+                    "Kafka consumer bootstrap failed for " + type, c);
+        } catch (TimeoutException e) {
+            throw new IllegalStateException(
+                    "Timeout waiting for Kafka consumer bootstrap: " + type, e);
+        }
     }
 
     private void ensureConsumer(EventType type) {
 
         pollers.compute(type, (t, exec) -> {
             if (exec == null || exec.isShutdown()) {
+
+                CompletableFuture<Void> boot = new CompletableFuture<>();
+                consumerBootstrapped.put(t, boot);
 
                 ExecutorService executor =
                         Executors.newSingleThreadExecutor(r -> {
@@ -210,16 +259,30 @@ public final class KafkaEventStore implements EventStore {
                         });
 
                 executor.execute(() -> {
-                    KafkaConsumer<String, EventMessage> consumer =
-                            createConsumer(t);
-                    consumers.put(t, consumer);
-                    pollLoop(t, consumer);
+                    try {
+                        KafkaConsumer<String, EventMessage> consumer =
+                                createConsumer(t);
+                        consumers.put(t, consumer);
+                        boot.complete(null);
+                        pollLoop(t, consumer);
+                    } catch (Exception e) {
+                        consumers.remove(t);
+                        ExecutorService dead = pollers.remove(t);
+                        boot.completeExceptionally(e);
+                        log.error("Kafka consumer bootstrap failed for {}", t, e);
+                        if (dead != null) {
+                            dead.shutdownNow();
+                        }
+                        consumerBootstrapped.remove(t);
+                    }
                 });
 
                 return executor;
             }
             return exec;
         });
+
+        awaitPollerBootstrap(type);
     }
 
     /**
@@ -233,7 +296,8 @@ public final class KafkaEventStore implements EventStore {
      *       one node, breaking distributed synchronization.</li>
      *   <li><b>Start from newest</b>: Uses {@code seekToEnd()} to start consuming from the latest offset,
      *       ignoring historical messages. This matches Redis Stream's NEWEST behavior and ensures nodes
-     *       only process new events after startup.</li>
+     *       only process new events after startup. {@link #subscribe0} waits until this positioning
+     *       completes so the server does not accept traffic while partition discovery is still running.</li>
      *   <li><b>Topic auto-creation</b>: Retries partition discovery to handle cases where topics are
      *       auto-created by Kafka (when auto.create.topics.enable=true).</li>
      * </ul>
@@ -260,8 +324,8 @@ public final class KafkaEventStore implements EventStore {
         // Discover partitions with retry logic
         // Topics may be auto-created by Kafka, so we retry a few times
         List<PartitionInfo> infos = null;
-        int maxRetries = 5;
-        long retryDelayMs = 500;
+        int maxRetries = 10;
+        long retryDelayMs = 50;
         
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             infos = consumer.partitionsFor(topic);
@@ -304,6 +368,8 @@ public final class KafkaEventStore implements EventStore {
 
         // Start from newest (like StreamMessageId.NEWEST) - ignore historical messages
         consumer.seekToEnd(partitions);
+        // Refresh positions so seek takes effect before any caller assumes "ready"
+        consumer.poll(Duration.ZERO);
 
         log.debug("Created consumer for topic {} with {} partitions", topic, partitions.size());
         return consumer;
@@ -425,6 +491,7 @@ public final class KafkaEventStore implements EventStore {
     public void unsubscribe0(EventType type) {
 
         listeners.remove(type);
+        consumerBootstrapped.remove(type);
 
         KafkaConsumer<?, ?> consumer = consumers.remove(type);
         if (consumer != null) {
@@ -447,6 +514,7 @@ public final class KafkaEventStore implements EventStore {
         running.set(false);
 
         listeners.clear();
+        consumerBootstrapped.clear();
 
         consumers.values().forEach(KafkaConsumer::wakeup);
         consumers.clear();
