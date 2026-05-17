@@ -14,7 +14,8 @@
   <description>NettySocketIO Micronaut Examples</description>
 
   <properties>
-    <micronaut.version>4.8.1</micronaut.version>
+    <micronaut.version>4.10.23</micronaut.version>
+    <micronaut.test.version>4.10.3</micronaut.test.version>
   </properties>
 
   <dependencyManagement>
@@ -71,7 +72,7 @@
     <dependency>
       <groupId>io.micronaut.test</groupId>
       <artifactId>micronaut-test-junit5</artifactId>
-      <version>${micronaut.version}</version>
+      <version>${micronaut.test.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
