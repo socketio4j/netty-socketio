@@ -14,10 +14,6 @@
   <name>NettySocketIO Micronaut</name>
   <description>Socket.IO server Micronaut integration</description>
 
-  <properties>
-    <micronaut.version>4.10.2</micronaut.version>
-  </properties>
-
   <dependencyManagement>
     <dependencies>
       <dependency>
@@ -75,7 +71,7 @@
       <groupId>io.micronaut.test</groupId>
       <artifactId>micronaut-test-junit5</artifactId>
       <scope>test</scope>
-      <version>${micronaut.version}</version>
+      <version>${micronaut.test.version}</version>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
