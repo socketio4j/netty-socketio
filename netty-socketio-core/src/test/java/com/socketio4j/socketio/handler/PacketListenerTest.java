@@ -341,10 +341,7 @@ class PacketListenerTest {
             packetListener.onPacket(packet, namespaceClient, Transport.WEBSOCKET);
 
             // Then
-            // Verify ping timeout scheduling
-            verify(baseClient, times(1)).schedulePingTimeout();
-
-            // Verify client disconnect
+            verify(baseClient, never()).schedulePingTimeout();
             verify(namespaceClient, times(1)).onDisconnect();
 
             // Verify no other operations
