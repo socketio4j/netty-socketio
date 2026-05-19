@@ -85,10 +85,10 @@ public class PacketListener {
         }
 
         case MESSAGE: {
-            client.getBaseClient().schedulePingTimeout();
-
             if (packet.getSubType() == PacketType.DISCONNECT) {
                 client.onDisconnect();
+            } else {
+                client.getBaseClient().schedulePingTimeout();
             }
 
             if (packet.getSubType() == PacketType.CONNECT) {
