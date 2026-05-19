@@ -69,6 +69,7 @@ public class DistributedNATSSingleChannelMemoryTest extends DistributedCommonTes
 
         // ---------- NODE 1 ----------
         Configuration cfg1 = new Configuration();
+        DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg1);
         cfg1.setHostname("127.0.0.1");
         cfg1.setPort(findAvailablePort());
         Options options = new Options.Builder()
@@ -126,6 +127,7 @@ public class DistributedNATSSingleChannelMemoryTest extends DistributedCommonTes
 
         // ---------- NODE 2 ----------
         Configuration cfg2 = new Configuration();
+        DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg2);
         cfg2.setHostname("127.0.0.1");
         cfg2.setPort(findAvailablePort());
         Options options1 = new Options.Builder()

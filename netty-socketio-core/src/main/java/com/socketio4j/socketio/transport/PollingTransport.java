@@ -43,9 +43,12 @@ import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.QueryStringDecoder;
+import io.netty.handler.codec.http.websocketx.WebSocket13FrameDecoder;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
@@ -172,7 +175,19 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             content = decoder.preprocessJson(jsonIndex, content);
         }
 
-        ctx.pipeline().fireChannelRead(new PacketsMessage(client, content, Transport.POLLING));
+        ChannelHandlerContext codecCtx = ctx.pipeline().context(HttpRequestDecoder.class);
+        if (codecCtx == null) {
+            codecCtx = ctx.pipeline().context(WebSocket13FrameDecoder.class);
+        }
+        if (codecCtx == null) {
+            codecCtx = ctx.pipeline().context(HttpServerCodec.class);
+        }
+        PacketsMessage packetsMessage = new PacketsMessage(client, content, Transport.POLLING);
+        if (codecCtx != null) {
+            codecCtx.fireChannelRead(packetsMessage);
+        } else {
+            ctx.pipeline().fireChannelRead(packetsMessage);
+        }
     }
 
     protected void onGet(UUID sessionId, ChannelHandlerContext ctx, String origin) {
