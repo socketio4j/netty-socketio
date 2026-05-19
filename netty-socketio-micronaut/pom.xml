@@ -14,10 +14,6 @@
   <name>NettySocketIO Micronaut</name>
   <description>Socket.IO server Micronaut integration</description>
 
-  <properties>
-    <micronaut.version>4.10.2</micronaut.version>
-  </properties>
-
   <dependencyManagement>
     <dependencies>
       <dependency>
@@ -75,7 +71,7 @@
       <groupId>io.micronaut.test</groupId>
       <artifactId>micronaut-test-junit5</artifactId>
       <scope>test</scope>
-      <version>${micronaut.version}</version>
+      <version>${micronaut.test.version}</version>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
@@ -109,7 +105,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.14.1</version>
+        <version>3.15.0</version>
         <configuration>
           <annotationProcessorPaths>
             <path>

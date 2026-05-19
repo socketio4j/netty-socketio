@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -69,6 +70,9 @@ import io.netty.util.concurrent.SucceededFuture;
 public class SocketIOServer implements ClientListeners {
 
     private static final Logger log = LoggerFactory.getLogger(SocketIOServer.class);
+
+    private static final long EVENT_LOOP_SHUTDOWN_TIMEOUT_SECONDS = 15L;
+    private static final long SERVER_CHANNEL_CLOSE_TIMEOUT_SECONDS = 5L;
 
     private final List<ServerBeforeStartListener> beforeStartListeners = new CopyOnWriteArrayList<>();
     private final List<ServerAfterStartListener>  afterStartListeners  = new CopyOnWriteArrayList<>();
@@ -598,6 +602,16 @@ public class SocketIOServer implements ClientListeners {
                 if (future.isSuccess()) {
                     ChannelFuture cf = (ChannelFuture) future;
                     serverChannel.set(cf.channel());
+                    if (configCopy.getPort() == 0) {
+                        try {
+                            InetSocketAddress local = (InetSocketAddress) cf.channel().localAddress();
+                            int actualPort = local.getPort();
+                            configCopy.setPort(actualPort);
+                            configuration.setPort(actualPort);
+                        } catch (Exception ignore) {
+                            // keep configured port if localAddress is not InetSocketAddress
+                        }
+                    }
                     serverStatus.set(ServerStatus.STARTED);
                     log.info("SocketIO server started on port {}", configCopy.getPort());
                     installShutdownHookOnce();
@@ -635,21 +649,46 @@ public class SocketIOServer implements ClientListeners {
         Channel ch = serverChannel.getAndSet(null);
         if (ch != null && ch.isOpen()) {
             if (await) {
-                ch.close().awaitUninterruptibly();
+                try {
+                    if (!ch.close().await(SERVER_CHANNEL_CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                        log.warn("Server channel did not close within {}s", SERVER_CHANNEL_CLOSE_TIMEOUT_SECONDS);
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.warn("Interrupted while waiting for server channel to close");
+                }
             } else {
                 ch.close();
             }
         }
 
-        // Stop the internal socket.io logic (Pipeline)
+        shutdownGroups();
+
+        if (await) {
+            awaitEventLoopTermination(bossGroup, "boss");
+            awaitEventLoopTermination(workerGroup, "worker");
+        }
+
+        // Stop timers and stores after I/O threads have quiesced
         try {
             pipelineFactory.stop();
         } catch (Exception t) {
             log.warn("Pipeline stop failed", t);
         }
+    }
 
-        // Kill the threads
-        shutdownGroups();
+    private void awaitEventLoopTermination(EventLoopGroup group, String name) {
+        if (group == null) {
+            return;
+        }
+        try {
+            if (!group.terminationFuture().await(EVENT_LOOP_SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                log.warn("{} event loop did not terminate within {}s", name, EVENT_LOOP_SHUTDOWN_TIMEOUT_SECONDS);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while waiting for {} event loop termination", name);
+        }
     }
 
     protected void applyConnectionOptions(ServerBootstrap bootstrap) {
@@ -835,8 +874,6 @@ public class SocketIOServer implements ClientListeners {
 
         fireBeforeStop();
         cleanUpResources(true);
-        if (bossGroup != null) bossGroup.terminationFuture().awaitUninterruptibly();
-        if (workerGroup != null) workerGroup.terminationFuture().awaitUninterruptibly();
 
         log.info("SocketIO server stopped");
 
