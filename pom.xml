@@ -68,8 +68,8 @@
     <netty.version>4.2.13.Final</netty.version>
     <netty.tcnative.version>2.0.74.Final</netty.tcnative.version>
     <jmockit.version>1.50</jmockit.version>
-    <byte-buddy.version>1.18.4</byte-buddy.version>
-    <junit.version>6.0.2</junit.version>
+    <byte-buddy.version>1.18.8</byte-buddy.version>
+    <junit.version>6.0.3</junit.version>
     <junit-platform-launcher.version>6.0.2</junit-platform-launcher.version>
     <slf4j.version>2.0.17</slf4j.version>
     <jackson.version>2.21.2</jackson.version>
@@ -615,6 +615,7 @@
           </includes>
             <forkCount>1</forkCount>
             <reuseForks>false</reuseForks>
+            <forkedProcessTimeoutInSeconds>600</forkedProcessTimeoutInSeconds>
         </configuration>
       </plugin>
 
