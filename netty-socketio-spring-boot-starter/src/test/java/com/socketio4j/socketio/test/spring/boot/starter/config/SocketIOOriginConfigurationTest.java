@@ -34,10 +34,11 @@ import com.socketio4j.socketio.test.spring.boot.starter.BaseSpringApplicationTes
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("Test for Socket.IO configuration properties")
 public class SocketIOOriginConfigurationTest extends BaseSpringApplicationTest {
-    private static final int PORT = 9090;
+    private static final int PORT = 19090;
     private static final int MAX_HEADER_SIZE = 1024;
     private static final boolean TCP_KEEP_ALIVE = true;
 
@@ -149,7 +150,8 @@ public class SocketIOOriginConfigurationTest extends BaseSpringApplicationTest {
     @Test
     @DisplayName("Test SSL configuration properties")
     public void testSslConfigProperties() {
-        assertNotNull(nettySocketIOSslConfigProperties.getKeyStore(), "Key store should be loaded");
+        assertTrue(nettySocketIOSslConfigProperties.hasKeyStore(),
+                "Key store should be configured (stream may be null after TLS material is buffered on server start)");
         assertNotNull(nettySocketIOSslConfigProperties.getKeyStorePassword(), "Key store password should be loaded");
 
         SocketSslConfig socketSslConfig = new SocketSslConfig();
