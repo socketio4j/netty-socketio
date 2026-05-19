@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
+import com.socketio4j.socketio.nativeio.TransportType;
 import com.github.javafaker.Faker;
 
 import io.socket.client.IO;
@@ -165,8 +166,8 @@ public abstract class AbstractSocketIOIntegrationTest {
      * Called after basic configuration but before server start.
      */
     protected void configureServer(Configuration config) {
-        // Default implementation does nothing
-        // Subclasses can override to add custom configuration
+        // NIO avoids io_uring shutdown hangs on Linux CI runners
+        config.setTransportType(TransportType.NIO);
     }
 
     /**

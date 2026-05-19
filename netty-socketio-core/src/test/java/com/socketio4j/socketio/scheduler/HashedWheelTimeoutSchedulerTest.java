@@ -17,6 +17,7 @@
 package com.socketio4j.socketio.scheduler;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -509,6 +510,18 @@ class HashedWheelTimeoutSchedulerTest {
             scheduler.shutdown();
             scheduler.shutdown();
             scheduler.shutdown();
+            assertThat(scheduler).isNotNull();
+        }
+
+        @Test
+        @DisplayName("Should ignore schedule after shutdown")
+        void shouldIgnoreScheduleAfterShutdown() {
+            SchedulerKey key = new SchedulerKey(SchedulerKey.Type.PING_TIMEOUT, UUID.randomUUID());
+            scheduler.shutdown();
+
+            scheduler.schedule(key, () -> {}, 1, TimeUnit.MILLISECONDS);
+            scheduler.schedule(() -> {}, 1, TimeUnit.MILLISECONDS);
+
             assertThat(scheduler).isNotNull();
         }
     }
