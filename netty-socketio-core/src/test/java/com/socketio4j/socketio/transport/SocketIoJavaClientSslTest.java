@@ -55,6 +55,23 @@ public class SocketIoJavaClientSslTest {
 
     private SocketIOServer server;
 
+    private X509TrustManager trustAllManager() {
+        return new X509TrustManager() {
+            @Override
+            public void checkClientTrusted(X509Certificate[] chain, String authType) {
+            }
+
+            @Override
+            public void checkServerTrusted(X509Certificate[] chain, String authType) {
+            }
+
+            @Override
+            public X509Certificate[] getAcceptedIssuers() {
+                return new X509Certificate[0];
+            }
+        };
+    }
+
     @AfterEach
     public void tearDown() {
         if (server != null) {
@@ -74,20 +91,7 @@ public class SocketIoJavaClientSslTest {
         int port = awaitBoundPort(server);
         assertTrue(port > 0, "server did not bind an ephemeral port");
 
-        X509TrustManager trustAll = new X509TrustManager() {
-            @Override
-            public void checkClientTrusted(X509Certificate[] chain, String authType) {
-            }
-
-            @Override
-            public void checkServerTrusted(X509Certificate[] chain, String authType) {
-            }
-
-            @Override
-            public X509Certificate[] getAcceptedIssuers() {
-                return new X509Certificate[0];
-            }
-        };
+        X509TrustManager trustAll = trustAllManager();
         SSLContext sslContext = SSLContext.getInstance("TLS");
         sslContext.init(null, new TrustManager[] { trustAll }, new SecureRandom());
 
