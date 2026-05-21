@@ -611,30 +611,35 @@ class HashedWheelTimeoutSchedulerTest {
             CountDownLatch startLatch = new CountDownLatch(1);
             CountDownLatch completionLatch = new CountDownLatch(threadCount);
             AtomicInteger executionCount = new AtomicInteger(0);
+            Thread[] workers = new Thread[threadCount];
 
             // When
             for (int i = 0; i < threadCount; i++) {
                 final int threadId = i;
-                new Thread(() -> {
+                workers[i] = new Thread(() -> {
                     try {
                         startLatch.await();
                         SchedulerKey key = new SchedulerKey(SchedulerKey.Type.PING, "session-" + threadId);
-                        
+
                         // Schedule and immediately cancel
                         scheduler.schedule(key, () -> {
                             executionCount.incrementAndGet();
                             completionLatch.countDown();
                         }, 200, TimeUnit.MILLISECONDS);
-                        
+
                         scheduler.cancel(key);
-                        
+
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
-                }).start();
+                });
+                workers[i].start();
             }
 
             startLatch.countDown();
+            for (Thread worker : workers) {
+                worker.join();
+            }
 
             // Then
             boolean completed = completionLatch.await(3, TimeUnit.SECONDS);
