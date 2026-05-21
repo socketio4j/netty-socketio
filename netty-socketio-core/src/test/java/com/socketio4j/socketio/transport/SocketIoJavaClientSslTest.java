@@ -97,12 +97,7 @@ public class SocketIoJavaClientSslTest {
                 .readTimeout(1, TimeUnit.MINUTES)
                 .build();
 
-        IO.Options opts = new IO.Options();
-        opts.forceNew = true;
-        opts.reconnection = false;
-        opts.transports = new String[] { "websocket" };
-        opts.webSocketFactory = okHttp;
-        opts.callFactory = okHttp;
+        IO.Options opts = createIoOptions(okHttp, "websocket");
 
         Socket socket = IO.socket("https://127.0.0.1:" + port, opts);
         try {
@@ -556,5 +551,14 @@ public class SocketIoJavaClientSslTest {
             port = server.getConfiguration().getPort();
         }
         return port;
+    }
+    private IO.Options createIoOptions(OkHttpClient okHttp, String... transports) {
+        IO.Options opts = new IO.Options();
+        opts.forceNew = true;
+        opts.reconnection = false;
+        opts.transports = transports;
+        opts.webSocketFactory = okHttp;
+        opts.callFactory = okHttp;
+        return opts;
     }
 }
