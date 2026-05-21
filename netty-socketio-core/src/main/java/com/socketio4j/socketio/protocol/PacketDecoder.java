@@ -77,7 +77,10 @@ public class PacketDecoder {
                 if (content.getByte(ri) == (byte) 'd' && content.getByte(ri + 1) == (byte) '=') {
                     content.readerIndex(ri + 2);
                 } else {
-                    throw new IllegalArgumentException("Invalid JSONP format: missing 'd=' prefix");
+                    byte b0 = content.getByte(ri);
+                    byte b1 = content.getByte(ri + 1);
+                    String received = String.format("0x%02X 0x%02X", b0, b1);
+                    throw new IllegalArgumentException("Invalid JSONP format: missing 'd=' prefix, got bytes: " + received);
                 }
             }
         }
