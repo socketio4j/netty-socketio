@@ -781,6 +781,7 @@ class HashedWheelTimeoutSchedulerTest {
 
             // Then
             boolean completed = completionLatch.await(5, TimeUnit.SECONDS);
+            raceThread.join(1000);
             // The task might or might not execute due to race condition, but no exception should occur
             assertThat(raceThread.isAlive()).isFalse();
         }
