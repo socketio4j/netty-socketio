@@ -32,6 +32,8 @@ import com.socketio4j.socketio.store.redis_pubsub.RedisStoreFactory;
 import com.socketio4j.socketio.store.redis_reliable.RedisPubSubReliableEventStore;
 import com.socketio4j.socketio.store.redis_stream.RedisStreamEventStore;
 
+import static com.socketio4j.socketio.integration.DistributedClusterIntegrationSupport.findAvailablePort;
+
 /**
  * Runs {@link DistributedCommonTest} against all Redisson-backed cluster variants while sharing
  * one Redis Testcontainer.
@@ -69,7 +71,7 @@ public class DistributedRedissonClusterSuite {
             Configuration cfg1 = new Configuration();
             DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg1);
             cfg1.setHostname("127.0.0.1");
-            cfg1.setPort(DistributedClusterIntegrationSupport.findAvailablePort());
+            cfg1.setPort(findAvailablePort());
             cfg1.setStoreFactory(new RedisStoreFactory(redisClient1,
                     new RedisPubSubEventStore.Builder(redisClient1).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).build()));
             node1 = new SocketIOServer(cfg1);
@@ -79,7 +81,7 @@ public class DistributedRedissonClusterSuite {
             Configuration cfg2 = new Configuration();
             DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg2);
             cfg2.setHostname("127.0.0.1");
-            cfg2.setPort(DistributedClusterIntegrationSupport.findAvailablePort());
+            cfg2.setPort(findAvailablePort());
             cfg2.setStoreFactory(new RedisStoreFactory(redisClient2,
                     new RedisPubSubEventStore.Builder(redisClient2).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).build()));
             node2 = new SocketIOServer(cfg2);
