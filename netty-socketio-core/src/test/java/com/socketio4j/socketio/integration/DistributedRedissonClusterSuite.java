@@ -16,8 +16,6 @@
  */
 package com.socketio4j.socketio.integration;
 
-import java.net.ServerSocket;
-
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Nested;
@@ -42,12 +40,6 @@ public class DistributedRedissonClusterSuite {
 
     @SuppressWarnings("resource")
     static final CustomizedRedisContainer REDIS = new CustomizedRedisContainer().withReuse(false);
-
-    private static int findAvailablePort() throws Exception {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        }
-    }
 
     @BeforeAll
     static void startRedis() {
@@ -77,7 +69,7 @@ public class DistributedRedissonClusterSuite {
             Configuration cfg1 = new Configuration();
             DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg1);
             cfg1.setHostname("127.0.0.1");
-            cfg1.setPort(findAvailablePort());
+            cfg1.setPort(DistributedClusterIntegrationSupport.findAvailablePort());
             cfg1.setStoreFactory(new RedisStoreFactory(redisClient1,
                     new RedisPubSubEventStore.Builder(redisClient1).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).build()));
             node1 = new SocketIOServer(cfg1);
@@ -87,7 +79,7 @@ public class DistributedRedissonClusterSuite {
             Configuration cfg2 = new Configuration();
             DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg2);
             cfg2.setHostname("127.0.0.1");
-            cfg2.setPort(findAvailablePort());
+            cfg2.setPort(DistributedClusterIntegrationSupport.findAvailablePort());
             cfg2.setStoreFactory(new RedisStoreFactory(redisClient2,
                     new RedisPubSubEventStore.Builder(redisClient2).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).build()));
             node2 = new SocketIOServer(cfg2);
