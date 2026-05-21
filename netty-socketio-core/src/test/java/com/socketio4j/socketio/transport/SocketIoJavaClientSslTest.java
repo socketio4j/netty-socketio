@@ -152,20 +152,7 @@ public class SocketIoJavaClientSslTest {
         int port = awaitBoundPort(server);
         assertTrue(port > 0, "server did not bind an ephemeral port");
 
-        X509TrustManager trustAll = new X509TrustManager() {
-            @Override
-            public void checkClientTrusted(X509Certificate[] chain, String authType) {
-            }
-
-            @Override
-            public void checkServerTrusted(X509Certificate[] chain, String authType) {
-            }
-
-            @Override
-            public X509Certificate[] getAcceptedIssuers() {
-                return new X509Certificate[0];
-            }
-        };
+        X509TrustManager trustAll = trustAllManager();
         SSLContext sslContext = SSLContext.getInstance("TLS");
         sslContext.init(null, new TrustManager[] { trustAll }, new SecureRandom());
 
@@ -175,12 +162,7 @@ public class SocketIoJavaClientSslTest {
                 .readTimeout(1, TimeUnit.MINUTES)
                 .build();
 
-        IO.Options opts = new IO.Options();
-        opts.forceNew = true;
-        opts.reconnection = false;
-        opts.transports = new String[] { "websocket" };
-        opts.webSocketFactory = okHttp;
-        opts.callFactory = okHttp;
+        IO.Options opts = createIoOptions(okHttp, "websocket");
 
         Socket socket = IO.socket("https://127.0.0.1:" + port, opts);
         try {
@@ -237,20 +219,7 @@ public class SocketIoJavaClientSslTest {
         int port = awaitBoundPort(server);
         assertTrue(port > 0, "server did not bind an ephemeral port");
 
-        X509TrustManager trustAll = new X509TrustManager() {
-            @Override
-            public void checkClientTrusted(X509Certificate[] chain, String authType) {
-            }
-
-            @Override
-            public void checkServerTrusted(X509Certificate[] chain, String authType) {
-            }
-
-            @Override
-            public X509Certificate[] getAcceptedIssuers() {
-                return new X509Certificate[0];
-            }
-        };
+        X509TrustManager trustAll = trustAllManager();
         SSLContext sslContext = SSLContext.getInstance("TLS");
         sslContext.init(null, new TrustManager[] { trustAll }, new SecureRandom());
 
@@ -260,12 +229,7 @@ public class SocketIoJavaClientSslTest {
                 .readTimeout(1, TimeUnit.MINUTES)
                 .build();
 
-        IO.Options opts = new IO.Options();
-        opts.forceNew = true;
-        opts.reconnection = false;
-        opts.transports = new String[] { "polling", "websocket" };
-        opts.webSocketFactory = okHttp;
-        opts.callFactory = okHttp;
+        IO.Options opts = createIoOptions(okHttp, "polling","websocket");
 
         Socket socket = IO.socket("https://127.0.0.1:" + port, opts);
         try {
@@ -321,10 +285,7 @@ public class SocketIoJavaClientSslTest {
         int port = awaitBoundPort(server);
         assertTrue(port > 0, "server did not bind an ephemeral port");
 
-        IO.Options opts = new IO.Options();
-        opts.forceNew = true;
-        opts.reconnection = false;
-        opts.transports = new String[] { "websocket" };
+        IO.Options opts = createIoOptions(null, "websocket");
 
         Socket socket = IO.socket("http://127.0.0.1:" + port, opts);
         try {
@@ -375,20 +336,7 @@ public class SocketIoJavaClientSslTest {
         int port = awaitBoundPort(server);
         assertTrue(port > 0, "server did not bind an ephemeral port");
 
-        X509TrustManager trustAll = new X509TrustManager() {
-            @Override
-            public void checkClientTrusted(X509Certificate[] chain, String authType) {
-            }
-
-            @Override
-            public void checkServerTrusted(X509Certificate[] chain, String authType) {
-            }
-
-            @Override
-            public X509Certificate[] getAcceptedIssuers() {
-                return new X509Certificate[0];
-            }
-        };
+        X509TrustManager trustAll = trustAllManager();
         SSLContext sslContext = SSLContext.getInstance("TLS");
         sslContext.init(null, new TrustManager[] { trustAll }, new SecureRandom());
 
@@ -398,12 +346,7 @@ public class SocketIoJavaClientSslTest {
                 .readTimeout(1, TimeUnit.MINUTES)
                 .build();
 
-        IO.Options opts = new IO.Options();
-        opts.forceNew = true;
-        opts.reconnection = false;
-        opts.transports = new String[] { "polling" };
-        opts.webSocketFactory = okHttp;
-        opts.callFactory = okHttp;
+        IO.Options opts = createIoOptions(okHttp, "polling");
 
         Socket socket = IO.socket("https://127.0.0.1:" + port, opts);
         try {
@@ -454,10 +397,7 @@ public class SocketIoJavaClientSslTest {
         int port = awaitBoundPort(server);
         assertTrue(port > 0, "server did not bind an ephemeral port");
 
-        IO.Options opts = new IO.Options();
-        opts.forceNew = true;
-        opts.reconnection = false;
-        opts.transports = new String[] { "polling" };
+        IO.Options opts = createIoOptions(null, "polling");
 
         Socket socket = IO.socket("http://127.0.0.1:" + port, opts);
         try {
