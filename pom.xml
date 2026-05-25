@@ -72,7 +72,7 @@
     <junit.version>6.0.3</junit.version>
     <junit-platform-launcher.version>6.0.2</junit-platform-launcher.version>
     <slf4j.version>2.0.17</slf4j.version>
-    <jackson.version>2.21.2</jackson.version>
+    <jackson.version>2.21.3</jackson.version>
     <jackson.annotations.version>2.21</jackson.annotations.version>
     <micronaut.version>4.10.23</micronaut.version>
     <micronaut.test.version>4.10.3</micronaut.test.version>
