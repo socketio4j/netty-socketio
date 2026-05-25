@@ -74,7 +74,7 @@
     <slf4j.version>2.0.17</slf4j.version>
     <jackson.version>2.21.2</jackson.version>
     <jackson.annotations.version>2.21</jackson.annotations.version>
-    <micronaut.version>4.10.23</micronaut.version>
+    <micronaut.version>5.0.0</micronaut.version>
     <micronaut.test.version>4.10.3</micronaut.test.version>
     <redisson.version>4.1.0</redisson.version>
     <hazelcast.version>5.2.5</hazelcast.version>
