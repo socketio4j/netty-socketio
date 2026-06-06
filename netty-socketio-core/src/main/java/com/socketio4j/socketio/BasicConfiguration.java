@@ -67,6 +67,15 @@ public abstract class BasicConfiguration {
     protected boolean httpCompression = true;
 
     protected boolean websocketCompression = true;
+    protected int decompressionBufferSize = 0;
+
+    public int getDecompressionBufferSize() {
+        return decompressionBufferSize;
+    }
+
+    public void setDecompressionBufferSize(int decompressionBufferSize) {
+        this.decompressionBufferSize = decompressionBufferSize;
+    }
 
     protected boolean randomSession = false;
 
@@ -135,6 +144,7 @@ public abstract class BasicConfiguration {
 
         setHttpCompression(conf.isHttpCompression());
         setWebsocketCompression(conf.isWebsocketCompression());
+        setDecompressionBufferSize(conf.getDecompressionBufferSize());
         setRandomSession(conf.randomSession);
         setNeedClientAuth(conf.isNeedClientAuth());
         setMetrics(conf.getMetrics());
