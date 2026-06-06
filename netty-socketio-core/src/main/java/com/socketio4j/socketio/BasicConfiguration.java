@@ -69,13 +69,6 @@ public abstract class BasicConfiguration {
     protected boolean websocketCompression = true;
     protected int decompressionBufferSize = 0;
 
-    public int getDecompressionBufferSize() {
-        return decompressionBufferSize;
-    }
-
-    public void setDecompressionBufferSize(int decompressionBufferSize) {
-        this.decompressionBufferSize = decompressionBufferSize;
-    }
 
     protected boolean randomSession = false;
 
@@ -460,6 +453,25 @@ public abstract class BasicConfiguration {
      */
     public void setWebsocketCompression(boolean websocketCompression) {
         this.websocketCompression = websocketCompression;
+    }
+
+    public int getDecompressionBufferSize() {
+        return decompressionBufferSize;
+    }
+
+    /**
+     * Set the maximum decompression buffer size for WebSocket compression.
+     * Used to limit memory consumption during WebSocket message decompression.
+     * <p>
+     * Default is <code>0</code> which means unlimited
+     *
+     * `@param` decompressionBufferSize - buffer size in bytes, or 0 for [unlimited/default]
+     */
+    public void setDecompressionBufferSize(int decompressionBufferSize) {
+        if (decompressionBufferSize < 0) {
+            throw new IllegalArgumentException("decompressionBufferSize must be non-negative");
+        }
+        this.decompressionBufferSize = decompressionBufferSize;
     }
 
     public boolean isWebsocketCompression() {
