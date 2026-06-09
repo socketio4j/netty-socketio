@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.integration;
 
+import java.net.ServerSocket;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +36,11 @@ final class DistributedClusterIntegrationSupport {
 
     private DistributedClusterIntegrationSupport() {
     }
-
+    static int findAvailablePort() throws Exception {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
     static void applyReuseListenAddress(Configuration configuration) {
         configuration.getSocketConfig().setReuseAddress(true);
     }
