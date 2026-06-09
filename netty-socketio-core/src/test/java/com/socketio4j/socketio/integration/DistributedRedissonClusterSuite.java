@@ -16,8 +16,6 @@
  */
 package com.socketio4j.socketio.integration;
 
-import java.net.ServerSocket;
-
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Nested;
@@ -34,6 +32,8 @@ import com.socketio4j.socketio.store.redis_pubsub.RedisStoreFactory;
 import com.socketio4j.socketio.store.redis_reliable.RedisPubSubReliableEventStore;
 import com.socketio4j.socketio.store.redis_stream.RedisStreamEventStore;
 
+import static com.socketio4j.socketio.integration.DistributedClusterIntegrationSupport.findAvailablePort;
+
 /**
  * Runs {@link DistributedCommonTest} against all Redisson-backed cluster variants while sharing
  * one Redis Testcontainer.
@@ -42,12 +42,6 @@ public class DistributedRedissonClusterSuite {
 
     @SuppressWarnings("resource")
     static final CustomizedRedisContainer REDIS = new CustomizedRedisContainer().withReuse(false);
-
-    private static int findAvailablePort() throws Exception {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        }
-    }
 
     @BeforeAll
     static void startRedis() {
