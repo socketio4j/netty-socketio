@@ -34,3 +34,53 @@ The documentation includes:
 - [Integration Guides](https://www.socketio4j.org/adapters)
 - [API Documentation](https://www.socketio4j.org/server-api/getting-started/server-instance)
 - [Performance Reports](https://www.socketio4j.org/performance)
+
+## Why SocketIO4j?
+
+SocketIO4j is a modern, actively maintained Socket.IO server for the Java ecosystem, built on Netty and designed for production workloads.
+
+### Highlights
+
+✅ Comprehensive Documentation
+
+* User guides, examples, and configuration references.
+* Faster onboarding and easier troubleshooting.
+
+✅ Active Maintenance
+
+* Regular releases and bug fixes.
+* Ongoing support for modern Java versions and ecosystem updates.
+
+✅ Built-in Metrics & Analytics
+
+* Connection, transport, and messaging insights.
+* Designed for operational visibility and monitoring.
+
+✅ Extended Adapter Ecosystem
+
+* Additional adapters and integrations beyond the original project.
+
+✅ Framework Integrations
+
+* Spring Boot support.
+* Quarkus support.
+* Easy integration into modern Java applications.
+
+✅ Performance Validated
+
+* Continuous benchmarking and performance testing.
+* Designed for high-concurrency and low-latency workloads.
+
+✅ Memory Leak Tested
+
+* Long-running stress and stability testing.
+* Focus on production reliability.
+
+✅ Active Community
+
+* Responsive issue tracking and discussions.
+* Community-driven improvements and contributions.
+
+### Production Ready
+
+SocketIO4j combines Netty's performance with modern tooling, observability, framework integrations, and active maintenance to provide a production-ready Socket.IO platform for Java.
