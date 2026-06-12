@@ -84,3 +84,7 @@ SocketIO4j is a modern, actively maintained Socket.IO server for the Java ecosys
 ### Production Ready
 
 SocketIO4j combines Netty's performance with modern tooling, observability, framework integrations, and active maintenance to provide a production-ready Socket.IO platform for Java.
+
+## Powerful Analytics support 
+<img width="1912" height="1057" alt="532355391-d0f1585b-bfe2-48b1-9977-9a0388e7136b" src="https://github.com/user-attachments/assets/9731d77d-e082-473f-a095-29a12327ec75" />
+
