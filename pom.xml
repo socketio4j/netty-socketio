@@ -65,7 +65,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <testcontainers.version>2.0.3</testcontainers.version>
-    <netty.version>4.2.14.Final</netty.version>
+    <netty.version>4.2.15.Final</netty.version>
     <netty.tcnative.version>2.0.78.Final</netty.tcnative.version>
     <jmockit.version>1.50</jmockit.version>
     <byte-buddy.version>1.18.8</byte-buddy.version>
