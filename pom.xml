@@ -75,7 +75,7 @@
     <jackson.version>2.21.2</jackson.version>
     <jackson.annotations.version>2.21</jackson.annotations.version>
     <micronaut.version>4.10.23</micronaut.version>
-    <micronaut.test.version>4.10.3</micronaut.test.version>
+    <micronaut.test.version>5.0.1</micronaut.test.version>
     <redisson.version>4.5.0</redisson.version>
     <hazelcast.version>5.2.5</hazelcast.version>
     <awaitility.version>4.3.0</awaitility.version>
