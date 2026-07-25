@@ -21,10 +21,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
-import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -48,20 +46,21 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.store.event.AbstractEventStore;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
-import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
 import com.socketio4j.socketio.store.event.ListenerRegistration;
+import com.socketio4j.socketio.store.event.ListenerRegistry;
 
 /**
  * @author https://github.com/sanjomo
  * @date 15/12/25 6:09 pm
  */
 
-public final class KafkaEventStore implements EventStore {
+public final class KafkaEventStore extends AbstractEventStore {
 
     private static final Logger log =
             LoggerFactory.getLogger(KafkaEventStore.class);
@@ -72,9 +71,8 @@ public final class KafkaEventStore implements EventStore {
 
     private final KafkaProducer<String, EventMessage> producer;
     private final Properties consumerProps;
-    private final String topicPrefix;
-    private final Long nodeId;
-    private final EventStoreMode mode;
+
+    private static final String DEFAULT_TOPIC_PREFIX = "SOCKETIO4J-";
 
     // ---------------------------------------------------------------------
     // Runtime
@@ -88,8 +86,7 @@ public final class KafkaEventStore implements EventStore {
     private final ConcurrentMap<EventType, ExecutorService> pollers =
             new ConcurrentHashMap<>();
 
-    private final ConcurrentMap<EventType, Queue<ListenerRegistration<? extends EventMessage>>> listeners =
-            new ConcurrentHashMap<>();
+    private final ListenerRegistry listeners = new ListenerRegistry();
 
     /**
      * Completes after {@link #createConsumer} finishes (assign + seek) for that poller.
@@ -111,32 +108,15 @@ public final class KafkaEventStore implements EventStore {
             @Nullable EventStoreMode mode,
             @Nullable String topicPrefix
     ) {
+        super(nodeId, mode, EventStoreMode.MULTI_CHANNEL, topicPrefix, DEFAULT_TOPIC_PREFIX);
 
         this.producer = Objects.requireNonNull(producer);
         this.consumerProps = Objects.requireNonNull(consumerProps);
-
-        if (nodeId == null){
-            nodeId = getNodeId();
-        }
-        this.nodeId = Objects.requireNonNull(nodeId);
-        if (mode == null) {
-           mode =  EventStoreMode.MULTI_CHANNEL;
-        }
-        this.mode = Objects.requireNonNull(mode);
-        if (topicPrefix == null || topicPrefix.isEmpty()) {
-            topicPrefix = "SOCKETIO4J-";
-        }
-        this.topicPrefix = Objects.requireNonNull(topicPrefix);
     }
 
     // ---------------------------------------------------------------------
     // Metadata
     // ---------------------------------------------------------------------
-
-    @Override
-    public EventStoreMode getEventStoreMode() {
-        return mode;
-    }
 
     @Override
     public EventStoreType getEventStoreType() {
@@ -166,9 +146,9 @@ public final class KafkaEventStore implements EventStore {
     @Override
     public void publish0(EventType type, EventMessage msg) {
 
-        msg.setNodeId(nodeId);
+        stampNodeId(msg);
 
-        String topic = topic(resolve(type));
+        String topic = channelName(type);
         ProducerRecord<String, EventMessage> record =
                 new ProducerRecord<>(topic, type.name(), msg);
 
@@ -202,18 +182,14 @@ public final class KafkaEventStore implements EventStore {
 
         validateSubscribe(type);
 
-        ListenerRegistration<T> registration =
-                new ListenerRegistration<>(listener, clazz);
-        Queue<ListenerRegistration<? extends EventMessage>> queue =
-                listeners.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>());
-        queue.add(registration);
+        ListenerRegistration<T> registration = listeners.register(type, listener, clazz);
         boolean consumerReady = false;
         try {
             ensureConsumer(type);
             consumerReady = true;
         } finally {
             if (!consumerReady) {
-                queue.remove(registration);
+                listeners.unregister(type, registration);
             }
         }
     }
@@ -319,7 +295,7 @@ public final class KafkaEventStore implements EventStore {
         KafkaConsumer<String, EventMessage> consumer =
                 new KafkaConsumer<>(props);
 
-        String topic = topic(resolve(type));
+        String topic = channelName(type);
 
         // Discover partitions with retry logic
         // Topics may be auto-created by Kafka, so we retry a few times
@@ -412,7 +388,7 @@ public final class KafkaEventStore implements EventStore {
 
                         EventMessage msg = rec.value();
                         // Skip null messages and messages from this node (already processed locally)
-                        if (msg == null || nodeId.equals(msg.getNodeId())) {
+                        if (!isRemote(msg)) {
                             continue;
                         }
 
@@ -462,25 +438,11 @@ public final class KafkaEventStore implements EventStore {
     // ---------------------------------------------------------------------
 
 
-    private <T extends EventMessage> void dispatch(
+    private void dispatch(
             EventType type,
             EventMessage msg
     ) {
-
-        Queue<ListenerRegistration<? extends EventMessage>> regs =
-                listeners.get(type);
-
-        if (regs == null) {
-            return;
-        }
-
-        for (ListenerRegistration<? extends EventMessage> reg : regs) {
-            if (reg.getClazz().isInstance(msg)) {
-                ((ListenerRegistration<T>) reg)
-                        .getListener()
-                        .onMessage((T) msg);
-            }
-        }
+        listeners.dispatch(type, msg);
     }
 
     // ---------------------------------------------------------------------
@@ -534,46 +496,4 @@ public final class KafkaEventStore implements EventStore {
     // Utils
     // ---------------------------------------------------------------------
 
-    private String topic(EventType type) {
-        return topicPrefix + type.name();
-    }
-
-    /**
-     * Resolves the event type based on the store mode.
-     * 
-     * <p>In SINGLE_CHANNEL mode, all events are routed to a single topic (ALL_SINGLE_CHANNEL).
-     * This ensures event ordering across all event types but requires all nodes to process
-     * all events.
-     * 
-     * <p>In MULTI_CHANNEL mode, each event type has its own topic, allowing independent
-     * scaling and processing of different event types.
-     * 
-     * @param type the original event type
-     * @return the resolved event type (may be ALL_SINGLE_CHANNEL in single channel mode)
-     */
-    private EventType resolve(EventType type) {
-        if (mode == EventStoreMode.SINGLE_CHANNEL) {
-                return EventType.ALL_SINGLE_CHANNEL;
-        }
-        return type;
-    }
-
-    /**
-     * Validates that the subscription request is compatible with the current store mode.
-     * 
-     * @param type the event type to subscribe to
-     * @throws UnsupportedOperationException if the subscription is invalid for the current mode
-     */
-    private void validateSubscribe(EventType type) {
-
-        if (mode == EventStoreMode.SINGLE_CHANNEL && type != EventType.ALL_SINGLE_CHANNEL) {
-            throw new UnsupportedOperationException(
-                    "Only ALL_SINGLE_CHANNEL allowed in SINGLE_CHANNEL mode");
-        }
-
-        if (mode == EventStoreMode.MULTI_CHANNEL && type == EventType.ALL_SINGLE_CHANNEL) {
-            throw new UnsupportedOperationException(
-                    "ALL_SINGLE_CHANNEL not allowed in MULTI_CHANNEL mode");
-        }
-    }
 }

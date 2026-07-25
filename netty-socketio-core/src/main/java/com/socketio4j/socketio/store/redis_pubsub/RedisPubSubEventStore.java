@@ -16,42 +16,33 @@
  */
 package com.socketio4j.socketio.store.redis_pubsub;
 
-import java.util.Arrays;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.store.event.AbstractEventStore;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
-import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.event.SubscriptionRegistry;
 
 /**
  * Unreliable Redis Pub/Sub based EventStore.
  * Events are ephemeral and not replayed.
  */
-public class RedisPubSubEventStore implements EventStore {
+public class RedisPubSubEventStore extends AbstractEventStore {
 
     private final RedissonClient redissonPub;
     private final RedissonClient redissonSub;
-    private final Long nodeId;
-    private final EventStoreMode eventStoreMode;
 
-    private final ConcurrentMap<EventType, Queue<Integer>> map = new ConcurrentHashMap<>();
-    private final ConcurrentMap<Integer, RTopic> activeSubTopics = new ConcurrentHashMap<>();
+    private final SubscriptionRegistry<Integer, RTopic> subscriptions = new SubscriptionRegistry<>();
     private final ConcurrentMap<EventType, RTopic> activePubTopics = new ConcurrentHashMap<>();
-
-    private static final Logger log = LoggerFactory.getLogger(RedisPubSubEventStore.class);
 
     // ----------------------------------------------------------------------
     // Constructors
@@ -67,78 +58,39 @@ public class RedisPubSubEventStore implements EventStore {
                               @NotNull RedissonClient redissonSub,
                               @Nullable EventStoreMode eventStoreMode,
                               @Nullable Long nodeId) {
-        Objects.requireNonNull(redissonPub, "redissonPub is null");
-        Objects.requireNonNull(redissonSub, "redissonSub is null");
-
-        this.redissonPub = redissonPub;
-        this.redissonSub = redissonSub;
-        if (nodeId == null) {
-            nodeId = getNodeId();
-        }
-        this.nodeId = nodeId;
-        if (eventStoreMode == null) {
-            eventStoreMode = EventStoreMode.MULTI_CHANNEL;
-        }
-        this.eventStoreMode = eventStoreMode;
+        super(nodeId, eventStoreMode, EventStoreMode.MULTI_CHANNEL, null, "");
+        this.redissonPub = Objects.requireNonNull(redissonPub, "redissonPub is null");
+        this.redissonSub = Objects.requireNonNull(redissonSub, "redissonSub is null");
     }
 
-    @Override
-    public EventStoreMode getEventStoreMode(){
-        return this.eventStoreMode;
-    }
     @Override
     public void publish0(EventType type, EventMessage msg) {
-        msg.setNodeId(nodeId);
-        RTopic topic = activePubTopics.computeIfAbsent(type, k -> {
-            String topicName = getStreamName(k);
-            return redissonPub.getTopic(topicName);
-        });
+        stampNodeId(msg);
+        RTopic topic = activePubTopics.computeIfAbsent(type, k -> redissonPub.getTopic(channelName(k)));
         topic.publish(msg);
     }
 
     @Override
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
-        RTopic topic = redissonSub.getTopic(getStreamName(type));
+        RTopic topic = redissonSub.getTopic(channelName(type));
         int regId = topic.addListener(clazz, (channel, msg) -> {
-            if (!nodeId.equals(msg.getNodeId())) {
+            if (isRemote(msg)) {
                 listener.onMessage(msg);
             }
         });
-        activeSubTopics.put(regId, topic);
-        map.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>()).add(regId);
+        subscriptions.add(type, regId, topic);
     }
-    private String getStreamName(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            return  EventType.ALL_SINGLE_CHANNEL.name();
-        }
-        return type.name();
-    }
+
     @Override
     public void unsubscribe0(EventType type) {
-
-        Queue<Integer> regIds = map.remove(type);
-        if (regIds == null || regIds.isEmpty()) {
-            return;
-        }
-        for (Integer id : regIds) {
-            RTopic topic = activeSubTopics.remove(id);
-            if (topic == null) {
-                continue;
-            }
-            try {
-                topic.removeListener(id);
-            } catch (Exception ex) {
-                log.warn("Failed to remove listener {} from topic {}", id, getStreamName(type), ex);
-            }
-        }
+        subscriptions.remove(type, (id, topic) -> topic.removeListener(id));
     }
 
     @Override
     public void shutdown0() {
-        Arrays.stream(EventType.values()).forEach(this::unsubscribe);
-        map.clear();
+        unsubscribeAll();
+        subscriptions.clear();
         activePubTopics.clear();
-        activeSubTopics.clear();
     }
 
     public static final class Builder {

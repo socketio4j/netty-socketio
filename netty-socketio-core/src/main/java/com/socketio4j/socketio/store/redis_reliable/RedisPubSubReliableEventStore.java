@@ -17,11 +17,8 @@
 package com.socketio4j.socketio.store.redis_reliable;
 
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -36,28 +33,25 @@ import org.redisson.api.stream.StreamTrimArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.store.event.AbstractEventStore;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
-import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
 import com.socketio4j.socketio.store.event.PublishMode;
+import com.socketio4j.socketio.store.event.SubscriptionRegistry;
 
-public class RedisPubSubReliableEventStore implements EventStore {
+public class RedisPubSubReliableEventStore extends AbstractEventStore {
 
     private final RedissonClient redissonPub;
     private final RedissonClient redissonSub;
-    private final Long nodeId;
-    private final EventStoreMode eventStoreMode;
-    private final String streamNamePrefix;
     private final Integer streamMaxLength;
     private final Duration trimEvery;
     private final ScheduledExecutorService trimExecutor;
     private static final String DEFAULT_STREAM_NAME_PREFIX = "SOCKETIO4J:";
     private static final int DEFAULT_STREAM_MAX_LENGTH = Integer.MAX_VALUE;
-    private final ConcurrentMap<EventType, Queue<String>> map = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, RReliableTopic> activeSubTopics = new ConcurrentHashMap<>();
+    private final SubscriptionRegistry<String, RReliableTopic> subscriptions = new SubscriptionRegistry<>();
     private final ConcurrentMap<EventType, RReliableTopic> activePubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RStream<String, EventMessage>> trimTopics = new ConcurrentHashMap<>();
     private static final Logger log = LoggerFactory.getLogger(RedisPubSubReliableEventStore.class);
@@ -74,20 +68,10 @@ public class RedisPubSubReliableEventStore implements EventStore {
                                       @Nullable String streamNamePrefix,
                                       @Nullable Integer streamMaxLength,
                                       @Nullable Duration trimEvery) {
-
-        if (eventStoreMode == null) {
-            eventStoreMode = EventStoreMode.MULTI_CHANNEL;
-        }
-        this.eventStoreMode = eventStoreMode;
+        super(nodeId, eventStoreMode, EventStoreMode.MULTI_CHANNEL, streamNamePrefix, DEFAULT_STREAM_NAME_PREFIX);
 
         Objects.requireNonNull(redissonPub, "redissonPub client can not be null");
         Objects.requireNonNull(redissonSub, "redissonSub client can not be null");
-
-        if (streamNamePrefix == null || streamNamePrefix.isEmpty()) {
-            streamNamePrefix = DEFAULT_STREAM_NAME_PREFIX;
-            log.warn("streamNamePrefix is null/empty, loaded default : {}", DEFAULT_STREAM_NAME_PREFIX);
-        }
-        this.streamNamePrefix = streamNamePrefix;
 
         if (streamMaxLength == null || streamMaxLength <=0) {
             streamMaxLength = DEFAULT_STREAM_MAX_LENGTH;
@@ -106,10 +90,6 @@ public class RedisPubSubReliableEventStore implements EventStore {
 
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
-        if (nodeId == null) {
-            nodeId = getNodeId();
-        }
-        this.nodeId = nodeId;
 
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "socketio4j-redis-stream-trimmer");
@@ -152,7 +132,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
         }
     }
     private RStream<String, EventMessage> createStream(EventType type) {
-        return redissonPub.getStream(getStreamName(type));
+        return redissonPub.getStream(channelName(type));
     }
 
     /**
@@ -177,7 +157,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
                     StreamTrimArgs.maxLen(streamMaxLength).noLimit()
             ).whenComplete((trimmed, err) -> {
                 if (err != null) {
-                    log.warn("Trim failed for {}", getStreamName(type), err);
+                    log.warn("Trim failed for {}", channelName(type), err);
                     return;
                 }
 
@@ -185,24 +165,19 @@ public class RedisPubSubReliableEventStore implements EventStore {
                 stream.sizeAsync()
                         .whenComplete((length, sizeErr) -> {
                             if (sizeErr != null) {
-                                log.warn("Failed to read stream size {}", getStreamName(type), sizeErr);
+                                log.warn("Failed to read stream size {}", channelName(type), sizeErr);
                                 return;
                             }
-                            log.debug("Stream {} length={}", getStreamName(type), length);
+                            log.debug("Stream {} length={}", channelName(type), length);
                         });
 
             });
 
         } catch (Exception e) {
-            log.warn("Failed to trim Redis stream {}", getStreamName(type), e);
+            log.warn("Failed to trim Redis stream {}", channelName(type), e);
         }
     }
 
-
-    @Override
-    public EventStoreMode getEventStoreMode(){
-        return eventStoreMode;
-    }
 
     @Override
     public EventStoreType getEventStoreType() {
@@ -215,56 +190,28 @@ public class RedisPubSubReliableEventStore implements EventStore {
     }
     @Override
     public void publish0(EventType type, EventMessage msg) {
-        msg.setNodeId(nodeId);
-        RReliableTopic topic = activePubTopics.computeIfAbsent(type, k -> {
-            String topicName = getStreamName(k);
-            return redissonPub.getReliableTopic(topicName);
-        });
+        stampNodeId(msg);
+        RReliableTopic topic = activePubTopics.computeIfAbsent(
+                type, k -> redissonPub.getReliableTopic(channelName(k)));
         topic.publish(msg);
     }
 
     @Override
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
 
-            RReliableTopic reliableTopic = redissonSub.getReliableTopic(getStreamName(type));
+            RReliableTopic reliableTopic = redissonSub.getReliableTopic(channelName(type));
             Objects.requireNonNull(reliableTopic, "reliableTopic can not be null");
             String id = reliableTopic.addListener(clazz, (channel, msg) -> {
-                if (!nodeId.equals(msg.getNodeId())) {
+                if (isRemote(msg)) {
                     listener.onMessage(msg);
                 }
             });
-            activeSubTopics.put(id, reliableTopic);
-            map.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
-                    .add(id);
-    }
-
-    private String getStreamName(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(getEventStoreMode())) {
-            return streamNamePrefix + EventType.ALL_SINGLE_CHANNEL.name();
-        }
-        return streamNamePrefix + type.name();
+            subscriptions.add(type, id, reliableTopic);
     }
 
     @Override
     public void unsubscribe0(EventType type) {
-
-        Queue<String> regIds = map.remove(type);
-        if (regIds == null || regIds.isEmpty()) {
-            return;
-        }
-        for (String id : regIds) {
-            RReliableTopic topic = activeSubTopics.remove(id);
-            if (topic == null) {
-                continue;
-            }
-            try {
-                topic.removeListener(id);
-            } catch (Exception ex) {
-                log.warn("Failed to remove listener {} from topic {}", id, getStreamName(type), ex);
-            }
-        }
-
-
+        subscriptions.remove(type, (id, topic) -> topic.removeListener(id));
     }
 
 
@@ -274,12 +221,11 @@ public class RedisPubSubReliableEventStore implements EventStore {
         trimExecutor.shutdown();
 
         // Unsubscribe from all event types
-        Arrays.stream(EventType.values()).forEach(this::unsubscribe);
-        map.clear();
+        unsubscribeAll();
+        subscriptions.clear();
 
         // Clear all topic references
         activePubTopics.clear();
-        activeSubTopics.clear();
         trimTopics.clear();
     }
 
