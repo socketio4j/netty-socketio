@@ -167,7 +167,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             log.debug("Starting authorization for client: {} with origin: {}", channel.remoteAddress(), origin);
         }
         
-        if (!configuration.isOriginAllowed(origin)) {
+        if (origin != null && !configuration.isOriginAllowed(origin)) {
             log.warn("Blocked handshake from disallowed origin: {}, client: {}", origin, channel.remoteAddress());
             HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.FORBIDDEN);
             channel.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
