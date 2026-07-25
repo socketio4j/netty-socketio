@@ -305,7 +305,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                 ByteBuf dstStart = out.readSlice(FRAME_BUFFER_SIZE);
                 dstStart.retain();
                 WebSocketFrame start = new TextWebSocketFrame(false, 0, dstStart);
-                writeFutureList.add(ctx.channel().write(start));
+                ctx.channel().write(start);
                 
                 int fragmentCount = 1;
                 while (out.isReadable()) {
@@ -313,7 +313,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                     ByteBuf dst = out.readSlice(re);
                     dst.retain();
                     WebSocketFrame res = new ContinuationWebSocketFrame(!out.isReadable(), 0, dst);
-                    writeFutureList.add(ctx.channel().write(res));
+                    ctx.channel().write(res);
                     fragmentCount++;
                 }
                 
@@ -329,7 +329,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                         out.readableBytes(), msg.getSessionId());
                 }
                 WebSocketFrame res = new TextWebSocketFrame(out);
-                writeFutureList.add(ctx.channel().writeAndFlush(res));
+                ctx.channel().writeAndFlush(res);
             } else {
                 if (log.isDebugEnabled()) {
                     log.debug("Empty packet, releasing buffer, sessionId: {}", msg.getSessionId());
