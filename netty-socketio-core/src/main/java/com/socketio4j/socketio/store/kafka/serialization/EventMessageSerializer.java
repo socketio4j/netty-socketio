@@ -20,42 +20,27 @@ package com.socketio4j.socketio.store.kafka.serialization;
  * @author https://github.com/sanjomo
  * @date 15/12/25 6:21 pm
  */
+
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
-import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.socketio4j.socketio.store.event.EventMessage;
 
 public final class EventMessageSerializer
         implements Serializer<EventMessage> {
     private static final Logger log = LoggerFactory.getLogger(EventMessageSerializer.class);
 
-    private static final ObjectMapper MAPPER;
-
-    static {
-        PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
-                .allowIfSubType("com.socketio4j.socketio")
-                .allowIfBaseType("java.util")
-                .allowIfSubType("java.util.Arrays$")
-                .allowIfSubTypeIsArray()
-                .allowIfSubType("java.time")
-                .allowIfSubType("java.math")
-                .build();
-
-        MAPPER = JsonMapper.builder()
-                .polymorphicTypeValidator(ptv)
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .enable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE)
-                .build();
-        MAPPER.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL, JsonTypeInfo.As.PROPERTY);
-    }
+    private static final ObjectMapper MAPPER =
+            JsonMapper.builder()
+                    .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+                    .disable(MapperFeature.DEFAULT_VIEW_INCLUSION)
+                    .build();
 
     @Override
     public byte[] serialize(String topic, EventMessage data) {
