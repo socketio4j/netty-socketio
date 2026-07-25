@@ -36,11 +36,16 @@ public final class EventMessageCodec {
     static {
         PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
                 .allowIfSubType("com.socketio4j.socketio")
-                .allowIfBaseType("java.util")
+
+                .allowIfSubType("java.util.ArrayList")
+                .allowIfSubType("java.util.HashMap")
+                .allowIfSubType("java.util.LinkedHashMap")
+
                 .allowIfSubType("java.util.Arrays$")
+                .allowIfSubType("java.util.Collections$")
+                .allowIfSubType("java.util.ImmutableCollections$")
+
                 .allowIfSubTypeIsArray()
-                .allowIfSubType("java.time")
-                .allowIfSubType("java.math")
                 .build();
 
         MAPPER = JsonMapper.builder()
