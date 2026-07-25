@@ -422,16 +422,9 @@ public class Namespace implements SocketIONamespace {
 
     public void dispatch(String room, Packet packet) {
         int size = forEachRoomClient(room, client -> {
-            packet.setEngineIOVersion(client.getEngineIOVersion());
-            if (log.isDebugEnabled()) {
-                log.debug("[DISPATCH] namespace={} room={} → sending '{}' to sessionId={} (EIO={})",
-                        name, room, packet.getName(), client.getSessionId(), packet.getEngineIOVersion());
-            }
             client.send(packet);
         });
-        if (log.isDebugEnabled()) {
-            log.debug("[DISPATCH] namespace={} room={} → found {} local client(s)", name, room, size);
-        }
+
         if (size > 0) {
             metrics.eventSent(name, size);
         }

@@ -9,6 +9,10 @@ on:
       javaVersion:
         required: true
         type: string
+      delay:
+        required: false
+        type: string
+        default: "0"
 
 jobs:
   build:
@@ -20,6 +24,10 @@ jobs:
       TESTCONTAINERS_RYUK_DISABLED: false
 
     steps:
+      # --- Staggered delay ---
+      - name: Stagger job start
+        run: sleep ${{ inputs.delay }}
+
       # --- Checkout ---
       - name: Checkout
         uses: actions/checkout@v4
