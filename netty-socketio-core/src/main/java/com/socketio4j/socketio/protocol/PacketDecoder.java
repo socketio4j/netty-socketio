@@ -364,146 +364,11 @@ public class PacketDecoder {
         }
     }
 
-    /**
-     * Decodes and appends an incoming binary attachment to the given packet.
-     * <p>
-     * Depending on the negotiated Engine.IO version and transport, the incoming buffer
-     * has different frame layouts:
-     * </p>
-     * 
-     * <h3>Engine.IO v3 (Socket.IO 2.x and older)</h3>
-     * <ul>
-     *   <li>
-     *     <b>WebSocket (Raw Binary Frame):</b>
-     *     <pre>
-     *     +---------------+---------------------------------+
-     *     | Byte 0        | Bytes 1..N                      |
-     *     +---------------+---------------------------------+
-     *     | Type (0x04)   | Raw binary payload              |
-     *     +---------------+---------------------------------+
-     *     </pre>
-     *     The leading byte value 4 (Engine.IO MESSAGE packet type) is stripped, and the 
-     *     remainder is base64-encoded and appended as an attachment.
-     *   </li>
-     *   <li>
-     *     <b>WebSocket/Polling (Base64 Text Frame):</b>
-     *     <pre>
-     *     +-----------------+-------------------------------+
-     *     | Bytes 0..1      | Bytes 2..N                    |
-     *     +-----------------+-------------------------------+
-     *     | Prefix ("b4")   | Base64 string payload         |
-     *     +-----------------+-------------------------------+
-     *     </pre>
-     *     The leading ASCII prefix "b4" is stripped, and the remaining base64 payload is 
-     *     appended directly without double-encoding.
-     *     <br>
-     *     Ref: <a href="https://github.com/socketio/engine.io-protocol/tree/v3#packet-string-encoding">Engine.IO v3 Packet String Encoding Spec</a>
-     *     <blockquote>
-     *     "Sometimes, it is not possible to send binary data over the transport [...]. In that case, 
-     *     the packet is encoded as a string, and prepended with a 'b' character. For example: a packet 
-     *     of type message containing the buffer &lt;01 02 03&gt; is encoded as 'b4AQID'"
-     *     </blockquote>
-     *   </li>
-     *   <li>
-     *     <b>Polling (Raw Binary Wrapper):</b>
-     *     <pre>
-     *     +--------+---------------+--------+---------------+--------------------+
-     *     | Byte 0 | Bytes 1..K    | Byte K | Byte K+1      | Bytes K+2..N       |
-     *     +--------+---------------+--------+---------------+--------------------+
-     *     | 0x01   | Length (ASCII) | 0xFF   | Type (0x04)   | Raw binary payload |
-     *     +--------+---------------+--------+---------------+--------------------+
-     *     </pre>
-     *     The binary envelope is stripped to retrieve the inner packet, which is then 
-     *     processed normally (stripping the type prefix as described above).
-     *     <br>
-     *     Ref: <a href="https://github.com/socketio/engine.io-protocol/tree/v3#payload">Engine.IO v3 Payload Spec</a>
-     *     <blockquote>
-     *     "If the payload contains at least one binary packet, the payload is encoded as a binary buffer:
-     *      - a binary indicator: 1 (representing a binary packet) or 0 (representing a string packet)
-     *      - the length of the packet (as a series of characters)
-     *      - a separator: 255
-     *      - the packet itself"
-     *     </blockquote>
-     *   </li>
-     * </ul>
-     * 
-     * <h3>Engine.IO v4 (Socket.IO 3.x and newer)</h3>
-     * <ul>
-     *   <li>
-     *     <b>WebSocket/Polling (Raw Binary Frame):</b>
-     *     <pre>
-     *     +-------------------------------------------------+
-     *     | Bytes 0..N                                      |
-     *     +-------------------------------------------------+
-     *     | Raw binary payload                              |
-     *     +-------------------------------------------------+
-     *     </pre>
-     *     Engine.IO v4 does not prepend any packet types or metadata to binary attachments. 
-     *     The entire buffer is base64-encoded as-is and stored.
-     *     <br>
-     *     Ref: <a href="https://socket.io/docs/v4/engine-io-protocol/">Engine.IO v4 Protocol Spec</a>
-     *     <blockquote>
-     *     "Binary packets are sent as-is without any modifications."
-     *     </blockquote>
-     *   </li>
-     * </ul>
-     *
-     * @param head         the client connection head
-     * @param frame        the incoming byte buffer frame
-     * @param binaryPacket the packet being assembled
-     * @return the packet if fully assembled (all attachments loaded), or an empty MESSAGE packet
-     * @throws IOException if a decoding error occurs
-     */
     private Packet addAttachment(ClientHead head, ByteBuf frame, Packet binaryPacket) throws IOException {
-        EngineIOVersion version = head.getEngineIOVersion();
-        boolean isV3OrV2 = version == EngineIOVersion.V3 || version == EngineIOVersion.V2;
-
-        ByteBuf payload = frame;
-        if (isV3OrV2 && frame.readableBytes() > 0) {
-            // 1. Strip EIOv3 Polling binary payload wrapper if present: '1' + length + '-1' (255)
-            if (frame.getByte(frame.readerIndex()) == 1) {
-                frame.readByte(); // skip '1'
-                int headEndIndex = frame.bytesBefore((byte) -1);
-                if (headEndIndex != -1) {
-                    int len = (int) readLong(frame, headEndIndex);
-                    int payloadStart = frame.readerIndex() + 1; // skip 0xFF separator
-                    if (payloadStart + len > frame.writerIndex()) {
-                        throw new IOException("Malformed polling wrapper: length " + len
-                                + " exceeds remaining frame bytes " + (frame.writerIndex() - payloadStart));
-                    }
-                    payload = frame.slice(payloadStart, len);
-                    frame.readerIndex(payloadStart + len);
-                } else {
-                    throw new IOException("Malformed polling wrapper: missing 0xFF separator");
-                }
-            }
-
-            // 2. Strip EIOv3 packet type prefix: 'b4' or '4' on the payload
-            int ri = payload.readerIndex();
-            if (payload.readableBytes() >= 2 && payload.getByte(ri) == 'b' && payload.getByte(ri + 1) == '4') {
-                payload.readerIndex(ri + 2); // skip 'b4'
-                // Since it started with 'b4', it's already base64 encoded
-                binaryPacket.addAttachment(Unpooled.copiedBuffer(payload));
-            } else {
-                if (payload.readableBytes() >= 1 && payload.getByte(ri) == 4) {
-                    payload.readerIndex(ri + 1); // skip '4'
-                }
-                ByteBuf attachBuf = Base64.encode(payload);
-                binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
-                attachBuf.release();
-            }
-
-            // Ensure parent frame is advanced if we bypassed the polling wrapper path
-            if (frame.readableBytes() > 0) {
-                frame.skipBytes(frame.readableBytes());
-            }
-        } else {
-            // EIOv4 default logic: base64-encode the raw binary frame as-is
-            ByteBuf attachBuf = Base64.encode(frame);
-            binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
-            attachBuf.release();
-            frame.skipBytes(frame.readableBytes());
-        }
+        ByteBuf attachBuf = Base64.encode(frame);
+        binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
+        attachBuf.release();
+        frame.skipBytes(frame.readableBytes());
 
         if (binaryPacket.isAttachmentsLoaded()) {
             LinkedList<ByteBuf> slices = new LinkedList<>();
@@ -541,11 +406,6 @@ public class PacketDecoder {
     private void parseBody(ClientHead head, ByteBuf frame, Packet packet) throws IOException {
         // Early return for non-MESSAGE packets
         if (packet.getType() != PacketType.MESSAGE) {
-            return;
-        }
-
-        if (packet.hasAttachments() && !packet.isAttachmentsLoaded()) {
-            handleBinaryAttachments(head, frame, packet);
             return;
         }
 
