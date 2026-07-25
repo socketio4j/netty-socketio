@@ -18,10 +18,14 @@ jobs:
   build:
     strategy:
       matrix:
-        java-version:
-          - 17
-          - 21
-          - 25
+        include:
+          - java-version: 17
+            delay: 0
+          - java-version: 21
+            delay: 180
+          - java-version: 25
+            delay: 360
     uses: ./.github/workflows/build.yml
     with:
       javaVersion: "${{ matrix.java-version }}"
+      delay: "${{ matrix.delay }}"
