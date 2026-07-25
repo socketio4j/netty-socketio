@@ -22,9 +22,9 @@ jobs:
           - java-version: 17
             delay: 0
           - java-version: 21
-            delay: 180
+            delay: 0
           - java-version: 25
-            delay: 360
+            delay: 0
     uses: ./.github/workflows/build.yml
     with:
       javaVersion: "${{ matrix.java-version }}"
