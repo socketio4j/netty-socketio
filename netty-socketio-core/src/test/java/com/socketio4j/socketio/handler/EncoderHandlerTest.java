@@ -17,6 +17,7 @@
 package com.socketio4j.socketio.handler;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -159,7 +160,51 @@ public class EncoderHandlerTest {
         assertThat(response.headers().get("Connection")).isEqualTo("keep-alive");
         assertThat(response.headers().get("Access-Control-Allow-Headers")).isEqualTo("content-type");
         assertThat(response.headers().get("Access-Control-Allow-Origin")).isEqualTo(TEST_ORIGIN);
+        assertThat(response.headers().get("Access-Control-Allow-Credentials")).isNull();
+        assertThat(response.headers().get("Vary")).isEqualTo("origin");
+    }
+
+    @Test
+    @DisplayName("Should allow credentials only for allow-listed origins")
+    void shouldAllowCredentialsForAllowedOrigin() throws Exception {
+        // Given
+        configuration.setAllowedOrigins(Collections.singleton(TEST_ORIGIN));
+        encoderHandler = new EncoderHandler(configuration, mockEncoder);
+        channel = new EmbeddedChannel(encoderHandler);
+
+        XHROptionsMessage message = new XHROptionsMessage(TEST_ORIGIN, sessionId);
+        channel.attr(EncoderHandler.ORIGIN).set(TEST_ORIGIN);
+        ChannelPromise promise = channel.newPromise();
+
+        // When
+        encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
+
+        // Then
+        HttpResponse response = channel.readOutbound();
+        assertThat(response.headers().get("Access-Control-Allow-Origin")).isEqualTo(TEST_ORIGIN);
         assertThat(response.headers().get("Access-Control-Allow-Credentials")).isEqualTo("true");
+    }
+
+    @Test
+    @DisplayName("Should not emit CORS headers for origins outside the allow list")
+    void shouldRejectOriginOutsideAllowList() throws Exception {
+        // Given
+        configuration.setAllowedOrigins(Collections.singleton(TEST_ORIGIN));
+        encoderHandler = new EncoderHandler(configuration, mockEncoder);
+        channel = new EmbeddedChannel(encoderHandler);
+
+        String evilOrigin = "http://evil.example.com";
+        XHROptionsMessage message = new XHROptionsMessage(evilOrigin, sessionId);
+        channel.attr(EncoderHandler.ORIGIN).set(evilOrigin);
+        ChannelPromise promise = channel.newPromise();
+
+        // When
+        encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
+
+        // Then
+        HttpResponse response = channel.readOutbound();
+        assertThat(response.headers().get("Access-Control-Allow-Origin")).isNull();
+        assertThat(response.headers().get("Access-Control-Allow-Credentials")).isNull();
     }
 
     @Test

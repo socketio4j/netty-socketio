@@ -202,13 +202,22 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             if (configuration.getOrigin() != null) {
                 res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, configuration.getOrigin());
                 res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, Boolean.TRUE);
-            } else {
-                if (origin != null) {
-                    res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
-                    res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, Boolean.TRUE);
-                } else {
-                    res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+                res.headers().add(HttpHeaderNames.VARY, HttpHeaderNames.ORIGIN);
+            } else if (origin == null) {
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+            } else if (!configuration.getAllowedOrigins().isEmpty()) {
+                if (!configuration.isOriginAllowed(origin)) {
+                    res.headers().add(HttpHeaderNames.VARY, HttpHeaderNames.ORIGIN);
+                    return;
                 }
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, Boolean.TRUE);
+                res.headers().add(HttpHeaderNames.VARY, HttpHeaderNames.ORIGIN);
+            } else {
+                // credentials are not allowed for arbitrary reflected origins,
+                // configure allowedOrigins or origin to enable them
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+                res.headers().add(HttpHeaderNames.VARY, HttpHeaderNames.ORIGIN);
             }
             if (configuration.getAllowHeaders() != null) {
                 res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, configuration.getAllowHeaders());

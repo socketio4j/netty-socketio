@@ -89,7 +89,13 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
                 ctx.channel().attr(EncoderHandler.USER_AGENT).set(userAgent);
 
                 if (j != null && j.get(0) != null) {
-                    Integer index = Integer.valueOf(j.get(0));
+                    Integer index = parseInt(j.get(0));
+                    if (index == null) {
+                        log.debug("Malformed jsonp index: {}", j.get(0));
+                        sendBadRequest(ctx);
+                        req.release();
+                        return;
+                    }
                     ctx.channel().attr(EncoderHandler.JSONP_INDEX).set(index);
                 }
                 if (b64 != null && b64.get(0) != null) {
@@ -99,13 +105,26 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
                     } else if ("false".equals(flag)) {
                         flag = "0";
                     }
-                    Integer enable = Integer.valueOf(flag);
+                    Integer enable = parseInt(flag);
+                    if (enable == null) {
+                        log.debug("Malformed b64 flag: {}", b64.get(0));
+                        sendBadRequest(ctx);
+                        req.release();
+                        return;
+                    }
                     ctx.channel().attr(EncoderHandler.B64).set(enable == 1);
                 }
 
                 try {
                     if (sid != null && sid.get(0) != null) {
-                        final UUID sessionId = UUID.fromString(sid.get(0));
+                        final UUID sessionId;
+                        try {
+                            sessionId = UUID.fromString(sid.get(0));
+                        } catch (IllegalArgumentException e) {
+                            log.debug("Malformed sid: {}", sid.get(0));
+                            sendBadRequest(ctx);
+                            return;
+                        }
                         handleMessage(req, sessionId, queryDecoder, ctx);
                     } else {
                         // first connection
@@ -128,6 +147,11 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             String origin = req.headers().get(HttpHeaderNames.ORIGIN);
             if (queryDecoder.parameters().containsKey("disconnect")) {
                 ClientHead client = clientsBox.get(sessionId);
+                if (client == null) {
+                    log.debug("{} is not registered. Closing connection", sessionId);
+                    sendError(ctx);
+                    return;
+                }
                 client.onChannelDisconnect();
                 ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId));
             } else if (HttpMethod.POST.equals(req.method())) {
@@ -201,6 +225,19 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         client.bindChannel(ctx.channel(), Transport.POLLING);
 
         authorizeHandler.connect(client);
+    }
+
+    private static Integer parseInt(String value) {
+        try {
+            return Integer.valueOf(value);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private void sendBadRequest(ChannelHandlerContext ctx) {
+        HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.BAD_REQUEST);
+        ctx.channel().writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
     }
 
     private void sendError(ChannelHandlerContext ctx) {
