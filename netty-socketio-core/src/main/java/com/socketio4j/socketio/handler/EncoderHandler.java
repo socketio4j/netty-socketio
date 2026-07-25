@@ -111,8 +111,9 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                     version = name + "/" + attrs.getValue("Bundle-Version");
                     break;
                 }
-            } catch (IOException E) {
-                // skip it
+            } catch (IOException e) {
+                // A single unreadable manifest must not prevent reading the others
+                log.debug("Skipping unreadable MANIFEST.MF while resolving version header", e);
             }
         }
     }
@@ -304,7 +305,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                 ByteBuf dstStart = out.readSlice(FRAME_BUFFER_SIZE);
                 dstStart.retain();
                 WebSocketFrame start = new TextWebSocketFrame(false, 0, dstStart);
-                ctx.channel().write(start);
+                writeFutureList.add(ctx.channel().write(start));
                 
                 int fragmentCount = 1;
                 while (out.isReadable()) {
@@ -312,7 +313,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                     ByteBuf dst = out.readSlice(re);
                     dst.retain();
                     WebSocketFrame res = new ContinuationWebSocketFrame(!out.isReadable(), 0, dst);
-                    ctx.channel().write(res);
+                    writeFutureList.add(ctx.channel().write(res));
                     fragmentCount++;
                 }
                 
@@ -328,7 +329,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                         out.readableBytes(), msg.getSessionId());
                 }
                 WebSocketFrame res = new TextWebSocketFrame(out);
-                ctx.channel().writeAndFlush(res);
+                writeFutureList.add(ctx.channel().writeAndFlush(res));
             } else {
                 if (log.isDebugEnabled()) {
                     log.debug("Empty packet, releasing buffer, sessionId: {}", msg.getSessionId());

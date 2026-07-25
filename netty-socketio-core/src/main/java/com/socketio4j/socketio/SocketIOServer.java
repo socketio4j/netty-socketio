@@ -608,8 +608,10 @@ public class SocketIOServer implements ClientListeners {
                             int actualPort = local.getPort();
                             configCopy.setPort(actualPort);
                             configuration.setPort(actualPort);
-                        } catch (Exception ignore) {
+                        } catch (Exception e) {
                             // keep configured port if localAddress is not InetSocketAddress
+                            log.debug("Could not resolve actual bound port, keeping configured port {}",
+                                    configCopy.getPort(), e);
                         }
                     }
                     serverStatus.set(ServerStatus.STARTED);
@@ -618,7 +620,7 @@ public class SocketIOServer implements ClientListeners {
                     fireAfterStart();
                 } else {
                     serverStatus.set(ServerStatus.INIT);
-                    log.error("Failed to start server on port {}", configCopy.getPort());
+                    log.error("Failed to start server on port {}", configCopy.getPort(), future.cause());
                     cleanUpResources(false);
                 }
             });
