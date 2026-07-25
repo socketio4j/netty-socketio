@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
@@ -39,6 +40,7 @@ import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 import okio.ByteString;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
@@ -95,6 +97,13 @@ public abstract class DistributedCommonTest {
      */
     private static final long NEGATIVE_ASSERT_MS = 1000L;
 
+    /**
+     * Budget for the one-off cluster warm-up. Broker bootstrap (Kafka partition discovery,
+     * Hazelcast cluster formation, NATS dispatcher setup) can take far longer than a single
+     * operation, so it is paid here instead of inside a test's {@link #OP_TIMEOUT_SECS} latch.
+     */
+    private static final long WARMUP_TIMEOUT_SECS = 120L;
+
     // ─── Abstract node handles ────────────────────────────────────────────────
 
     protected SocketIOServer node1;
@@ -102,6 +111,40 @@ public abstract class DistributedCommonTest {
 
     protected int port1;
     protected int port2;
+
+    private final AtomicBoolean clusterWarm = new AtomicBoolean();
+
+    /**
+     * Runs a full connect/join/replicate round trip once per class so that broker bootstrap
+     * cost is not charged to the first test's latches.
+     */
+    @BeforeEach
+    public void warmUpCluster() throws Exception {
+        if (!clusterWarm.compareAndSet(false, true)) {
+            return;
+        }
+
+        String room = uniqueRoom("warmup");
+        CountDownLatch connectLatch = new CountDownLatch(2);
+        CountDownLatch joinLatch    = new CountDownLatch(2);
+
+        Socket a = newSocket(port1);
+        Socket b = newSocket(port2);
+        try {
+            registerCounters(connectLatch, joinLatch, a, b);
+
+            a.connect();
+            b.connect();
+            awaitOrFail(connectLatch, WARMUP_TIMEOUT_SECS, "Warm-up clients failed to connect");
+
+            a.emit("join-room", room);
+            b.emit("join-room", room);
+            awaitOrFail(joinLatch, WARMUP_TIMEOUT_SECS, "Warm-up clients failed to join room");
+            awaitRoomSync(room, 2);
+        } finally {
+            disconnectAll(a, b);
+        }
+    }
 
     // =========================================================================
     //  Test 0 – Two nodes, same room: every client receives every broadcast
@@ -1014,15 +1057,49 @@ public abstract class DistributedCommonTest {
 
     // ── Assertion helpers ─────────────────────────────────────────────────────
 
-    private static void awaitOrFail(CountDownLatch latch, long timeoutSecs, String message)
+    private void awaitOrFail(CountDownLatch latch, long timeoutSecs, String message)
             throws InterruptedException {
-        assertTrue(latch.await(timeoutSecs, TimeUnit.SECONDS), message);
+        awaitOrFail(latch, timeoutSecs, () -> message);
     }
 
-    private static void awaitOrFail(CountDownLatch latch, long timeoutSecs,
+    private void awaitOrFail(CountDownLatch latch, long timeoutSecs,
                                      Supplier<String> messageSupplier)
             throws InterruptedException {
-        assertTrue(latch.await(timeoutSecs, TimeUnit.SECONDS), messageSupplier);
+        boolean completed = latch.await(timeoutSecs, TimeUnit.SECONDS);
+        assertTrue(completed, () -> messageSupplier.get() + clusterState(latch, timeoutSecs));
+    }
+
+    /**
+     * Snapshot of what the cluster looked like when a latch timed out: how many counts were
+     * still outstanding, and each node's view of room membership. Without this a timeout
+     * cannot be attributed to the client, the server or cross-node replication.
+     */
+    private String clusterState(CountDownLatch latch, long timeoutSecs) {
+        StringBuilder sb = new StringBuilder()
+                .append(" [timeout=").append(timeoutSecs).append("s")
+                .append(", latch remaining=").append(latch.getCount());
+        appendRooms(sb, "node1", node1);
+        appendRooms(sb, "node2", node2);
+        return sb.append(']').toString();
+    }
+
+    private static void appendRooms(StringBuilder sb, String name, SocketIOServer server) {
+        sb.append(", ").append(name).append('=');
+        try {
+            Namespace ns = defaultNamespace(server);
+            sb.append('{');
+            boolean first = true;
+            for (String room : ns.getRooms()) {
+                if (!first) {
+                    sb.append(", ");
+                }
+                sb.append(room).append(':').append(ns.getRoomClientsInCluster(room));
+                first = false;
+            }
+            sb.append('}');
+        } catch (Exception e) {
+            sb.append("<unavailable: ").append(e).append('>');
+        }
     }
 
     // ── Socket helpers ────────────────────────────────────────────────────────
