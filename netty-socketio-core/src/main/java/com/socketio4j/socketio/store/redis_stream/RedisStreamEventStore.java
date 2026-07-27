@@ -19,9 +19,7 @@ package com.socketio4j.socketio.store.redis_stream;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,16 +36,16 @@ import org.redisson.api.stream.StreamReadArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.store.event.AbstractEventStore;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
-import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
-import com.socketio4j.socketio.store.event.ListenerRegistration;
+import com.socketio4j.socketio.store.event.ListenerRegistry;
 
 
-public class RedisStreamEventStore implements EventStore {
+public class RedisStreamEventStore extends AbstractEventStore {
 
     private static final Logger log =
             LoggerFactory.getLogger(RedisStreamEventStore.class);
@@ -65,9 +63,6 @@ public class RedisStreamEventStore implements EventStore {
 
     private final RedissonClient redissonPub;
     private final RedissonClient redissonSub;
-    private final Long nodeId;
-    private final EventStoreMode eventStoreMode;
-    private final String streamNamePrefix;
     private final int streamMaxLength;
 
     // ---------------------------------------------------------------------
@@ -81,8 +76,7 @@ public class RedisStreamEventStore implements EventStore {
     private final ConcurrentMap<EventType, RStream<String, EventMessage>> subStreams =
             new ConcurrentHashMap<>();
 
-    private final ConcurrentMap<EventType, Queue<ListenerRegistration<? extends EventMessage>>> listeners =
-            new ConcurrentHashMap<>();
+    private final ListenerRegistry listeners = new ListenerRegistry();
 
     private final ConcurrentMap<EventType, StreamMessageId> offsets =
             new ConcurrentHashMap<>();
@@ -102,27 +96,10 @@ public class RedisStreamEventStore implements EventStore {
             @Nullable String streamNamePrefix,
             @Nullable Integer streamMaxLength
     ) {
+        super(nodeId, eventStoreMode, EventStoreMode.SINGLE_CHANNEL, streamNamePrefix, DEFAULT_PREFIX);
 
         this.redissonPub = Objects.requireNonNull(redissonPub, "redissonPub");
         this.redissonSub = Objects.requireNonNull(redissonSub, "redissonSub");
-
-        if (nodeId == null) {
-            nodeId = getNodeId();
-            log.warn("nodeId is null, loaded default : {}", nodeId);
-        }
-        this.nodeId = nodeId;
-
-        if (eventStoreMode == null) {
-            eventStoreMode = EventStoreMode.SINGLE_CHANNEL;
-            log.warn("mode is null, loaded default : {}", EventStoreMode.SINGLE_CHANNEL);
-        }
-        this.eventStoreMode = eventStoreMode;
-
-        if (streamNamePrefix == null || streamNamePrefix.isEmpty()) {
-            streamNamePrefix = DEFAULT_PREFIX;
-            log.warn("prefix is null/empty, loaded default : {}", DEFAULT_PREFIX);
-        }
-        this.streamNamePrefix = streamNamePrefix;
 
         if (streamMaxLength == null || streamMaxLength <= 0) {
             streamMaxLength = DEFAULT_MAX_LEN;
@@ -153,19 +130,14 @@ public class RedisStreamEventStore implements EventStore {
     }
 
     private void initStream(EventType type) {
-        subStreams.put(type, redissonSub.getStream(streamName(type)));
-        pubStreams.put(type, redissonPub.getStream(streamName(type)));
+        subStreams.put(type, redissonSub.getStream(channelName(type)));
+        pubStreams.put(type, redissonPub.getStream(channelName(type)));
         offsets.put(type, StreamMessageId.NEWEST);
     }
 
     // ---------------------------------------------------------------------
     // Metadata
     // ---------------------------------------------------------------------
-
-    @Override
-    public EventStoreMode getEventStoreMode() {
-        return eventStoreMode;
-    }
 
     @Override
     public EventStoreType getEventStoreType() {
@@ -178,11 +150,11 @@ public class RedisStreamEventStore implements EventStore {
 
     @Override
     public void publish0(EventType type, EventMessage msg) {
-        msg.setNodeId(nodeId);
+        stampNodeId(msg);
 
         pubStreams.computeIfAbsent(
-                resolve(type),
-                t -> redissonPub.getStream(streamName(t))
+                resolveType(type),
+                t -> redissonPub.getStream(channelName(t))
         ).add(StreamAddArgs.entry(type.name(), msg).trimNonStrict().maxLen(streamMaxLength).noLimit());
 
     }
@@ -203,9 +175,7 @@ public class RedisStreamEventStore implements EventStore {
 
         validateSubscribe(type);
 
-        listeners
-                .computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
-                .add(new ListenerRegistration<>(listener, clazz));
+        listeners.register(type, listener, clazz);
 
         ensurePoller(type);
     }
@@ -226,7 +196,7 @@ public class RedisStreamEventStore implements EventStore {
                 RStream<String, EventMessage> stream =
                         subStreams.computeIfAbsent(
                                 t,
-                                k -> redissonSub.getStream(streamName(k))
+                                k -> redissonSub.getStream(channelName(k))
                         );
                 newExec.execute(() -> pollLoop(stream, t));
                 return newExec;
@@ -264,7 +234,7 @@ public class RedisStreamEventStore implements EventStore {
 
                     EventMessage msg = map.values().iterator().next();
                     try {
-                        if (!nodeId.equals(msg.getNodeId())) {
+                        if (isRemote(msg)) {
                             dispatch(type, msg, id);
                         }
                     } finally {
@@ -280,28 +250,13 @@ public class RedisStreamEventStore implements EventStore {
         });
     }
 
-    private <T extends EventMessage> void dispatch(
+    private void dispatch(
             EventType type,
             EventMessage msg,
             StreamMessageId id
     ) {
-
-        Queue<ListenerRegistration<? extends EventMessage>> regs =
-                listeners.get(type);
-
-        if (regs == null) {
-            return;
-        }
-
         msg.setOffset(id.toString());
-
-        for (ListenerRegistration<? extends EventMessage> reg : regs) {
-            if (reg.getClazz().isInstance(msg)) {
-                ((ListenerRegistration<T>) reg)
-                        .getListener()
-                        .onMessage((T) msg);
-            }
-        }
+        listeners.dispatch(type, msg);
     }
 
     private void scheduleRetry(RStream<String, EventMessage> stream, EventType type) {
@@ -345,32 +300,6 @@ public class RedisStreamEventStore implements EventStore {
     // Utils
     // ---------------------------------------------------------------------
 
-    private String streamName(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            return streamNamePrefix + EventType.ALL_SINGLE_CHANNEL.name();
-        }
-        return streamNamePrefix + type.name();
-    }
-
-    private EventType resolve(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            return EventType.ALL_SINGLE_CHANNEL;
-        }
-        return type;
-    }
-
-    private void validateSubscribe(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)
-                && type != EventType.ALL_SINGLE_CHANNEL) {
-            throw new UnsupportedOperationException(
-                    "Only ALL_SINGLE_CHANNEL allowed in SINGLE_CHANNEL mode");
-        }
-        if (EventStoreMode.MULTI_CHANNEL.equals(eventStoreMode)
-                && type == EventType.ALL_SINGLE_CHANNEL) {
-            throw new UnsupportedOperationException(
-                    "ALL_SINGLE_CHANNEL not allowed in MULTI_CHANNEL mode");
-        }
-    }
     public static final class Builder {
 
         // -------------------------
