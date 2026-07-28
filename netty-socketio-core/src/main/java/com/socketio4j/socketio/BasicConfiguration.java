@@ -16,9 +16,14 @@
  */
 package com.socketio4j.socketio;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.nativeio.TransportType;
@@ -61,6 +66,10 @@ public abstract class BasicConfiguration {
     protected boolean addVersionHeader = true;
 
     protected String origin;
+
+    protected Set<String> allowedOrigins = Collections.emptySet();
+
+    private List<Pattern> allowedOriginPatterns = Collections.emptyList();
 
     protected boolean enableCors = true;
 
@@ -132,6 +141,7 @@ public abstract class BasicConfiguration {
 
         setAddVersionHeader(conf.isAddVersionHeader());
         setOrigin(conf.getOrigin());
+        setAllowedOrigins(conf.getAllowedOrigins());
         setEnableCors(conf.isEnableCors());
         setAllowHeaders(conf.getAllowHeaders());
 
@@ -373,6 +383,75 @@ public abstract class BasicConfiguration {
 
     public String getOrigin() {
         return origin;
+    }
+
+    /**
+     * Origins allowed to send credentialed cross-origin requests and to open
+     * cross-origin websocket connections.
+     * <p>
+     * When empty, the request <b>ORIGIN</b> header is still echoed back in the
+     * <b>Access-Control-Allow-Origin</b> header, but without
+     * <b>Access-Control-Allow-Credentials</b>, and cross-origin websocket
+     * handshakes are not restricted.
+     * <p>
+     * Entries are matched against the full origin and may contain <code>*</code>
+     * as a wildcard for any part of the host or port, for example
+     * <code>https://*.example.com</code> or <code>http://localhost:*</code>.
+     *
+     * @param allowedOrigins - allowed origins
+     */
+    public void setAllowedOrigins(Set<String> allowedOrigins) {
+        if (allowedOrigins == null || allowedOrigins.isEmpty()) {
+            this.allowedOrigins = Collections.emptySet();
+            this.allowedOriginPatterns = Collections.emptyList();
+            return;
+        }
+
+        this.allowedOrigins = Collections.unmodifiableSet(new LinkedHashSet<>(allowedOrigins));
+
+        List<Pattern> patterns = new ArrayList<>();
+        for (String allowedOrigin : this.allowedOrigins) {
+            if (allowedOrigin != null && allowedOrigin.indexOf('*') >= 0) {
+                patterns.add(compileOriginPattern(allowedOrigin));
+            }
+        }
+        this.allowedOriginPatterns = Collections.unmodifiableList(patterns);
+    }
+
+    private static Pattern compileOriginPattern(String allowedOrigin) {
+        StringBuilder regex = new StringBuilder();
+        int start = 0;
+        int wildcard;
+        while ((wildcard = allowedOrigin.indexOf('*', start)) >= 0) {
+            regex.append(Pattern.quote(allowedOrigin.substring(start, wildcard)));
+            // a wildcard never spans the scheme separator or a path
+            regex.append("[^/]*");
+            start = wildcard + 1;
+        }
+        regex.append(Pattern.quote(allowedOrigin.substring(start)));
+        return Pattern.compile(regex.toString());
+    }
+
+    public Set<String> getAllowedOrigins() {
+        return allowedOrigins;
+    }
+
+    public boolean isOriginAllowed(String requestOrigin) {
+        if (allowedOrigins.isEmpty()) {
+            return true;
+        }
+        if (requestOrigin == null) {
+            return false;
+        }
+        if (allowedOrigins.contains(requestOrigin)) {
+            return true;
+        }
+        for (Pattern pattern : allowedOriginPatterns) {
+            if (pattern.matcher(requestOrigin).matches()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
