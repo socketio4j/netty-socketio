@@ -84,7 +84,7 @@ public class PacketEncoder {
             i++;
 
             for (ByteBuf attachment : packet.getAttachments()) {
-                ByteBuf encodedBuf = Base64.encode(attachment, Base64Dialect.URL_SAFE);
+                ByteBuf encodedBuf = Base64.encode(attachment, Base64Dialect.STANDARD);
                 buf.writeBytes(toChars(encodedBuf.readableBytes() + 2));
                 buf.writeBytes(B64_DELIMITER);
                 buf.writeBytes(BINARY_HEADER);
@@ -121,44 +121,86 @@ public class PacketEncoder {
         }
     }
 
-    public void encodePackets(Queue<Packet> packets, ByteBuf buffer, ByteBufAllocator allocator, int limit) throws IOException {
-        int i = 0;
-        boolean hasPrecedingPacket = false;
-        while (true) {
+    public void encodePackets(Queue<Packet> packets,
+                              ByteBuf buffer,
+                              ByteBufAllocator allocator,
+                              int limit) throws IOException {
+
+        int count = 0;
+        boolean first = true;
+
+        while (count < limit) {
             Packet packet = packets.poll();
-            if (packet == null || i == limit) {
+            if (packet == null) {
                 break;
             }
-            // 0x1e (ASCII Record Separator) is the EIOv4 multi-packet polling delimiter.
-            // see https://socket.io/docs/v4/engine-io-protocol/#http-long-polling
-            if (hasPrecedingPacket && EngineIOVersion.V4.equals(packet.getEngineIOVersion())) {
-                buffer.writeByte(0x1e);
-            }
-            encodePacket(packet, buffer, allocator, false);
 
-            i++;
+            if (EngineIOVersion.V4.equals(packet.getEngineIOVersion())) {
 
-            for (ByteBuf attachment : packet.getAttachments()) {
-                if (EngineIOVersion.V4.equals(packet.getEngineIOVersion())) {
-                    // EIOv4 polling: attachments are base64-encoded text packets separated by 0x1e.
-                    // Use standard base64 encoding (Base64Dialect.STANDARD) so browser clients (which use atob) can decode '+' and '/'.
-                    ByteBuf encoded = Base64.encode(attachment, Base64Dialect.STANDARD);
-                    buffer.writeByte(0x1e);
+                //
+                // Engine.IO v4 polling
+                //
+                if (!first) {
+                    buffer.writeByte(0x1E);
+                }
+
+                encodePacket(packet, buffer, allocator, false);
+
+                // HTTP polling attachments MUST be base64 packets
+                for (ByteBuf attachment : packet.getAttachments()) {
+                    buffer.writeByte(0x1E);
                     buffer.writeByte('b');
-                    buffer.writeBytes(encoded);
-                    encoded.release();
-                } else {
-                    // EIOv2/v3 polling: binary envelope — 0x01 + length + 0xFF + 0x04 + raw payload.
-                    // The decoder strips 0x01, reads the length, skips 0xFF, then strips the 0x04
-                    // packet-type prefix before storing the remaining bytes as the attachment.
+
+                    ByteBuf encoded = Base64.encode(attachment, Base64Dialect.STANDARD);
+                    try {
+                        buffer.writeBytes(encoded);
+                    } finally {
+                        encoded.release();
+                    }
+                }
+
+            } else if (EngineIOVersion.V3.equals(packet.getEngineIOVersion())
+                    || EngineIOVersion.V2.equals(packet.getEngineIOVersion())) {
+
+                //
+                // Encode one Engine.IO packet
+                //
+                ByteBuf packetBuf = allocator.buffer();
+                try {
+                    encodePacket(packet, packetBuf, allocator, false);
+
+                    //
+                    // v2/v3 payload format:
+                    // <character-count>:<packet>
+                    //
+                    int chars = packetBuf.toString(CharsetUtil.UTF_8).length();
+
+                    buffer.writeCharSequence(Integer.toString(chars), CharsetUtil.US_ASCII);
+                    buffer.writeByte(':');
+                    buffer.writeBytes(packetBuf);
+
+                } finally {
+                    packetBuf.release();
+                }
+
+                //
+                // Binary payload (XHR2)
+                //
+                for (ByteBuf attachment : packet.getAttachments()) {
                     buffer.writeByte(1);
                     buffer.writeBytes(longToBytes(attachment.readableBytes() + 1));
-                    buffer.writeByte(0xff);
+                    buffer.writeByte(0xFF);
                     buffer.writeByte(4);
                     buffer.writeBytes(attachment);
                 }
+
+            } else {
+                throw new IllegalStateException(
+                        "Unsupported Engine.IO version: " + packet.getEngineIOVersion());
             }
-            hasPrecedingPacket = true;
+
+            first = false;
+            count++;
         }
     }
 

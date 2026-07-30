@@ -404,9 +404,14 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                     break;
                 }
             }
-            String contentType = (EngineIOVersion.V4.equals(engineIOVersion) && !hasBinary)
-                    ? "text/plain"
-                    : "application/octet-stream";
+            String contentType;
+            if (EngineIOVersion.V4.equals(engineIOVersion)) {
+                contentType = "text/plain";
+            } else if (hasBinary) {
+                contentType = "application/octet-stream";
+            } else {
+                contentType = "text/plain";
+            }
 
             if (log.isDebugEnabled()) {
                 log.debug("Using {} encoding, sessionId: {}", contentType, msg.getSessionId());

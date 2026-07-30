@@ -17,6 +17,7 @@
 package com.socketio4j.socketio.handler;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -315,10 +316,12 @@ public class EncoderHandlerTest {
     }
 
     @Test
-    @DisplayName("Should handle HTTP polling transport with binary encoding")
-    void shouldHandleHTTPPollingTransportWithBinaryEncoding() throws Exception {
+    @DisplayName("Should handle Engine.IO v4 HTTP polling transport")
+    void shouldHandleEngineIOV4HTTPPollingTransport() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
         ChannelPromise promise = channel.newPromise();
 
@@ -328,7 +331,7 @@ public class EncoderHandlerTest {
 
         doAnswer(invocation -> {
             ByteBuf buffer = invocation.getArgument(1);
-            buffer.writeBytes("42[\"Polling message\"]".getBytes());
+            buffer.writeBytes("42[\"Polling message\"]".getBytes(StandardCharsets.UTF_8));
             return null;
         }).when(mockEncoder).encodePackets(any(), any(), any(), anyInt());
 
@@ -337,17 +340,58 @@ public class EncoderHandlerTest {
 
         // Then
         assertThat(channel.outboundMessages()).hasSize(3);
+
         HttpResponse response = channel.readOutbound();
         assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
-        assertThat(response.headers().get("Content-Type")).isEqualTo("application/octet-stream");
+        assertThat(response.headers().get("Content-Type")).isEqualTo("text/plain");
         assertThat(response.headers().get("Set-Cookie")).contains("io=" + sessionId);
     }
 
     @Test
-    @DisplayName("Should handle HTTP polling transport with JSONP encoding")
-    void shouldHandleHTTPPollingTransportWithJSONPEncoding() throws Exception {
+    @DisplayName("Should handle Engine.IO v3 HTTP polling with JSONP encoding")
+    void shouldHandleEngineIOV3HTTPPollingWithJSONPEncoding() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+
+        OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
+        ChannelPromise promise = channel.newPromise();
+
+        channel.attr(EncoderHandler.B64).set(true);
+        channel.attr(EncoderHandler.JSONP_INDEX).set(1);
+
+        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V3);
+        packet.setData("JSONP message");
+        clientHead.getPacketsQueue(Transport.POLLING).add(packet);
+
+        doAnswer(invocation -> {
+            ByteBuf buffer = invocation.getArgument(2);
+            buffer.writeBytes(
+                    "io.j[1](\"42[\\\"JSONP message\\\"]\");"
+                            .getBytes(StandardCharsets.UTF_8));
+            return null;
+        }).when(mockEncoder).encodeJsonP(eq(1), any(), any(), any(), anyInt());
+
+        // When
+        encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
+
+        // Then
+        assertThat(channel.outboundMessages()).hasSize(3);
+
+        HttpResponse response = channel.readOutbound();
+        assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
+        assertThat(response.headers().get("Content-Type"))
+                .isEqualTo("application/javascript");
+        assertThat(response.headers().get("Set-Cookie"))
+                .contains("io=" + sessionId);
+    }
+    @Test
+    @DisplayName("Should ignore JSONP flags for Engine.IO v4")
+    void shouldIgnoreJSONPForEngineIOV4() throws Exception {
+        // Given
+        ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
         ChannelPromise promise = channel.newPromise();
 
@@ -355,25 +399,33 @@ public class EncoderHandlerTest {
         channel.attr(EncoderHandler.JSONP_INDEX).set(1);
 
         Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
-        packet.setData("JSONP message");
+        packet.setData("message");
         clientHead.getPacketsQueue(Transport.POLLING).add(packet);
 
         doAnswer(invocation -> {
-            ByteBuf buffer = invocation.getArgument(2);
-            buffer.writeBytes("io[1](\"42[\"JSONP message\"]\")".getBytes());
+            ByteBuf buffer = invocation.getArgument(1);
+            buffer.writeBytes("42[\"message\"]".getBytes(StandardCharsets.UTF_8));
             return null;
-        }).when(mockEncoder).encodeJsonP(anyInt(), any(), any(), any(), anyInt());
+        }).when(mockEncoder).encodePackets(any(), any(), any(), anyInt());
 
         // When
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
 
         // Then
         assertThat(channel.outboundMessages()).hasSize(3);
+
         HttpResponse response = channel.readOutbound();
         assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
-        assertThat(response.headers().get("Content-Type")).isEqualTo("application/javascript");
-    }
+        assertThat(response.headers().get("Content-Type"))
+                .isEqualTo("text/plain");
 
+        org.mockito.Mockito.verify(mockEncoder)
+                .encodePackets(any(), any(), any(), anyInt());
+
+        org.mockito.Mockito.verify(mockEncoder,
+                        org.mockito.Mockito.never())
+                .encodeJsonP(anyInt(), any(), any(), any(), anyInt());
+    }
     @Test
     @DisplayName("Should handle HTTP polling transport with JSONP encoding without index")
     void shouldHandleHTTPPollingTransportWithJSONPEncodingWithoutIndex() throws Exception {
@@ -381,11 +433,11 @@ public class EncoderHandlerTest {
         ClientHead clientHead = createMockClientHead(Transport.POLLING);
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
         ChannelPromise promise = channel.newPromise();
-
+        
         channel.attr(EncoderHandler.B64).set(true);
         channel.attr(EncoderHandler.JSONP_INDEX).set(null);
 
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V3);
         packet.setData("JSONP message without index");
         clientHead.getPacketsQueue(Transport.POLLING).add(packet);
 
@@ -406,32 +458,42 @@ public class EncoderHandlerTest {
     }
 
     @Test
-    @DisplayName("Should handle HTTP polling transport with active channel")
-    void shouldHandleHTTPPollingTransportWithActiveChannel() throws Exception {
+    @DisplayName("Should handle Engine.IO v3 HTTP polling with JSONP encoding without index")
+    void shouldHandleEngineIOV3HTTPPollingWithJSONPEncodingWithoutIndex() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
         ChannelPromise promise = channel.newPromise();
 
-        // Add a packet to the queue so it gets processed
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
-        packet.setData("Test message");
+        channel.attr(EncoderHandler.B64).set(true);
+        channel.attr(EncoderHandler.JSONP_INDEX).set(null);
+
+        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V3);
+        packet.setData("JSONP message without index");
         clientHead.getPacketsQueue(Transport.POLLING).add(packet);
 
         doAnswer(invocation -> {
-            ByteBuf buffer = invocation.getArgument(1);
-            buffer.writeBytes("42[\"Test message\"]".getBytes());
+            ByteBuf buffer = invocation.getArgument(2);
+            buffer.writeBytes(
+                    "42[\"JSONP message without index\"]"
+                            .getBytes(StandardCharsets.UTF_8));
             return null;
-        }).when(mockEncoder).encodePackets(any(), any(), any(), anyInt());
+        }).when(mockEncoder).encodeJsonP(eq(null), any(), any(), any(), anyInt());
 
         // When
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
 
         // Then
-        // Message should be processed since queue has content
         assertThat(channel.outboundMessages()).hasSize(3);
+
         HttpResponse response = channel.readOutbound();
         assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
+        assertThat(response.headers().get("Content-Type"))
+                .isEqualTo("text/plain");
+        assertThat(response.headers().get("Set-Cookie"))
+                .contains("io=" + sessionId);
     }
 
     @Test
