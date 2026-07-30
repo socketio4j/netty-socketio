@@ -50,6 +50,18 @@ jobs:
           distribution: temurin
           cache: maven
 
+      # --- Node.js Setup for JS Interop Tests ---
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # --- Install JS Client Interop Dependencies ---
+      - name: Install JS Interop Dependencies
+        run: |
+          cd netty-socketio-core/src/test/resources/js-interop
+          npm ci || npm install
+
       # --- Testcontainers configuration for CI ---
       - name: Disable Testcontainers reuse
         run: |
