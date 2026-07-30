@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.AckCallback;
+import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.ack.AckManager;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.namespace.Namespace;
@@ -231,47 +232,51 @@ public class PacketDecoder {
     }
 
     public Packet decodePackets(ByteBuf buffer, ClientHead client) throws IOException {
+        return decodePackets(buffer, client, client.getCurrentTransport());
+    }
+
+    public Packet decodePackets(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
         if (isStringPacket(buffer)) {
-            return decodeWithStringHeader(buffer, client);
+            return decodeWithStringHeader(buffer, client, transport);
         } else if (hasLengthHeader(buffer)) {
-            return decodeWithLengthHeader(buffer, client);
+            return decodeWithLengthHeader(buffer, client, transport);
         }
-        return decode(client, buffer);
+        return decode(client, buffer, transport);
     }
 
     /**
      * Decode packet with string header format
      * Handles packets that start with 0x0 byte
      */
-    private Packet decodeWithStringHeader(ByteBuf buffer, ClientHead client) throws IOException {
+    private Packet decodeWithStringHeader(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
         int maxLength = Math.min(buffer.readableBytes(), 10);
         int headEndIndex = buffer.bytesBefore(maxLength, (byte) -1);
         if (headEndIndex == -1) {
             headEndIndex = buffer.bytesBefore(maxLength, (byte) 0x3f);
         }
         int len = (int) readLong(buffer, headEndIndex);
-        return decodeFrame(buffer, client, len);
+        return decodeFrame(buffer, client, len, transport);
     }
 
     /**
      * Decode packet with length header format
      * Handles packets with format "length:data"
      */
-    private Packet decodeWithLengthHeader(ByteBuf buffer, ClientHead client) throws IOException {
+    private Packet decodeWithLengthHeader(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
         int lengthEndIndex = buffer.bytesBefore((byte) ':');
         int lenHeader = (int) readLong(buffer, lengthEndIndex);
         int len = utf8scanner.getActualLength(buffer, lenHeader);
-        return decodeFrame(buffer, client, len);
+        return decodeFrame(buffer, client, len, transport);
     }
 
     /**
      * Common frame decoding logic
      * Extracts frame data and advances buffer position
      */
-    private Packet decodeFrame(ByteBuf buffer, ClientHead client, int len) throws IOException {
+    private Packet decodeFrame(ByteBuf buffer, ClientHead client, int len, Transport transport) throws IOException {
         ByteBuf frame = buffer.slice(buffer.readerIndex() + 1, len);
         buffer.readerIndex(buffer.readerIndex() + 1 + len);
-        return decode(client, frame);
+        return decode(client, frame, transport);
     }
 
     private String readString(ByteBuf frame) {
@@ -284,7 +289,7 @@ public class PacketDecoder {
         return new String(bytes, CharsetUtil.UTF_8);
     }
 
-    private Packet decode(ClientHead head, ByteBuf frame) throws IOException {
+    private Packet decode(ClientHead head, ByteBuf frame, Transport transport) throws IOException {
 
         Packet lastPacket = head.getLastBinaryPacket();
         // Assume attachments follow.
@@ -293,14 +298,17 @@ public class PacketDecoder {
                 && lastPacket.hasAttachments()
                 && !lastPacket.isAttachmentsLoaded()
         ) {
-                return addAttachment(head, frame, lastPacket);
+                return addAttachment(head, frame, lastPacket, transport);
             }
 
 
         final int separatorPos = frame.bytesBefore((byte) 0x1E);
         final ByteBuf packetBuf;
-        if (separatorPos > 0) {
-            // Multiple packets in one, copy out the next packet to parse
+        if (separatorPos >= 0) {
+            // 0x1e record separator found: slice out just this packet and advance past the separator.
+            // separatorPos == 0 means 0x1e is the very first byte (frame already positioned at
+            // the start of a subsequent packet in a multi-packet payload); that case must be
+            // handled too, otherwise the separator byte is passed to readType and mis-parses.
             packetBuf = frame.copy(frame.readerIndex(), separatorPos);
             frame.skipBytes(separatorPos + 1);
         } else {
@@ -364,11 +372,186 @@ public class PacketDecoder {
         }
     }
 
-    private Packet addAttachment(ClientHead head, ByteBuf frame, Packet binaryPacket) throws IOException {
-        ByteBuf attachBuf = Base64.encode(frame);
-        binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
-        attachBuf.release();
-        frame.skipBytes(frame.readableBytes());
+    /**
+     * Decodes and appends an incoming binary attachment to the given packet.
+     * <p>
+     * Depending on the negotiated Engine.IO version and transport, the incoming buffer
+     * has different frame layouts:
+     * </p>
+     * 
+     * <h3>Engine.IO v3 (Socket.IO 2.x and older)</h3>
+     * <ul>
+     *   <li>
+     *     <b>WebSocket (Raw Binary Frame):</b>
+     *     <pre>
+     *     +---------------+---------------------------------+
+     *     | Byte 0        | Bytes 1..N                      |
+     *     +---------------+---------------------------------+
+     *     | Type (0x04)   | Raw binary payload              |
+     *     +---------------+---------------------------------+
+     *     </pre>
+     *     The leading byte value 4 (Engine.IO MESSAGE packet type) is stripped, and the 
+     *     remainder is base64-encoded and appended as an attachment.
+     *   </li>
+     *   <li>
+     *     <b>WebSocket/Polling (Base64 Text Frame):</b>
+     *     <pre>
+     *     +-----------------+-------------------------------+
+     *     | Bytes 0..1      | Bytes 2..N                    |
+     *     +-----------------+-------------------------------+
+     *     | Prefix ("b4")   | Base64 string payload         |
+     *     +-----------------+-------------------------------+
+     *     </pre>
+     *     The leading ASCII prefix "b4" is stripped, and the remaining base64 payload is 
+     *     appended directly without double-encoding.
+     *     <br>
+     *     Ref: <a href="https://github.com/socketio/engine.io-protocol/tree/v3#packet-string-encoding">Engine.IO v3 Packet String Encoding Spec</a>
+     *     <blockquote>
+     *     "Sometimes, it is not possible to send binary data over the transport [...]. In that case, 
+     *     the packet is encoded as a string, and prepended with a 'b' character. For example: a packet 
+     *     of type message containing the buffer &lt;01 02 03&gt; is encoded as 'b4AQID'"
+     *     </blockquote>
+     *   </li>
+     *   <li>
+     *     <b>Polling (Raw Binary Wrapper):</b>
+     *     <pre>
+     *     +--------+---------------+--------+---------------+--------------------+
+     *     | Byte 0 | Bytes 1..K    | Byte K | Byte K+1      | Bytes K+2..N       |
+     *     +--------+---------------+--------+---------------+--------------------+
+     *     | 0x01   | Length (ASCII) | 0xFF   | Type (0x04)   | Raw binary payload |
+     *     +--------+---------------+--------+---------------+--------------------+
+     *     </pre>
+     *     The binary envelope is stripped to retrieve the inner packet, which is then 
+     *     processed normally (stripping the type prefix as described above).
+     *     <br>
+     *     Ref: <a href="https://github.com/socketio/engine.io-protocol/tree/v3#payload">Engine.IO v3 Payload Spec</a>
+     *     <blockquote>
+     *     "If the payload contains at least one binary packet, the payload is encoded as a binary buffer:
+     *      - a binary indicator: 1 (representing a binary packet) or 0 (representing a string packet)
+     *      - the length of the packet (as a series of characters)
+     *      - a separator: 255
+     *      - the packet itself"
+     *     </blockquote>
+     *   </li>
+     * </ul>
+     * 
+     * <h3>Engine.IO v4 (Socket.IO 3.x and newer)</h3>
+     * <ul>
+     *   <li>
+     *     <b>WebSocket/Polling (Raw Binary Frame):</b>
+     *     <pre>
+     *     +-------------------------------------------------+
+     *     | Bytes 0..N                                      |
+     *     +-------------------------------------------------+
+     *     | Raw binary payload                              |
+     *     +-------------------------------------------------+
+     *     </pre>
+     *     Engine.IO v4 does not prepend any packet types or metadata to binary attachments. 
+     *     The entire buffer is base64-encoded as-is and stored.
+     *     <br>
+     *     Ref: <a href="https://socket.io/docs/v4/engine-io-protocol/">Engine.IO v4 Protocol Spec</a>
+     *     <blockquote>
+     *     "Binary packets are sent as-is without any modifications."
+     *     </blockquote>
+     *   </li>
+     * </ul>
+     *
+     * @param head         the client connection head
+     * @param frame        the incoming byte buffer frame
+     * @param binaryPacket the packet being assembled
+     * @return the packet if fully assembled (all attachments loaded), or an empty MESSAGE packet
+     * @throws IOException if a decoding error occurs
+     */
+    private Packet addAttachment(ClientHead head, ByteBuf frame, Packet binaryPacket, Transport transport) throws IOException {
+        EngineIOVersion version = head.getEngineIOVersion();
+        if (version == null) {
+            log.warn("addAttachment called with null engineIOVersion for session {}, treating as V4",
+                    head.getSessionId());
+            version = EngineIOVersion.UNKNOWN;
+        }
+
+        int ri = frame.readerIndex();
+        if (transport == Transport.POLLING) {
+            boolean wrapperFound = false;
+
+            // 1. EIOv2/v3 Polling binary payload wrapper: 0x01 + length + 0xFF + 0x04 + payload
+            if (frame.readableBytes() > 0 && frame.getByte(ri) == 1) {
+                frame.readByte(); // skip 0x01
+                int headEndIndex = frame.bytesBefore((byte) -1);
+                if (headEndIndex != -1) {
+                    int len = (int) readLong(frame, headEndIndex);
+                    int payloadStart = frame.readerIndex() + 1; // skip 0xFF separator
+                    if (payloadStart + len > frame.writerIndex()) {
+                        throw new IOException("Malformed polling wrapper: length " + len
+                                + " exceeds remaining frame bytes " + (frame.writerIndex() - payloadStart));
+                    }
+                    ByteBuf payload = frame.slice(payloadStart, len);
+                    frame.readerIndex(payloadStart + len);
+                    wrapperFound = true;
+
+                    // Strip leading 0x04 type prefix if present
+                    int payloadRi = payload.readerIndex();
+                    if (payload.readableBytes() >= 1 && payload.getByte(payloadRi) == 4) {
+                        payload.readerIndex(payloadRi + 1);
+                    }
+                    ByteBuf attachBuf = Base64.encode(payload);
+                    binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
+                    attachBuf.release();
+                } else {
+                    throw new IOException("Malformed polling wrapper: missing 0xFF separator");
+                }
+            }
+            // 2. Polling Base64 text attachment: 'b4' (EIOv3) or 'b' (EIOv4)
+            // In EIOv4 multi-packet polling, attachments in the POST body are separated by 0x1e.
+            // Slice out the current attachment frame up to 0x1e so remaining attachments remain readable.
+            else if (frame.readableBytes() >= 1 && frame.getByte(ri) == 'b') {
+                int sepPos = frame.bytesBefore((byte) 0x1E);
+                ByteBuf attachFrame;
+                if (sepPos >= 0) {
+                    attachFrame = frame.readSlice(sepPos);
+                    frame.skipBytes(1); // skip 0x1e record separator
+                    wrapperFound = true; // reader index already advanced to next packet
+                } else {
+                    attachFrame = frame;
+                }
+
+                int attachRi = attachFrame.readerIndex();
+                if (attachFrame.readableBytes() >= 2 && attachFrame.getByte(attachRi) == 'b' && attachFrame.getByte(attachRi + 1) == '4') {
+                    attachFrame.readerIndex(attachRi + 2); // skip 'b4' (EIOv3)
+                } else if (attachFrame.readableBytes() >= 1 && attachFrame.getByte(attachRi) == 'b') {
+                    attachFrame.readerIndex(attachRi + 1); // skip 'b' (EIOv4)
+                }
+                // Already base64-encoded text payload
+                binaryPacket.addAttachment(Unpooled.copiedBuffer(attachFrame));
+                if (!wrapperFound) {
+                    attachFrame.skipBytes(attachFrame.readableBytes());
+                }
+            }
+            // 3. Fallback polling binary payload
+            else {
+                ByteBuf attachBuf = Base64.encode(frame);
+                binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
+                attachBuf.release();
+                frame.skipBytes(frame.readableBytes());
+            }
+
+            if (!wrapperFound && frame.readableBytes() > 0) {
+                frame.skipBytes(frame.readableBytes());
+            }
+
+        } else {
+            // WebSocket transport
+            boolean isV3orV2WebSocket = (version == EngineIOVersion.V3 || version == EngineIOVersion.V2);
+            if (isV3orV2WebSocket
+                    && frame.readableBytes() >= 1
+                    && frame.getByte(ri) == 4) {
+                frame.readerIndex(ri + 1); // skip 0x04 type prefix for V2/V3
+            }
+            ByteBuf attachBuf = Base64.encode(frame);
+            binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
+            attachBuf.release();
+            frame.skipBytes(frame.readableBytes());
+        }
 
         if (binaryPacket.isAttachmentsLoaded()) {
             LinkedList<ByteBuf> slices = new LinkedList<>();
@@ -406,6 +589,11 @@ public class PacketDecoder {
     private void parseBody(ClientHead head, ByteBuf frame, Packet packet) throws IOException {
         // Early return for non-MESSAGE packets
         if (packet.getType() != PacketType.MESSAGE) {
+            return;
+        }
+
+        if (packet.hasAttachments() && !packet.isAttachmentsLoaded()) {
+            handleBinaryAttachments(head, frame, packet);
             return;
         }
 

@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.socketio4j.socketio.namespace.Namespace;
 
 import io.netty.buffer.ByteBuf;
@@ -35,6 +36,7 @@ public class Packet implements Serializable {
     private Long ackId;
     private String name;
     private String nsp = Namespace.DEFAULT_NAME;
+
     private Object data;
 
     private ByteBuf dataSource;
@@ -108,6 +110,34 @@ public class Packet implements Serializable {
             newPacket.attachmentsCount = this.attachmentsCount;
             return newPacket;
         }
+    }
+
+    /**
+     * Returns a packet with the given {@link EngineIOVersion} stamped in.
+     * <p>
+     * If {@code engineIOVersion} is already equal to this packet's version, {@code this} is
+     * returned unchanged — no allocation. Otherwise a shallow copy is created so that the
+     * shared original is never mutated. This matters during room broadcasts: {@code ClientHead.send}
+     * only enqueues the packet; {@code EncoderHandler} reads the version later on a Netty
+     * event-loop thread, so every client must hold its own stable version reference.
+     *
+     * @param engineIOVersion the EIO version to stamp onto the packet
+     * @return {@code this} if the version already matches, otherwise a new {@link Packet}
+     */
+    public Packet withEngineIOVersion(EngineIOVersion engineIOVersion) {
+        if (engineIOVersion == this.engineIOVersion) {
+            return this;
+        }
+        Packet copy = new Packet(this.type, engineIOVersion);
+        copy.setAckId(this.ackId);
+        copy.setData(this.data);
+        copy.setDataSource(this.dataSource);
+        copy.setName(this.name);
+        copy.setSubType(this.subType);
+        copy.setNsp(this.nsp);
+        copy.attachments = this.attachments;
+        copy.attachmentsCount = this.attachmentsCount;
+        return copy;
     }
 
     public void setNsp(String endpoint) {

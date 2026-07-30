@@ -29,6 +29,8 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.CharsetUtil;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -237,12 +239,20 @@ public class InPacketHandlerTest {
             eventPacket.setData(Arrays.asList("test_data"));
 
             // Encode both packets into single ByteBuf
+            Queue<Packet> packets = new ArrayDeque<>();
+            packets.add(connectPacket);
+            packets.add(eventPacket);
+
             ByteBuf combinedContent = Unpooled.buffer();
-            packetEncoder.encodePacket(connectPacket, combinedContent, channel.alloc(), false);
-            packetEncoder.encodePacket(eventPacket, combinedContent, channel.alloc(), false);
+            packetEncoder.encodePackets(
+                    packets,
+                    combinedContent,
+                    channel.alloc(),
+                    Integer.MAX_VALUE
+            );
 
             PacketsMessage message = new PacketsMessage(client, combinedContent, Transport.POLLING);
-
+            System.out.println(">>>>>"+combinedContent.toString(StandardCharsets.UTF_8));
             // When: Send the message through the channel
             channel.writeInbound(message);
             channel.runPendingTasks();

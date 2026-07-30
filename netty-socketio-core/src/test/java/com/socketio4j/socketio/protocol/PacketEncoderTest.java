@@ -794,6 +794,27 @@ public class PacketEncoderTest extends BaseProtocolTest {
     // ==================== Engine.IO Version Tests ====================
 
     @Test
+    public void testEncodePacketV2() throws IOException {
+        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V2);
+        packet.setSubType(PacketType.EVENT);
+        packet.setNsp("");
+        packet.setName("test");
+        packet.setData(Arrays.asList("data"));
+
+        ByteBuf buffer = Unpooled.buffer();
+        try {
+            encoder.encodePacket(packet, buffer, allocator, false);
+
+            assertEquals(0, buffer.getUnsignedByte(0));
+
+            String encoded = buffer.toString(CharsetUtil.UTF_8);
+            assertTrue(encoded.contains("42[\"test\",\"data\"]"));
+        } finally {
+            buffer.release();
+        }
+    }
+
+    @Test
     public void testEncodePacketV3() throws IOException {
         // Test encoding packet with Engine.IO V3
         Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V3);
@@ -808,8 +829,8 @@ public class PacketEncoderTest extends BaseProtocolTest {
         encoder.encodePacket(packet, buffer, allocator, false);
         
         String encoded = buffer.toString(CharsetUtil.UTF_8);
-        // V3 has different format: starts with 0x00, then length, then 0xff, then the actual packet
-        assertTrue(encoded.startsWith("\u0000")); // Start with null byte for V3
+
+        assertTrue(encoded.startsWith("42"));
         
         buffer.release();
     }

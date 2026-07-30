@@ -422,9 +422,22 @@ public class Namespace implements SocketIONamespace {
 
     public void dispatch(String room, Packet packet) {
         int size = forEachRoomClient(room, client -> {
-            client.send(packet);
+            // Produce a per-client copy so that the shared Packet is never mutated.
+            // ClientHead.send() only enqueues the packet — encoding happens later on
+            // Netty event-loop threads. Mutating the shared instance would be a data
+            // race: the last loop iteration's EIO version would win for all clients,
+            // breaking the EIOv3 attachment prefix (0x04) that EncoderHandler writes
+            // for V2/V3 clients only.
+            Packet clientPacket = packet.withEngineIOVersion(client.getEngineIOVersion());
+            if (log.isDebugEnabled()) {
+                log.debug("[DISPATCH] namespace={} room={} → sending '{}' to sessionId={} (EIO={})",
+                        name, room, clientPacket.getName(), client.getSessionId(), clientPacket.getEngineIOVersion());
+            }
+            client.send(clientPacket);
         });
-
+        if (log.isDebugEnabled()) {
+            log.debug("[DISPATCH] namespace={} room={} → found {} local client(s)", name, room, size);
+        }
         if (size > 0) {
             metrics.eventSent(name, size);
         }

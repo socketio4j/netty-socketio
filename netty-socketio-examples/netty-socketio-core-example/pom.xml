@@ -17,8 +17,8 @@
     <properties>
         <micrometer.version>1.16.1</micrometer.version>
         <hll.version>1.6.0</hll.version>
-        <netty.version>4.2.9.Final</netty.version>
-        <jackson.version>2.21.1</jackson.version>
+        <netty.version>4.2.16.Final</netty.version>
+        <jackson.version>2.22.0</jackson.version>
     </properties>
 
     <dependencyManagement>
@@ -33,7 +33,7 @@
             <dependency>
                 <groupId>com.fasterxml.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>
-                <version>2.22.0</version>
+                <version>${jackson.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -76,16 +76,19 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
+
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
+
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-annotations</artifactId>
+
         </dependency>
 
         <!-- Logging -->
@@ -112,6 +115,18 @@
             <groupId>at.yawk.lz4</groupId>
             <artifactId>lz4-java</artifactId>
             <version>1.10.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jspecify</groupId>
+            <artifactId>jspecify</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.hazelcast</groupId>
+            <artifactId>hazelcast</artifactId>
+            <version>5.2.5</version>
         </dependency>
 
     </dependencies>

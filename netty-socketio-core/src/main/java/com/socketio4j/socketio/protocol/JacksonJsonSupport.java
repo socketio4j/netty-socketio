@@ -96,7 +96,7 @@ public class JacksonJsonSupport implements JsonSupport {
                 }
 
                 JsonNode arg = iter.next();
-                if (arg.isTextual() || arg.isBoolean()) {
+                if ((arg.isTextual() || arg.isBoolean()) && !byte[].class.equals(clazz)) {
                     clazz = Object.class;
                 }
 

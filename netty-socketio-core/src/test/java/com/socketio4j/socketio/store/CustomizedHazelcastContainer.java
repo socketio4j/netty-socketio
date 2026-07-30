@@ -39,7 +39,7 @@ public class CustomizedHazelcastContainer extends GenericContainer<CustomizedHaz
     public static final int HAZELCAST_PORT = 5701;
 
     public CustomizedHazelcastContainer() {
-        super("hazelcast/hazelcast:5.6.0");
+        super("hazelcast/hazelcast:5.7-slim-jdk25");
     }
 
     @Override

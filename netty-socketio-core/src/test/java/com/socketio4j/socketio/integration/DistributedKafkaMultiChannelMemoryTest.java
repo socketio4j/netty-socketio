@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -192,12 +193,13 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
         Properties consumerProps = new Properties();
         consumerProps.put(
                 ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap);
-        consumerProps.put(
-                ConsumerConfig.GROUP_ID_CONFIG, "socketio4j-" + groupId);
+                // Inject a UUID to prevent offset retention between test runs
+        String uniqueGroupId = "socketio4j-" + groupId + "-" + UUID.randomUUID();
+        consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, uniqueGroupId);
         consumerProps.put(
                 ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         consumerProps.put(
-                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         consumerProps.put(
                 ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
                 StringDeserializer.class);

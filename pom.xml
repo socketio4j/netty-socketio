@@ -77,7 +77,7 @@
     <micronaut.version>4.10.23</micronaut.version>
     <micronaut.test.version>4.10.3</micronaut.test.version>
     <redisson.version>4.5.0</redisson.version>
-    <hazelcast.version>5.2.5</hazelcast.version>
+    <hazelcast.version>5.7.0</hazelcast.version>
     <awaitility.version>4.3.0</awaitility.version>
     <assertj.version>3.27.7</assertj.version>
     <mockito.version>5.21.0</mockito.version>
@@ -604,10 +604,11 @@
             <!--For Java 25 support of byte-buddy. Byte-buddy is currently only used in mockito on unit tests within this project, so mitigate this problem by enabling this property-->
             -Dnet.bytebuddy.experimental=true
             -javaagent:"${settings.localRepository}"/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
-            --add-opens netty.socketio/com.socketio4j.socketio.store.pubsub=ALL-UNNAMED
-            --add-opens netty.socketio/com.socketio4j.socketio.store=ALL-UNNAMED
-            --add-opens netty.socketio/com.socketio4j.socketio.store.pubsub=redisson
-            --add-opens netty.socketio/com.socketio4j.socketio.store=redisson
+            --add-opens netty.socketio.core/com.socketio4j.socketio.store.pubsub=ALL-UNNAMED
+            --add-opens netty.socketio.core/com.socketio4j.socketio.store=ALL-UNNAMED
+            --add-opens netty.socketio.core/com.socketio4j.socketio.store.pubsub=redisson
+            --add-opens netty.socketio.core/com.socketio4j.socketio.store=redisson
+            --add-opens netty.socketio.core/com.socketio4j.socketio.integration=com.fasterxml.jackson.databind,ALL-UNNAMED
           </argLine>
           <includes>
             <include>**/*Test.java</include>

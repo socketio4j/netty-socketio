@@ -36,8 +36,10 @@ import com.socketio4j.socketio.messages.HttpMessage;
 import com.socketio4j.socketio.messages.OutPacketMessage;
 import com.socketio4j.socketio.messages.XHROptionsMessage;
 import com.socketio4j.socketio.messages.XHRPostMessage;
+import com.socketio4j.socketio.protocol.EngineIOVersion;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketEncoder;
+import com.socketio4j.socketio.protocol.PacketType;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
@@ -337,7 +339,10 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
             for (ByteBuf buf : packet.getAttachments()) {
                 ByteBuf outBuf = encoder.allocateBuffer(ctx.alloc());
-                outBuf.writeByte(4);
+                if (EngineIOVersion.V3.equals(packet.getEngineIOVersion())
+                        || EngineIOVersion.V2.equals(packet.getEngineIOVersion())) {
+                    outBuf.writeByte(4);
+                }
                 outBuf.writeBytes(buf);
                 if (log.isTraceEnabled()) {
                     log.trace("Out attachment: {} sessionId: {}", ByteBufUtil.hexDump(outBuf), msg.getSessionId());
@@ -366,13 +371,14 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             return;
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Processing HTTP polling with {} packets, sessionId: {}", queue.size(), msg.getSessionId());
-        }
-
+        ClientHead clientHead = msg.getClientHead();
         ByteBuf out = encoder.allocateBuffer(ctx.alloc());
+        EngineIOVersion engineIOVersion = clientHead != null ? clientHead.getEngineIOVersion()
+                : (!queue.isEmpty() ? queue.peek().getEngineIOVersion() : EngineIOVersion.V4);
         Boolean b64 = ctx.channel().attr(EncoderHandler.B64).get();
-        if (b64 != null && b64) {
+        // b64=1 / JSONP encoding is only valid for EIOv3 (Socket.IO v1/v2).
+        // Socket.IO v3/v4 also sends b64=1 but they use EIOv4 and expect text/plain framing.
+        if (engineIOVersion != EngineIOVersion.V4 && b64 != null && b64) {
             Integer jsonpIndex = ctx.channel().attr(EncoderHandler.JSONP_INDEX).get();
             if (log.isDebugEnabled()) {
                 log.debug("Using JSONP encoding, index: {}, sessionId: {}", jsonpIndex, msg.getSessionId());
@@ -384,11 +390,22 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             }
             sendMessage(msg, channel, out, type, promise, HttpResponseStatus.OK);
         } else {
+            boolean hasBinary = false;
+            for (Packet packet : queue) {
+                if (packet.hasAttachments() || packet.getSubType() == PacketType.BINARY_EVENT || packet.getSubType() == PacketType.BINARY_ACK) {
+                    hasBinary = true;
+                    break;
+                }
+            }
+            String contentType = (engineIOVersion == EngineIOVersion.V4 && !hasBinary)
+                    ? "text/plain"
+                    : "application/octet-stream";
+
             if (log.isDebugEnabled()) {
-                log.debug("Using binary encoding, sessionId: {}", msg.getSessionId());
+                log.debug("Using {} encoding, sessionId: {}", contentType, msg.getSessionId());
             }
             encoder.encodePackets(queue, out, ctx.alloc(), 50);
-            sendMessage(msg, channel, out, "application/octet-stream", promise, HttpResponseStatus.OK);
+            sendMessage(msg, channel, out, contentType, promise, HttpResponseStatus.OK);
         }
     }
 

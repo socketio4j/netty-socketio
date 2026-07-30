@@ -61,8 +61,7 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
     @Override
     public void send(Packet packet) {
         for (SocketIOClient client : clients) {
-            packet.setEngineIOVersion(client.getEngineIOVersion());
-            client.send(packet);
+            client.send(packet.withEngineIOVersion(client.getEngineIOVersion()));
         }
         dispatch(packet);
     }
@@ -98,11 +97,10 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
         packet.setData(Arrays.asList(data));
 
         for (SocketIOClient client : clients) {
-            packet.setEngineIOVersion(client.getEngineIOVersion());
             if (excludePredicate.test(client)) {
                 continue;
             }
-            client.send(packet);
+            client.send(packet.withEngineIOVersion(client.getEngineIOVersion()));
         }
         dispatch(packet);
     }

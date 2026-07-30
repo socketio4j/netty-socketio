@@ -71,7 +71,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         int packetsProcessed = 0;
         while (content.isReadable()) {
             try {
-                Packet packet = decoder.decodePackets(content, client);
+                Packet packet = decoder.decodePackets(content, client, message.getTransport());
                 packetsProcessed++;
 
                 if (log.isDebugEnabled()) {

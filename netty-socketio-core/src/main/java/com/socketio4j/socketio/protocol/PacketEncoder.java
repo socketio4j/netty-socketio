@@ -129,8 +129,9 @@ public class PacketEncoder {
             if (packet == null || i == limit) {
                 break;
             }
-            // Multiple packets are separated by 0x1e from protocol version 3 on
-            // see https://socket.io/docs/v4/socket-io-protocol/#sample-session
+            // 0x1e (ASCII Record Separator) is the EIOv3+ multi-packet polling delimiter,
+            // introduced in v3 to replace the EIOv2 length-prefix encoding (e.g. "96:<data>").
+            // see https://socket.io/docs/v4/engine-io-protocol/#http-long-polling
             final boolean isV3OrNewer = EngineIOVersion.V4.equals(packet.getEngineIOVersion())
                 || EngineIOVersion.V3.equals(packet.getEngineIOVersion());
             if (hasPrecedingPacket && isV3OrNewer) {
@@ -141,11 +142,25 @@ public class PacketEncoder {
             i++;
 
             for (ByteBuf attachment : packet.getAttachments()) {
-                buffer.writeByte(1);
-                buffer.writeBytes(longToBytes(attachment.readableBytes() + 1));
-                buffer.writeByte(0xff);
-                buffer.writeByte(4);
-                buffer.writeBytes(attachment);
+                if (EngineIOVersion.V4.equals(packet.getEngineIOVersion())) {
+                    // EIOv4 polling: attachments are base64-encoded text packets separated by 0x1e.
+                    // The decoder's EIOv4 path base64-encodes the raw frame as-is (no type stripping),
+                    // so we must emit: 0x1e + 'b' + <url-safe base64 payload>.
+                    ByteBuf encoded = Base64.encode(attachment, Base64Dialect.URL_SAFE);
+                    buffer.writeByte(0x1e);
+                    buffer.writeByte('b');
+                    buffer.writeBytes(encoded);
+                    encoded.release();
+                } else {
+                    // EIOv2/v3 polling: binary envelope — 0x01 + length + 0xFF + 0x04 + raw payload.
+                    // The decoder strips 0x01, reads the length, skips 0xFF, then strips the 0x04
+                    // packet-type prefix before storing the remaining bytes as the attachment.
+                    buffer.writeByte(1);
+                    buffer.writeBytes(longToBytes(attachment.readableBytes() + 1));
+                    buffer.writeByte(0xff);
+                    buffer.writeByte(4);
+                    buffer.writeBytes(attachment);
+                }
             }
             hasPrecedingPacket = true;
         }
@@ -364,7 +379,9 @@ public class PacketEncoder {
         } finally {
             // we need to write a buffer in any case
             if (!binary) {
-                if (!EngineIOVersion.V4.equals(packet.getEngineIOVersion())){
+                // The 0x00 + length + 0xFF string-packet envelope is EIOv2 polling framing only.
+                // EIOv3+ replaced it with 0x1e text separators; emitting it for V3 breaks those clients.
+                if (EngineIOVersion.V2.equals(packet.getEngineIOVersion())) {
                     buffer.writeByte(0);
                     int length = buf.writerIndex();
                     buffer.writeBytes(longToBytes(length));
