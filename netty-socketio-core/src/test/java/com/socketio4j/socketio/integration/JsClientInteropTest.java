@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 @DisplayName("Official JavaScript Socket.IO Client Interoperability Suite (v1, v2, v4)")
 public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
@@ -56,21 +57,41 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         Process process = pb.start();
         StringBuilder output = new StringBuilder();
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.append(line).append("\n");
+        Thread outputThread = new Thread(() -> {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    synchronized (output) {
+                        output.append(line).append("\n");
+                    }
+                    System.out.println("[JS-v" + version + "-" + transport + "] " + line);
+                }
+            } catch (Exception ignored) {}
+        });
+        outputThread.setDaemon(true);
+        outputThread.start();
+
+        try {
+            boolean completed = process.waitFor(20, TimeUnit.SECONDS);
+            if (!completed) {
+                fail(String.format("JS client process timed out after 20s (v%s, %s, scenario=%s, port=%d).\nOutput logs:\n%s",
+                        version, transport, scenario, getServerPort(), getOutput(output)));
+            }
+
+            assertEquals(0, process.exitValue(),
+                    String.format("JS client process exited with non-zero status %d (v%s, %s, scenario=%s, port=%d).\nOutput logs:\n%s",
+                            process.exitValue(), version, transport, scenario, getServerPort(), getOutput(output)));
+        } finally {
+            if (process.isAlive()) {
+                process.destroyForcibly();
             }
         }
+    }
 
-        boolean completed = process.waitFor(15, TimeUnit.SECONDS);
-        if (!completed) {
-            process.destroyForcibly();
-            throw new AssertionError("JS client process timed out. Output:\n" + output);
+    private String getOutput(StringBuilder output) {
+        synchronized (output) {
+            return output.toString();
         }
-
-        assertEquals(0, process.exitValue(),
-                "JS client exited with non-zero status (" + process.exitValue() + "). Output:\n" + output);
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Connect Scenario")
@@ -413,8 +434,55 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
                 "Server should receive the binary argument intact");
     }
 
+    @ParameterizedTest(name = "Client v{0} over {1} - Real-Life Multi-Level Complex POJO")
+    @CsvSource({
+            "1, websocket",
+            "1, polling",
+            "2, websocket",
+            "2, polling",
+            "3, websocket",
+            "3, polling",
+            "4, websocket",
+            "4, polling"
+    })
+    public void testJsComplexCustomPojo(String version, String transport) throws Exception {
+        AtomicReference<OrderPayload> receivedOrder = new AtomicReference<>();
+
+        getServer().addEventListener("testComplexPojo", OrderPayload.class, (client, data, ackRequest) -> {
+            receivedOrder.set(data);
+            OrderResponse response = new OrderResponse(
+                    data.getOrderId(),
+                    "PROCESSED",
+                    data.getItems() != null ? data.getItems().size() : 0,
+                    data.getCustomer() != null ? data.getCustomer().getEmail() : null
+            );
+            client.sendEvent("complexPojoResponse", response);
+        });
+
+        runJsTest(version, transport, "complex_pojo");
+
+        OrderPayload order = receivedOrder.get();
+        assertNotNull(order, "Server should deserialize multi-level complex order payload");
+        assertEquals("ORD-98765", order.getOrderId());
+        assertEquals(149.98, order.getTotalAmount(), 0.001);
+
+        assertNotNull(order.getCustomer(), "Order customer should be deserialized");
+        assertEquals("CUST-001", order.getCustomer().getCustomerId());
+        assertEquals("alice@example.com", order.getCustomer().getEmail());
+        assertTrue(order.getCustomer().isVipStatus());
+
+        assertNotNull(order.getItems(), "Order items list should be deserialized");
+        assertEquals(2, order.getItems().size());
+        assertEquals("ITEM-A", order.getItems().get(0).getSku());
+        assertEquals(2, order.getItems().get(0).getQuantity());
+        assertEquals(49.99, order.getItems().get(0).getUnitPrice(), 0.001);
+
+        assertNotNull(order.getMetadata(), "Order metadata map should be deserialized");
+        assertEquals("mobile_app", order.getMetadata().get("source"));
+    }
+
     // ---------------------------------------------------------------------------
-    // Custom POJO classes used by testJsCustomPojo
+    // Custom POJO classes used by testJsCustomPojo & testJsComplexCustomPojo
     // ---------------------------------------------------------------------------
 
     public static class Payload {
@@ -451,5 +519,92 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         public void setEcho(String echo) { this.echo = echo; }
         public int getDoubled() { return doubled; }
         public void setDoubled(int doubled) { this.doubled = doubled; }
+    }
+
+    public static class OrderPayload {
+        @JsonProperty("orderId")
+        private String orderId;
+        @JsonProperty("totalAmount")
+        private double totalAmount;
+        @JsonProperty("customer")
+        private Customer customer;
+        @JsonProperty("items")
+        private java.util.List<OrderItem> items;
+        @JsonProperty("metadata")
+        private java.util.Map<String, String> metadata;
+
+        public OrderPayload() {}
+        public String getOrderId() { return orderId; }
+        public void setOrderId(String orderId) { this.orderId = orderId; }
+        public double getTotalAmount() { return totalAmount; }
+        public void setTotalAmount(double totalAmount) { this.totalAmount = totalAmount; }
+        public Customer getCustomer() { return customer; }
+        public void setCustomer(Customer customer) { this.customer = customer; }
+        public java.util.List<OrderItem> getItems() { return items; }
+        public void setItems(java.util.List<OrderItem> items) { this.items = items; }
+        public java.util.Map<String, String> getMetadata() { return metadata; }
+        public void setMetadata(java.util.Map<String, String> metadata) { this.metadata = metadata; }
+    }
+
+    public static class Customer {
+        @JsonProperty("customerId")
+        private String customerId;
+        @JsonProperty("email")
+        private String email;
+        @JsonProperty("vipStatus")
+        private boolean vipStatus;
+
+        public Customer() {}
+        public String getCustomerId() { return customerId; }
+        public void setCustomerId(String customerId) { this.customerId = customerId; }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+        public boolean isVipStatus() { return vipStatus; }
+        public void setVipStatus(boolean vipStatus) { this.vipStatus = vipStatus; }
+    }
+
+    public static class OrderItem {
+        @JsonProperty("sku")
+        private String sku;
+        @JsonProperty("quantity")
+        private int quantity;
+        @JsonProperty("unitPrice")
+        private double unitPrice;
+
+        public OrderItem() {}
+        public String getSku() { return sku; }
+        public void setSku(String sku) { this.sku = sku; }
+        public int getQuantity() { return quantity; }
+        public void setQuantity(int quantity) { this.quantity = quantity; }
+        public double getUnitPrice() { return unitPrice; }
+        public void setUnitPrice(double unitPrice) { this.unitPrice = unitPrice; }
+    }
+
+    public static class OrderResponse {
+        @JsonProperty("orderId")
+        private String orderId;
+        @JsonProperty("status")
+        private String status;
+        @JsonProperty("processedItemCount")
+        private int processedItemCount;
+        @JsonProperty("customerEmail")
+        private String customerEmail;
+
+        public OrderResponse() {}
+        public OrderResponse(String orderId, String status, int processedItemCount, String customerEmail) {
+            this.orderId = orderId;
+            this.status = status;
+            this.processedItemCount = processedItemCount;
+            this.customerEmail = customerEmail;
+        }
+
+        public String getOrderId() { return orderId; }
+        public void setOrderId(String orderId) { this.orderId = orderId; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public int getProcessedItemCount() { return processedItemCount; }
+        public void setProcessedItemCount(int processedItemCount) { this.processedItemCount = processedItemCount; }
+        public String getCustomerEmail() { return customerEmail; }
+        public void setCustomerEmail(String customerEmail) { this.customerEmail = customerEmail; }
     }
 }

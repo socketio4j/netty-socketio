@@ -42,7 +42,9 @@ const socket = io(url, options);
 
 const receivedEvents = [];
 
-const timeoutMs = (scenario === 'dist_negative_isolation' || scenario === 'dist_room_leave_negative') ? 3500 : 15000;
+const timeoutMs = (scenario === 'dist_negative_isolation' || scenario === 'dist_room_leave_negative')
+    ? 4000
+    : (args.timeout ? parseInt(args.timeout, 10) : 35000);
 
 const timeout = setTimeout(() => {
     if (scenario === 'dist_negative_isolation' || scenario === 'dist_room_leave_negative') {
@@ -50,19 +52,26 @@ const timeout = setTimeout(() => {
         socket.disconnect();
         process.exit(0);
     }
-    console.error(`[${clientName}] Test timed out. Received events:`, receivedEvents);
+    console.error(`[${clientName}] Test timed out after ${timeoutMs}ms. Received ${receivedEvents.length} events:`, JSON.stringify(receivedEvents));
     socket.disconnect();
     process.exit(1);
 }, timeoutMs);
 
+let joinedRoomOk = false;
+
 socket.on('connect', () => {
     console.log(`[${clientName} v${version}] Connected to server on port ${port} via ${transport}, joining room: ${targetRoom}`);
-    socket.emit('join-room', targetRoom);
+    if (!joinedRoomOk) {
+        socket.emit('join-room', targetRoom);
+    }
 });
 
 socket.on('join-ok', (roomName) => {
-    console.log(`[${clientName}] Received join-ok for room: ${roomName}`);
-    socket.emit('client-ready', clientName);
+    if (!joinedRoomOk) {
+        joinedRoomOk = true;
+        console.log(`[${clientName}] Received join-ok for room: ${roomName}`);
+        socket.emit('client-ready', clientName);
+    }
 });
 
 socket.on('leave-command', (roomName) => {
@@ -97,6 +106,16 @@ socket.on('dist-event', (...args) => {
             socket.disconnect();
             process.exit(1);
         }
+    } else if (scenario === 'dist_complex_object') {
+        if (!data || data.orderId !== 'ORD-CLUSTER-12345' || data.totalAmount !== 299.99 ||
+            !data.customer || data.customer.customerId !== 'CUST-VIP-777' || data.customer.vipStatus !== true ||
+            !data.items || data.items.length !== 2 || data.items[0].sku !== 'SKU-CLUSTER-A' ||
+            !data.metadata || data.metadata.region !== 'us-east-1') {
+            console.error(`[${clientName}] Complex object mismatch, got:`, JSON.stringify(data));
+            clearTimeout(timeout);
+            socket.disconnect();
+            process.exit(1);
+        }
     } else if (scenario === 'dist_mixed') {
         const text = args[0];
         const buf = args[1];
@@ -111,7 +130,7 @@ socket.on('dist-event', (...args) => {
     }
 
     if ((scenario === 'dist_room_broadcast' && receivedEvents.length >= 2) ||
-        ((scenario === 'dist_single_event' || scenario === 'dist_binary' || scenario === 'dist_object' || scenario === 'dist_mixed') && receivedEvents.length >= 1)) {
+        ((scenario === 'dist_single_event' || scenario === 'dist_binary' || scenario === 'dist_object' || scenario === 'dist_complex_object' || scenario === 'dist_mixed') && receivedEvents.length >= 1)) {
         console.log(`[${clientName}] Received all ${receivedEvents.length} expected room broadcast events - SUCCESS`);
         clearTimeout(timeout);
         setTimeout(() => {
@@ -133,6 +152,42 @@ socket.on('global-event', (data) => {
             socket.disconnect();
             process.exit(0);
         }, 200);
+    }
+});
+
+socket.on('distAckTextReq', (data, callback) => {
+    console.log(`[${clientName}] Received distAckTextReq:`, data);
+    if (typeof callback === 'function') {
+        callback(`ack_reply_${clientName}`);
+        console.log(`[${clientName}] Executed text ACK callback - SUCCESS`);
+        clearTimeout(timeout);
+        setTimeout(() => {
+            socket.disconnect();
+            process.exit(0);
+        }, 200);
+    } else {
+        console.error(`[${clientName}] Missing callback in distAckTextReq`);
+        clearTimeout(timeout);
+        socket.disconnect();
+        process.exit(1);
+    }
+});
+
+socket.on('distAckBinaryReq', (data, callback) => {
+    console.log(`[${clientName}] Received distAckBinaryReq:`, data);
+    if (typeof callback === 'function') {
+        callback(Buffer.from([10, 20, 30]));
+        console.log(`[${clientName}] Executed binary ACK callback - SUCCESS`);
+        clearTimeout(timeout);
+        setTimeout(() => {
+            socket.disconnect();
+            process.exit(0);
+        }, 200);
+    } else {
+        console.error(`[${clientName}] Missing callback in distAckBinaryReq`);
+        clearTimeout(timeout);
+        socket.disconnect();
+        process.exit(1);
     }
 });
 

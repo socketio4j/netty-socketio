@@ -25,43 +25,15 @@ import org.apache.kafka.common.serialization.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
-import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.socketio4j.socketio.store.event.EventMessage;
+import com.socketio4j.socketio.store.event.EventMessageJsonSupport;
 
 public final class EventMessageSerializer
         implements Serializer<EventMessage> {
     private static final Logger log = LoggerFactory.getLogger(EventMessageSerializer.class);
 
-    private static final ObjectMapper MAPPER;
-
-    static {
-        PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
-                .allowIfSubType("com.socketio4j.socketio")
-
-                .allowIfSubType("java.util.ArrayList")
-                .allowIfSubType("java.util.HashMap")
-                .allowIfSubType("java.util.HashSet")
-                .allowIfSubType("java.util.LinkedHashMap")
-
-                .allowIfSubType("java.util.Arrays$")
-                .allowIfSubType("java.util.Collections$")
-                .allowIfSubType("java.util.ImmutableCollections$")
-
-                .allowIfSubTypeIsArray()
-                .build();
-
-        MAPPER = JsonMapper.builder()
-                .polymorphicTypeValidator(ptv)
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .enable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE)
-                .build();
-        MAPPER.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL, JsonTypeInfo.As.PROPERTY);
-    }
+    private static final ObjectMapper MAPPER = EventMessageJsonSupport.createObjectMapper();
 
     @Override
     public byte[] serialize(String topic, EventMessage data) {

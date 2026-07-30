@@ -110,6 +110,28 @@ socket.on('connect', () => {
         socket.emit('testPojo', { name: 'hello', value: 42 });
     }
 
+    if (scenario === 'complex_pojo') {
+        // Test multi-level nested real-life complex POJO deserialization
+        const complexOrder = {
+            orderId: 'ORD-98765',
+            totalAmount: 149.98,
+            customer: {
+                customerId: 'CUST-001',
+                email: 'alice@example.com',
+                vipStatus: true
+            },
+            items: [
+                { sku: 'ITEM-A', quantity: 2, unitPrice: 49.99 },
+                { sku: 'ITEM-B', quantity: 1, unitPrice: 50.00 }
+            ],
+            metadata: {
+                source: 'mobile_app',
+                env: 'production'
+            }
+        };
+        socket.emit('testComplexPojo', complexOrder);
+    }
+
     if (scenario === 'mixed') {
         // Test heterogeneous args: String + Binary together (MultiTypeEventListener)
         const buf = Buffer.from([7, 8, 9]);
@@ -163,6 +185,19 @@ socket.on('pojoResponse', (data) => {
         process.exit(0);
     } else {
         console.error('POJO response mismatch:', data);
+        process.exit(1);
+    }
+});
+
+socket.on('complexPojoResponse', (data) => {
+    console.log(`[v${version} JS Client] Received complexPojoResponse:`, data);
+    if (data && data.orderId === 'ORD-98765' && data.status === 'PROCESSED' && data.processedItemCount === 2 && data.customerEmail === 'alice@example.com') {
+        clearTimeout(timeout);
+        socket.disconnect();
+        console.log('Complex POJO scenario PASSED');
+        process.exit(0);
+    } else {
+        console.error('Complex POJO response mismatch:', data);
         process.exit(1);
     }
 });

@@ -58,14 +58,12 @@ public class DistributedHazelcastJsClientInteropTest extends AbstractDistributed
         Config config = new Config();
         config.setClusterName(CLUSTER_NAME);
 
-        // Use a fixed port while debugging
         config.getNetworkConfig()
                 .setPort(5701)
-                .setPortAutoIncrement(false);
+                .setPortAutoIncrement(true);
 
         config.getNetworkConfig().getJoin().getMulticastConfig().setEnabled(false);
         config.getNetworkConfig().getJoin().getTcpIpConfig().setEnabled(false);
-        config.getNetworkConfig().setPublicAddress("127.0.0.1:"+5701);
         System.out.println("Creating embedded member...");
 
         HazelcastInstance member = Hazelcast.newHazelcastInstance(config);
