@@ -1068,6 +1068,16 @@ public class SocketIOServer implements ClientListeners {
         mainNamespace.addConnectListener(listener);
     }
 
+    @Override
+    public void removeConnectListener(ConnectListener listener) {
+        mainNamespace.removeConnectListener(listener);
+    }
+
+    @Override
+    public void removeDisconnectListener(DisconnectListener listener) {
+        mainNamespace.removeDisconnectListener(listener);
+    }
+
     /**
      * Registers a listener that is notified when a ping frame
      * is received from a client.

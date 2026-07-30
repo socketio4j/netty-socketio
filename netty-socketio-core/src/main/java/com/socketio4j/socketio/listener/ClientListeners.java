@@ -27,7 +27,11 @@ public interface ClientListeners {
 
     void addDisconnectListener(DisconnectListener listener);
 
+    void removeDisconnectListener(DisconnectListener listener);
+
     void addConnectListener(ConnectListener listener);
+
+    void removeConnectListener(ConnectListener listener);
 
     /**
      * from v4, ping will always be sent by server except probe ping packet sent from client,

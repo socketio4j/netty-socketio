@@ -878,6 +878,33 @@ public class PacketEncoderTest extends BaseProtocolTest {
         buffer.release();
     }
 
+    @Test
+    public void testEncodePacketsEIOv4BinaryAttachmentStandardBase64() throws IOException {
+        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        packet.setSubType(PacketType.BINARY_EVENT);
+        packet.setNsp("");
+        packet.setName("binEvent");
+        packet.setData(Arrays.asList(new HashMap<>()));
+        packet.initAttachments(1);
+
+        // Byte array containing bytes that encode to '+' and '/' in standard base64 (e.g. 0xFB, 0xFF, 0xBF -> "/++/")
+        byte[] rawBytes = new byte[]{(byte) 0xFB, (byte) 0xFF, (byte) 0xBF};
+        packet.addAttachment(Unpooled.wrappedBuffer(rawBytes));
+
+        java.util.Queue<Packet> queue = new java.util.LinkedList<>();
+        queue.add(packet);
+
+        ByteBuf buffer = Unpooled.buffer();
+        encoder.encodePackets(queue, buffer, allocator, 50);
+
+        String encoded = buffer.toString(CharsetUtil.UTF_8);
+        // EIOv4 polling format: 451-["binEvent",{"_placeholder":true,"num":0}] + 0x1E + 'b' + "+/+/"
+        assertTrue(encoded.contains("+/+/"), "Binary attachment should use standard Base64 encoding ('+' and '/') instead of URL_SAFE ('-' and '_')");
+        assertFalse(encoded.contains("-_-_"), "Should not contain URL_SAFE characters");
+
+        buffer.release();
+    }
+
     // ==================== Cleanup ====================
 
     // Cleanup is handled automatically by ByteBuf.release() calls in each test

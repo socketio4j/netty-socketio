@@ -289,6 +289,16 @@ public class Namespace implements SocketIONamespace {
         connectListeners.add(listener);
     }
 
+    @Override
+    public void removeConnectListener(ConnectListener listener) {
+        connectListeners.remove(listener);
+    }
+
+    @Override
+    public void removeDisconnectListener(DisconnectListener listener) {
+        disconnectListeners.remove(listener);
+    }
+
     public void onConnect(SocketIOClient client) {
         if (roomClients.containsKey(getName())
                 && roomClients.get(getName()).contains(client.getSessionId())) {

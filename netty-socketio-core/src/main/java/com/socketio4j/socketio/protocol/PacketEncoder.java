@@ -129,12 +129,9 @@ public class PacketEncoder {
             if (packet == null || i == limit) {
                 break;
             }
-            // 0x1e (ASCII Record Separator) is the EIOv3+ multi-packet polling delimiter,
-            // introduced in v3 to replace the EIOv2 length-prefix encoding (e.g. "96:<data>").
+            // 0x1e (ASCII Record Separator) is the EIOv4 multi-packet polling delimiter.
             // see https://socket.io/docs/v4/engine-io-protocol/#http-long-polling
-            final boolean isV3OrNewer = EngineIOVersion.V4.equals(packet.getEngineIOVersion())
-                || EngineIOVersion.V3.equals(packet.getEngineIOVersion());
-            if (hasPrecedingPacket && isV3OrNewer) {
+            if (hasPrecedingPacket && EngineIOVersion.V4.equals(packet.getEngineIOVersion())) {
                 buffer.writeByte(0x1e);
             }
             encodePacket(packet, buffer, allocator, false);
@@ -144,9 +141,8 @@ public class PacketEncoder {
             for (ByteBuf attachment : packet.getAttachments()) {
                 if (EngineIOVersion.V4.equals(packet.getEngineIOVersion())) {
                     // EIOv4 polling: attachments are base64-encoded text packets separated by 0x1e.
-                    // The decoder's EIOv4 path base64-encodes the raw frame as-is (no type stripping),
-                    // so we must emit: 0x1e + 'b' + <url-safe base64 payload>.
-                    ByteBuf encoded = Base64.encode(attachment, Base64Dialect.URL_SAFE);
+                    // Use standard base64 encoding (Base64Dialect.STANDARD) so browser clients (which use atob) can decode '+' and '/'.
+                    ByteBuf encoded = Base64.encode(attachment, Base64Dialect.STANDARD);
                     buffer.writeByte(0x1e);
                     buffer.writeByte('b');
                     buffer.writeBytes(encoded);

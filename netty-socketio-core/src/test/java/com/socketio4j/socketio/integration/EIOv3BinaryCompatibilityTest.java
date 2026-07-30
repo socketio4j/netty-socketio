@@ -58,6 +58,7 @@ public class EIOv3BinaryCompatibilityTest extends AbstractSocketIOIntegrationTes
                 .url("ws://" + getServerHost() + ":" + getServerPort() + "/socket.io/?EIO=3&transport=websocket")
                 .build();
 
+        AtomicReference<Throwable> failureRef = new AtomicReference<>();
         WebSocket webSocket = client.newWebSocket(request, new WebSocketListener() {
             @Override
             public void onMessage(WebSocket webSocket, String text) {
@@ -68,13 +69,18 @@ public class EIOv3BinaryCompatibilityTest extends AbstractSocketIOIntegrationTes
 
             @Override
             public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+                failureRef.set(t);
                 System.err.println("WebSocket failure: " + t.getMessage());
             }
         });
 
         // 3. Wait for handshaking message from server
         await().atMost(5, SECONDS)
-                .until(handshakeReceived::get);
+                .until(() -> handshakeReceived.get() || failureRef.get() != null);
+
+        if (failureRef.get() != null) {
+            org.junit.jupiter.api.Assertions.fail("EIO v3 client WebSocket connection failed: " + failureRef.get().getMessage(), failureRef.get());
+        }
 
         // 4. Send connection packet to default namespace: "40"
         webSocket.send("40");

@@ -27,8 +27,11 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.deser.std.UntypedObjectDeserializer;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -66,6 +69,8 @@ public final class EventMessageJsonSupport {
 
         return JsonMapper.builder()
                 .addModule(module)
+                .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+                .disable(MapperFeature.DEFAULT_VIEW_INCLUSION)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .enable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE)
                 .build();
@@ -77,7 +82,7 @@ public final class EventMessageJsonSupport {
         private static final long serialVersionUID = 1L;
 
         public EventMessageObjectDeserializer() {
-            super((com.fasterxml.jackson.databind.JavaType) null, (com.fasterxml.jackson.databind.JavaType) null);
+            super((JavaType) null, (JavaType) null);
         }
 
         @Override

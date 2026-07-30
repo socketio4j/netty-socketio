@@ -45,7 +45,7 @@ public class DistributedHazelcastJsClientInteropTest extends AbstractDistributed
 
     private HazelcastInstance hazelcastInstance;
     private HazelcastInstance hazelcastInstance1;
-
+    private HazelcastInstance member;
     @BeforeAll
     @Override
     public void setupCluster() throws Exception {
@@ -66,7 +66,7 @@ public class DistributedHazelcastJsClientInteropTest extends AbstractDistributed
         config.getNetworkConfig().getJoin().getTcpIpConfig().setEnabled(false);
         System.out.println("Creating embedded member...");
 
-        HazelcastInstance member = Hazelcast.newHazelcastInstance(config);
+        member = Hazelcast.newHazelcastInstance(config);
         System.out.println("Multicast : "
                 + config.getNetworkConfig()
                 .getJoin().getMulticastConfig().isEnabled());
@@ -201,5 +201,6 @@ public class DistributedHazelcastJsClientInteropTest extends AbstractDistributed
         if (node2 != null) node2.stop();
         if (hazelcastInstance != null) hazelcastInstance.shutdown();
         if (hazelcastInstance1 != null) hazelcastInstance1.shutdown();
+        if (member != null) member.shutdown();
     }
 }

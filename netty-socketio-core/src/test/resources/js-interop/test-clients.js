@@ -216,69 +216,77 @@ socket.on('mixedResponse', (text, binData) => {
     }
 });
 
-socket.on('serverReqAckText', (data, callback) => {
-    console.log(`[v${version} JS Client] Received serverReqAckText:`, data);
-    if (data === 'hello_from_server' && typeof callback === 'function') {
-        callback('js_ack_text_reply');
-        setTimeout(() => {
-            clearTimeout(timeout);
-            socket.disconnect();
-            console.log('Server req ACK text scenario PASSED');
-            process.exit(0);
-        }, 300);
-    } else {
-        console.error('serverReqAckText mismatch or missing callback:', data, typeof callback);
-        process.exit(1);
-    }
-});
+if (scenario === 'server_ack_text') {
+    socket.on('serverReqAckText', (data, callback) => {
+        console.log(`[v${version} JS Client] Received serverReqAckText:`, data);
+        if (data === 'hello_from_server' && typeof callback === 'function') {
+            callback('js_ack_text_reply');
+            setTimeout(() => {
+                clearTimeout(timeout);
+                socket.disconnect();
+                console.log('Server req ACK text scenario PASSED');
+                process.exit(0);
+            }, 300);
+        } else {
+            console.error('serverReqAckText mismatch or missing callback:', data, typeof callback);
+            process.exit(1);
+        }
+    });
+}
 
-socket.on('serverReqAckBinary', (data, callback) => {
-    console.log(`[v${version} JS Client] Received serverReqAckBinary:`, data);
-    if (data === 'hello_for_binary_ack' && typeof callback === 'function') {
-        callback(Buffer.from([55, 66, 77]));
-        setTimeout(() => {
-            clearTimeout(timeout);
-            socket.disconnect();
-            console.log('Server req ACK binary scenario PASSED');
-            process.exit(0);
-        }, 300);
-    } else {
-        console.error('serverReqAckBinary mismatch or missing callback:', data, typeof callback);
-        process.exit(1);
-    }
-});
+if (scenario === 'server_ack_binary') {
+    socket.on('serverReqAckBinary', (data, callback) => {
+        console.log(`[v${version} JS Client] Received serverReqAckBinary:`, data);
+        if (data === 'hello_for_binary_ack' && typeof callback === 'function') {
+            callback(Buffer.from([55, 66, 77]));
+            setTimeout(() => {
+                clearTimeout(timeout);
+                socket.disconnect();
+                console.log('Server req ACK binary scenario PASSED');
+                process.exit(0);
+            }, 300);
+        } else {
+            console.error('serverReqAckBinary mismatch or missing callback:', data, typeof callback);
+            process.exit(1);
+        }
+    });
+}
 
-socket.on('serverReqVoidAck', (data, callback) => {
-    console.log(`[v${version} JS Client] Received serverReqVoidAck:`, data);
-    if (data === 'hello_void' && typeof callback === 'function') {
-        callback(); // no arguments (Void ACK)
-        setTimeout(() => {
-            clearTimeout(timeout);
-            socket.disconnect();
-            console.log('Server req Void ACK scenario PASSED');
-            process.exit(0);
-        }, 300);
-    } else {
-        console.error('serverReqVoidAck mismatch or missing callback:', data, typeof callback);
-        process.exit(1);
-    }
-});
+if (scenario === 'server_ack_void') {
+    socket.on('serverReqVoidAck', (data, callback) => {
+        console.log(`[v${version} JS Client] Received serverReqVoidAck:`, data);
+        if (data === 'hello_void' && typeof callback === 'function') {
+            callback(); // no arguments (Void ACK)
+            setTimeout(() => {
+                clearTimeout(timeout);
+                socket.disconnect();
+                console.log('Server req Void ACK scenario PASSED');
+                process.exit(0);
+            }, 300);
+        } else {
+            console.error('serverReqVoidAck mismatch or missing callback:', data, typeof callback);
+            process.exit(1);
+        }
+    });
+}
 
-socket.on('serverReqMultiAck', (data, callback) => {
-    console.log(`[v${version} JS Client] Received serverReqMultiAck:`, data);
-    if (data === 'hello_multi' && typeof callback === 'function') {
-        callback('reply_string', Buffer.from([88, 99])); // Heterogeneous multi-type ACK (String + Buffer)
-        setTimeout(() => {
-            clearTimeout(timeout);
-            socket.disconnect();
-            console.log('Server req MultiType ACK scenario PASSED');
-            process.exit(0);
-        }, 300);
-    } else {
-        console.error('serverReqMultiAck mismatch or missing callback:', data, typeof callback);
-        process.exit(1);
-    }
-});
+if (scenario === 'server_ack_multi') {
+    socket.on('serverReqMultiAck', (data, callback) => {
+        console.log(`[v${version} JS Client] Received serverReqMultiAck:`, data);
+        if (data === 'hello_multi' && typeof callback === 'function') {
+            callback('reply_string', Buffer.from([88, 99])); // Heterogeneous multi-type ACK (String + Buffer)
+            setTimeout(() => {
+                clearTimeout(timeout);
+                socket.disconnect();
+                console.log('Server req MultiType ACK scenario PASSED');
+                process.exit(0);
+            }, 300);
+        } else {
+            console.error('serverReqMultiAck mismatch or missing callback:', data, typeof callback);
+            process.exit(1);
+        }
+    });
+}
 
 socket.on('connect_error', (err) => {
     console.error('Connection error:', err);

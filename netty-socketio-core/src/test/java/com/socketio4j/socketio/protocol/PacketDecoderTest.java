@@ -1039,4 +1039,91 @@ public class PacketDecoderTest extends BaseProtocolTest {
         textBuffer.release();
         binaryBuffer.release();
     }
+
+    @Test
+    void testDecodeEIOv4PollingAttachmentStartingWithDigit4() throws IOException {
+        // EIOv4 client over long polling
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            return null;
+        }).when(clientHead).setLastBinaryPacket(any());
+        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+
+        // 1. Decode text frame first
+        ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"event\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
+        Event mockEvent = new Event("event", Arrays.asList(new HashMap<>()));
+        when(jsonSupport.readValue(eq(""), any(), eq(Event.class))).thenReturn(mockEvent);
+
+        Packet firstPacket = decoder.decodePackets(textBuffer, clientHead, Transport.POLLING);
+        assertNotNull(firstPacket);
+        assertTrue(firstPacket.hasAttachments());
+
+        // 2. Decode EIOv4 polling attachment starting with 'b4...' (Base64 payload "4AAA")
+        // Byte 0xE0 encodes to base64 starting with '4'. With 'b' prefix: "b4AAA"
+        ByteBuf attachmentBuffer = Unpooled.copiedBuffer("b4AAA", CharsetUtil.UTF_8);
+
+        Packet resultPacket = decoder.decodePackets(attachmentBuffer, clientHead, Transport.POLLING);
+        assertNotNull(resultPacket);
+        assertEquals(1, resultPacket.getAttachments().size());
+        ByteBuf attachment = resultPacket.getAttachments().get(0);
+
+        // Should strip ONLY 'b' prefix, preserving "4AAA"
+        assertEquals("4AAA", attachment.toString(CharsetUtil.UTF_8));
+
+        textBuffer.release();
+        attachmentBuffer.release();
+    }
+
+    @Test
+    void testDecodeLeadingOrConsecutiveRecordSeparators() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        // Frame starting with 0x1e separator followed by a ping packet
+        byte[] payload = new byte[]{0x1E, 0x1E, '2'};
+        ByteBuf buffer = Unpooled.copiedBuffer(payload);
+
+        Packet packet = decoder.decodePackets(buffer, clientHead, Transport.POLLING);
+        assertNotNull(packet);
+        assertEquals(PacketType.PING, packet.getType());
+
+        buffer.release();
+    }
+
+    @Test
+    void testDecodeMalformedPollingAttachmentLengthHeader() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+
+        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            return null;
+        }).when(clientHead).setLastBinaryPacket(any());
+        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+
+        // 1. Decode text frame first
+        ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"event\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
+        Event mockEvent = new Event("event", Arrays.asList(new HashMap<>()));
+        when(jsonSupport.readValue(eq(""), any(), eq(Event.class))).thenReturn(mockEvent);
+
+        try {
+            decoder.decodePackets(textBuffer, clientHead, Transport.POLLING);
+
+            // 2. Crafted malformed polling attachment header: 0x01 + "abc" + 0xFF + payload
+            byte[] malformedPayload = new byte[]{1, 'a', 'b', 'c', (byte) 0xFF, 4, 10, 20};
+            ByteBuf attachmentBuffer = Unpooled.copiedBuffer(malformedPayload);
+
+            org.junit.jupiter.api.Assertions.assertThrows(IOException.class, () -> {
+                decoder.decodePackets(attachmentBuffer, clientHead, Transport.POLLING);
+            });
+
+            attachmentBuffer.release();
+        } catch (IOException e) {
+            org.junit.jupiter.api.Assertions.fail("Unexpected exception during setup: " + e.getMessage());
+        } finally {
+            textBuffer.release();
+        }
+    }
 }

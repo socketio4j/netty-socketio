@@ -61,6 +61,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Two-node cluster integration scenarios over a shared {@link com.socketio4j.socketio.store.StoreFactory}.
  *
@@ -82,6 +85,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @date 11/12/25 3:53 pm
  */
 public abstract class DistributedCommonTest {
+
+    private static final Logger log = LoggerFactory.getLogger(DistributedCommonTest.class);
 
     // ─── Timing constants ────────────────────────────────────────────────────
 
@@ -912,6 +917,7 @@ public abstract class DistributedCommonTest {
                     .build();
 
             AtomicReference<WebSocket> eio3SocketRef = new AtomicReference<>();
+            AtomicReference<Throwable> failureRef = new AtomicReference<>();
             CountDownLatch handshakeLatch = new CountDownLatch(1);
 
             WebSocket eio3Socket = okClient.newWebSocket(request, new WebSocketListener() {
@@ -927,12 +933,16 @@ public abstract class DistributedCommonTest {
 
                 @Override
                 public void onFailure(WebSocket webSocket, Throwable t, okhttp3.Response response) {
+                    failureRef.set(t);
                     handshakeLatch.countDown();
                 }
             });
 
             try {
                 awaitOrFail(handshakeLatch, OP_TIMEOUT_SECS, "EIO v3 client handshake failed");
+                if (failureRef.get() != null) {
+                    fail("EIO v3 client WebSocket connection failed: " + failureRef.get().getMessage(), failureRef.get());
+                }
                 eio3Socket.send("40");
                 eio3Socket.send("451-[\"clientBinary\",{\"_placeholder\":true,\"num\":0}]");
                 eio3Socket.send(ByteString.of(new byte[]{4, 100, 110, 120}));
@@ -946,7 +956,11 @@ public abstract class DistributedCommonTest {
                         "Binary payload bytes mismatch");
 
             } finally {
-                eio3Socket.close(1000, "test-complete");
+                try {
+                    eio3Socket.close(1000, "test-complete");
+                } catch (Exception e) {
+                    log.warn("Failed to close OkHttp eio3Socket cleanly during test cleanup: {}", e.getMessage());
+                }
             }
 
         } finally {
@@ -1075,19 +1089,18 @@ public abstract class DistributedCommonTest {
     }
 
     /**
-     * Disconnects every supplied socket. If any individual disconnect throws, the remaining
-     * sockets are still disconnected and all exceptions are re-thrown as suppressed causes.
+     * Disconnects every supplied socket. Any cleanup failures are logged as warnings to avoid
+     * throwing from finally blocks and swallowing actual test assertion errors.
      */
     private static void disconnectAll(Socket... sockets) {
-        List<Exception> errors = new ArrayList<>();
         for (Socket s : sockets) {
-            try { s.disconnect(); } catch (Exception e) { errors.add(e); }
-        }
-        if (!errors.isEmpty()) {
-            RuntimeException ex = new RuntimeException(
-                    "One or more sockets failed to disconnect cleanly");
-            errors.forEach(ex::addSuppressed);
-            throw ex;
+            if (s != null) {
+                try {
+                    s.disconnect();
+                } catch (Exception e) {
+                    log.warn("Failed to disconnect socket cleanly during test cleanup: {}", e.getMessage());
+                }
+            }
         }
     }
 

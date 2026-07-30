@@ -183,17 +183,22 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     public void testJsServerInitiatedAckText(String version, String transport) throws Exception {
         AtomicReference<String> ackReply = new AtomicReference<>();
 
-        getServer().addConnectListener(client -> {
+        com.socketio4j.socketio.listener.ConnectListener listener = client -> {
             client.sendEvent("serverReqAckText", new com.socketio4j.socketio.AckCallback<String>(String.class, 5) {
                 @Override
                 public void onSuccess(String result) {
                     ackReply.set(result);
                 }
             }, "hello_from_server");
-        });
+        };
 
-        runJsTest(version, transport, "server_ack_text");
-        assertEquals("js_ack_text_reply", ackReply.get(), "Server should receive text ACK reply from JS client callback");
+        getServer().addConnectListener(listener);
+        try {
+            runJsTest(version, transport, "server_ack_text");
+            assertEquals("js_ack_text_reply", ackReply.get(), "Server should receive text ACK reply from JS client callback");
+        } finally {
+            getServer().removeConnectListener(listener);
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Server-Initiated Binary ACK Callback")
@@ -210,17 +215,22 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     public void testJsServerInitiatedAckBinary(String version, String transport) throws Exception {
         AtomicReference<byte[]> ackReply = new AtomicReference<>();
 
-        getServer().addConnectListener(client -> {
+        com.socketio4j.socketio.listener.ConnectListener listener = client -> {
             client.sendEvent("serverReqAckBinary", new com.socketio4j.socketio.AckCallback<byte[]>(byte[].class, 5) {
                 @Override
                 public void onSuccess(byte[] result) {
                     ackReply.set(result);
                 }
             }, "hello_for_binary_ack");
-        });
+        };
 
-        runJsTest(version, transport, "server_ack_binary");
-        assertArrayEquals(new byte[] { 55, 66, 77 }, ackReply.get(), "Server should receive binary ACK reply from JS client callback");
+        getServer().addConnectListener(listener);
+        try {
+            runJsTest(version, transport, "server_ack_binary");
+            assertArrayEquals(new byte[] { 55, 66, 77 }, ackReply.get(), "Server should receive binary ACK reply from JS client callback");
+        } finally {
+            getServer().removeConnectListener(listener);
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Server-Initiated Void ACK Callback")
@@ -237,17 +247,22 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     public void testJsServerInitiatedVoidAck(String version, String transport) throws Exception {
         AtomicBoolean voidAckReceived = new AtomicBoolean(false);
 
-        getServer().addConnectListener(client -> {
+        com.socketio4j.socketio.listener.ConnectListener listener = client -> {
             client.sendEvent("serverReqVoidAck", new com.socketio4j.socketio.VoidAckCallback(5) {
                 @Override
                 protected void onSuccess() {
                     voidAckReceived.set(true);
                 }
             }, "hello_void");
-        });
+        };
 
-        runJsTest(version, transport, "server_ack_void");
-        assertTrue(voidAckReceived.get(), "Server should receive Void ACK callback from JS client");
+        getServer().addConnectListener(listener);
+        try {
+            runJsTest(version, transport, "server_ack_void");
+            assertTrue(voidAckReceived.get(), "Server should receive Void ACK callback from JS client");
+        } finally {
+            getServer().removeConnectListener(listener);
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Server-Initiated MultiType ACK Callback")
@@ -265,7 +280,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         AtomicReference<String> stringReply = new AtomicReference<>();
         AtomicReference<byte[]> binaryReply = new AtomicReference<>();
 
-        getServer().addConnectListener(client -> {
+        com.socketio4j.socketio.listener.ConnectListener listener = client -> {
             client.sendEvent("serverReqMultiAck", new com.socketio4j.socketio.MultiTypeAckCallback(String.class, byte[].class) {
                 @Override
                 public void onSuccess(com.socketio4j.socketio.MultiTypeArgs res) {
@@ -273,11 +288,16 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
                     binaryReply.set(res.get(1));
                 }
             }, "hello_multi");
-        });
+        };
 
-        runJsTest(version, transport, "server_ack_multi");
-        assertEquals("reply_string", stringReply.get(), "Server should receive first MultiType ACK arg");
-        assertArrayEquals(new byte[] { 88, 99 }, binaryReply.get(), "Server should receive second MultiType ACK arg");
+        getServer().addConnectListener(listener);
+        try {
+            runJsTest(version, transport, "server_ack_multi");
+            assertEquals("reply_string", stringReply.get(), "Server should receive first MultiType ACK arg");
+            assertArrayEquals(new byte[] { 88, 99 }, binaryReply.get(), "Server should receive second MultiType ACK arg");
+        } finally {
+            getServer().removeConnectListener(listener);
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Binary Payload (byte[])")

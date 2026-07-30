@@ -298,21 +298,28 @@ public class PacketDecoder {
                 && lastPacket.hasAttachments()
                 && !lastPacket.isAttachmentsLoaded()
         ) {
-                return addAttachment(head, frame, lastPacket, transport);
-            }
+            return addAttachment(head, frame, lastPacket, transport);
+        }
 
+        // Skip any leading 0x1E record separators (e.g. payload starting with 0x1e or consecutive 0x1e delimiters)
+        while (frame.readableBytes() > 0 && frame.getByte(frame.readerIndex()) == 0x1E) {
+            frame.skipBytes(1);
+        }
+        if (!frame.isReadable()) {
+            return null;
+        }
 
         final int separatorPos = frame.bytesBefore((byte) 0x1E);
         final ByteBuf packetBuf;
         if (separatorPos >= 0) {
-            // 0x1e record separator found: slice out just this packet and advance past the separator.
-            // separatorPos == 0 means 0x1e is the very first byte (frame already positioned at
-            // the start of a subsequent packet in a multi-packet payload); that case must be
-            // handled too, otherwise the separator byte is passed to readType and mis-parses.
-            packetBuf = frame.copy(frame.readerIndex(), separatorPos);
-            frame.skipBytes(separatorPos + 1);
+            packetBuf = frame.readSlice(separatorPos);
+            frame.skipBytes(1); // skip 0x1E separator
         } else {
             packetBuf = frame;
+        }
+
+        if (!packetBuf.isReadable()) {
+            return null;
         }
 
         PacketType type = readType(packetBuf);
@@ -477,11 +484,22 @@ public class PacketDecoder {
             // 1. EIOv2/v3 Polling binary payload wrapper: 0x01 + length + 0xFF + 0x04 + payload
             if (frame.readableBytes() > 0 && frame.getByte(ri) == 1) {
                 frame.readByte(); // skip 0x01
-                int headEndIndex = frame.bytesBefore((byte) -1);
-                if (headEndIndex != -1) {
-                    int len = (int) readLong(frame, headEndIndex);
+                int maxLength = Math.min(frame.readableBytes(), 10);
+                int headEndIndex = frame.bytesBefore(maxLength, (byte) -1);
+                if (headEndIndex > 0) {
+                    for (int i = 0; i < headEndIndex; i++) {
+                        byte b = frame.getByte(frame.readerIndex() + i);
+                        if (b < '0' || b > '9') {
+                            throw new IOException("Malformed polling wrapper: non-digit character in length header");
+                        }
+                    }
+                    long rawLen = readLong(frame, headEndIndex);
+                    if (rawLen < 0 || rawLen > Integer.MAX_VALUE) {
+                        throw new IOException("Malformed polling wrapper: length overflow " + rawLen);
+                    }
+                    int len = (int) rawLen;
                     int payloadStart = frame.readerIndex() + 1; // skip 0xFF separator
-                    if (payloadStart + len > frame.writerIndex()) {
+                    if (len < 0 || payloadStart + len > frame.writerIndex()) {
                         throw new IOException("Malformed polling wrapper: length " + len
                                 + " exceeds remaining frame bytes " + (frame.writerIndex() - payloadStart));
                     }
@@ -498,7 +516,7 @@ public class PacketDecoder {
                     binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
                     attachBuf.release();
                 } else {
-                    throw new IOException("Malformed polling wrapper: missing 0xFF separator");
+                    throw new IOException("Malformed polling wrapper: missing or invalid 0xFF separator");
                 }
             }
             // 2. Polling Base64 text attachment: 'b4' (EIOv3) or 'b' (EIOv4)
@@ -516,8 +534,11 @@ public class PacketDecoder {
                 }
 
                 int attachRi = attachFrame.readerIndex();
-                if (attachFrame.readableBytes() >= 2 && attachFrame.getByte(attachRi) == 'b' && attachFrame.getByte(attachRi + 1) == '4') {
-                    attachFrame.readerIndex(attachRi + 2); // skip 'b4' (EIOv3)
+                if ((version == EngineIOVersion.V2 || version == EngineIOVersion.V3)
+                        && attachFrame.readableBytes() >= 2
+                        && attachFrame.getByte(attachRi) == 'b'
+                        && attachFrame.getByte(attachRi + 1) == '4') {
+                    attachFrame.readerIndex(attachRi + 2); // skip 'b4' (EIOv2/v3)
                 } else if (attachFrame.readableBytes() >= 1 && attachFrame.getByte(attachRi) == 'b') {
                     attachFrame.readerIndex(attachRi + 1); // skip 'b' (EIOv4)
                 }

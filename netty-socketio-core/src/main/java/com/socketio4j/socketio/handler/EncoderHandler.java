@@ -373,12 +373,19 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
         ClientHead clientHead = msg.getClientHead();
         ByteBuf out = encoder.allocateBuffer(ctx.alloc());
-        EngineIOVersion engineIOVersion = clientHead != null ? clientHead.getEngineIOVersion()
-                : (!queue.isEmpty() ? queue.peek().getEngineIOVersion() : EngineIOVersion.V4);
+        EngineIOVersion engineIOVersion = clientHead.getEngineIOVersion();
+        if (engineIOVersion == null || engineIOVersion == EngineIOVersion.UNKNOWN) {
+            if (!queue.isEmpty() && queue.peek().getEngineIOVersion() != null) {
+                engineIOVersion = queue.peek().getEngineIOVersion();
+            } else {
+                engineIOVersion = EngineIOVersion.V4;
+            }
+        }
+
         Boolean b64 = ctx.channel().attr(EncoderHandler.B64).get();
         // b64=1 / JSONP encoding is only valid for EIOv3 (Socket.IO v1/v2).
         // Socket.IO v3/v4 also sends b64=1 but they use EIOv4 and expect text/plain framing.
-        if (engineIOVersion != EngineIOVersion.V4 && b64 != null && b64) {
+        if (!EngineIOVersion.V4.equals(engineIOVersion) && Boolean.TRUE.equals(b64)) {
             Integer jsonpIndex = ctx.channel().attr(EncoderHandler.JSONP_INDEX).get();
             if (log.isDebugEnabled()) {
                 log.debug("Using JSONP encoding, index: {}, sessionId: {}", jsonpIndex, msg.getSessionId());
@@ -397,7 +404,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                     break;
                 }
             }
-            String contentType = (engineIOVersion == EngineIOVersion.V4 && !hasBinary)
+            String contentType = (EngineIOVersion.V4.equals(engineIOVersion) && !hasBinary)
                     ? "text/plain"
                     : "application/octet-stream";
 

@@ -12,4 +12,3 @@
 **/*.iml
 **/dependency-reduced-pom.xml
 **/node_modules/
-**/package-lock.xml
