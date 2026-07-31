@@ -42,22 +42,16 @@ const socket = io(url, options);
 
 const receivedEvents = [];
 
-const timeoutMs = (scenario === 'dist_negative_isolation' || scenario === 'dist_room_leave_negative')
-    ? 4000
-    : (args.timeout ? parseInt(args.timeout, 10) : 35000);
+const timeoutMs = args.timeout ? parseInt(args.timeout, 10) : 35000;
 
 const timeout = setTimeout(() => {
-    if (scenario === 'dist_negative_isolation' || scenario === 'dist_room_leave_negative') {
-        console.log(`[${clientName}] Negative assertion passed (no spurious events received within timeout)`);
-        socket.disconnect();
-        process.exit(0);
-    }
     console.error(`[${clientName}] Test timed out after ${timeoutMs}ms. Received ${receivedEvents.length} events:`, JSON.stringify(receivedEvents));
     socket.disconnect();
     process.exit(1);
 }, timeoutMs);
 
 let joinedRoomOk = false;
+let leftRoomOk = false;
 
 socket.on('connect', () => {
     console.log(`[${clientName} v${version}] Connected to server on port ${port} via ${transport}, joining room: ${targetRoom}`);
@@ -79,16 +73,34 @@ socket.on('leave-command', (roomName) => {
     socket.emit('leave-room', roomName);
 });
 
+socket.on('leave-ok', (roomName) => {
+    console.log(`[${clientName}] Received leave-ok for room: ${roomName}`);
+    leftRoomOk = true;
+    socket.emit('client-left-room', clientName);
+});
+
 socket.on('dist-event', (...args) => {
     const data = args[0];
     console.log(`[${clientName}] Received dist-event:`, args);
     receivedEvents.push(args);
 
-    if (scenario === 'dist_negative_isolation' || scenario === 'dist_room_leave_negative') {
-        console.error(`[${clientName}] FAILURE: Received event in negative/isolated scenario! Data:`, data);
-        clearTimeout(timeout);
-        socket.disconnect();
-        process.exit(1);
+    if (scenario === 'dist_room_leave_negative') {
+        if (leftRoomOk) {
+            console.error(`[${clientName}] FAILURE: Received dist-event after leaving room! Data:`, data);
+            clearTimeout(timeout);
+            socket.disconnect();
+            process.exit(1);
+        }
+    }
+
+    if (scenario === 'dist_room_isolation_negative') {
+        const expectedData = clientName.includes('red') ? 'red_only_message' : 'blue_only_message';
+        if (data !== expectedData) {
+            console.error(`[${clientName}] ROOM ISOLATION FAILURE: Expected '${expectedData}', got unexpected event data:`, data);
+            clearTimeout(timeout);
+            socket.disconnect();
+            process.exit(1);
+        }
     }
 
     if (scenario === 'dist_binary') {
@@ -129,14 +141,59 @@ socket.on('dist-event', (...args) => {
         }
     }
 
-    if ((scenario === 'dist_room_broadcast' && receivedEvents.length >= 2) ||
-        ((scenario === 'dist_single_event' || scenario === 'dist_binary' || scenario === 'dist_object' || scenario === 'dist_complex_object' || scenario === 'dist_mixed') && receivedEvents.length >= 1)) {
+    if (scenario === 'dist_room_broadcast') {
+        const hasMsg1 = receivedEvents.some(a => a[0] === 'msg_from_server1');
+        const hasMsg2 = receivedEvents.some(a => a[0] === 'msg_from_server2');
+        if (hasMsg1 && hasMsg2) {
+            console.log(`[${clientName}] Received both server1 and server2 room broadcast events - SUCCESS`);
+            clearTimeout(timeout);
+            setTimeout(() => {
+                socket.disconnect();
+                process.exit(0);
+            }, 200);
+        }
+    } else if ((scenario === 'dist_single_event' || scenario === 'dist_binary' || scenario === 'dist_object' || scenario === 'dist_complex_object' || scenario === 'dist_mixed') && receivedEvents.length >= 1) {
         console.log(`[${clientName}] Received all ${receivedEvents.length} expected room broadcast events - SUCCESS`);
         clearTimeout(timeout);
         setTimeout(() => {
             socket.disconnect();
             process.exit(0);
         }, 200);
+    }
+});
+
+socket.on('dist-test-done', (checkType) => {
+    console.log(`[${clientName}] Received dist-test-done signal from server: checkType=${checkType}`);
+
+    if (scenario === 'dist_room_isolation_negative') {
+        const expectedData = clientName.includes('red') ? 'red_only_message' : 'blue_only_message';
+        const hasExpected = receivedEvents.some(a => a[0] === expectedData);
+        const hasUnexpected = receivedEvents.some(a => a[0] !== expectedData);
+        if (hasExpected && !hasUnexpected) {
+            console.log(`[${clientName}] Room isolation test PASSED cleanly (received expected event, 0 unexpected)`);
+            clearTimeout(timeout);
+            socket.disconnect();
+            process.exit(0);
+        } else {
+            console.error(`[${clientName}] Room isolation check failed. hasExpected=${hasExpected}, hasUnexpected=${hasUnexpected}`);
+            clearTimeout(timeout);
+            socket.disconnect();
+            process.exit(1);
+        }
+    }
+
+    if (scenario === 'dist_room_leave_negative') {
+        if (leftRoomOk && receivedEvents.length === 0) {
+            console.log(`[${clientName}] Room leave test PASSED cleanly (left room, 0 post-leave events received)`);
+            clearTimeout(timeout);
+            socket.disconnect();
+            process.exit(0);
+        } else {
+            console.error(`[${clientName}] Room leave test failed. leftRoomOk=${leftRoomOk}, receivedEvents=${receivedEvents.length}`);
+            clearTimeout(timeout);
+            socket.disconnect();
+            process.exit(1);
+        }
     }
 });
 

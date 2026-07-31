@@ -146,6 +146,9 @@ socket.on('textResponse', (data) => {
         socket.disconnect();
         console.log('Text scenario PASSED');
         process.exit(0);
+    } else {
+        console.error('Text response mismatch:', data);
+        process.exit(1);
     }
 });
 

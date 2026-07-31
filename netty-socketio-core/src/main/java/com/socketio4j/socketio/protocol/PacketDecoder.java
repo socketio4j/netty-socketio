@@ -325,7 +325,7 @@ public class PacketDecoder {
         PacketType type = readType(packetBuf);
         Packet packet = new Packet(type, head.getEngineIOVersion());
 
-        if (type == PacketType.PING) {
+        if (type == PacketType.PING || type == PacketType.PONG) {
             packet.setData(readString(packetBuf));
             return packet;
         }
@@ -489,7 +489,7 @@ public class PacketDecoder {
                 if (headEndIndex > 0) {
                     for (int i = 0; i < headEndIndex; i++) {
                         byte b = frame.getByte(frame.readerIndex() + i);
-                        if (b < '0' || b > '9') {
+                        if ((b < 0 || b > 9) && (b < '0' || b > '9')) {
                             throw new IOException("Malformed polling wrapper: non-digit character in length header");
                         }
                     }
@@ -637,10 +637,34 @@ public class PacketDecoder {
                 parseEventBody(frame, packet);
                 break;
                 
+            case ERROR:
+                parseErrorBody(frame, packet);
+                break;
+
             default:
                 // Handle binary attachments for other packet types
                 handleBinaryAttachments(head, frame, packet);
                 break;
+        }
+    }
+
+    /**
+     * Parse ERROR packet bodies
+     */
+    private void parseErrorBody(ByteBuf frame, Packet packet) throws IOException {
+        String nsp = readNamespace(frame, false);
+        if (nsp != null && !nsp.isEmpty()) {
+            packet.setNsp(nsp);
+        }
+        if (frame.readableBytes() > 0) {
+            try {
+                frame.markReaderIndex();
+                Object errorData = jsonSupport.readValue(packet.getNsp(), new ByteBufInputStream(frame), Object.class);
+                packet.setData(errorData);
+            } catch (Exception e) {
+                frame.resetReaderIndex();
+                packet.setData(readString(frame));
+            }
         }
     }
 

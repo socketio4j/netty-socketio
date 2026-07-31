@@ -106,7 +106,15 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
             "4, polling"
     })
     public void testJsConnect(String version, String transport) throws Exception {
-        runJsTest(version, transport, "connect");
+        AtomicBoolean connected = new AtomicBoolean(false);
+        com.socketio4j.socketio.listener.ConnectListener listener = client -> connected.set(true);
+        getServer().addConnectListener(listener);
+        try {
+            runJsTest(version, transport, "connect");
+            assertTrue(connected.get(), "Server ConnectListener should have been invoked for client connection");
+        } finally {
+            getServer().removeConnectListener(listener);
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Text Messaging & Response")
@@ -143,11 +151,14 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
             "4, polling"
     })
     public void testJsEventAck(String version, String transport) throws Exception {
+        AtomicBoolean received = new AtomicBoolean(false);
         getServer().addEventListener("testAck", String.class, (client, data, ackRequest) -> {
+            received.set(true);
             ackRequest.sendAckData("ack_reply_" + data);
         });
 
         runJsTest(version, transport, "ack");
+        assertTrue(received.get(), "Server should have received testAck event");
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Client Event Binary ACK")
@@ -162,11 +173,14 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
             "4, polling"
     })
     public void testJsEventAckBinary(String version, String transport) throws Exception {
+        AtomicBoolean received = new AtomicBoolean(false);
         getServer().addEventListener("testAckBinary", String.class, (client, data, ackRequest) -> {
+            received.set(true);
             ackRequest.sendAckData(new byte[] { 50, 51, 52 });
         });
 
         runJsTest(version, transport, "ack_binary");
+        assertTrue(received.get(), "Server should have received testAckBinary event");
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Server-Initiated Text ACK Callback")

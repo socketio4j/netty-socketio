@@ -27,6 +27,8 @@ import java.util.Queue;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -44,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Comprehensive test suite for PacketEncoder class
- * Tests all packet types and encoding formats according to Socket.IO V4 protocol
+ * Tests all packet types and encoding formats according to Engine.IO V2, V3, V4 transport protocol and Socket.IO application standards.
  */
 public class PacketEncoderTest extends BaseProtocolTest {
 
@@ -243,41 +245,41 @@ public class PacketEncoderTest extends BaseProtocolTest {
 
     @Test
     public void testEncodeBinaryEventPacket() throws IOException {
-        // BINARY_EVENT packet: "51-[\"hello\",{\"_placeholder\":true,\"num\":0}]"
+        // BINARY_EVENT packet: "451-[\"hello\",\"data\"]"
         Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
-        packet.setSubType(PacketType.EVENT);
+        packet.setSubType(PacketType.BINARY_EVENT);
+        packet.initAttachments(1);
         packet.setNsp("");
         packet.setName("hello");
         packet.setData(Arrays.asList("data"));
-        
-        // JSON support is now real implementation
+        packet.addAttachment(Unpooled.copiedBuffer("binData", CharsetUtil.UTF_8));
         
         ByteBuf buffer = Unpooled.buffer();
         encoder.encodePacket(packet, buffer, allocator, false);
         
         String encoded = buffer.toString(CharsetUtil.UTF_8);
-        assertTrue(encoded.startsWith("42")); // MESSAGE(4) + EVENT(2)
+        assertTrue(encoded.startsWith("451-")); // MESSAGE(4) + BINARY_EVENT(5) + 1 attachment
         
         buffer.release();
     }
 
     @Test
     public void testEncodeBinaryEventPacketWithNamespace() throws IOException {
-        // BINARY_EVENT packet with namespace: "51-/admin,456[\"project:delete\",{\"_placeholder\":true,\"num\":0}]"
+        // BINARY_EVENT packet with namespace: "451-/admin,456[\"project:delete\",\"data\"]"
         Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
-        packet.setSubType(PacketType.EVENT);
+        packet.setSubType(PacketType.BINARY_EVENT);
+        packet.initAttachments(1);
         packet.setNsp("/admin");
         packet.setName("project:delete");
         packet.setData(Arrays.asList("data"));
         packet.setAckId(456L);
-        
-        // JSON support is now real implementation
+        packet.addAttachment(Unpooled.copiedBuffer("binData", CharsetUtil.UTF_8));
         
         ByteBuf buffer = Unpooled.buffer();
         encoder.encodePacket(packet, buffer, allocator, false);
         
         String encoded = buffer.toString(CharsetUtil.UTF_8);
-        assertTrue(encoded.startsWith("42/admin,456")); // MESSAGE(4) + EVENT(2)
+        assertTrue(encoded.startsWith("451-/admin,456")); // MESSAGE(4) + BINARY_EVENT(5) + 1 attachment
         
         buffer.release();
     }
@@ -286,20 +288,20 @@ public class PacketEncoderTest extends BaseProtocolTest {
 
     @Test
     public void testEncodeBinaryAckPacket() throws IOException {
-        // BINARY_ACK packet: "61-/admin,456[{\"_placeholder\":true,\"num\":0}]"
+        // BINARY_ACK packet: "461-/admin,456[\"response\"]"
         Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
-        packet.setSubType(PacketType.ACK);
+        packet.setSubType(PacketType.BINARY_ACK);
+        packet.initAttachments(1);
         packet.setNsp("/admin");
         packet.setAckId(456L);
         packet.setData(Arrays.asList("response"));
-        
-        // JSON support is now real implementation
+        packet.addAttachment(Unpooled.copiedBuffer("binData", CharsetUtil.UTF_8));
         
         ByteBuf buffer = Unpooled.buffer();
         encoder.encodePacket(packet, buffer, allocator, false);
         
         String encoded = buffer.toString(CharsetUtil.UTF_8);
-        assertTrue(encoded.startsWith("43/admin,456")); // MESSAGE(4) + ACK(3)
+        assertTrue(encoded.startsWith("461-/admin,456")); // MESSAGE(4) + BINARY_ACK(6) + 1 attachment
         
         buffer.release();
     }
@@ -428,7 +430,7 @@ public class PacketEncoderTest extends BaseProtocolTest {
     public void testEncodePacketWithBinaryAttachments() throws IOException {
         // Packet with binary attachments
         Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
-        packet.setSubType(PacketType.EVENT);
+        packet.setSubType(PacketType.BINARY_EVENT);
         packet.setNsp("");
         packet.setName("upload");
         packet.setData(Arrays.asList("file"));
@@ -438,13 +440,11 @@ public class PacketEncoderTest extends BaseProtocolTest {
         packet.addAttachment(Unpooled.copiedBuffer("attachment1".getBytes()));
         packet.addAttachment(Unpooled.copiedBuffer("attachment2".getBytes()));
         
-        // JSON support is now real implementation
-        
         ByteBuf buffer = Unpooled.buffer();
         encoder.encodePacket(packet, buffer, allocator, false);
         
         String encoded = buffer.toString(CharsetUtil.UTF_8);
-        assertTrue(encoded.startsWith("42")); // MESSAGE(4) + EVENT(2)
+        assertTrue(encoded.startsWith("452-")); // MESSAGE(4) + BINARY_EVENT(5) + 2 attachments
         
         buffer.release();
     }
@@ -905,7 +905,171 @@ public class PacketEncoderTest extends BaseProtocolTest {
         buffer.release();
     }
 
-    // ==================== Cleanup ====================
+    // ==================== Cross Engine.IO Version Encoding Tests (V2, V3, V4) ====================
 
-    // Cleanup is handled automatically by ByteBuf.release() calls in each test
+    @ParameterizedTest(name = "Encode CONNECT Packet - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    public void testEncodeConnectPacketCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        // 1. Default namespace
+        Packet packetDefault = new Packet(PacketType.MESSAGE, version);
+        packetDefault.setSubType(PacketType.CONNECT);
+        packetDefault.setNsp("");
+
+        ByteBuf bufDefault = Unpooled.buffer();
+        encoder.encodePacket(packetDefault, bufDefault, allocator, false);
+        assertTrue(bufDefault.toString(CharsetUtil.UTF_8).endsWith("40"), "CONNECT packet should end with '40' for EIO " + version);
+        bufDefault.release();
+
+        // 2. Custom namespace
+        Packet packetCustom = new Packet(PacketType.MESSAGE, version);
+        packetCustom.setSubType(PacketType.CONNECT);
+        packetCustom.setNsp("/admin");
+
+        ByteBuf bufCustom = Unpooled.buffer();
+        encoder.encodePacket(packetCustom, bufCustom, allocator, false);
+        assertTrue(bufCustom.toString(CharsetUtil.UTF_8).endsWith("40/admin"), "CONNECT packet custom nsp should end with '40/admin' for EIO " + version);
+        bufCustom.release();
+    }
+
+    @ParameterizedTest(name = "Encode DISCONNECT Packet - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    public void testEncodeDisconnectPacketCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        Packet packet = new Packet(PacketType.MESSAGE, version);
+        packet.setSubType(PacketType.DISCONNECT);
+        packet.setNsp("/admin");
+
+        ByteBuf buffer = Unpooled.buffer();
+        encoder.encodePacket(packet, buffer, allocator, false);
+        assertTrue(buffer.toString(CharsetUtil.UTF_8).endsWith("41/admin,"), "DISCONNECT packet should end with '41/admin,' for EIO " + version);
+        buffer.release();
+    }
+
+    @ParameterizedTest(name = "Encode EVENT Packet - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    public void testEncodeEventPacketCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        Packet packet = new Packet(PacketType.MESSAGE, version);
+        packet.setSubType(PacketType.EVENT);
+        packet.setNsp("/admin");
+        packet.setName("deleteUser");
+        packet.setData(Arrays.asList(1001));
+        packet.setAckId(777L);
+
+        ByteBuf buffer = Unpooled.buffer();
+        encoder.encodePacket(packet, buffer, allocator, false);
+        String encoded = buffer.toString(CharsetUtil.UTF_8);
+        assertTrue(encoded.contains("42/admin,777[\"deleteUser\",1001]"), "Encoded EVENT should contain specification payload for EIO " + version);
+        buffer.release();
+    }
+
+    @ParameterizedTest(name = "Encode ACK Packet - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    public void testEncodeAckPacketCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        Packet packet = new Packet(PacketType.MESSAGE, version);
+        packet.setSubType(PacketType.ACK);
+        packet.setNsp("/admin");
+        packet.setAckId(888L);
+        packet.setData(Arrays.asList("ok", true));
+
+        ByteBuf buffer = Unpooled.buffer();
+        encoder.encodePacket(packet, buffer, allocator, false);
+        String encoded = buffer.toString(CharsetUtil.UTF_8);
+        assertTrue(encoded.contains("43/admin,888[\"ok\",true]"), "Encoded ACK should contain specification payload for EIO " + version);
+        buffer.release();
+    }
+
+    @ParameterizedTest(name = "Encode ERROR Packet - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    public void testEncodeErrorPacketCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        Packet packet = new Packet(PacketType.MESSAGE, version);
+        packet.setSubType(PacketType.ERROR);
+        packet.setNsp("/admin");
+        packet.setData("Forbidden");
+
+        ByteBuf buffer = Unpooled.buffer();
+        encoder.encodePacket(packet, buffer, allocator, false);
+        String encoded = buffer.toString(CharsetUtil.UTF_8);
+        assertTrue(encoded.contains("44/admin,\"Forbidden\""), "Encoded ERROR should contain specification payload for EIO " + version);
+        buffer.release();
+    }
+
+    @ParameterizedTest(name = "Encode BINARY_EVENT Packet - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    public void testEncodeBinaryEventPacketCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        Packet packet = new Packet(PacketType.MESSAGE, version);
+        packet.setSubType(PacketType.BINARY_EVENT);
+        packet.initAttachments(1);
+        packet.setNsp("/admin");
+        packet.setName("binEvent");
+        packet.setData(Arrays.asList("hello"));
+        packet.addAttachment(Unpooled.copiedBuffer("attachmentData", CharsetUtil.UTF_8));
+
+        ByteBuf buffer = Unpooled.buffer();
+        encoder.encodePacket(packet, buffer, allocator, false);
+        String encoded = buffer.toString(CharsetUtil.UTF_8);
+
+        assertEquals(PacketType.BINARY_EVENT, packet.getSubType());
+        assertTrue(encoded.contains("451-/admin,"), "Encoded BINARY_EVENT header should format correctly for EIO " + version);
+        buffer.release();
+    }
+
+    @ParameterizedTest(name = "Encode BINARY_ACK Packet - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    public void testEncodeBinaryAckPacketCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        Packet packet = new Packet(PacketType.MESSAGE, version);
+        packet.setSubType(PacketType.BINARY_ACK);
+        packet.initAttachments(1);
+        packet.setNsp("/admin");
+        packet.setAckId(1234L);
+        packet.setData(Arrays.asList("res"));
+        packet.addAttachment(Unpooled.copiedBuffer("ackAttachment", CharsetUtil.UTF_8));
+
+        ByteBuf buffer = Unpooled.buffer();
+        encoder.encodePacket(packet, buffer, allocator, false);
+        String encoded = buffer.toString(CharsetUtil.UTF_8);
+
+        assertEquals(PacketType.BINARY_ACK, packet.getSubType());
+        assertTrue(encoded.contains("461-/admin,1234"), "Encoded BINARY_ACK header should format correctly for EIO " + version);
+        buffer.release();
+    }
+
+    @Test
+    public void testEncodePacketsEIOv3PollingBatchWithXHR2Attachment() throws IOException {
+        Packet textPacket = new Packet(PacketType.MESSAGE, EngineIOVersion.V3);
+        textPacket.setSubType(PacketType.CONNECT);
+        textPacket.setNsp("");
+
+        Packet binPacket = new Packet(PacketType.MESSAGE, EngineIOVersion.V3);
+        binPacket.setSubType(PacketType.BINARY_EVENT);
+        binPacket.initAttachments(1);
+        binPacket.setNsp("");
+        binPacket.setName("binEv");
+        binPacket.setData(Arrays.asList("hello"));
+        byte[] attachmentBytes = new byte[]{10, 20, 30};
+        binPacket.addAttachment(Unpooled.copiedBuffer(attachmentBytes));
+
+        Queue<Packet> queue = new LinkedList<>();
+        queue.add(textPacket);
+        queue.add(binPacket);
+
+        ByteBuf buffer = Unpooled.buffer();
+        encoder.encodePackets(queue, buffer, allocator, 10);
+
+        // Verify V3 payload length headers ("<len>:<packet>") and XHR2 binary framing
+        byte[] encodedBytes = new byte[buffer.readableBytes()];
+        buffer.readBytes(encodedBytes);
+        buffer.release();
+
+        String utf8Prefix = new String(encodedBytes, 0, Math.min(encodedBytes.length, 30), CharsetUtil.UTF_8);
+        assertTrue(utf8Prefix.startsWith("2:40"), "EIOv3 batch payload should use length header framing (e.g. 2:40)");
+
+        // XHR2 binary attachment payload has 0x01 byte prefix
+        boolean containsXhr2Byte = false;
+        for (byte b : encodedBytes) {
+            if (b == 0x01) {
+                containsXhr2Byte = true;
+                break;
+            }
+        }
+        assertTrue(containsXhr2Byte, "EIOv3 polling binary attachment should use XHR2 0x01 binary frame header");
+    }
 }

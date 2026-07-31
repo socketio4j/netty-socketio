@@ -32,6 +32,9 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.slf4j.Logger;
@@ -58,7 +61,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * Comprehensive test suite for PacketDecoder class
- * Tests all packet types and encoding formats according to Socket.IO V4 protocol
+ * Tests all packet types and encoding formats according to Engine.IO V2, V3, V4 transport protocol and Socket.IO application standards.
  */
 public class PacketDecoderTest extends BaseProtocolTest {
     private static final Logger log = LoggerFactory.getLogger(PacketDecoderTest.class);
@@ -278,14 +281,15 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // ERROR packet: "44/admin,\"Not authorized\"" (MESSAGE + ERROR)
         ByteBuf buffer = Unpooled.copiedBuffer("44/admin,\"Not authorized\"", CharsetUtil.UTF_8);
 
+        when(jsonSupport.readValue(eq("/admin"), any(), eq(Object.class))).thenReturn("Not authorized");
+
         Packet packet = decoder.decodePackets(buffer, clientHead);
 
         assertNotNull(packet);
         assertEquals(PacketType.MESSAGE, packet.getType());
         assertEquals(PacketType.ERROR, packet.getSubType());
-        assertEquals("", packet.getNsp());
-        // ERROR packet data may not be parsed as expected in test environment
-        // The important thing is that the packet type and subtype are correct
+        assertEquals("/admin", packet.getNsp());
+        assertEquals("Not authorized", packet.getData());
         assertNull(packet.getAckId());
 
         buffer.release();
@@ -295,10 +299,17 @@ public class PacketDecoderTest extends BaseProtocolTest {
 
     @Test
     void testDecodeBinaryEventPacket() throws IOException {
-        // BINARY_EVENT packet: "45-[\"hello\",{\"_placeholder\":true,\"num\":0}]" (MESSAGE + BINARY_EVENT)
-        ByteBuf buffer = Unpooled.copiedBuffer("45-[\"hello\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
+        // BINARY_EVENT packet text frame: "451-[\"hello\",{\"_placeholder\":true,\"num\":0}]" (MESSAGE + BINARY_EVENT)
+        ByteBuf buffer = Unpooled.copiedBuffer("451-[\"hello\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
 
-        // Mock JSON support for event data
+        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            return null;
+        }).when(clientHead).setLastBinaryPacket(any());
+        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+
+        // Mock JSON support for event data after attachments load
         Map<String, Object> placeholder = new HashMap<>();
         placeholder.put("_placeholder", true);
         placeholder.put("num", 0);
@@ -306,29 +317,42 @@ public class PacketDecoderTest extends BaseProtocolTest {
         when(jsonSupport.readValue(eq(""), any(), eq(Event.class)))
                 .thenReturn(mockEvent);
 
+        // Stage 1: Decode text frame
         Packet packet = decoder.decodePackets(buffer, clientHead);
 
         assertNotNull(packet);
         assertEquals(PacketType.MESSAGE, packet.getType());
         assertEquals(PacketType.BINARY_EVENT, packet.getSubType());
         assertEquals("", packet.getNsp());
-        assertEquals("hello", packet.getName());
-        // Binary packets should have attachments, but the actual behavior may vary
-        // Let's check if attachments are properly initialized
-        if (packet.hasAttachments()) {
-            assertEquals(1, packet.getAttachments().size());
-            assertFalse(packet.isAttachmentsLoaded());
-        }
+        assertTrue(packet.hasAttachments());
+        assertFalse(packet.isAttachmentsLoaded());
+
+        // Stage 2: Decode attachment frame
+        ByteBuf attachBuf = Unpooled.copiedBuffer(new byte[]{1, 2, 3, 4});
+        Packet completePacket = decoder.decodePackets(attachBuf, clientHead);
+
+        assertNotNull(completePacket);
+        assertTrue(completePacket.isAttachmentsLoaded());
+        assertEquals("hello", completePacket.getName());
+        assertEquals(1, completePacket.getAttachments().size());
 
         buffer.release();
+        attachBuf.release();
     }
 
     @Test
     void testDecodeBinaryEventPacketWithNamespace() throws IOException {
-        // BINARY_EVENT packet with namespace: "45-/admin,456[\"project:delete\",{\"_placeholder\":true,\"num\":0}]" (MESSAGE + BINARY_EVENT)
-        ByteBuf buffer = Unpooled.copiedBuffer("45-/admin,456[\"project:delete\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
+        // BINARY_EVENT packet with namespace: "451-/admin,456[\"project:delete\",{\"_placeholder\":true,\"num\":0}]" (MESSAGE + BINARY_EVENT)
+        ByteBuf buffer = Unpooled.copiedBuffer("451-/admin,456[\"project:delete\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
 
-        // Mock JSON support for event data
+        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            return null;
+        }).when(clientHead).setLastBinaryPacket(any());
+        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+
+        // Mock JSON support for event data after attachments load
         Map<String, Object> placeholder = new HashMap<>();
         placeholder.put("_placeholder", true);
         placeholder.put("num", 0);
@@ -336,30 +360,36 @@ public class PacketDecoderTest extends BaseProtocolTest {
         when(jsonSupport.readValue(eq("/admin"), any(), eq(Event.class)))
                 .thenReturn(mockEvent);
 
+        // Stage 1: Decode text frame
         Packet packet = decoder.decodePackets(buffer, clientHead);
 
         assertNotNull(packet);
         assertEquals(PacketType.MESSAGE, packet.getType());
         assertEquals(PacketType.BINARY_EVENT, packet.getSubType());
         assertEquals("/admin", packet.getNsp());
-        assertEquals("project:delete", packet.getName());
         assertEquals(Long.valueOf(456), packet.getAckId());
-        // Binary packets should have attachments, but the actual behavior may vary
-        // Let's check if attachments are properly initialized
-        if (packet.hasAttachments()) {
-            assertEquals(1, packet.getAttachments().size());
-            assertFalse(packet.isAttachmentsLoaded());
-        }
+        assertTrue(packet.hasAttachments());
+        assertFalse(packet.isAttachmentsLoaded());
+
+        // Stage 2: Decode attachment frame
+        ByteBuf attachBuf = Unpooled.copiedBuffer(new byte[]{10, 20, 30});
+        Packet completePacket = decoder.decodePackets(attachBuf, clientHead);
+
+        assertNotNull(completePacket);
+        assertTrue(completePacket.isAttachmentsLoaded());
+        assertEquals("project:delete", completePacket.getName());
+        assertEquals(1, completePacket.getAttachments().size());
 
         buffer.release();
+        attachBuf.release();
     }
 
     // ==================== BINARY_ACK Packet Tests ====================
 
     @Test
     void testDecodeBinaryAckPacket() throws IOException {
-        // BINARY_ACK packet: "46-/admin,456[{\"_placeholder\":true,\"num\":0}]" (MESSAGE + BINARY_ACK)
-        ByteBuf buffer = Unpooled.copiedBuffer("46-/admin,456[\"response\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
+        // BINARY_ACK packet: "461-/admin,456[\"response\",{\"_placeholder\":true,\"num\":0}]" (MESSAGE + BINARY_ACK)
+        ByteBuf buffer = Unpooled.copiedBuffer("461-/admin,456[\"response\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
 
         // Mock ack manager
         when(ackManager.getCallback(any(), eq(456L)))
@@ -380,12 +410,8 @@ public class PacketDecoderTest extends BaseProtocolTest {
         assertEquals(PacketType.BINARY_ACK, packet.getSubType());
         assertEquals("/admin", packet.getNsp());
         assertEquals(Long.valueOf(456), packet.getAckId());
-        // Binary packets should have attachments, but the actual behavior may vary
-        // Let's check if attachments are properly initialized
-        if (packet.hasAttachments()) {
-            assertEquals(1, packet.getAttachments().size());
-            assertFalse(packet.isAttachmentsLoaded());
-        }
+        assertTrue(packet.hasAttachments());
+        assertFalse(packet.isAttachmentsLoaded());
 
         buffer.release();
     }
@@ -534,8 +560,16 @@ public class PacketDecoderTest extends BaseProtocolTest {
                 "hello world!@#$%^&*()",
                 "hello world with spaces and special chars!@#$%",
                 "hello world with unicode: 中文测试",
+                "hello world with Tamil: தமிழ் வாழ்க, வணக்கம் உலகம்! 🚀",
+                "hello world with Japanese: こんにちは世界, ソケット通信 ⚡",
+                "hello world with Korean: 안녕하세요 세계, 실시간 데이터 📡",
+                "hello world with Arabic: مرحبا بالعالم, البيانات المباشرة 🌐",
+                "hello world with Hindi: नमस्ते दुनिया, सॉकेट प्रोग्रामिंग ✨",
+                "hello world with Russian: Привет мир, протокол обмена 💻",
+                "hello world with Greek: Γειά σου κόσμε, δικτυακή επικοινωνία 🪐",
+                "hello world with Accents: ¡Hola Señor! Além disso, Überprüfung & Café",
                 "hello world with emojis: 🚀🎉💻",
-                "hello world with mixed: 中文!@#$%^&*()🚀🎉",
+                "hello world with mixed: தமிழ் 中文!@#$%^&*()🚀🎉 வணக்கம்",
                 "hello world with newlines:\nline1\nline2",
                 "hello world with tabs:\tcol1\tcol2",
                 "hello world with quotes: \"double\" and 'single'",
@@ -1125,5 +1159,192 @@ public class PacketDecoderTest extends BaseProtocolTest {
         } finally {
             textBuffer.release();
         }
+    }
+
+    // ==================== Cross Engine.IO Version Tests (V2, V3, V4) ====================
+
+    @ParameterizedTest(name = "Decode CONNECT Packet - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    void testDecodeConnectPacketCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(version);
+
+        // 1. Default namespace CONNECT
+        ByteBuf bufDefault = Unpooled.copiedBuffer("40", CharsetUtil.UTF_8);
+        Packet packetDefault = decoder.decodePackets(bufDefault, clientHead);
+        assertNotNull(packetDefault);
+        assertEquals(PacketType.MESSAGE, packetDefault.getType());
+        assertEquals(PacketType.CONNECT, packetDefault.getSubType());
+        assertEquals("", packetDefault.getNsp());
+        assertEquals(version, packetDefault.getEngineIOVersion());
+        bufDefault.release();
+
+        // 2. Custom namespace CONNECT
+        String connectStr = EngineIOVersion.V4.equals(version) ? "40/custom," : "40/custom";
+        ByteBuf bufCustom = Unpooled.copiedBuffer(connectStr, CharsetUtil.UTF_8);
+        Packet packetCustom = decoder.decodePackets(bufCustom, clientHead);
+        assertNotNull(packetCustom);
+        assertEquals(PacketType.MESSAGE, packetCustom.getType());
+        assertEquals(PacketType.CONNECT, packetCustom.getSubType());
+        assertEquals("/custom", packetCustom.getNsp());
+        assertEquals(version, packetCustom.getEngineIOVersion());
+        bufCustom.release();
+    }
+
+    @ParameterizedTest(name = "Decode DISCONNECT Packet - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    void testDecodeDisconnectPacketCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(version);
+
+        ByteBuf buffer = Unpooled.copiedBuffer("41/admin,", CharsetUtil.UTF_8);
+        Packet packet = decoder.decodePackets(buffer, clientHead);
+
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.DISCONNECT, packet.getSubType());
+        assertEquals("/admin", packet.getNsp());
+        assertEquals(version, packet.getEngineIOVersion());
+        buffer.release();
+    }
+
+    @ParameterizedTest(name = "Decode EVENT Packet - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    void testDecodeEventPacketCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(version);
+
+        ByteBuf buffer = Unpooled.copiedBuffer("42/admin,789[\"testEvent\",\"argValue\"]", CharsetUtil.UTF_8);
+        Event mockEvent = new Event("testEvent", Arrays.asList("argValue"));
+        when(jsonSupport.readValue(eq("/admin"), any(), eq(Event.class))).thenReturn(mockEvent);
+
+        Packet packet = decoder.decodePackets(buffer, clientHead);
+
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.EVENT, packet.getSubType());
+        assertEquals("/admin", packet.getNsp());
+        assertEquals("testEvent", packet.getName());
+        assertEquals(Long.valueOf(789), packet.getAckId());
+        assertEquals(version, packet.getEngineIOVersion());
+        buffer.release();
+    }
+
+    @ParameterizedTest(name = "Decode ACK Packet - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    void testDecodeAckPacketCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(version);
+
+        ByteBuf buffer = Unpooled.copiedBuffer("43/admin,999[\"ack_result\"]", CharsetUtil.UTF_8);
+        when(ackManager.getCallback(any(), eq(999L))).thenReturn((AckCallback) ackCallback);
+        AckArgs mockAckArgs = new AckArgs(Arrays.asList("ack_result"));
+        when(jsonSupport.readAckArgs(any(), eq(ackCallback))).thenReturn(mockAckArgs);
+
+        Packet packet = decoder.decodePackets(buffer, clientHead);
+
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.ACK, packet.getSubType());
+        assertEquals("/admin", packet.getNsp());
+        assertEquals(Long.valueOf(999), packet.getAckId());
+        assertEquals(Arrays.asList("ack_result"), packet.getData());
+        assertEquals(version, packet.getEngineIOVersion());
+        buffer.release();
+    }
+
+    @ParameterizedTest(name = "Decode ERROR Packet - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    void testDecodeErrorPacketCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(version);
+
+        ByteBuf buffer = Unpooled.copiedBuffer("44/admin,\"Unauthorized\"", CharsetUtil.UTF_8);
+        Packet packet = decoder.decodePackets(buffer, clientHead);
+
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.ERROR, packet.getSubType());
+        assertEquals(version, packet.getEngineIOVersion());
+        buffer.release();
+    }
+
+    @ParameterizedTest(name = "Decode PING / PONG Packets - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    void testDecodePingPongPacketsCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(version);
+
+        // PING
+        ByteBuf pingBuf = Unpooled.copiedBuffer("2probe", CharsetUtil.UTF_8);
+        Packet pingPacket = decoder.decodePackets(pingBuf, clientHead);
+        assertNotNull(pingPacket);
+        assertEquals(PacketType.PING, pingPacket.getType());
+        assertEquals("probe", pingPacket.getData());
+        assertEquals(version, pingPacket.getEngineIOVersion());
+        pingBuf.release();
+
+        // PONG
+        ByteBuf pongBuf = Unpooled.copiedBuffer("3probe", CharsetUtil.UTF_8);
+        Packet pongPacket = decoder.decodePackets(pongBuf, clientHead);
+        assertNotNull(pongPacket);
+        assertEquals(PacketType.PONG, pongPacket.getType());
+        assertEquals("probe", pongPacket.getData());
+        assertEquals(version, pongPacket.getEngineIOVersion());
+        pongBuf.release();
+    }
+
+    @ParameterizedTest(name = "Decode BINARY_EVENT & BINARY_ACK Headers - Engine.IO Version {0}")
+    @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
+    void testDecodeBinaryHeadersCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(version);
+
+        // BINARY_EVENT with 2 attachments: "452-/admin,55[\"binEv\",{\"_placeholder\":true,\"num\":0},{\"_placeholder\":true,\"num\":1}]"
+        ByteBuf binEvBuf = Unpooled.copiedBuffer("452-/admin,55[\"binEv\",{\"_placeholder\":true,\"num\":0},{\"_placeholder\":true,\"num\":1}]", CharsetUtil.UTF_8);
+        Map<String, Object> ph0 = new HashMap<>(); ph0.put("_placeholder", true); ph0.put("num", 0);
+        Map<String, Object> ph1 = new HashMap<>(); ph1.put("_placeholder", true); ph1.put("num", 1);
+        Event mockEv = new Event("binEv", Arrays.asList(ph0, ph1));
+        when(jsonSupport.readValue(eq("/admin"), any(), eq(Event.class))).thenReturn(mockEv);
+
+        Packet binEvPacket = decoder.decodePackets(binEvBuf, clientHead);
+        assertNotNull(binEvPacket);
+        assertEquals(PacketType.MESSAGE, binEvPacket.getType());
+        assertEquals(PacketType.BINARY_EVENT, binEvPacket.getSubType());
+        assertEquals("/admin", binEvPacket.getNsp());
+        assertEquals(Long.valueOf(55), binEvPacket.getAckId());
+        assertTrue(binEvPacket.hasAttachments());
+        assertFalse(binEvPacket.isAttachmentsLoaded());
+        assertEquals(version, binEvPacket.getEngineIOVersion());
+        binEvBuf.release();
+    }
+
+    @Test
+    void testDecodeEIOv3PollingXHR2AttachmentBinaryHeader() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+
+        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            return null;
+        }).when(clientHead).setLastBinaryPacket(any());
+        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+
+        // 1. First packet: BINARY_EVENT with 1 attachment
+        ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"binEv\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
+        Event mockEv = new Event("binEv", Arrays.asList(new HashMap<>()));
+        when(jsonSupport.readValue(eq(""), any(), eq(Event.class))).thenReturn(mockEv);
+
+        Packet firstPacket = decoder.decodePackets(textBuffer, clientHead, Transport.POLLING);
+        assertNotNull(firstPacket);
+        assertTrue(firstPacket.hasAttachments());
+
+        // 2. XHR2 binary attachment frame: 0x01 + 4 bytes length + 0xFF + 0x04 + 3 bytes payload [100, 101, 102]
+        // length = 1 (type byte) + 3 (data) = 4 -> lenBytes = [0, 0, 0, 4]
+        byte[] payload = new byte[]{1, 0, 0, 0, 4, (byte) 0xFF, 4, 100, 101, 102};
+        ByteBuf binBuffer = Unpooled.copiedBuffer(payload);
+
+        Packet resultPacket = decoder.decodePackets(binBuffer, clientHead, Transport.POLLING);
+        assertNotNull(resultPacket);
+        assertEquals(1, resultPacket.getAttachments().size());
+        ByteBuf attachment = resultPacket.getAttachments().get(0);
+        // Base64 encoded length of 3 bytes payload is 4 ASCII characters
+        assertEquals(4, attachment.readableBytes());
+
+        textBuffer.release();
+        binBuffer.release();
     }
 }

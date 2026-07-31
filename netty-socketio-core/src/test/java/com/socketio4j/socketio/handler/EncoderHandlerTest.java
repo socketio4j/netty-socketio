@@ -433,7 +433,7 @@ public class EncoderHandlerTest {
         ClientHead clientHead = createMockClientHead(Transport.POLLING);
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
         ChannelPromise promise = channel.newPromise();
-        
+
         channel.attr(EncoderHandler.B64).set(true);
         channel.attr(EncoderHandler.JSONP_INDEX).set(null);
 

@@ -289,12 +289,12 @@ public abstract class AbstractDistributedJsClientInteropTest {
         try {
             for (String v : versions) {
                 for (String t : transports) {
-                    processes.add(launchJsClient("n1_red_v" + v + "_" + t, v, port1, t, "dist_single_event", roomRed));
+                    processes.add(launchJsClient("n1_red_v" + v + "_" + t, v, port1, t, "dist_room_isolation_negative", roomRed));
                 }
             }
             for (String v : versions) {
                 for (String t : transports) {
-                    processes.add(launchJsClient("n2_blue_v" + v + "_" + t, v, port2, t, "dist_single_event", roomBlue));
+                    processes.add(launchJsClient("n2_blue_v" + v + "_" + t, v, port2, t, "dist_room_isolation_negative", roomBlue));
                 }
             }
 
@@ -304,6 +304,9 @@ public abstract class AbstractDistributedJsClientInteropTest {
             node1.getRoomOperations(roomRed).sendEvent("dist-event", "red_only_message");
             Thread.sleep(500);
             node2.getRoomOperations(roomBlue).sendEvent("dist-event", "blue_only_message");
+            Thread.sleep(500);
+
+            node1.getBroadcastOperations().sendEvent("dist-test-done", "isolation_check");
 
             verifyAndCleanUpProcesses(processes, 25);
         } finally {
@@ -322,6 +325,10 @@ public abstract class AbstractDistributedJsClientInteropTest {
         String[] transports = {"websocket", "polling"};
         List<JsClientProcess> processes = new ArrayList<>();
 
+        java.util.concurrent.atomic.AtomicInteger leftCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        com.socketio4j.socketio.listener.DataListener<String> leftListener = (client, data, ackRequest) -> leftCount.incrementAndGet();
+        node2.addEventListener("client-left-room", String.class, leftListener);
+
         try {
             for (String v : versions) {
                 for (String t : transports) {
@@ -332,12 +339,21 @@ public abstract class AbstractDistributedJsClientInteropTest {
             awaitRoomSync(roomGreen, 8, processes);
 
             node2.getBroadcastOperations().sendEvent("leave-command", roomGreen);
-            Thread.sleep(1500);
+
+            long deadline = System.currentTimeMillis() + 10000;
+            while (leftCount.get() < 8 && System.currentTimeMillis() < deadline) {
+                Thread.sleep(50);
+            }
+            assertEquals(8, leftCount.get(), "All 8 clients should acknowledge leaving roomGreen");
 
             node1.getRoomOperations(roomGreen).sendEvent("dist-event", "post_leave_message");
+            Thread.sleep(500);
+
+            node2.getBroadcastOperations().sendEvent("dist-test-done", "room_leave_check");
 
             verifyAndCleanUpProcesses(processes, 15);
         } finally {
+            node2.removeAllListeners("client-left-room");
             processes.forEach(JsClientProcess::destroyForcibly);
         }
     }

@@ -38,7 +38,7 @@ import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 /**
  * Multi-Node JS Client Interoperability Test Suite backed by an embedded Hazelcast member.
  */
-@DisplayName("Multi-Node Official JS Client Interoperability Suite (In-Process Hazelcast)")
+@DisplayName("Multi-Node Official JS Client Interoperability Suite (Hazelcast)")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedHazelcastJsClientInteropTest extends AbstractDistributedJsClientInteropTest {
     private static final String CLUSTER_NAME = "js-interop-" + UUID.randomUUID();
