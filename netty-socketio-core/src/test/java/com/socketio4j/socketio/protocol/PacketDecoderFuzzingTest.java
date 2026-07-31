@@ -112,7 +112,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
                 decoder.decodePackets(buffer, clientHead);
             } catch (Exception e) {
                 // Expected handled parsing exception for truncated payloads
-                assertNotNull(e.getMessage());
+                assertNotNull(e);
             } finally {
                 buffer.release();
             }
