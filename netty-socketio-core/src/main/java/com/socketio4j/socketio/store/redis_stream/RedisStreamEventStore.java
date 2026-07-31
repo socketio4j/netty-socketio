@@ -250,6 +250,10 @@ public class RedisStreamEventStore implements EventStore {
         ).whenComplete((records, err) -> {
 
             if (err != null) {
+                if (!running.get() || isRedissonShutdown(err)) {
+                    log.debug("XREAD cancelled during store shutdown for {}", type);
+                    return;
+                }
                 log.error("XREAD failed {}", type, err);
                 scheduleRetry(stream, type);
                 return;
@@ -341,9 +345,15 @@ public class RedisStreamEventStore implements EventStore {
         subStreams.clear();
     }
 
-    // ---------------------------------------------------------------------
-    // Utils
-    // ---------------------------------------------------------------------
+    private boolean isRedissonShutdown(Throwable t) {
+        if (t == null) {
+            return false;
+        }
+        if (t instanceof org.redisson.RedissonShutdownException || t.getCause() instanceof org.redisson.RedissonShutdownException) {
+            return true;
+        }
+        return t.getMessage() != null && t.getMessage().contains("Redisson is shutdown");
+    }
 
     private String streamName(EventType type) {
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {

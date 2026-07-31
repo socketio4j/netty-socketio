@@ -33,6 +33,7 @@ package com.socketio4j.socketio.transport;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -61,14 +62,29 @@ public class WebSocketTransportTest {
     assertTrue(msg instanceof CloseWebSocketFrame);
   }
 
+  @Test
+  public void testBinaryWebSocketFrameHandling() {
+    EmbeddedChannel channel = createChannel();
+    byte[] largePayload = new byte[65536]; // 64KB binary attachment
+    largePayload[0] = 4; // MESSAGE
+    largePayload[1] = 5; // BINARY_EVENT
+
+    io.netty.buffer.ByteBuf buf = io.netty.buffer.Unpooled.copiedBuffer(largePayload);
+    io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame frame = new io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame(buf);
+
+    channel.writeInbound(frame);
+    assertTrue(channel.isOpen(), "Channel should stay open after receiving binary WebSocket frame");
+    frame.release();
+    assertEquals(0, buf.refCnt(), "ByteBuf reference count should be 0 after releasing frame");
+  }
+
   private EmbeddedChannel createChannel() {
-    return new EmbeddedChannel(new WebSocketTransport(false, null, null, null, null) {
-      /*
-       * (non-Javadoc)
-       * 
-       * @see com.socketio4j.socketio.transport.WebSocketTransport#channelInactive(io.netty.channel.
-       * ChannelHandlerContext)
-       */
+    com.socketio4j.socketio.handler.ClientsBox clientsBox = org.mockito.Mockito.mock(com.socketio4j.socketio.handler.ClientsBox.class);
+    com.socketio4j.socketio.handler.ClientHead clientHead = org.mockito.Mockito.mock(com.socketio4j.socketio.handler.ClientHead.class);
+    org.mockito.Mockito.when(clientsBox.get(org.mockito.Mockito.any(io.netty.channel.Channel.class))).thenReturn(clientHead);
+    org.mockito.Mockito.when(clientHead.getEngineIOVersion()).thenReturn(com.socketio4j.socketio.protocol.EngineIOVersion.V4);
+
+    return new EmbeddedChannel(new WebSocketTransport(false, null, null, null, clientsBox) {
       @Override
       public void channelInactive(ChannelHandlerContext ctx) throws Exception {}
     });

@@ -60,6 +60,32 @@ public class SocketSslServerRestartTest {
         server.stop();
     }
 
+    @Test
+    public void shouldRestartMultipleTimesRapidlyWithoutPortConflict() throws Exception {
+        Configuration cfg = new Configuration();
+        cfg.setPort(0);
+        cfg.setOrigin("*");
+        cfg.setTransportType(TransportType.NIO);
+
+        SocketSslConfig ssl = new SocketSslConfig();
+        ssl.setSSLProtocol("TLSv1.2");
+        ssl.setKeyStoreFormat("PKCS12");
+        ssl.setKeyStorePassword("password");
+        InputStream ks = SocketSslServerRestartTest.class.getClassLoader()
+                .getResourceAsStream("ssl/test-socketio.p12");
+        assertNotNull(ks);
+        ssl.setKeyStore(ks);
+        cfg.setSocketSslConfig(ssl);
+
+        SocketIOServer server = new SocketIOServer(cfg);
+        for (int i = 0; i < 5; i++) {
+            server.start();
+            int port = awaitBoundPort(server);
+            assertTrue(port > 0, "Server port should bind successfully on iteration " + i);
+            server.stop();
+        }
+    }
+
     private static int awaitBoundPort(SocketIOServer server) throws InterruptedException {
         long deadlineNs = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         int port = server.getConfiguration().getPort();

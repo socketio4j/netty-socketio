@@ -256,4 +256,19 @@ class NamespaceTest extends BaseNamespaceTest {
         // Verify specific event mapping was removed
         verify(jsonSupport, times(1)).removeEventMapping(eq(NAMESPACE_NAME), eq(eventName));
     }
+
+    @Test
+    void testConcurrentRoomJoiningThreadSafety() throws InterruptedException {
+        int clientCount = 20;
+        String roomName = "concurrentRoom";
+
+        CountDownLatch latch = executeConcurrentOperationsWithIndex(clientCount, index -> {
+            UUID id = UUID.randomUUID();
+            namespace.joinRoom(roomName, id);
+        });
+
+        waitForCompletion(latch);
+
+        assertTrue(namespace.getRooms().contains(roomName), "Room should exist in namespace rooms set");
+    }
 }

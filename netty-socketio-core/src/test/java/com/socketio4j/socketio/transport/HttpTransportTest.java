@@ -231,6 +231,24 @@ public class HttpTransportTest {
     assertEquals(3, responses.length);
   }
 
+  @Test
+  public void testHttpPollingResponseHeaders() throws URISyntaxException, IOException, InterruptedException {
+    final URI uri = createTestServerUri("EIO=4&transport=polling&t=Oqd9eWh");
+    HttpURLConnection http = (HttpURLConnection) uri.toURL().openConnection();
+    http.connect();
+
+    assertEquals(200, http.getResponseCode(), "HTTP Status code should be 200 OK");
+    String contentType = http.getHeaderField("Content-Type");
+    assertNotNull(contentType, "Content-Type header must be set");
+    assertTrue(contentType.contains("text/plain"), "Content-Type should contain text/plain");
+
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(http.getInputStream(), StandardCharsets.UTF_8))) {
+      String response = reader.lines().collect(Collectors.joining("\n"));
+      assertNotNull(response);
+      assertTrue(response.startsWith("0{"), "Handshake response should start with Engine.IO OPEN packet '0{'");
+    }
+  }
+
   /**
    * Returns a free port number on localhost.
    * <p>
