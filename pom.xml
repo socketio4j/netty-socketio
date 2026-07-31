@@ -608,7 +608,8 @@
             --add-opens netty.socketio.core/com.socketio4j.socketio.store=ALL-UNNAMED
             --add-opens netty.socketio.core/com.socketio4j.socketio.store.pubsub=redisson
             --add-opens netty.socketio.core/com.socketio4j.socketio.store=redisson
-            --add-opens netty.socketio.core/com.socketio4j.socketio.integration=com.fasterxml.jackson.databind,ALL-UNNAMED
+            --add-opens
+              netty.socketio.core/com.socketio4j.socketio.integration=com.fasterxml.jackson.databind,ALL-UNNAMED,redisson
           </argLine>
           <includes>
             <include>**/*Test.java</include>
