@@ -79,7 +79,6 @@ public class SocketSslServerRestartTest {
 
         SocketIOServer server = new SocketIOServer(cfg);
         for (int i = 0; i < 5; i++) {
-            cfg.setPort(0);
             server.start();
             int port = awaitBoundPort(server);
             assertTrue(port > 0, "Server port should bind successfully on iteration " + i);
@@ -91,7 +90,7 @@ public class SocketSslServerRestartTest {
         long deadlineNs = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         int port = server.getConfiguration().getPort();
         while (port == 0 && System.nanoTime() < deadlineNs) {
-            Thread.sleep(10);
+            Thread.sleep(100);
             port = server.getConfiguration().getPort();
         }
         return port;
