@@ -63,47 +63,53 @@ public class PacketEncoder {
         boolean jsonpMode = jsonpIndex != null;
 
         ByteBuf buf = allocateBuffer(allocator);
+        try {
+            int i = 0;
+            while (true) {
+                Packet packet = packets.poll();
+                if (packet == null || i == limit) {
+                    break;
+                }
 
-        int i = 0;
-        while (true) {
-            Packet packet = packets.poll();
-            if (packet == null || i == limit) {
-                break;
-            }
+                ByteBuf packetBuf = allocateBuffer(allocator);
+                encodePacket(packet, packetBuf, allocator, true);
 
-            ByteBuf packetBuf = allocateBuffer(allocator);
-            encodePacket(packet, packetBuf, allocator, true);
-
-            int packetSize = packetBuf.writerIndex();
-            buf.writeBytes(toChars(packetSize));
-            buf.writeBytes(B64_DELIMITER);
-            buf.writeBytes(packetBuf);
-
-            packetBuf.release();
-
-            i++;
-
-            for (ByteBuf attachment : packet.getAttachments()) {
-                ByteBuf encodedBuf = Base64.encode(attachment, Base64Dialect.STANDARD);
-                buf.writeBytes(toChars(encodedBuf.readableBytes() + 2));
+                int packetSize = packetBuf.writerIndex();
+                buf.writeBytes(toChars(packetSize));
                 buf.writeBytes(B64_DELIMITER);
-                buf.writeBytes(BINARY_HEADER);
-                buf.writeBytes(encodedBuf);
+                buf.writeBytes(packetBuf);
+
+                packetBuf.release();
+
+                i++;
+
+                for (ByteBuf attachment : packet.getAttachments()) {
+                    ByteBuf encodedBuf = Base64.encode(attachment, Base64Dialect.STANDARD);
+                    try {
+                        buf.writeBytes(toChars(encodedBuf.readableBytes() + 2));
+                        buf.writeBytes(B64_DELIMITER);
+                        buf.writeBytes(BINARY_HEADER);
+                        buf.writeBytes(encodedBuf);
+                    } finally {
+                        encodedBuf.release();
+                    }
+                }
             }
+
+            if (jsonpMode) {
+                out.writeBytes(JSONP_HEAD);
+                out.writeBytes(toChars(jsonpIndex));
+                out.writeBytes(JSONP_START);
+            }
+
+            processUtf8(buf, out, jsonpMode);
+            if (jsonpMode) {
+                out.writeBytes(JSONP_END);
+            }
+        } finally {
+            buf.release();
         }
 
-        if (jsonpMode) {
-            out.writeBytes(JSONP_HEAD);
-            out.writeBytes(toChars(jsonpIndex));
-            out.writeBytes(JSONP_START);
-        }
-
-        processUtf8(buf, out, jsonpMode);
-        buf.release();
-
-        if (jsonpMode) {
-            out.writeBytes(JSONP_END);
-        }
     }
 
     private void processUtf8(ByteBuf in, ByteBuf out, boolean jsonpMode) {

@@ -60,6 +60,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
     private ClientHead clientHead;
 
     @BeforeEach
+    @Override
     public void setUp() {
         closeableMocks = MockitoAnnotations.openMocks(this);
         jsonSupport = new JacksonJsonSupport();
@@ -70,6 +71,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
     }
 
     @AfterEach
+    @Override
     public void tearDown() throws Exception {
         closeableMocks.close();
     }

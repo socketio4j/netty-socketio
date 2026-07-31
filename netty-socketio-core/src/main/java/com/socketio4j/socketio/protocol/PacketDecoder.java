@@ -654,18 +654,20 @@ public class PacketDecoder {
         if (nsp != null && !nsp.isEmpty()) {
             packet.setNsp(nsp);
         }
+
         if (frame.readableBytes() > 0) {
             try {
                 frame.markReaderIndex();
-                Object errorData = jsonSupport.readValue(packet.getNsp(), new ByteBufInputStream(frame), Object.class);
-                packet.setData(errorData);
+                try (ByteBufInputStream in = new ByteBufInputStream(frame)) {
+                    Object errorData = jsonSupport.readValue(packet.getNsp(), in, Object.class);
+                    packet.setData(errorData);
+                }
             } catch (Exception e) {
                 frame.resetReaderIndex();
                 packet.setData(readString(frame));
             }
         }
     }
-
     /**
      * Parse CONNECT and DISCONNECT packet bodies
      */
