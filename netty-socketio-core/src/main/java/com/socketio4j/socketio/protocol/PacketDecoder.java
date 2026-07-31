@@ -518,11 +518,10 @@ public class PacketDecoder {
                 } else {
                     throw new IOException("Malformed polling wrapper: missing or invalid 0xFF separator");
                 }
-            }
-            // 2. Polling Base64 text attachment: 'b4' (EIOv3) or 'b' (EIOv4)
-            // In EIOv4 multi-packet polling, attachments in the POST body are separated by 0x1e.
-            // Slice out the current attachment frame up to 0x1e so remaining attachments remain readable.
-            else if (frame.readableBytes() >= 1 && frame.getByte(ri) == 'b') {
+            }  else if (frame.readableBytes() >= 1 && frame.getByte(ri) == 'b') {
+                // 2. Polling Base64 text attachment: 'b4' (EIOv3) or 'b' (EIOv4)
+                // In EIOv4 multi-packet polling, attachments in the POST body are separated by 0x1e.
+                // Slice out the current attachment frame up to 0x1e so remaining attachments remain readable.
                 int sepPos = frame.bytesBefore((byte) 0x1E);
                 ByteBuf attachFrame;
                 if (sepPos >= 0) {
@@ -547,9 +546,8 @@ public class PacketDecoder {
                 if (!wrapperFound) {
                     attachFrame.skipBytes(attachFrame.readableBytes());
                 }
-            }
-            // 3. Fallback polling binary payload
-            else {
+            } else {
+                // 3. Fallback polling binary payload
                 ByteBuf attachBuf = Base64.encode(frame);
                 binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
                 attachBuf.release();
