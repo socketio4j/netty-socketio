@@ -54,7 +54,7 @@ public final class EventMessageJsonSupport {
         SimpleModule module = new SimpleModule("EventMessageJsonModule");
 
         // Custom byte[] serializer -> {"$bytes": "<base64>"}
-        module.addSerializer(byte[].class, new JsonSerializer<>() {
+        module.addSerializer(byte[].class, new JsonSerializer<byte[]>() {
             @Override
             public void serialize(byte[] value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
                 if (value == null) {
@@ -66,7 +66,7 @@ public final class EventMessageJsonSupport {
                 }
             }
         });
-        module.addDeserializer(byte[].class, new JsonDeserializer<>() {
+        module.addDeserializer(byte[].class, new JsonDeserializer<byte[]>() {
 
             @Override
             public byte[] deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
