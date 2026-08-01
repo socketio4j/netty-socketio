@@ -35,6 +35,14 @@ public final class EventMessageSerializer
 
     private static final ObjectMapper MAPPER = EventMessageJsonSupport.createObjectMapper();
 
+    /**
+     * Serializes an event message to JSON bytes.
+     *
+     * @param topic the Kafka topic associated with the message
+     * @param data the event message to serialize
+     * @return the serialized JSON bytes, or {@code null} when {@code data} is {@code null}
+     * @throws SerializationException if serialization fails
+     */
     @Override
     public byte[] serialize(String topic, EventMessage data) {
 

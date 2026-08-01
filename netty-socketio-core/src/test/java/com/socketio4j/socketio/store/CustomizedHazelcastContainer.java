@@ -38,10 +38,16 @@ public class CustomizedHazelcastContainer extends GenericContainer<CustomizedHaz
 
     public static final int HAZELCAST_PORT = 5701;
 
+    /**
+     * Creates a Hazelcast test container using the configured Hazelcast image.
+     */
     public CustomizedHazelcastContainer() {
         super("hazelcast/hazelcast:5.7.0-slim-jdk25");
     }
 
+    /**
+     * Configures the container's Hazelcast port, custom configuration file, and readiness check.
+     */
     @Override
     protected void configure() {
 

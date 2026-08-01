@@ -58,6 +58,11 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
         return new IterableCollection<>(clients);
     }
 
+    /**
+     * Sends a packet to every client in the room and dispatches it to the event store.
+     *
+     * @param packet the packet to send
+     */
     @Override
     public void send(Packet packet) {
         for (SocketIOClient client : clients) {
@@ -89,6 +94,13 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
         sendEvent(name, excludePredicate, data);
     }
 
+    /**
+     * Sends a named event with the specified data to clients that do not match the exclusion predicate.
+     *
+     * @param name            the event name
+     * @param excludePredicate the predicate identifying clients to exclude
+     * @param data            the event data
+     */
     @Override
     public void sendEvent(String name, Predicate<SocketIOClient> excludePredicate, Object... data) {
         Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.UNKNOWN);

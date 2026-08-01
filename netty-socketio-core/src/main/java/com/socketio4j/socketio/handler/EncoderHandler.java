@@ -266,6 +266,18 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
     private static final int FRAME_BUFFER_SIZE = 8192;
 
 
+    /**
+     * Encodes and sends queued packets and attachments as WebSocket frames.
+     *
+     * <p>Large packet payloads are fragmented according to the configured maximum frame
+     * payload length. Attachment frames include the Engine.IO v2 or v3 prefix when
+     * required, and the supplied promise is completed after queued writes finish.</p>
+     *
+     * @param msg     the outbound packet message containing the client packet queue
+     * @param ctx     the channel handler context used for encoding and writing frames
+     * @param promise the promise completed when processing finishes
+     * @throws IOException if packet encoding fails
+     */
     private void handleWebsocket(final OutPacketMessage msg, ChannelHandlerContext ctx, ChannelPromise promise) throws IOException {
         if (log.isDebugEnabled()) {
             log.debug("Starting WebSocket message processing, sessionId: {}", msg.getSessionId());
@@ -352,6 +364,14 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         }
     }
 
+    /**
+     * Encodes and sends queued packets as an HTTP polling response.
+     *
+     * <p>Processes one response per channel and selects the response encoding and content type
+     * according to the Engine.IO version and queued packet content.</p>
+     *
+     * @throws IOException if packet encoding fails
+     */
     private void handleHTTP(OutPacketMessage msg, ChannelHandlerContext ctx, ChannelPromise promise) throws IOException {
         if (log.isDebugEnabled()) {
             log.debug("Starting HTTP polling message processing, sessionId: {}", msg.getSessionId());

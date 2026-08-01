@@ -47,6 +47,12 @@ public final class EventMessageJsonSupport {
     private EventMessageJsonSupport() {
     }
 
+    /**
+     * Creates an {@link ObjectMapper} configured for JSON event message serialization and deserialization,
+     * including lossless encoding and decoding of byte arrays.
+     *
+     * @return an object mapper configured for event message JSON
+     */
     public static ObjectMapper createObjectMapper() {
         SimpleModule module = new SimpleModule("EventMessageJsonModule");
 
@@ -85,12 +91,23 @@ public final class EventMessageJsonSupport {
             super((JavaType) null, (JavaType) null);
         }
 
+        /**
+         * Deserializes an untyped JSON value and converts byte-array placeholders into byte arrays.
+         *
+         * @return the deserialized value with byte-array placeholders converted to {@code byte[]}
+         */
         @Override
         public Object deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
             Object obj = super.deserialize(p, ctxt);
             return convertBytesPlaceholders(obj);
         }
 
+        /**
+         * Converts byte placeholders in nested maps and lists into byte arrays.
+         *
+         * @param obj the object to process
+         * @return the processed object with valid byte placeholders decoded
+         */
         private Object convertBytesPlaceholders(Object obj) {
             if (obj instanceof Map) {
                 Map<?, ?> map = (Map<?, ?>) obj;

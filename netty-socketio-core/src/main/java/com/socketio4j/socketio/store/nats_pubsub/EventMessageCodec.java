@@ -29,6 +29,9 @@ public final class EventMessageCodec {
 
     private static final ObjectMapper MAPPER = EventMessageJsonSupport.createObjectMapper();
 
+    /**
+     * Prevents instantiation of this utility class.
+     */
     private EventMessageCodec() {
     }
 

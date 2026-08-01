@@ -76,6 +76,12 @@ public class JacksonJsonSupport implements JsonSupport {
             super(AckArgs.class);
         }
 
+        /**
+         * Deserializes acknowledgment arguments according to the current callback's expected types.
+         *
+         * @param  jp the JSON parser containing the acknowledgment arguments
+         * @return     the deserialized acknowledgment arguments
+         */
         @Override
         public AckArgs deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException {
             List<Object> args = new ArrayList<Object>();

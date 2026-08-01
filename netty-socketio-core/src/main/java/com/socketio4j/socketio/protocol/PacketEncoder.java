@@ -59,6 +59,16 @@ public class PacketEncoder {
         return allocator.heapBuffer();
     }
 
+    /**
+     * Encodes queued packets and their binary attachments into an Engine.IO polling payload.
+     *
+     * @param jsonpIndex the JSONP callback index, or {@code null} to omit the JSONP wrapper
+     * @param packets the queue of packets to encode
+     * @param out the buffer receiving the encoded payload
+     * @param allocator the allocator used for temporary buffers
+     * @param limit the maximum number of packets to encode
+     * @throws IOException if packet serialization fails
+     */
     public void encodeJsonP(Integer jsonpIndex, Queue<Packet> packets, ByteBuf out, ByteBufAllocator allocator, int limit) throws IOException {
         boolean jsonpMode = jsonpIndex != null;
 
@@ -112,6 +122,14 @@ public class PacketEncoder {
 
     }
 
+    /**
+     * Writes the input bytes in UTF-8 form, escaping backslashes and single quotes
+     * when JSONP mode is enabled.
+     *
+     * @param in       the source buffer
+     * @param out      the destination buffer
+     * @param jsonpMode whether JSONP escaping is enabled
+     */
     private void processUtf8(ByteBuf in, ByteBuf out, boolean jsonpMode) {
         while (in.isReadable()) {
             short value = (short) (in.readByte() & 0xFF);
@@ -127,6 +145,16 @@ public class PacketEncoder {
         }
     }
 
+    /**
+     * Encodes queued packets into the provided buffer according to their Engine.IO versions.
+     *
+     * @param packets   the queue of packets to encode
+     * @param buffer    the destination buffer
+     * @param allocator the allocator for temporary buffers
+     * @param limit     the maximum number of packets to encode
+     * @throws IOException if packet serialization fails
+     * @throws IllegalStateException if a packet uses an unsupported Engine.IO version
+     */
     public void encodePackets(Queue<Packet> packets,
                               ByteBuf buffer,
                               ByteBufAllocator allocator,
@@ -316,6 +344,16 @@ public class PacketEncoder {
         return res;
     }
 
+    /**
+     * Encodes a packet into the specified buffer, including its type, metadata, payload,
+     * and any attachment information.
+     *
+     * @param packet  the packet to encode
+     * @param buffer  the destination buffer
+     * @param allocator the allocator used for temporary buffers
+     * @param binary  whether to write directly without text-packet framing
+     * @throws IOException if packet data serialization fails
+     */
     public void encodePacket(Packet packet, ByteBuf buffer, ByteBufAllocator allocator, boolean binary) throws IOException {
         ByteBuf buf = buffer;
         if (!binary) {

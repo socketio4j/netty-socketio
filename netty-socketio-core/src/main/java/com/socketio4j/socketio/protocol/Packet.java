@@ -86,13 +86,13 @@ public class Packet implements Serializable {
     }
 
     /**
-     * Creates a copy of #{@link Packet} with new namespace set
-     * if it differs from current namespace.
-     * Otherwise, returns original object unchanged
+     * Creates a packet with the specified namespace and Engine.IO version when the
+     * namespace differs from the current namespace.
      *
-     * @param namespace
-     * @param engineIOVersion
-     * @return packet
+     * @param namespace the namespace to set
+     * @param engineIOVersion the Engine.IO version to set on a copied packet
+     * @return the original packet when the namespace matches case-insensitively;
+     *         otherwise, a shallow copy with the specified namespace and version
      */
     public Packet withNsp(String namespace, EngineIOVersion engineIOVersion) {
         if (this.nsp.equalsIgnoreCase(namespace)) {
@@ -112,16 +112,10 @@ public class Packet implements Serializable {
     }
 
     /**
-     * Returns a packet with the given {@link EngineIOVersion} stamped in.
-     * <p>
-     * If {@code engineIOVersion} is already equal to this packet's version, {@code this} is
-     * returned unchanged — no allocation. Otherwise a shallow copy is created so that the
-     * shared original is never mutated. This matters during room broadcasts: {@code ClientHead.send}
-     * only enqueues the packet; {@code EncoderHandler} reads the version later on a Netty
-     * event-loop thread, so every client must hold its own stable version reference.
+     * Creates a packet associated with the specified Engine.IO version.
      *
-     * @param engineIOVersion the EIO version to stamp onto the packet
-     * @return {@code this} if the version already matches, otherwise a new {@link Packet}
+     * @param engineIOVersion the Engine.IO version to associate with the packet
+     * @return this packet if the version matches; otherwise, a shallow copy with the specified version
      */
     public Packet withEngineIOVersion(EngineIOVersion engineIOVersion) {
         if (engineIOVersion == this.engineIOVersion) {
@@ -139,6 +133,11 @@ public class Packet implements Serializable {
         return copy;
     }
 
+    /**
+     * Sets the packet namespace, converting the empty namespace object representation to an empty string.
+     *
+     * @param endpoint the namespace endpoint
+     */
     public void setNsp(String endpoint) {
         //patch for #903
         if ("{}".equals(endpoint)){

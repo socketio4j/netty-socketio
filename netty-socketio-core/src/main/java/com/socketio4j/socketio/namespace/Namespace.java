@@ -289,16 +289,31 @@ public class Namespace implements SocketIONamespace {
         connectListeners.add(listener);
     }
 
+    /**
+     * Removes a listener invoked when a client connects to the namespace.
+     *
+     * @param listener the connection listener to remove
+     */
     @Override
     public void removeConnectListener(ConnectListener listener) {
         connectListeners.remove(listener);
     }
 
+    /**
+     * Removes a disconnect listener from this namespace.
+     *
+     * @param listener the disconnect listener to remove
+     */
     @Override
     public void removeDisconnectListener(DisconnectListener listener) {
         disconnectListeners.remove(listener);
     }
 
+    /**
+     * Registers a client with the namespace and notifies the connection listeners.
+     *
+     * @param client the client connecting to the namespace
+     */
     public void onConnect(SocketIOClient client) {
         if (roomClients.containsKey(getName())
                 && roomClients.get(getName()).contains(client.getSessionId())) {
@@ -430,6 +445,12 @@ public class Namespace implements SocketIONamespace {
         storeFactory.eventStore().publish(EventType.BULK_JOIN, new BulkJoinMessage(sessionId, rooms, getName()));
     }
 
+    /**
+     * Sends a packet to every locally connected client in the specified room.
+     *
+     * @param room   the target room
+     * @param packet the packet to send
+     */
     public void dispatch(String room, Packet packet) {
         int size = forEachRoomClient(room, client -> {
             // Produce a per-client copy so that the shared Packet is never mutated.

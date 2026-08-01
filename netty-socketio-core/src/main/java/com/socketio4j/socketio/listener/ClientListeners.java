@@ -25,13 +25,33 @@ public interface ClientListeners {
 
     void addEventInterceptor(EventInterceptor eventInterceptor);
 
-    void addDisconnectListener(DisconnectListener listener);
+    /**
+ * Registers a listener to be notified when the client disconnects.
+ *
+ * @param listener the disconnect listener to register
+ */
+void addDisconnectListener(DisconnectListener listener);
 
-    void removeDisconnectListener(DisconnectListener listener);
+    /**
+ * Removes a disconnect listener.
+ *
+ * @param listener the disconnect listener to remove
+ */
+void removeDisconnectListener(DisconnectListener listener);
 
-    void addConnectListener(ConnectListener listener);
+    /**
+ * Registers a listener to be notified when a client connects.
+ *
+ * @param listener the listener to register
+ */
+void addConnectListener(ConnectListener listener);
 
-    void removeConnectListener(ConnectListener listener);
+    /**
+ * Removes a listener that is notified when a client connects.
+ *
+ * @param listener the connect listener to remove
+ */
+void removeConnectListener(ConnectListener listener);
 
     /**
      * from v4, ping will always be sent by server except probe ping packet sent from client,

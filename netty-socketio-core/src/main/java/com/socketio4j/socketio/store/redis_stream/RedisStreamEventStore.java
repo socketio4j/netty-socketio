@@ -334,6 +334,9 @@ public class RedisStreamEventStore implements EventStore {
         }
     }
 
+    /**
+     * Stops all polling activity and clears listeners, offsets, and stream references.
+     */
     @Override
     public void shutdown0() {
         running.set(false);
@@ -345,6 +348,12 @@ public class RedisStreamEventStore implements EventStore {
         subStreams.clear();
     }
 
+    /**
+     * Determines whether a throwable indicates that Redisson has shut down.
+     *
+     * @param t the throwable to inspect
+     * @return {@code true} if the throwable indicates Redisson shutdown, {@code false} otherwise
+     */
     private boolean isRedissonShutdown(Throwable t) {
         if (t == null) {
             return false;
@@ -355,6 +364,12 @@ public class RedisStreamEventStore implements EventStore {
         return t.getMessage() != null && t.getMessage().contains("Redisson is shutdown");
     }
 
+    /**
+     * Builds the Redis stream name for an event type.
+     *
+     * @param type the event type whose stream name is being built
+     * @return the configured prefix followed by the shared stream name in single-channel mode or the event type name otherwise
+     */
     private String streamName(EventType type) {
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
             return streamNamePrefix + EventType.ALL_SINGLE_CHANNEL.name();

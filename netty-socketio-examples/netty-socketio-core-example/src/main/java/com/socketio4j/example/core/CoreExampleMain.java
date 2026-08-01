@@ -18,6 +18,11 @@ public final class CoreExampleMain {
     private static final Logger log =
             LoggerFactory.getLogger(CoreExampleMain.class);
 
+    /**
+     * Starts two Hazelcast-backed clustered Socket.IO example servers on ports 4000 and 4001.
+     *
+     * @param args command-line arguments
+     */
     public static void main(String[] args) {
         log.info("Starting Clustered Netty Socket.IO Example Servers...");
 
@@ -80,6 +85,9 @@ public final class CoreExampleMain {
         log.info("Server 2 listening @ http://localhost:4001");
     }
 
+    /**
+     * Configures the Socket.IO namespaces and event handlers for a server.
+     */
     private static void setupServer(SocketIOServer server) {
         server.addNamespace("/example");
 
@@ -266,21 +274,51 @@ public final class CoreExampleMain {
         private String message;
         private long timestamp;
 
-        public CustomMessage() {}
+        /**
+ * Creates an empty message.
+ */
+public CustomMessage() {}
 
+        /**
+         * Creates a message with the specified identifier, text, and timestamp.
+         *
+         * @param id        the message identifier
+         * @param message   the message text
+         * @param timestamp the message timestamp
+         */
         public CustomMessage(int id, String message, long timestamp) {
             this.id = id;
             this.message = message;
             this.timestamp = timestamp;
         }
 
-        public int getId() { return id; }
+        /**
+ * Gets the message identifier.
+ *
+ * @return the message identifier
+ */
+public int getId() { return id; }
         public void setId(int id) { this.id = id; }
 
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
+        /**
+ * Gets the message.
+ *
+ * @return the message
+ */
+public String getMessage() { return message; }
+        /**
+ * Sets the message.
+ *
+ * @param message the message value
+ */
+public void setMessage(String message) { this.message = message; }
 
-        public long getTimestamp() { return timestamp; }
+        /**
+ * Gets the message timestamp.
+ *
+ * @return the message timestamp
+ */
+public long getTimestamp() { return timestamp; }
         public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
     }
 }

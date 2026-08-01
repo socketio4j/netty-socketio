@@ -218,6 +218,12 @@ public class PacketDecoder {
         return PacketType.valueOfInner(typeId);
     }
 
+    /**
+     * Detects whether the buffer begins with a numeric length header.
+     *
+     * @param buffer the buffer to inspect
+     * @return {@code true} if a colon follows one or more decimal digits within the first ten readable bytes, {@code false} otherwise
+     */
     private boolean hasLengthHeader(ByteBuf buffer) {
         for (int i = 0; i < Math.min(buffer.readableBytes(), 10); i++) {
             byte b = buffer.getByte(buffer.readerIndex() + i);
@@ -235,6 +241,15 @@ public class PacketDecoder {
         return decodePackets(buffer, client, client.getCurrentTransport());
     }
 
+    /**
+     * Decodes a packet from the supplied buffer using the framing format detected in its contents.
+     *
+     * @param buffer   the buffer containing the encoded packet
+     * @param client   the client associated with the packet
+     * @param transport the transport used to receive the packet
+     * @return the decoded packet, or {@code null} when the buffer contains no packet
+     * @throws IOException if the packet cannot be decoded
+     */
     public Packet decodePackets(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
         if (isStringPacket(buffer)) {
             return decodeWithStringHeader(buffer, client, transport);
@@ -245,8 +260,13 @@ public class PacketDecoder {
     }
 
     /**
-     * Decode packet with string header format
-     * Handles packets that start with 0x0 byte
+     * Decodes a packet using a delimiter-terminated numeric length header.
+     *
+     * @param buffer   the buffer containing the framed packet
+     * @param client   the client associated with the packet
+     * @param transport the transport used to receive the packet
+     * @return the decoded packet
+     * @throws IOException if the packet frame cannot be decoded
      */
     private Packet decodeWithStringHeader(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
         int maxLength = Math.min(buffer.readableBytes(), 10);
@@ -259,8 +279,13 @@ public class PacketDecoder {
     }
 
     /**
-     * Decode packet with length header format
-     * Handles packets with format "length:data"
+     * Decodes a packet framed with a {@code length:data} header.
+     *
+     * @param buffer    the buffer containing the framed packet
+     * @param client    the client associated with the packet
+     * @param transport the transport used to receive the packet
+     * @return          the decoded packet
+     * @throws IOException if the packet cannot be decoded
      */
     private Packet decodeWithLengthHeader(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
         int lengthEndIndex = buffer.bytesBefore((byte) ':');
@@ -270,8 +295,14 @@ public class PacketDecoder {
     }
 
     /**
-     * Common frame decoding logic
-     * Extracts frame data and advances buffer position
+     * Decodes a length-delimited frame from the buffer.
+     *
+     * @param buffer   the buffer containing the frame
+     * @param client   the client associated with the packet
+     * @param len      the frame length in bytes
+     * @param transport the transport used to receive the frame
+     * @return         the decoded packet
+     * @throws IOException if the frame cannot be decoded
      */
     private Packet decodeFrame(ByteBuf buffer, ClientHead client, int len, Transport transport) throws IOException {
         ByteBuf frame = buffer.slice(buffer.readerIndex() + 1, len);
@@ -283,12 +314,28 @@ public class PacketDecoder {
         return readString(frame, frame.readableBytes());
     }
 
+    /**
+     * Reads a UTF-8 string of the specified byte length from the frame.
+     *
+     * @param frame the buffer containing the string data
+     * @param size the number of bytes to read
+     * @return the decoded UTF-8 string
+     */
     private String readString(ByteBuf frame, int size) {
         byte[] bytes = new byte[size];
         frame.readBytes(bytes);
         return new String(bytes, CharsetUtil.UTF_8);
     }
 
+    /**
+     * Decodes the next packet or binary attachment from a framed buffer.
+     *
+     * @param head      the client whose packet and attachment state are updated
+     * @param frame     the buffer containing the next encoded packet
+     * @param transport the transport used to interpret packet data
+     * @return the decoded packet, or {@code null} when the frame contains no packet
+     * @throws IOException if packet or attachment data cannot be decoded
+     */
     private Packet decode(ClientHead head, ByteBuf frame, Transport transport) throws IOException {
 
         Packet lastPacket = head.getLastBinaryPacket();
@@ -342,6 +389,13 @@ public class PacketDecoder {
         return packet;
     }
 
+    /**
+     * Parses packet attachments, namespace, and acknowledgement metadata from the frame header.
+     *
+     * @param frame     the buffer containing the packet header
+     * @param packet    the packet to populate
+     * @param innerType the packet subtype used to determine whether attachments are supported
+     */
     private void parseHeader(ByteBuf frame, Packet packet, PacketType innerType) {
         int endIndex = frame.bytesBefore((byte) '[');
         if (endIndex <= 0) {
@@ -380,94 +434,17 @@ public class PacketDecoder {
     }
 
     /**
-     * Decodes and appends an incoming binary attachment to the given packet.
-     * <p>
-     * Depending on the negotiated Engine.IO version and transport, the incoming buffer
-     * has different frame layouts:
-     * </p>
-     * 
-     * <h3>Engine.IO v3 (Socket.IO 2.x and older)</h3>
-     * <ul>
-     *   <li>
-     *     <b>WebSocket (Raw Binary Frame):</b>
-     *     <pre>
-     *     +---------------+---------------------------------+
-     *     | Byte 0        | Bytes 1..N                      |
-     *     +---------------+---------------------------------+
-     *     | Type (0x04)   | Raw binary payload              |
-     *     +---------------+---------------------------------+
-     *     </pre>
-     *     The leading byte value 4 (Engine.IO MESSAGE packet type) is stripped, and the 
-     *     remainder is base64-encoded and appended as an attachment.
-     *   </li>
-     *   <li>
-     *     <b>WebSocket/Polling (Base64 Text Frame):</b>
-     *     <pre>
-     *     +-----------------+-------------------------------+
-     *     | Bytes 0..1      | Bytes 2..N                    |
-     *     +-----------------+-------------------------------+
-     *     | Prefix ("b4")   | Base64 string payload         |
-     *     +-----------------+-------------------------------+
-     *     </pre>
-     *     The leading ASCII prefix "b4" is stripped, and the remaining base64 payload is 
-     *     appended directly without double-encoding.
-     *     <br>
-     *     Ref: <a href="https://github.com/socketio/engine.io-protocol/tree/v3#packet-string-encoding">Engine.IO v3 Packet String Encoding Spec</a>
-     *     <blockquote>
-     *     "Sometimes, it is not possible to send binary data over the transport [...]. In that case, 
-     *     the packet is encoded as a string, and prepended with a 'b' character. For example: a packet 
-     *     of type message containing the buffer &lt;01 02 03&gt; is encoded as 'b4AQID'"
-     *     </blockquote>
-     *   </li>
-     *   <li>
-     *     <b>Polling (Raw Binary Wrapper):</b>
-     *     <pre>
-     *     +--------+---------------+--------+---------------+--------------------+
-     *     | Byte 0 | Bytes 1..K    | Byte K | Byte K+1      | Bytes K+2..N       |
-     *     +--------+---------------+--------+---------------+--------------------+
-     *     | 0x01   | Length (ASCII) | 0xFF   | Type (0x04)   | Raw binary payload |
-     *     +--------+---------------+--------+---------------+--------------------+
-     *     </pre>
-     *     The binary envelope is stripped to retrieve the inner packet, which is then 
-     *     processed normally (stripping the type prefix as described above).
-     *     <br>
-     *     Ref: <a href="https://github.com/socketio/engine.io-protocol/tree/v3#payload">Engine.IO v3 Payload Spec</a>
-     *     <blockquote>
-     *     "If the payload contains at least one binary packet, the payload is encoded as a binary buffer:
-     *      - a binary indicator: 1 (representing a binary packet) or 0 (representing a string packet)
-     *      - the length of the packet (as a series of characters)
-     *      - a separator: 255
-     *      - the packet itself"
-     *     </blockquote>
-     *   </li>
-     * </ul>
-     * 
-     * <h3>Engine.IO v4 (Socket.IO 3.x and newer)</h3>
-     * <ul>
-     *   <li>
-     *     <b>WebSocket/Polling (Raw Binary Frame):</b>
-     *     <pre>
-     *     +-------------------------------------------------+
-     *     | Bytes 0..N                                      |
-     *     +-------------------------------------------------+
-     *     | Raw binary payload                              |
-     *     +-------------------------------------------------+
-     *     </pre>
-     *     Engine.IO v4 does not prepend any packet types or metadata to binary attachments. 
-     *     The entire buffer is base64-encoded as-is and stored.
-     *     <br>
-     *     Ref: <a href="https://socket.io/docs/v4/engine-io-protocol/">Engine.IO v4 Protocol Spec</a>
-     *     <blockquote>
-     *     "Binary packets are sent as-is without any modifications."
-     *     </blockquote>
-     *   </li>
-     * </ul>
+     * Adds an incoming binary attachment to a packet and completes the packet when all
+     * attachments have been received.
      *
-     * @param head         the client connection head
-     * @param frame        the incoming byte buffer frame
+     * @param head the client connection head
+     * @param frame the incoming attachment frame
      * @param binaryPacket the packet being assembled
-     * @return the packet if fully assembled (all attachments loaded), or an empty MESSAGE packet
-     * @throws IOException if a decoding error occurs
+     * @param transport the negotiated transport
+     * @return the completed packet, or an empty message packet while attachments remain
+     *         incomplete
+     * @throws IOException if the attachment frame is malformed
+     * @throws IllegalStateException if an attachment placeholder cannot be found
      */
     private Packet addAttachment(ClientHead head, ByteBuf frame, Packet binaryPacket, Transport transport) throws IOException {
         EngineIOVersion version = head.getEngineIOVersion();
@@ -605,6 +582,14 @@ public class PacketDecoder {
         return new Packet(PacketType.MESSAGE, head.getEngineIOVersion());
     }
 
+    /**
+     * Parses the body of a Socket.IO message according to its subtype.
+     *
+     * @param head   the client connection associated with the packet
+     * @param frame  the buffer containing the packet body
+     * @param packet the packet whose body is parsed
+     * @throws IOException if binary attachment processing fails
+     */
     private void parseBody(ClientHead head, ByteBuf frame, Packet packet) throws IOException {
         // Early return for non-MESSAGE packets
         if (packet.getType() != PacketType.MESSAGE) {
@@ -647,7 +632,11 @@ public class PacketDecoder {
     }
 
     /**
-     * Parse ERROR packet bodies
+     * Parses an ERROR packet body, including its optional namespace and error data.
+     *
+     * @param frame  the buffer containing the packet body
+     * @param packet the packet to populate
+     * @throws IOException if the error data cannot be read as text
      */
     private void parseErrorBody(ByteBuf frame, Packet packet) throws IOException {
         String nsp = readNamespace(frame, false);

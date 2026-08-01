@@ -1068,11 +1068,21 @@ public class SocketIOServer implements ClientListeners {
         mainNamespace.addConnectListener(listener);
     }
 
+    /**
+     * Removes a listener invoked when a client connects.
+     *
+     * @param listener the connection listener to remove
+     */
     @Override
     public void removeConnectListener(ConnectListener listener) {
         mainNamespace.removeConnectListener(listener);
     }
 
+    /**
+     * Removes a disconnect listener from the main namespace.
+     *
+     * @param listener the disconnect listener to remove
+     */
     @Override
     public void removeDisconnectListener(DisconnectListener listener) {
         mainNamespace.removeDisconnectListener(listener);

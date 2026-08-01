@@ -58,6 +58,12 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         this.exceptionListener = exceptionListener;
     }
 
+    /**
+     * Processes inbound packets for a client and dispatches them to the appropriate namespace.
+     *
+     * @param message the inbound packet message containing the payload, client, and transport
+     * @throws Exception if packet decoding or processing fails
+     */
     @Override
     protected void channelRead0(io.netty.channel.ChannelHandlerContext ctx, PacketsMessage message)
                 throws Exception {

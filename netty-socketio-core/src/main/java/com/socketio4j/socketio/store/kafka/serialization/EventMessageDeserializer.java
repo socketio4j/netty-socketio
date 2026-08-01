@@ -34,6 +34,13 @@ public final class EventMessageDeserializer
 
     private static final ObjectMapper MAPPER = EventMessageJsonSupport.createObjectMapper();
 
+    /**
+     * Deserializes message data into an {@code EventMessage}.
+     *
+     * @param topic the Kafka topic containing the message
+     * @param data  the serialized message data
+     * @return the deserialized event message, or {@code null} when the data is empty or cannot be deserialized
+     */
     @Override
     public EventMessage deserialize(String topic, byte[] data) {
 

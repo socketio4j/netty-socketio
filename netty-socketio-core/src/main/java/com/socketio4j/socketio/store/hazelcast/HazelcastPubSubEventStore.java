@@ -104,6 +104,13 @@ public class HazelcastPubSubEventStore implements EventStore {
         return eventStoreMode;
     }
 
+    /**
+     * Subscribes to events of the specified type from other nodes.
+     *
+     * @param type     the event type to subscribe to
+     * @param listener the listener notified when a matching event is received
+     * @param clazz    the event message class
+     */
     @Override
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
 
