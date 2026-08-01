@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-@DisplayName("Official JavaScript Socket.IO Client Interoperability Suite (v1, v2, v4)")
+@DisplayName("Official JavaScript Socket.IO Client Interoperability Suite (v1, v2, v3, v4)")
 public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
 
     private void runJsTest(String version, String transport, String scenario) throws Exception {

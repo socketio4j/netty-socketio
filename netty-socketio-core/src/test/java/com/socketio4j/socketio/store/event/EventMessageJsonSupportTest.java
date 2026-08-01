@@ -16,7 +16,13 @@
  */
 package com.socketio4j.socketio.store.event;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -49,5 +55,117 @@ public class EventMessageJsonSupportTest {
             assertNotNull(bytes);
             assertTrue(bytes.length > 0);
         });
+    }
+    @Test
+    void shouldRoundTripUntypedByteArray() throws Exception {
+        ObjectMapper mapper = EventMessageJsonSupport.createObjectMapper();
+
+        Map<String, Object> payload = new HashMap<>();
+        byte[] bytes = {1, 2, 3, 4, 5};
+        payload.put("data", bytes);
+
+        String json = mapper.writeValueAsString(payload);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> decoded = mapper.readValue(json, Map.class);
+
+        assertInstanceOf(byte[].class, decoded.get("data"));
+        assertArrayEquals(bytes, (byte[]) decoded.get("data"));
+    }
+    @Test
+    void shouldRoundTripDispatchMessageWithBinaryPayload() throws Exception {
+        ObjectMapper mapper = EventMessageJsonSupport.createObjectMapper();
+
+        Packet packet = new Packet(PacketType.BINARY_EVENT);
+        packet.setData(new Object[] {
+                "text",
+                new byte[] {1, 2, 3, 4, 5}
+        });
+
+        DispatchMessage message = new DispatchMessage("room", packet, "/");
+
+        String json = mapper.writeValueAsString(message);
+
+        DispatchMessage decoded = mapper.readValue(json, DispatchMessage.class);
+
+        assertInstanceOf(java.util.List.class, decoded.getPacket().getData());
+
+        @SuppressWarnings("unchecked")
+        java.util.List<Object> data = (java.util.List<Object>) decoded.getPacket().getData();
+
+        assertEquals(2, data.size());
+        assertEquals("text", data.get(0));
+        assertInstanceOf(byte[].class, data.get(1));
+        assertArrayEquals(new byte[] {1, 2, 3, 4, 5}, (byte[]) data.get(1));
+    }
+    @Test
+    void shouldRoundTripNestedBinaryPayload() throws Exception {
+        ObjectMapper mapper = EventMessageJsonSupport.createObjectMapper();
+
+        Map<String, Object> nested = new HashMap<>();
+        nested.put("bytes", new byte[] {9, 8, 7});
+
+        Map<String, Object> root = new HashMap<>();
+        root.put("nested", nested);
+
+        String json = mapper.writeValueAsString(root);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> decoded = mapper.readValue(json, Map.class);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> decodedNested =
+                (Map<String, Object>) decoded.get("nested");
+
+        assertInstanceOf(byte[].class, decodedNested.get("bytes"));
+        assertArrayEquals(new byte[] {9, 8, 7}, (byte[]) decodedNested.get("bytes"));
+    }
+    @Test
+    void shouldRoundTripBinaryPayloadInsideList() throws Exception {
+        ObjectMapper mapper = EventMessageJsonSupport.createObjectMapper();
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("list", java.util.Arrays.asList(
+                "text",
+                new byte[] {1, 2, 3}
+        ));
+
+        String json = mapper.writeValueAsString(payload);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> decoded = mapper.readValue(json, Map.class);
+
+        @SuppressWarnings("unchecked")
+        java.util.List<Object> list =
+                (java.util.List<Object>) decoded.get("list");
+
+        assertEquals("text", list.get(0));
+        assertInstanceOf(byte[].class, list.get(1));
+        assertArrayEquals(new byte[] {1, 2, 3}, (byte[]) list.get(1));
+    }
+    private static class TypedBytesHolder {
+        private byte[] data;
+
+        public byte[] getData() {
+            return data;
+        }
+
+        public void setData(byte[] data) {
+            this.data = data;
+        }
+    }
+
+    @Test
+    void shouldRoundTripTypedByteArray() throws Exception {
+        ObjectMapper mapper = EventMessageJsonSupport.createObjectMapper();
+
+        TypedBytesHolder holder = new TypedBytesHolder();
+        holder.setData(new byte[] {1, 2, 3});
+
+        String json = mapper.writeValueAsString(holder);
+
+        TypedBytesHolder decoded = mapper.readValue(json, TypedBytesHolder.class);
+
+        assertArrayEquals(holder.getData(), decoded.getData());
     }
 }

@@ -25,9 +25,12 @@ import java.util.Map;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,7 +46,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
  * embedded inside EventMessages and Packets.
  */
 public final class EventMessageJsonSupport {
-
+    private static final String BYTES_FIELD = "$bytes";
     private EventMessageJsonSupport() {
     }
 
@@ -51,19 +54,40 @@ public final class EventMessageJsonSupport {
         SimpleModule module = new SimpleModule("EventMessageJsonModule");
 
         // Custom byte[] serializer -> {"$bytes": "<base64>"}
-        module.addSerializer(byte[].class, new JsonSerializer<byte[]>() {
+        module.addSerializer(byte[].class, new JsonSerializer<>() {
             @Override
             public void serialize(byte[] value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
                 if (value == null) {
                     gen.writeNull();
                 } else {
                     gen.writeStartObject();
-                    gen.writeStringField("$bytes", Base64.getEncoder().encodeToString(value));
+                    gen.writeStringField(BYTES_FIELD, Base64.getEncoder().encodeToString(value));
                     gen.writeEndObject();
                 }
             }
         });
+        module.addDeserializer(byte[].class, new JsonDeserializer<>() {
 
+            @Override
+            public byte[] deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+
+                if (p.currentToken() == JsonToken.START_OBJECT) {
+                    JsonNode node = p.readValueAsTree();
+                    JsonNode bytes = node.get(BYTES_FIELD);
+
+                    if (bytes != null && bytes.isTextual()) {
+                        return Base64.getDecoder().decode(bytes.asText());
+                    }
+
+                    return ctxt.reportInputMismatch(
+                            byte[].class,
+                            "Expected object containing '$bytes' field");
+                }
+
+                // Default Jackson handling for Base64 string and numeric array
+                return p.getBinaryValue();
+            }
+        });
         // Custom UntypedObjectDeserializer -> converts {"$bytes": "<base64>"} back to byte[]
         module.addDeserializer(Object.class, new EventMessageObjectDeserializer());
 
@@ -94,8 +118,8 @@ public final class EventMessageJsonSupport {
         private Object convertBytesPlaceholders(Object obj) {
             if (obj instanceof Map) {
                 Map<?, ?> map = (Map<?, ?>) obj;
-                if (map.size() == 1 && map.containsKey("$bytes")) {
-                    Object val = map.get("$bytes");
+                if (map.size() == 1 && map.containsKey(BYTES_FIELD)) {
+                    Object val = map.get(BYTES_FIELD);
                     if (val instanceof String) {
                         return Base64.getDecoder().decode((String) val);
                     }
