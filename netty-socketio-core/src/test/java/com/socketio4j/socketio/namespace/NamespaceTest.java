@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 
 import org.junit.jupiter.api.AfterEach;
@@ -261,14 +262,25 @@ class NamespaceTest extends BaseNamespaceTest {
     void testConcurrentRoomJoiningThreadSafety() throws InterruptedException {
         int clientCount = 20;
         String roomName = "concurrentRoom";
+        Set<UUID> joinedClientIds = ConcurrentHashMap.newKeySet();
 
         CountDownLatch latch = executeConcurrentOperationsWithIndex(clientCount, index -> {
             UUID id = UUID.randomUUID();
+            joinedClientIds.add(id);
+            SocketIOClient client = mock(SocketIOClient.class);
+            when(client.getSessionId()).thenReturn(id);
+            namespace.addClient(client);
             namespace.joinRoom(roomName, id);
         });
 
         waitForCompletion(latch);
 
         assertTrue(namespace.getRooms().contains(roomName), "Room should exist in namespace rooms set");
+        Set<UUID> roomClientIds = new HashSet<>();
+        for (SocketIOClient client : namespace.getRoomClients(roomName)) {
+            roomClientIds.add(client.getSessionId());
+        }
+        assertEquals(joinedClientIds, roomClientIds,
+                "Room should retain every client ID joined concurrently");
     }
 }

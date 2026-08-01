@@ -36,7 +36,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.util.CharsetUtil;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
@@ -50,7 +49,6 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
     private PacketDecoder decoder;
     private AutoCloseable closeableMocks;
 
-    @Mock
     private JsonSupport jsonSupport;
 
     @Mock
@@ -89,7 +87,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
                 decoder.decodePackets(buffer, clientHead, Transport.POLLING);
             } catch (Exception expected) {
                 // Expected handled exceptions for random junk bytes
-                assertTrue(expected instanceof Exception, "Decoder threw handled exception for random bytes");
+                assertExpectedParsingException(expected);
             } finally {
                 buffer.release();
             }
@@ -112,7 +110,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
                 decoder.decodePackets(buffer, clientHead);
             } catch (Exception e) {
                 // Expected handled parsing exception for truncated payloads
-                assertNotNull(e);
+                assertExpectedParsingException(e);
             } finally {
                 buffer.release();
             }
@@ -133,7 +131,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
             try {
                 decoder.decodePackets(buffer, clientHead);
             } catch (Exception e) {
-                assertNotNull(e);
+                assertExpectedParsingException(e);
             } finally {
                 buffer.release();
             }
@@ -151,5 +149,14 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
             assertThrows(IllegalStateException.class, () -> decoder.decodePackets(buffer, clientHead));
             buffer.release();
         }
+    }
+
+    private static void assertExpectedParsingException(Exception exception) {
+        assertTrue(exception instanceof IOException
+                        || exception instanceof IllegalArgumentException
+                        || exception instanceof IllegalStateException
+                        || exception instanceof IndexOutOfBoundsException
+                        || exception instanceof NullPointerException,
+                () -> "Unexpected exception type: " + exception.getClass().getName());
     }
 }

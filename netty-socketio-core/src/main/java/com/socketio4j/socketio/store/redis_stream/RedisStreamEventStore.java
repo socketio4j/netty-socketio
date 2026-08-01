@@ -349,9 +349,19 @@ public class RedisStreamEventStore implements EventStore {
         if (t == null) {
             return false;
         }
-        if (t instanceof org.redisson.RedissonShutdownException || t.getCause() instanceof org.redisson.RedissonShutdownException) {
-            return true;
+
+        Throwable current = t;
+        while (current != null) {
+            if (current instanceof org.redisson.RedissonShutdownException) {
+                return true;
+            }
+            Throwable cause = current.getCause();
+            if (cause == null || cause == current) {
+                break;
+            }
+            current = cause;
         }
+
         return t.getMessage() != null && t.getMessage().contains("Redisson is shutdown");
     }
 

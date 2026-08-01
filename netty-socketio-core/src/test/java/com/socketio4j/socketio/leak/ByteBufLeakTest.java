@@ -24,6 +24,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +62,7 @@ public class ByteBufLeakTest {
 
     private static final AtomicBoolean leakDetected = new AtomicBoolean(false);
     private static final AtomicReference<String> leakDetails = new AtomicReference<>("");
+    private static ResourceLeakDetector.Level previousLeakDetectorLevel;
 
     private PacketEncoder encoder;
     private PacketDecoder decoder;
@@ -77,6 +79,7 @@ public class ByteBufLeakTest {
 
     @BeforeAll
     public static void enableParanoidLeakDetector() {
+        previousLeakDetectorLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.PARANOID);
         ResourceLeakDetectorFactory.setResourceLeakDetectorFactory(
                 new ResourceLeakDetectorFactory() {
@@ -90,6 +93,11 @@ public class ByteBufLeakTest {
                         return detector;
                     }
                 });
+    }
+
+    @AfterAll
+    public static void restoreLeakDetectorLevel() {
+        ResourceLeakDetector.setLevel(previousLeakDetectorLevel);
     }
 
     @BeforeEach

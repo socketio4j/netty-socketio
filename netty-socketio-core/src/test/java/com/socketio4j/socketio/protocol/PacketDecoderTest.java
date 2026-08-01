@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 /**
@@ -97,6 +99,16 @@ public class PacketDecoderTest extends BaseProtocolTest {
     @AfterEach
     public void tearDown() throws Exception {
         closeableMocks.close();
+    }
+
+    private AtomicReference<Packet> stubLastBinaryPacket() {
+        AtomicReference<Packet> lastBinaryPacket = new AtomicReference<>();
+        doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            return null;
+        }).when(clientHead).setLastBinaryPacket(any());
+        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+        return lastBinaryPacket;
     }
 
     // ==================== CONNECT Packet Tests ====================
@@ -302,12 +314,7 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // BINARY_EVENT packet text frame: "451-[\"hello\",{\"_placeholder\":true,\"num\":0}]" (MESSAGE + BINARY_EVENT)
         ByteBuf buffer = Unpooled.copiedBuffer("451-[\"hello\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
 
-        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
-        org.mockito.Mockito.doAnswer(invocation -> {
-            lastBinaryPacket.set(invocation.getArgument(0));
-            return null;
-        }).when(clientHead).setLastBinaryPacket(any());
-        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
 
         // Mock JSON support for event data after attachments load
         Map<String, Object> placeholder = new HashMap<>();
@@ -345,12 +352,7 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // BINARY_EVENT packet with namespace: "451-/admin,456[\"project:delete\",{\"_placeholder\":true,\"num\":0}]" (MESSAGE + BINARY_EVENT)
         ByteBuf buffer = Unpooled.copiedBuffer("451-/admin,456[\"project:delete\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
 
-        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
-        org.mockito.Mockito.doAnswer(invocation -> {
-            lastBinaryPacket.set(invocation.getArgument(0));
-            return null;
-        }).when(clientHead).setLastBinaryPacket(any());
-        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
 
         // Mock JSON support for event data after attachments load
         Map<String, Object> placeholder = new HashMap<>();
@@ -924,12 +926,7 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // EIOv3 client
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
 
-        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
-        org.mockito.Mockito.doAnswer(invocation -> {
-            lastBinaryPacket.set(invocation.getArgument(0));
-            return null;
-        }).when(clientHead).setLastBinaryPacket(any());
-        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
 
         // 1. Decode text frame first
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"hello\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -965,12 +962,7 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // EIOv3 client
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
 
-        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
-        org.mockito.Mockito.doAnswer(invocation -> {
-            lastBinaryPacket.set(invocation.getArgument(0));
-            return null;
-        }).when(clientHead).setLastBinaryPacket(any());
-        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
 
         // 1. Decode text frame first
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"hello\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -1001,12 +993,7 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // EIOv3 client
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
 
-        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
-        org.mockito.Mockito.doAnswer(invocation -> {
-            lastBinaryPacket.set(invocation.getArgument(0));
-            return null;
-        }).when(clientHead).setLastBinaryPacket(any());
-        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
 
         // 1. Decode text frame first
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"hello\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -1040,12 +1027,7 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // EIOv4 client (default)
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
 
-        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
-        org.mockito.Mockito.doAnswer(invocation -> {
-            lastBinaryPacket.set(invocation.getArgument(0));
-            return null;
-        }).when(clientHead).setLastBinaryPacket(any());
-        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
 
         // 1. Decode text frame first
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"hello\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -1079,12 +1061,7 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // EIOv4 client over long polling
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
 
-        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
-        org.mockito.Mockito.doAnswer(invocation -> {
-            lastBinaryPacket.set(invocation.getArgument(0));
-            return null;
-        }).when(clientHead).setLastBinaryPacket(any());
-        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
 
         // 1. Decode text frame first
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"event\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -1130,12 +1107,7 @@ public class PacketDecoderTest extends BaseProtocolTest {
     void testDecodeMalformedPollingAttachmentLengthHeader() throws IOException {
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
 
-        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
-        org.mockito.Mockito.doAnswer(invocation -> {
-            lastBinaryPacket.set(invocation.getArgument(0));
-            return null;
-        }).when(clientHead).setLastBinaryPacket(any());
-        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
 
         // 1. Decode text frame first
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"event\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -1288,9 +1260,9 @@ public class PacketDecoderTest extends BaseProtocolTest {
         pongBuf.release();
     }
 
-    @ParameterizedTest(name = "Decode BINARY_EVENT & BINARY_ACK Headers - Engine.IO Version {0}")
+    @ParameterizedTest(name = "Decode BINARY_EVENT Headers - Engine.IO Version {0}")
     @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
-    void testDecodeBinaryHeadersCrossEngineIOVersions(EngineIOVersion version) throws IOException {
+    void testDecodeBinaryEventHeadersCrossEngineIOVersions(EngineIOVersion version) throws IOException {
         when(clientHead.getEngineIOVersion()).thenReturn(version);
 
         // BINARY_EVENT with 2 attachments: "452-/admin,55[\"binEv\",{\"_placeholder\":true,\"num\":0},{\"_placeholder\":true,\"num\":1}]"
@@ -1316,12 +1288,7 @@ public class PacketDecoderTest extends BaseProtocolTest {
     void testDecodeEIOv3PollingXHR2AttachmentBinaryHeader() throws IOException {
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
 
-        java.util.concurrent.atomic.AtomicReference<Packet> lastBinaryPacket = new java.util.concurrent.atomic.AtomicReference<>();
-        org.mockito.Mockito.doAnswer(invocation -> {
-            lastBinaryPacket.set(invocation.getArgument(0));
-            return null;
-        }).when(clientHead).setLastBinaryPacket(any());
-        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
+        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
 
         // 1. First packet: BINARY_EVENT with 1 attachment
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"binEv\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);

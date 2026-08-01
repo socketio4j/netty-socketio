@@ -887,7 +887,7 @@ public class PacketEncoderTest extends BaseProtocolTest {
         packet.setData(Arrays.asList(new HashMap<>()));
         packet.initAttachments(1);
 
-        // Byte array containing bytes that encode to '+' and '/' in standard base64 (e.g. 0xFB, 0xFF, 0xBF -> "/++/")
+        // Byte array containing bytes that encode to '+' and '/' in standard base64 (e.g. 0xFB, 0xFF, 0xBF -> "+/+/")
         byte[] rawBytes = new byte[]{(byte) 0xFB, (byte) 0xFF, (byte) 0xBF};
         packet.addAttachment(Unpooled.wrappedBuffer(rawBytes));
 
@@ -1062,14 +1062,31 @@ public class PacketEncoderTest extends BaseProtocolTest {
         String utf8Prefix = new String(encodedBytes, 0, Math.min(encodedBytes.length, 30), CharsetUtil.UTF_8);
         assertTrue(utf8Prefix.startsWith("2:40"), "EIOv3 batch payload should use length header framing (e.g. 2:40)");
 
-        // XHR2 binary attachment payload has 0x01 byte prefix
-        boolean containsXhr2Byte = false;
-        for (byte b : encodedBytes) {
-            if (b == 0x01) {
-                containsXhr2Byte = true;
+        // XHR2 binary attachment frame follows the text frames: 0x01 + length bytes + 0xFF + 0x04.
+        boolean containsXhr2FrameHeader = false;
+        for (int i = 0; i < encodedBytes.length - 3; i++) {
+            if (encodedBytes[i] != 0x01) {
+                continue;
+            }
+
+            int separatorIndex = i + 1;
+            while (separatorIndex < encodedBytes.length && encodedBytes[separatorIndex] != (byte) 0xFF) {
+                byte lengthByte = encodedBytes[separatorIndex];
+                if (lengthByte < 0 || lengthByte > 9) {
+                    break;
+                }
+                separatorIndex++;
+            }
+
+            if (separatorIndex > i + 1
+                    && separatorIndex + 1 < encodedBytes.length
+                    && encodedBytes[separatorIndex] == (byte) 0xFF
+                    && encodedBytes[separatorIndex + 1] == 0x04) {
+                containsXhr2FrameHeader = true;
                 break;
             }
         }
-        assertTrue(containsXhr2Byte, "EIOv3 polling binary attachment should use XHR2 0x01 binary frame header");
+        assertTrue(containsXhr2FrameHeader,
+                "EIOv3 polling binary attachment should use the XHR2 binary frame header");
     }
 }

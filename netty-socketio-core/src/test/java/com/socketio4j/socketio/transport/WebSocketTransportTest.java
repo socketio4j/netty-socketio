@@ -33,11 +33,20 @@ package com.socketio4j.socketio.transport;
 
 import org.junit.jupiter.api.Test;
 
+import com.socketio4j.socketio.handler.ClientHead;
+import com.socketio4j.socketio.handler.ClientsBox;
+import com.socketio4j.socketio.protocol.EngineIOVersion;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
 
 /**
@@ -69,8 +78,8 @@ public class WebSocketTransportTest {
     largePayload[0] = 4; // MESSAGE
     largePayload[1] = 5; // BINARY_EVENT
 
-    io.netty.buffer.ByteBuf buf = io.netty.buffer.Unpooled.copiedBuffer(largePayload);
-    io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame frame = new io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame(buf);
+    io.netty.buffer.ByteBuf buf = Unpooled.copiedBuffer(largePayload);
+    BinaryWebSocketFrame frame = new BinaryWebSocketFrame(buf);
 
     channel.writeInbound(frame);
     assertTrue(channel.isOpen(), "Channel should stay open after receiving binary WebSocket frame");
@@ -79,10 +88,10 @@ public class WebSocketTransportTest {
   }
 
   private EmbeddedChannel createChannel() {
-    com.socketio4j.socketio.handler.ClientsBox clientsBox = org.mockito.Mockito.mock(com.socketio4j.socketio.handler.ClientsBox.class);
-    com.socketio4j.socketio.handler.ClientHead clientHead = org.mockito.Mockito.mock(com.socketio4j.socketio.handler.ClientHead.class);
-    org.mockito.Mockito.when(clientsBox.get(org.mockito.Mockito.any(io.netty.channel.Channel.class))).thenReturn(clientHead);
-    org.mockito.Mockito.when(clientHead.getEngineIOVersion()).thenReturn(com.socketio4j.socketio.protocol.EngineIOVersion.V4);
+    ClientsBox clientsBox = mock(ClientsBox.class);
+    ClientHead clientHead = mock(ClientHead.class);
+    when(clientsBox.get(any(io.netty.channel.Channel.class))).thenReturn(clientHead);
+    when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
 
     return new EmbeddedChannel(new WebSocketTransport(false, null, null, null, clientsBox) {
       @Override

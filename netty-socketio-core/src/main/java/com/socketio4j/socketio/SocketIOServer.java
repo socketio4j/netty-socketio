@@ -507,6 +507,7 @@ public class SocketIOServer implements ClientListeners {
         }
 
         try {
+            configCopy.setPort(configuration.getPort());
             fireBeforeStart();
             log.info("Session store / event store factory: {}", configCopy.getStoreFactory());
             initGroups();
