@@ -21,6 +21,8 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -45,15 +47,20 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetectorFactory;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.when;
 
 /**
  * PARANOID level resource leak test suite.
- * Enforces Netty ResourceLeakDetector.Level.PARANOID across thousands of packet encoding/decoding cycles.
+ * Enforces Netty ResourceLeakDetector.Level.PARANOID and explicit LeakListener assertions across all test methods.
  */
 public class ByteBufLeakTest {
+
+    private static final AtomicBoolean leakDetected = new AtomicBoolean(false);
+    private static final AtomicReference<String> leakDetails = new AtomicReference<>("");
 
     private PacketEncoder encoder;
     private PacketDecoder decoder;
@@ -71,10 +78,25 @@ public class ByteBufLeakTest {
     @BeforeAll
     public static void enableParanoidLeakDetector() {
         ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.PARANOID);
+        ResourceLeakDetectorFactory.setResourceLeakDetectorFactory(
+                new ResourceLeakDetectorFactory() {
+                    @Override
+                    public <T> ResourceLeakDetector<T> newResourceLeakDetector(Class<T> resource, int samplingInterval, long maxActive) {
+                        ResourceLeakDetector<T> detector = new ResourceLeakDetector<>(resource, samplingInterval, maxActive);
+                        detector.setLeakListener((resourceType, records) -> {
+                            leakDetected.set(true);
+                            leakDetails.set("Resource leak detected in " + resourceType + ": " + records);
+                        });
+                        return detector;
+                    }
+                });
     }
 
     @BeforeEach
     public void setUp() {
+        leakDetected.set(false);
+        leakDetails.set("");
+
         closeableMocks = MockitoAnnotations.openMocks(this);
 
         configuration = new Configuration();
@@ -92,6 +114,19 @@ public class ByteBufLeakTest {
 
     @AfterEach
     public void tearDown() throws Exception {
+        // Allow JVM reference handler and GC phantom queues to process unreleased references
+        for (int attempt = 0; attempt < 5; attempt++) {
+            System.gc();
+            System.runFinalization();
+            Thread.sleep(50);
+            if (leakDetected.get()) {
+                break;
+            }
+        }
+
+        assertFalse(leakDetected.get(),
+                () -> "Netty ByteBuf Resource Leak Detected! Details: " + leakDetails.get());
+
         if (closeableMocks != null) {
             closeableMocks.close();
         }
@@ -118,9 +153,6 @@ public class ByteBufLeakTest {
 
             encodedBuffer.release();
         }
-
-        // Trigger GC to allow Netty PARANOID Leak Detector to analyze phantom references
-        System.gc();
     }
 
     @Test
@@ -150,8 +182,6 @@ public class ByteBufLeakTest {
 
             batchBuf.release();
         }
-
-        System.gc();
     }
 
     @Test
@@ -177,7 +207,5 @@ public class ByteBufLeakTest {
 
             directBuffer.release();
         }
-
-        System.gc();
     }
 }

@@ -60,6 +60,8 @@ public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
     private static final CustomizedRedisContainer REDIS_CONTAINER = new CustomizedRedisContainer().withReuse(false);
     private RedissonClient redisClient1;
     private RedissonClient redisClient2;
+    private KafkaEventStore kafkaEventStore1;
+    private KafkaEventStore kafkaEventStore2;
 
 
     // -------------------------------------------
@@ -95,10 +97,10 @@ public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
         DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg1);
         cfg1.setHostname("127.0.0.1");
         cfg1.setPort(findAvailablePort());
-
+        kafkaEventStore1  = kafkaEventStore(bootstrap, "node1");
         cfg1.setStoreFactory(
                 new RedisStoreFactory(redisClient1,
-                        kafkaEventStore(bootstrap, "node1")
+                        kafkaEventStore1
                 )
         );
 
@@ -143,10 +145,10 @@ public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
         DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg2);
         cfg2.setHostname("127.0.0.1");
         cfg2.setPort(findAvailablePort());
-
+        kafkaEventStore2 = kafkaEventStore(bootstrap, "node2");
         cfg2.setStoreFactory(
                 new RedisStoreFactory(redisClient2,
-                        kafkaEventStore(bootstrap, "node2")
+                        kafkaEventStore2
                 )
         );
 
@@ -240,19 +242,28 @@ public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
 
     @AfterAll
     public void stop() {
-
-        if (node1 != null) {
-            node1.stop();
-        }
-        if (node2 != null) {
-            node2.stop();
-        }
-        KAFKA.close();
-
-        if (REDIS_CONTAINER!=null){
-            REDIS_CONTAINER.stop();
-            redisClient1.shutdown();
-            redisClient2.shutdown();
+        try {
+            if (node1 != null) {
+                node1.stop();
+            }
+            if (node2 != null) {
+                node2.stop();
+            }
+        } finally {
+            if (KAFKA.isRunning()) {
+                KAFKA.close();
+            }
+            if (REDIS_CONTAINER!=null){
+                REDIS_CONTAINER.stop();
+                redisClient1.shutdown();
+                redisClient2.shutdown();
+            }
+            if (kafkaEventStore1 != null) {
+                kafkaEventStore1.shutdown();
+            }
+            if (kafkaEventStore2 != null) {
+                kafkaEventStore2.shutdown();
+            }
         }
     }
 }

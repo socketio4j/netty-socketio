@@ -46,6 +46,8 @@ import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 public class DistributedKafkaJsClientInteropTest extends AbstractDistributedJsClientInteropTest {
 
     private static final CustomizedKafkaContainer KAFKA = new CustomizedKafkaContainer();
+    private KafkaEventStore kafkaEventStore1;
+    private KafkaEventStore kafkaEventStore2;
 
     @BeforeAll
     @Override
@@ -60,7 +62,8 @@ public class DistributedKafkaJsClientInteropTest extends AbstractDistributedJsCl
         DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg1);
         cfg1.setHostname("127.0.0.1");
         cfg1.setPort(DistributedClusterIntegrationSupport.findAvailablePort());
-        cfg1.setStoreFactory(new MemoryStoreFactory(kafkaEventStore(bootstrap, "node1")));
+        kafkaEventStore1 = kafkaEventStore(bootstrap, "node1");
+        cfg1.setStoreFactory(new MemoryStoreFactory(kafkaEventStore1));
         node1 = new SocketIOServer(cfg1);
         attachDefaultRoomListeners(node1);
         node1.start();
@@ -71,7 +74,8 @@ public class DistributedKafkaJsClientInteropTest extends AbstractDistributedJsCl
         DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg2);
         cfg2.setHostname("127.0.0.1");
         cfg2.setPort(DistributedClusterIntegrationSupport.findAvailablePort());
-        cfg2.setStoreFactory(new MemoryStoreFactory(kafkaEventStore(bootstrap, "node2")));
+        kafkaEventStore2 = kafkaEventStore(bootstrap, "node2");
+        cfg2.setStoreFactory(new MemoryStoreFactory(kafkaEventStore2));
         node2 = new SocketIOServer(cfg2);
         attachDefaultRoomListeners(node2);
         node2.start();
@@ -109,9 +113,24 @@ public class DistributedKafkaJsClientInteropTest extends AbstractDistributedJsCl
 
     @AfterAll
     @Override
-    public void teardownCluster() throws Exception {
-        if (node1 != null) node1.stop();
-        if (node2 != null) node2.stop();
-        if (KAFKA.isRunning()) KAFKA.close();
+    public void teardownCluster() {
+        try {
+            if (node1 != null) {
+                node1.stop();
+            }
+            if (node2 != null) {
+                node2.stop();
+            }
+        } finally {
+            if (KAFKA.isRunning()) {
+                KAFKA.close();
+            }
+            if (kafkaEventStore1 != null) {
+                kafkaEventStore1.shutdown();
+            }
+            if (kafkaEventStore2 != null) {
+                kafkaEventStore2.shutdown();
+            }
+        }
     }
 }

@@ -55,7 +55,8 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
     private static final CustomizedKafkaContainer KAFKA =
             new CustomizedKafkaContainer();
 
-
+    private KafkaEventStore store1;
+    private KafkaEventStore store2;
     // -------------------------------------------
     // Utility
     // -------------------------------------------
@@ -77,10 +78,10 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
         DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg1);
         cfg1.setHostname("127.0.0.1");
         cfg1.setPort(findAvailablePort());
-
+        store1 = kafkaEventStore(bootstrap, "node1");
         cfg1.setStoreFactory(
                 new MemoryStoreFactory(
-                        kafkaEventStore(bootstrap, "node1")
+                        store1
                 )
         );
 
@@ -125,10 +126,10 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
         DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg2);
         cfg2.setHostname("127.0.0.1");
         cfg2.setPort(findAvailablePort());
-
+        store2 =   kafkaEventStore(bootstrap, "node2");
         cfg2.setStoreFactory(
                 new MemoryStoreFactory(
-                        kafkaEventStore(bootstrap, "node2")
+                      store2
                 )
         );
 
@@ -222,13 +223,23 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
 
     @AfterAll
     public void stop() {
-
-        if (node1 != null) {
-            node1.stop();
+        try {
+            if (node1 != null) {
+                node1.stop();
+            }
+            if (node2 != null) {
+                node2.stop();
+            }
+        } finally {
+            if (KAFKA.isRunning()) {
+                KAFKA.close();
+            }
+            if (store1 != null) {
+                store1.shutdown();
+            }
+            if (store2 != null) {
+                store2.shutdown();
+            }
         }
-        if (node2 != null) {
-            node2.stop();
-        }
-        KAFKA.close();
     }
 }
