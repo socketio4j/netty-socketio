@@ -19,7 +19,6 @@ package com.socketio4j.socketio.protocol;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 import io.netty.buffer.ByteBuf;
 
@@ -36,7 +35,11 @@ public final class EncodeResult {
 
     public EncodeResult(ByteBuf encodedPacket, List<ByteBuf> attachments) {
         this.encodedPacket = encodedPacket;
-        this.attachments = Objects.requireNonNullElse(attachments, Collections.emptyList());
+        if (attachments == null) {
+            this.attachments = Collections.emptyList();
+        } else {
+            this.attachments =  attachments;
+        }
     }
 
     public ByteBuf getEncodedPacket() {
