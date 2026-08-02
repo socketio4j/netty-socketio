@@ -41,7 +41,6 @@ import com.socketio4j.socketio.protocol.EncodeResult;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketEncoder;
-import com.socketio4j.socketio.protocol.PacketType;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
@@ -397,9 +396,12 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             sendMessage(msg, channel, out, type, promise, HttpResponseStatus.OK);
         } else {
             EncodePacketsResult result = encoder.encodePackets(engineIOVersion, queue, out, ctx.alloc(), 50);
-            String contentType = result.hasBinary()
-                    ? "application/octet-stream"
-                    : "text/plain";
+            String contentType;
+            if (result.hasBinary()) {
+                contentType = "application/octet-stream";
+            } else {
+                contentType = "text/plain";
+            }
 
             if (log.isDebugEnabled()) {
                 log.debug("Using {} encoding, sessionId: {}", contentType, msg.getSessionId());

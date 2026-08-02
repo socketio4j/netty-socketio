@@ -334,7 +334,12 @@ public class PacketEncoder {
                              ByteBufAllocator allocator,
                              boolean binary) throws IOException {
 
-        ByteBuf buf = binary ? buffer : allocateBuffer(allocator);
+        ByteBuf buf;
+        if (binary) {
+            buf = buffer;
+        } else {
+            buf = allocateBuffer(allocator);
+        }
         List<ByteBuf> attachments = Collections.emptyList();
         buf.writeByte(toChar(packet.getType().getValue()));
 
@@ -383,9 +388,11 @@ public class PacketEncoder {
                                 attachments.add(Unpooled.wrappedBuffer(array));
                             }
 
-                            subType = (subType == PacketType.ACK)
-                                    ? PacketType.BINARY_ACK
-                                    : PacketType.BINARY_EVENT;
+                            if (subType == PacketType.ACK) {
+                                subType = PacketType.BINARY_ACK;
+                            } else {
+                                subType = PacketType.BINARY_EVENT;
+                            }
                         }
                     }
 
