@@ -266,7 +266,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
 
         AuthPacket authPacket = new AuthPacket(sessionId, transports, configuration.getPingInterval(),
                 configuration.getPingTimeout());
-        Packet packet = new Packet(PacketType.OPEN, client.getEngineIOVersion());
+        Packet packet = new Packet(PacketType.OPEN);
         packet.setData(authPacket);
         
         if (log.isDebugEnabled()) {
@@ -338,7 +338,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
         Namespace ns = namespacesHub.get(Namespace.DEFAULT_NAME);
 
         if (!client.getNamespaces().contains(ns)) {
-            Packet packet = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet packet = new Packet(PacketType.MESSAGE);
             packet.setSubType(PacketType.CONNECT);
             //::TODO lyjnew V4 delay send connect packet  ON client add Namecapse
             if (!EngineIOVersion.V4.equals(client.getEngineIOVersion())) {

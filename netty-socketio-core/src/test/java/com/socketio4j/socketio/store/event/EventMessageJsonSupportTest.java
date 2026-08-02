@@ -43,7 +43,7 @@ public class EventMessageJsonSupportTest {
     public void testSerializeEmptyBeanPayload() {
         ObjectMapper mapper = EventMessageJsonSupport.createObjectMapper();
 
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.EVENT);
         packet.setName("emptyEvent");
         packet.setData(new EmptyBean());

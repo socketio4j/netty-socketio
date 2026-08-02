@@ -54,12 +54,12 @@ public class PacketListener {
 
         switch (packet.getType()) {
         case PING: {
-            Packet outPacket = new Packet(PacketType.PONG, client.getEngineIOVersion());
+            Packet outPacket = new Packet(PacketType.PONG);
             outPacket.setData(packet.getData());
             // TODO use future
             client.getBaseClient().send(outPacket, transport);
             if ("probe".equals(packet.getData())) {
-                client.getBaseClient().send(new Packet(PacketType.NOOP, client.getEngineIOVersion()), Transport.POLLING);
+                client.getBaseClient().send(new Packet(PacketType.NOOP), Transport.POLLING);
             } else {
                 client.getBaseClient().schedulePingTimeout();
             }

@@ -87,7 +87,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                             log.debug("Sending error response for invalid namespace: {} to client: {}", 
                                      packet.getNsp(), client.getSessionId());
                         }
-                        Packet p = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+                        Packet p = new Packet(PacketType.MESSAGE);
                         p.setSubType(PacketType.ERROR);
                         p.setNsp(packet.getNsp());
                         p.setData("Invalid namespace");
@@ -194,7 +194,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                              client.getSessionId(), ns.getName());
                 }
                 
-                Packet p = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+                Packet p = new Packet(PacketType.MESSAGE);
                 p.setSubType(PacketType.ERROR);
                 p.setNsp(packet.getNsp());
                 p.setData(toConnectErrorPayload(allowAuth.getErrorData()));
@@ -207,7 +207,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                          client.getSessionId(), ns.getName());
             }
         }
-        Packet p = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+        Packet p = new Packet(PacketType.MESSAGE);
         p.setSubType(PacketType.CONNECT);
         p.setNsp(packet.getNsp());
         p.setData(new ConnPacket(client.getSessionId()));

@@ -30,7 +30,7 @@ public class Packet implements Serializable {
     private static final long serialVersionUID = 4560159536486711426L;
 
     private PacketType type;
-    private EngineIOVersion engineIOVersion;
+
     private PacketType subType;
     private Long ackId;
     private String name;
@@ -49,10 +49,6 @@ public class Packet implements Serializable {
     public Packet(PacketType type) {
         super();
         this.type = type;
-    }
-    public Packet(PacketType type, EngineIOVersion engineIOVersion) {
-        this(type);
-        this.engineIOVersion = engineIOVersion;
     }
 
     public PacketType getSubType() {
@@ -94,11 +90,11 @@ public class Packet implements Serializable {
      * @param engineIOVersion
      * @return packet
      */
-    public Packet withNsp(String namespace, EngineIOVersion engineIOVersion) {
+    public Packet withNsp(String namespace) {
         if (this.nsp.equalsIgnoreCase(namespace)) {
             return this;
         } else {
-            Packet newPacket = new Packet(this.type, engineIOVersion);
+            Packet newPacket = new Packet(this.type);
             newPacket.setAckId(this.ackId);
             newPacket.setData(this.data);
             newPacket.setDataSource(this.dataSource);
@@ -110,35 +106,6 @@ public class Packet implements Serializable {
             return newPacket;
         }
     }
-
-    /**
-     * Returns a packet with the given {@link EngineIOVersion} stamped in.
-     * <p>
-     * If {@code engineIOVersion} is already equal to this packet's version, {@code this} is
-     * returned unchanged — no allocation. Otherwise a shallow copy is created so that the
-     * shared original is never mutated. This matters during room broadcasts: {@code ClientHead.send}
-     * only enqueues the packet; {@code EncoderHandler} reads the version later on a Netty
-     * event-loop thread, so every client must hold its own stable version reference.
-     *
-     * @param engineIOVersion the EIO version to stamp onto the packet
-     * @return {@code this} if the version already matches, otherwise a new {@link Packet}
-     */
-    public Packet withEngineIOVersion(EngineIOVersion engineIOVersion) {
-        if (engineIOVersion == this.engineIOVersion) {
-            return this;
-        }
-        Packet copy = new Packet(this.type, engineIOVersion);
-        copy.setAckId(this.ackId);
-        copy.setData(this.data);
-        copy.setDataSource(this.dataSource);
-        copy.setName(this.name);
-        copy.setSubType(this.subType);
-        copy.setNsp(this.nsp);
-        copy.attachments = this.attachments;
-        copy.attachmentsCount = this.attachmentsCount;
-        return copy;
-    }
-
     public void setNsp(String endpoint) {
         //patch for #903
         if ("{}".equals(endpoint)){
@@ -195,14 +162,6 @@ public class Packet implements Serializable {
     }
     public void setDataSource(ByteBuf dataSource) {
         this.dataSource = dataSource;
-    }
-
-    public EngineIOVersion getEngineIOVersion() {
-        return engineIOVersion;
-    }
-
-    public void setEngineIOVersion(EngineIOVersion engineIOVersion) {
-        this.engineIOVersion = engineIOVersion;
     }
 
     @Override

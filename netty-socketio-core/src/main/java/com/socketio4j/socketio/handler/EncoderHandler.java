@@ -36,6 +36,8 @@ import com.socketio4j.socketio.messages.HttpMessage;
 import com.socketio4j.socketio.messages.OutPacketMessage;
 import com.socketio4j.socketio.messages.XHROptionsMessage;
 import com.socketio4j.socketio.messages.XHRPostMessage;
+import com.socketio4j.socketio.protocol.EncodePacketsResult;
+import com.socketio4j.socketio.protocol.EncodeResult;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketEncoder;
@@ -289,7 +291,8 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             }
 
             ByteBuf out = encoder.allocateBuffer(ctx.alloc());
-            encoder.encodePacket(packet, out, ctx.alloc(), true);
+            EngineIOVersion engineIOVersion = msg.getClientHead().getEngineIOVersion();
+            EncodeResult encodeResult = encoder.encodePacket(engineIOVersion, packet, out, ctx.alloc(), true);
 
             if (log.isTraceEnabled()) {
                 log.trace("Out message: {} sessionId: {}", out.toString(CharsetUtil.UTF_8), msg.getSessionId());
@@ -337,10 +340,10 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                 out.release();
             }
 
-            for (ByteBuf buf : packet.getAttachments()) {
+            for (ByteBuf buf : encodeResult.getAttachments()) {
                 ByteBuf outBuf = encoder.allocateBuffer(ctx.alloc());
-                if (EngineIOVersion.V3.equals(packet.getEngineIOVersion())
-                        || EngineIOVersion.V2.equals(packet.getEngineIOVersion())) {
+                if (EngineIOVersion.V3.equals(engineIOVersion)
+                        || EngineIOVersion.V2.equals(engineIOVersion)) {
                     outBuf.writeByte(4);
                 }
                 outBuf.writeBytes(buf);
@@ -374,12 +377,8 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         ClientHead clientHead = msg.getClientHead();
         ByteBuf out = encoder.allocateBuffer(ctx.alloc());
         EngineIOVersion engineIOVersion = clientHead.getEngineIOVersion();
-        if (engineIOVersion == null || engineIOVersion == EngineIOVersion.UNKNOWN) {
-            if (!queue.isEmpty() && queue.peek().getEngineIOVersion() != null) {
-                engineIOVersion = queue.peek().getEngineIOVersion();
-            } else {
-                engineIOVersion = EngineIOVersion.V4;
-            }
+        if (engineIOVersion == EngineIOVersion.UNKNOWN) {
+            throw new IllegalStateException("Unknown Engine.IO version for connected client");
         }
 
         Boolean b64 = ctx.channel().attr(EncoderHandler.B64).get();
@@ -390,33 +389,22 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             if (log.isDebugEnabled()) {
                 log.debug("Using JSONP encoding, index: {}, sessionId: {}", jsonpIndex, msg.getSessionId());
             }
-            encoder.encodeJsonP(jsonpIndex, queue, out, ctx.alloc(), 50);
+            encoder.encodeJsonP(engineIOVersion, jsonpIndex, queue, out, ctx.alloc(), 50);
             String type = "application/javascript";
             if (jsonpIndex == null) {
                 type = "text/plain";
             }
             sendMessage(msg, channel, out, type, promise, HttpResponseStatus.OK);
         } else {
-            boolean hasBinary = false;
-            for (Packet packet : queue) {
-                if (packet.hasAttachments() || packet.getSubType() == PacketType.BINARY_EVENT || packet.getSubType() == PacketType.BINARY_ACK) {
-                    hasBinary = true;
-                    break;
-                }
-            }
-            String contentType;
-            if (EngineIOVersion.V4.equals(engineIOVersion)) {
-                contentType = "text/plain";
-            } else if (hasBinary) {
-                contentType = "application/octet-stream";
-            } else {
-                contentType = "text/plain";
-            }
+            EncodePacketsResult result = encoder.encodePackets(engineIOVersion, queue, out, ctx.alloc(), 50);
+            String contentType = result.hasBinary()
+                    ? "application/octet-stream"
+                    : "text/plain";
 
             if (log.isDebugEnabled()) {
                 log.debug("Using {} encoding, sessionId: {}", contentType, msg.getSessionId());
             }
-            encoder.encodePackets(queue, out, ctx.alloc(), 50);
+
             sendMessage(msg, channel, out, contentType, promise, HttpResponseStatus.OK);
         }
     }

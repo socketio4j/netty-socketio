@@ -39,7 +39,7 @@ public class PacketTest extends BaseProtocolTest {
         Packet oldPacket = createPacket();
 
         String newNs = "new";
-        Packet newPacket = oldPacket.withNsp(newNs, EngineIOVersion.UNKNOWN);
+        Packet newPacket = oldPacket.withNsp(newNs);
         assertEquals(newNs, newPacket.getNsp());
         assertPacketCopied(oldPacket, newPacket);
     }
@@ -47,14 +47,14 @@ public class PacketTest extends BaseProtocolTest {
     @Test
     public void packetCopyIsCreatedWhenNewNamespaceDiffersAndIsNull() {
         Packet packet = createPacket();
-        Packet newPacket = packet.withNsp(null, EngineIOVersion.UNKNOWN);
+        Packet newPacket = packet.withNsp(null);
         assertNull(newPacket.getNsp());
     }
 
     @Test
     public void originalPacketReturnedIfNamespaceIsTheSame() {
         Packet packet = new Packet(PacketType.MESSAGE);
-        assertSame(packet, packet.withNsp("", EngineIOVersion.UNKNOWN));
+        assertSame(packet, packet.withNsp(""));
     }
 
     @Test
@@ -70,9 +70,9 @@ public class PacketTest extends BaseProtocolTest {
 
     @Test
     public void testPacketConstructorWithTypeAndEngineIOVersion() {
-        Packet packet = new Packet(PacketType.EVENT, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.EVENT);
         assertEquals(PacketType.EVENT, packet.getType());
-        assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
+        // assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
     }
 
     @Test
@@ -178,12 +178,7 @@ public class PacketTest extends BaseProtocolTest {
         assertEquals(dataSource, packet.getDataSource());
     }
 
-    @Test
-    public void testSetAndGetEngineIOVersion() {
-        Packet packet = new Packet(PacketType.MESSAGE);
-        packet.setEngineIOVersion(EngineIOVersion.V4);
-        assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
-    }
+
 
     @Test
     public void testToString() {
@@ -198,7 +193,7 @@ public class PacketTest extends BaseProtocolTest {
 
     @Test
     public void testPacketWithAllFields() {
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.EVENT);
         packet.setName("testEvent");
         packet.setData("testData");
@@ -209,7 +204,7 @@ public class PacketTest extends BaseProtocolTest {
         packet.addAttachment(Unpooled.wrappedBuffer("attachment".getBytes()));
         
         assertEquals(PacketType.MESSAGE, packet.getType());
-        assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
+        // assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
         assertEquals(PacketType.EVENT, packet.getSubType());
         assertEquals("testEvent", packet.getName());
         assertEquals("testData", packet.getData());
@@ -226,7 +221,7 @@ public class PacketTest extends BaseProtocolTest {
         Packet originalPacket = createPacket();
         String newNamespace = "/newNamespace";
         
-        Packet copiedPacket = originalPacket.withNsp(newNamespace, EngineIOVersion.V4);
+        Packet copiedPacket = originalPacket.withNsp(newNamespace);
         
         assertEquals(newNamespace, copiedPacket.getNsp());
         assertNotSame(originalPacket, copiedPacket);
@@ -247,7 +242,7 @@ public class PacketTest extends BaseProtocolTest {
         Packet originalPacket = createPacket();
         String sameNamespace = originalPacket.getNsp();
         
-        Packet copiedPacket = originalPacket.withNsp(sameNamespace, EngineIOVersion.V4);
+        Packet copiedPacket = originalPacket.withNsp(sameNamespace);
         
         assertSame(originalPacket, copiedPacket);
     }

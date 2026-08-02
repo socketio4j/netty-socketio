@@ -164,7 +164,7 @@ public class ClientHead {
                 EngineIOVersion version = client.getEngineIOVersion();
                 //only send ping packet for engine.io version 4
                 if (EngineIOVersion.V4.equals(version)) {
-                    client.send(new Packet(PacketType.PING, version));
+                    client.send(new Packet(PacketType.PING));
                 }
                 schedulePing();
             }
@@ -256,7 +256,7 @@ public class ClientHead {
     }
 
     public void disconnect() {
-        Packet packet = new Packet(PacketType.MESSAGE, engineIOVersion);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.DISCONNECT);
         ChannelFuture future = send(packet);
         if (future != null) {

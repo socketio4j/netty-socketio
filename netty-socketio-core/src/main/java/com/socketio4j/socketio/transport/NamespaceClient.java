@@ -75,7 +75,7 @@ public class NamespaceClient implements SocketIOClient {
 
     @Override
     public void sendEvent(String name, Object... data) {
-        Packet packet = new Packet(PacketType.MESSAGE, getEngineIOVersion());
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.EVENT);
         packet.setName(name);
         packet.setData(Arrays.asList(data));
@@ -84,7 +84,7 @@ public class NamespaceClient implements SocketIOClient {
 
     @Override
     public void sendEvent(String name, AckCallback<?> ackCallback, Object... data) {
-        Packet packet = new Packet(PacketType.MESSAGE, getEngineIOVersion());
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.EVENT);
         packet.setName(name);
         packet.setData(Arrays.asList(data));
@@ -117,7 +117,7 @@ public class NamespaceClient implements SocketIOClient {
             return;
         }
 
-        baseClient.send(packet.withNsp(namespace.getName(), baseClient.getEngineIOVersion()));
+        baseClient.send(packet.withNsp(namespace.getName()));
     }
 
     public void onDisconnect() {
@@ -131,7 +131,7 @@ public class NamespaceClient implements SocketIOClient {
 
     @Override
     public void disconnect() {
-        Packet packet = new Packet(PacketType.MESSAGE, getEngineIOVersion());
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.DISCONNECT);
         send(packet);
 //        onDisconnect();

@@ -144,14 +144,14 @@ public class ByteBufLeakTest {
     public void testEncoderDecoderCyclesZeroLeaks() throws IOException {
         for (int i = 0; i < 2000; i++) {
             // 1. Encode packet
-            Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+            Packet packet = new Packet(PacketType.MESSAGE);
             packet.setSubType(PacketType.EVENT);
             packet.setNsp("/leakTest");
             packet.setName("pingEvent");
             packet.setData(Arrays.asList("data_" + i));
 
             ByteBuf encodedBuffer = Unpooled.buffer();
-            encoder.encodePacket(packet, encodedBuffer, allocator, false);
+            encoder.encodePacket(EngineIOVersion.V4, packet, encodedBuffer, allocator, false);
 
             assertNotNull(encodedBuffer);
 
@@ -168,12 +168,12 @@ public class ByteBufLeakTest {
         for (int i = 0; i < 1000; i++) {
             Queue<Packet> queue = new LinkedList<>();
 
-            Packet p1 = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+            Packet p1 = new Packet(PacketType.MESSAGE);
             p1.setSubType(PacketType.CONNECT);
             p1.setNsp("");
             queue.add(p1);
 
-            Packet p2 = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+            Packet p2 = new Packet(PacketType.MESSAGE);
             p2.setSubType(PacketType.EVENT);
             p2.setNsp("");
             p2.setName("batchEvent");
@@ -181,7 +181,7 @@ public class ByteBufLeakTest {
             queue.add(p2);
 
             ByteBuf batchBuf = Unpooled.buffer();
-            encoder.encodePackets(queue, batchBuf, allocator, 10);
+            encoder.encodePackets(EngineIOVersion.V4, queue, batchBuf, allocator, 10);
 
             assertNotNull(batchBuf);
 
@@ -200,14 +200,14 @@ public class ByteBufLeakTest {
         ByteBufAllocator directAllocator = io.netty.buffer.UnpooledByteBufAllocator.DEFAULT;
 
         for (int i = 0; i < 1000; i++) {
-            Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+            Packet packet = new Packet(PacketType.MESSAGE);
             packet.setSubType(PacketType.EVENT);
             packet.setNsp("/directBuffer");
             packet.setName("directEvent");
             packet.setData(Arrays.asList("direct_data_" + i));
 
             ByteBuf directBuffer = Unpooled.directBuffer();
-            directEncoder.encodePacket(packet, directBuffer, directAllocator, false);
+            directEncoder.encodePacket(EngineIOVersion.V4, packet, directBuffer, directAllocator, false);
             assertNotNull(directBuffer);
 
             Packet decodedPacket = decoder.decodePackets(directBuffer, clientHead, Transport.POLLING);
