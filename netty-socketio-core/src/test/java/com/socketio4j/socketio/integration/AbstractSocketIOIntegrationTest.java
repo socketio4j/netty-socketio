@@ -126,6 +126,7 @@ public abstract class AbstractSocketIOIntegrationTest {
 
                 // Create and start server
                 server = new SocketIOServer(serverConfig);
+                configureNamespaces(server);
                 server.start();
 
                 // Verify server started successfully
@@ -278,4 +279,8 @@ public abstract class AbstractSocketIOIntegrationTest {
     protected String generateStatusMessage() {
         return faker.lorem().word() + " status: " + faker.lorem().sentence();
     }
+
+
+    protected void configureNamespaces(SocketIOServer server) {}
+
 }

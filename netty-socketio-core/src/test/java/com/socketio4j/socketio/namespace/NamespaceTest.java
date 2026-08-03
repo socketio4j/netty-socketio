@@ -283,4 +283,5 @@ class NamespaceTest extends BaseNamespaceTest {
         assertEquals(joinedClientIds, roomClientIds,
                 "Room should retain every client ID joined concurrently");
     }
+
 }

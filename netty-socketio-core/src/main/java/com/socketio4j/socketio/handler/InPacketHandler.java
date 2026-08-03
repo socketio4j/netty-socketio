@@ -90,7 +90,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                         Packet p = new Packet(PacketType.MESSAGE);
                         p.setSubType(PacketType.ERROR);
                         p.setNsp(packet.getNsp());
-                        p.setData("Invalid namespace");
+                        p.setData(toConnectErrorPayload(client, "Invalid namespace"));
                         client.send(p);
                         return;
                     }
@@ -103,7 +103,6 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                         log.debug("Processing CONNECT packet for namespace: {} from client: {}, Engine.IO version: {}", 
                                  ns.getName(), client.getSessionId(), client.getEngineIOVersion());
                     }
-                    
                     client.addNamespaceClient(ns);
                     NamespaceClient nClient = client.getChildClient(ns);
                     //:TODO lyjnew client namespace send connect packet 0+namespace  socket io v4
@@ -122,8 +121,14 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                     if (log.isDebugEnabled()) {
                         log.debug("Packet has unloaded attachments, deferring processing for client: {}, namespace: {}", 
                                  client.getSessionId(), ns.getName());
+                        log.debug("Waiting for binary attachment...");
                     }
-                    return;
+                    // Continue decoding remaining packets in the current POST body.
+                    // A polling request may contain:
+                    //   attachment(A), header(B), attachment(B)
+                    // Returning here would abandon unread bytes and leave later
+                    // binary attachments unprocessed.
+                    continue;
                 }
                 packetListener.onPacket(packet, nClient, message.getTransport());
                 if (log.isDebugEnabled()) {
@@ -145,6 +150,19 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         if (log.isDebugEnabled()) {
             log.debug("Completed processing {} packets for client: {}", packetsProcessed, client.getSessionId());
         }
+    }
+    private static Object toConnectErrorPayload(ClientHead client, Object errorData) {
+        if (client.getEngineIOVersion() == EngineIOVersion.V4
+                && errorData instanceof Map) {
+            return errorData;
+        }
+
+        String message = "Authentication failed";
+        if (errorData != null) {
+            message = String.valueOf(errorData);
+        }
+
+        return Collections.singletonMap("message", message);
     }
 
     @Override

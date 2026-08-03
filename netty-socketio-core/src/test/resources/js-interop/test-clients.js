@@ -321,3 +321,214 @@ socket.on('connect_error', (err) => {
     clearTimeout(timeout);
     process.exit(1);
 });
+if (scenario === "join_room") {
+
+    socket.emit("joinRoom", "room1");
+
+    socket.on("roomMessage", (msg) => {
+
+        console.log("Received:", msg);
+
+        if (msg === "hello room") {
+            clearTimeout(timeout);
+            socket.disconnect();
+            process.exit(0);
+        }
+
+        process.exit(1);
+    });
+}
+if (scenario === "leave_room") {
+
+    socket.emit("joinLeaveRoom", "room1");
+
+    socket.on("roomMessage", (msg) => {
+        console.error("Received unexpected room message:", msg);
+        process.exit(1);
+    });
+
+    socket.on("done", () => {
+        clearTimeout(timeout);
+        socket.disconnect();
+        console.log("Leave room scenario PASSED");
+        process.exit(0);
+    });
+}
+if (scenario === "join_same_room_twice") {
+
+    let received = 0;
+
+    socket.emit("joinSameRoomTwice", "room1");
+
+    socket.on("roomMessage", (msg) => {
+
+        received++;
+
+        if (received > 1) {
+            console.error("Duplicate room delivery");
+            process.exit(1);
+        }
+
+        if (msg !== "hello room") {
+            console.error("Unexpected message:", msg);
+            process.exit(1);
+        }
+
+        setTimeout(() => {
+
+            if (received !== 1) {
+                console.error("Expected exactly one room message, got", received);
+                process.exit(1);
+            }
+
+            clearTimeout(timeout);
+            socket.disconnect();
+            console.log("Join same room twice PASSED");
+            process.exit(0);
+
+        }, 300);
+    });
+}
+if (scenario === "leave_unknown_room") {
+
+    socket.emit("leaveUnknownRoom", "roomB");
+
+    socket.on("roomMessage", (msg) => {
+
+        if (msg !== "hello_roomA") {
+            console.error("Unexpected message:", msg);
+            process.exit(1);
+        }
+
+        clearTimeout(timeout);
+        socket.disconnect();
+        console.log("ROOM-004 PASSED");
+        process.exit(0);
+    });
+}
+
+if (scenario === "join_multiple_rooms") {
+
+    let roomAReceived = false;
+    let roomBReceived = false;
+
+    socket.emit("joinMultipleRooms", "");
+
+    socket.on("roomAMessage", (msg) => {
+        if (msg !== "hello_roomA") {
+            process.exit(1);
+        }
+
+        roomAReceived = true;
+
+        if (roomAReceived && roomBReceived) {
+            clearTimeout(timeout);
+            socket.disconnect();
+            console.log("ROOM-005 PASSED");
+            process.exit(0);
+        }
+    });
+
+    socket.on("roomBMessage", (msg) => {
+        if (msg !== "hello_roomB") {
+            process.exit(1);
+        }
+
+        roomBReceived = true;
+
+        if (roomAReceived && roomBReceived) {
+            clearTimeout(timeout);
+            socket.disconnect();
+            console.log("ROOM-005 PASSED");
+            process.exit(0);
+        }
+    });
+}
+if (scenario === "leave_one_room") {
+
+    let roomAReceived = false;
+    let roomBReceived = false;
+
+    socket.emit("leaveOneRoom", "");
+
+    socket.on("roomAMessage", () => {
+        roomAReceived = true;
+    });
+
+    socket.on("roomBMessage", (msg) => {
+
+        if (msg !== "hello_roomB") {
+            process.exit(1);
+        }
+
+        roomBReceived = true;
+
+        setTimeout(() => {
+
+            if (roomAReceived) {
+                console.error("Received roomA message after leaving roomA");
+                process.exit(1);
+            }
+
+            if (!roomBReceived) {
+                console.error("Did not receive roomB message");
+                process.exit(1);
+            }
+
+            clearTimeout(timeout);
+            socket.disconnect();
+            console.log("ROOM-006 PASSED");
+            process.exit(0);
+
+        }, 300);
+    });
+}
+socket.emit("leaveAllRooms", "");
+
+let received = false;
+
+socket.on("roomAMessage", () => received = true);
+socket.on("roomBMessage", () => received = true);
+socket.on("roomCMessage", () => received = true);
+
+// Wait a little to ensure no messages arrive.
+setTimeout(() => {
+
+    if (received) {
+        console.error("Received room message after leaving all rooms");
+        process.exit(1);
+    }
+
+    clearTimeout(timeout);
+    socket.disconnect();
+    console.log("ROOM-007 PASSED");
+    process.exit(0);
+
+}, 500);
+
+if (scenario === "disconnect_rooms") {
+
+    socket.emit("joinAndDisconnect", "");
+
+    socket.on("disconnectNow", () => {
+        socket.disconnect();
+    });
+
+    socket.on("roomAMessage", () => {
+        console.error("Received roomA message after disconnect");
+        process.exit(1);
+    });
+
+    socket.on("roomBMessage", () => {
+        console.error("Received roomB message after disconnect");
+        process.exit(1);
+    });
+
+    socket.on("disconnect", () => {
+        setTimeout(() => {
+            clearTimeout(timeout);
+            console.log("ROOM-008 PASSED");
+            process.exit(0);
+        }, 300);
+    });
+}

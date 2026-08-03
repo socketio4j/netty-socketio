@@ -19,8 +19,13 @@ package com.socketio4j.socketio.integration;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.DisplayName;
@@ -28,9 +33,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.socketio4j.socketio.SocketIONamespace;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -641,4 +649,345 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         public String getCustomerEmail() { return customerEmail; }
         public void setCustomerEmail(String customerEmail) { this.customerEmail = customerEmail; }
     }
+
+    @ParameterizedTest(name = "Client v{0} over {1} - Join Single Room")
+    @CsvSource({
+            "1, websocket",
+            "1, polling",
+            "2, websocket",
+            "2, polling",
+            "3, websocket",
+            "3, polling",
+            "4, websocket",
+            "4, polling"
+    })
+    void testJoinSingleRoom(String version, String transport) throws Exception {
+
+        AtomicBoolean joined = new AtomicBoolean(false);
+
+        getServer().addEventListener("joinRoom", String.class,
+                (client, room, ackSender) -> {
+
+                    client.joinRoom(room);
+                    joined.set(true);
+
+                    getServer()
+                            .getRoomOperations(room)
+                            .sendEvent("roomMessage", "hello room");
+                });
+
+        runJsTest(version, transport, "join_room");
+
+        assertTrue(joined.get());
+    }
+    ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    @ParameterizedTest(name = "Client v{0} over {1} - Leave Room")
+    @CsvSource({
+            "1, websocket",
+            "1, polling",
+            "2, websocket",
+            "2, polling",
+            "3, websocket",
+            "3, polling",
+            "4, websocket",
+            "4, polling"
+    })
+    void testLeaveRoom(String version, String transport) throws Exception {
+
+        AtomicBoolean joined = new AtomicBoolean(false);
+        AtomicBoolean left = new AtomicBoolean(false);
+
+        getServer().addEventListener("joinLeaveRoom", String.class,
+                (client, room, ackSender) -> {
+
+                    client.joinRoom(room);
+                    joined.set(true);
+
+                    client.leaveRoom(room);
+                    left.set(true);
+
+                    // This should NOT reach the client.
+                    getServer()
+                            .getRoomOperations(room)
+                            .sendEvent("roomMessage", "should_not_receive");
+
+                    // Give the client time to receive (or not receive) the room broadcast.
+
+
+                    scheduler.schedule(() -> {
+                        client.sendEvent("done");
+                    }, 500, TimeUnit.MILLISECONDS);
+
+                    scheduler.shutdown();
+                });
+
+        runJsTest(version, transport, "leave_room");
+
+        assertTrue(joined.get());
+        assertTrue(left.get());
+    }
+
+    @ParameterizedTest(name = "Client v{0} over {1} - Join Same Room Twice")
+    @CsvSource({
+            "1, websocket",
+            "1, polling",
+            "2, websocket",
+            "2, polling",
+            "3, websocket",
+            "3, polling",
+            "4, websocket",
+            "4, polling"
+    })
+    void testJoinSameRoomTwice(String version, String transport) throws Exception {
+
+        AtomicInteger joinCount = new AtomicInteger();
+
+        getServer().addEventListener("joinSameRoomTwice", String.class,
+                (client, room, ackSender) -> {
+
+                    client.joinRoom(room);
+                    joinCount.incrementAndGet();
+
+                    // Join again
+                    client.joinRoom(room);
+                    joinCount.incrementAndGet();
+
+                    getServer()
+                            .getRoomOperations(room)
+                            .sendEvent("roomMessage", "hello room");
+                });
+
+        runJsTest(version, transport, "join_same_room_twice");
+
+        assertEquals(2, joinCount.get(),
+                "Server should execute both joinRoom() calls");
+    }
+    @ParameterizedTest(name = "[ROOM-004] Client v{0} over {1} - Leave Room Not Joined")
+    @CsvSource({
+            "1, websocket",
+            "1, polling",
+            "2, websocket",
+            "2, polling",
+            "3, websocket",
+            "3, polling",
+            "4, websocket",
+            "4, polling"
+    })
+    void testLeaveRoomNotJoined(String version, String transport) throws Exception {
+
+        AtomicBoolean handlerInvoked = new AtomicBoolean();
+
+        getServer().addEventListener("leaveUnknownRoom", String.class,
+                (client, room, ackSender) -> {
+
+                    // Join only roomA
+                    client.joinRoom("roomA");
+
+                    // Attempt to leave roomB (never joined)
+                    client.leaveRoom("roomB");
+
+                    handlerInvoked.set(true);
+
+                    // Client should still be in roomA
+                    getServer()
+                            .getRoomOperations("roomA")
+                            .sendEvent("roomMessage", "hello_roomA");
+                });
+
+        runJsTest(version, transport, "leave_unknown_room");
+
+        assertTrue(handlerInvoked.get(),
+                "Server handler should have been invoked");
+    }
+
+    @ParameterizedTest(name = "[ROOM-005] Client v{0} over {1} - Join Multiple Rooms")
+    @CsvSource({
+            "1, websocket",
+            "1, polling",
+            "2, websocket",
+            "2, polling",
+            "3, websocket",
+            "3, polling",
+            "4, websocket",
+            "4, polling"
+    })
+    void testJoinMultipleRooms(String version, String transport) throws Exception {
+
+        AtomicBoolean joinedRoomA = new AtomicBoolean();
+        AtomicBoolean joinedRoomB = new AtomicBoolean();
+        AtomicReference<Set<String>> rooms = new AtomicReference<>();
+        getServer().addEventListener("joinMultipleRooms", String.class,
+                (client, ignored, ackSender) -> {
+
+                    client.joinRoom("roomA");
+                    if (client.getAllRooms().contains("roomA")) {
+                        joinedRoomA.set(true);
+                    }
+
+                    client.joinRoom("roomB");
+                    if (client.getAllRooms().contains("roomB")) {
+                        joinedRoomB.set(true);
+                    }
+
+                    rooms.set(new HashSet<>(client.getAllRooms()));
+                    getServer()
+                            .getRoomOperations("roomA")
+                            .sendEvent("roomAMessage", "hello_roomA");
+
+                    getServer()
+                            .getRoomOperations("roomB")
+                            .sendEvent("roomBMessage", "hello_roomB");
+                });
+
+        runJsTest(version, transport, "join_multiple_rooms");
+
+        assertTrue(joinedRoomA.get(), "Client should join roomA");
+        assertTrue(joinedRoomB.get(), "Client should join roomB");
+        assertNotNull(rooms.get());
+        assertTrue(rooms.get().contains("roomA"), "Client should be in roomA");
+        assertTrue(rooms.get().contains("roomB"), "Client should be in roomB");
+    }
+    @ParameterizedTest(name = "[ROOM-006] Client v{0} over {1} - Leave One of Multiple Rooms")
+    @CsvSource({
+            "1, websocket",
+            "1, polling",
+            "2, websocket",
+            "2, polling",
+            "3, websocket",
+            "3, polling",
+            "4, websocket",
+            "4, polling"
+    })
+    void testLeaveOneOfMultipleRooms(String version, String transport) throws Exception {
+
+        AtomicReference<Set<String>> rooms = new AtomicReference<>();
+
+        getServer().addEventListener("leaveOneRoom", String.class,
+                (client, ignored, ackSender) -> {
+
+                    client.joinRoom("roomA");
+                    client.joinRoom("roomB");
+
+                    client.leaveRoom("roomA");
+
+                    rooms.set(new HashSet<>(client.getAllRooms()));
+
+                    getServer()
+                            .getRoomOperations("roomA")
+                            .sendEvent("roomAMessage", "should_not_receive");
+
+                    getServer()
+                            .getRoomOperations("roomB")
+                            .sendEvent("roomBMessage", "hello_roomB");
+                });
+
+        runJsTest(version, transport, "leave_one_room");
+
+        assertNotNull(rooms.get());
+
+        assertFalse(rooms.get().contains("roomA"),
+                "Client should have left roomA");
+
+        assertTrue(rooms.get().contains("roomB"),
+                "Client should still be in roomB");
+
+    }
+
+    @ParameterizedTest(name = "[ROOM-007] Client v{0} over {1} - Leave All Rooms")
+    @CsvSource({
+            "1, websocket",
+            "1, polling",
+            "2, websocket",
+            "2, polling",
+            "3, websocket",
+            "3, polling",
+            "4, websocket",
+            "4, polling"
+    })
+    void testLeaveAllRooms(String version, String transport) throws Exception {
+
+        AtomicReference<Set<String>> rooms = new AtomicReference<>();
+
+        getServer().addEventListener("leaveAllRooms", String.class,
+                (client, ignored, ackSender) -> {
+
+                    client.joinRoom("roomA");
+                    client.joinRoom("roomB");
+                    client.joinRoom("roomC");
+
+                    client.leaveRoom("roomA");
+                    client.leaveRoom("roomB");
+                    client.leaveRoom("roomC");
+
+                    rooms.set(new HashSet<>(client.getAllRooms()));
+
+                    getServer().getRoomOperations("roomA")
+                            .sendEvent("roomAMessage", "A");
+
+                    getServer().getRoomOperations("roomB")
+                            .sendEvent("roomBMessage", "B");
+
+                    getServer().getRoomOperations("roomC")
+                            .sendEvent("roomCMessage", "C");
+                });
+
+        runJsTest(version, transport, "leave_all_rooms");
+
+        assertNotNull(rooms.get());
+
+        assertFalse(rooms.get().contains("roomA"));
+        assertFalse(rooms.get().contains("roomB"));
+        assertFalse(rooms.get().contains("roomC"));
+    }
+    @ParameterizedTest(name = "[ROOM-008] Client v{0} over {1} - Auto Remove From Rooms On Disconnect")
+    @CsvSource({
+            "1, websocket",
+            "1, polling",
+            "2, websocket",
+            "2, polling",
+            "3, websocket",
+            "3, polling",
+            "4, websocket",
+            "4, polling"
+    })
+    void testAutoRemoveRoomsOnDisconnect(String version, String transport) throws Exception {
+
+        AtomicReference<Set<String>> roomsBeforeDisconnect = new AtomicReference<>();
+        AtomicBoolean disconnectListenerInvoked = new AtomicBoolean();
+
+        getServer().addEventListener("joinAndDisconnect", String.class,
+                (client, ignored, ackSender) -> {
+
+                    client.joinRoom("roomA");
+                    client.joinRoom("roomB");
+
+                    roomsBeforeDisconnect.set(new HashSet<>(client.getAllRooms()));
+
+                    // Ask JS client to disconnect.
+                    client.sendEvent("disconnectNow");
+                });
+
+        getServer().addDisconnectListener(client -> {
+            disconnectListenerInvoked.set(true);
+
+            // Broadcast after disconnect.
+            // Client must not receive these.
+            getServer().getRoomOperations("roomA")
+                    .sendEvent("roomAMessage", "A");
+
+            getServer().getRoomOperations("roomB")
+                    .sendEvent("roomBMessage", "B");
+        });
+
+        runJsTest(version, transport, "disconnect_rooms");
+
+        assertNotNull(roomsBeforeDisconnect.get());
+
+        assertTrue(roomsBeforeDisconnect.get().contains("roomA"));
+        assertTrue(roomsBeforeDisconnect.get().contains("roomB"));
+
+        assertTrue(disconnectListenerInvoked.get(),
+                "DisconnectListener should have been invoked");
+    }
+
 }

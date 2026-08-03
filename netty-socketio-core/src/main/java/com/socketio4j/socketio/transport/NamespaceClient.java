@@ -131,10 +131,22 @@ public class NamespaceClient implements SocketIOClient {
 
     @Override
     public void disconnect() {
+        if (!isConnected()) {
+            return;
+        }
+
         Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.DISCONNECT);
-        send(packet);
-//        onDisconnect();
+
+        baseClient.send(packet.withNsp(namespace.getName()))
+                .addListener(future -> {
+                    if (future.isSuccess()) {
+                        onDisconnect();
+                    } else {
+                        log.warn("Failed to send namespace disconnect for client {} in namespace {}",
+                                getSessionId(), namespace.getName(), future.cause());
+                    }
+                });
     }
 
     @Override
