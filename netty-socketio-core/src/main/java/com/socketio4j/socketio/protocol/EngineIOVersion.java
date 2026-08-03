@@ -19,9 +19,12 @@ package com.socketio4j.socketio.protocol;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.socketio4j.socketio.annotation.Internal;
+
 /**
  * Engine.IO protocol version
  */
+@Internal
 public enum EngineIOVersion {
     /**
      * @link <a href="https://github.com/socketio/engine.io-protocol/tree/v2">Engine.IO version 2</a>

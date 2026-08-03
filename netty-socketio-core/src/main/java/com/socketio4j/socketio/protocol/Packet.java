@@ -21,10 +21,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.namespace.Namespace;
 
 import io.netty.buffer.ByteBuf;
 
+@Internal
 public class Packet implements Serializable {
 
     private static final long serialVersionUID = 4560159536486711426L;
@@ -38,7 +40,6 @@ public class Packet implements Serializable {
 
     private Object data;
 
-    private ByteBuf dataSource;
     private int attachmentsCount;
     private List<ByteBuf> attachments = Collections.emptyList();
 
@@ -97,7 +98,6 @@ public class Packet implements Serializable {
             Packet newPacket = new Packet(this.type);
             newPacket.setAckId(this.ackId);
             newPacket.setData(this.data);
-            newPacket.setDataSource(this.dataSource);
             newPacket.setName(this.name);
             newPacket.setSubType(this.subType);
             newPacket.setNsp(namespace);
@@ -155,13 +155,6 @@ public class Packet implements Serializable {
     }
     public boolean isAttachmentsLoaded() {
         return this.attachments.size() == attachmentsCount;
-    }
-
-    public ByteBuf getDataSource() {
-        return dataSource;
-    }
-    public void setDataSource(ByteBuf dataSource) {
-        this.dataSource = dataSource;
     }
 
     @Override

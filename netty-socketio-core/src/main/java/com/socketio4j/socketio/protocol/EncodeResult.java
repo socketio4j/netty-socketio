@@ -20,14 +20,17 @@ package com.socketio4j.socketio.protocol;
 import java.util.Collections;
 import java.util.List;
 
+import com.socketio4j.socketio.annotation.Internal;
+
 import io.netty.buffer.ByteBuf;
+
 
 
 /**
  * @author https://github.com/sanjomo
  * @date 02/08/26 2:36 am
  */
-
+@Internal
 public final class EncodeResult {
 
     private final ByteBuf encodedPacket;

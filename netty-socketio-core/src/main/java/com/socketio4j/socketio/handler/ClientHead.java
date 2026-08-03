@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +50,7 @@ import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.StoreFactory;
 import com.socketio4j.socketio.transport.NamespaceClient;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -77,6 +79,7 @@ public class ClientHead {
     private final Configuration configuration;
 
     private Packet lastBinaryPacket;
+    private ByteBuf lastBinaryPacketSource;
 
     // TODO use lazy set
     private volatile Transport currentTransport;
@@ -313,11 +316,25 @@ public class ClientHead {
         return channels.get(transport).getPacketsQueue();
     }
 
-    public void setLastBinaryPacket(Packet lastBinaryPacket) {
-        this.lastBinaryPacket = lastBinaryPacket;
-    }
+
     public Packet getLastBinaryPacket() {
         return lastBinaryPacket;
+    }
+
+    public ByteBuf getLastBinaryPacketSource() {
+        return lastBinaryPacketSource;
+    }
+
+    public void setPendingBinaryPacket(@NotNull Packet packet, @NotNull ByteBuf source) {
+        this.lastBinaryPacket = packet;
+        this.lastBinaryPacketSource = source;
+    }
+    public void clearPendingBinaryPacket() {
+        this.lastBinaryPacket = null;
+        if (lastBinaryPacketSource != null) {
+            lastBinaryPacketSource.release();
+            lastBinaryPacketSource = null;
+        }
     }
 
     public EngineIOVersion getEngineIOVersion() {

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Queue;
 
 import com.socketio4j.socketio.Configuration;
+import com.socketio4j.socketio.annotation.Internal;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -32,6 +33,7 @@ import io.netty.handler.codec.base64.Base64;
 import io.netty.handler.codec.base64.Base64Dialect;
 import io.netty.util.CharsetUtil;
 
+@Internal
 public class PacketEncoder {
 
     private static final byte[] BINARY_HEADER = "b4".getBytes(CharsetUtil.UTF_8);
@@ -436,9 +438,6 @@ public class PacketEncoder {
                         buf.writeBytes(encBuf);
                         encBuf.release();
                     }
-
-                    // attachments now need to be written by the caller
-                    // instead of packet.getAttachments()
 
                     break;
                 }

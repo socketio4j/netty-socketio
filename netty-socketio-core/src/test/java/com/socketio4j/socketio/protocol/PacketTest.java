@@ -169,15 +169,6 @@ public class PacketTest extends BaseProtocolTest {
         assertEquals(2, packet.getAttachments().size()); // Should not exceed limit
     }
 
-    @Test
-    public void testSetAndGetDataSource() {
-        Packet packet = new Packet(PacketType.MESSAGE);
-        io.netty.buffer.ByteBuf dataSource = Unpooled.wrappedBuffer("source".getBytes());
-        
-        packet.setDataSource(dataSource);
-        assertEquals(dataSource, packet.getDataSource());
-    }
-
 
 
     @Test
@@ -199,7 +190,7 @@ public class PacketTest extends BaseProtocolTest {
         packet.setData("testData");
         packet.setAckId(456L);
         packet.setNsp("/test");
-        packet.setDataSource(Unpooled.wrappedBuffer("source".getBytes()));
+        // packet.setDataSource(Unpooled.wrappedBuffer("source".getBytes()));
         packet.initAttachments(1);
         packet.addAttachment(Unpooled.wrappedBuffer("attachment".getBytes()));
         
@@ -210,7 +201,7 @@ public class PacketTest extends BaseProtocolTest {
         assertEquals("testData", packet.getData());
         assertEquals(Long.valueOf(456), packet.getAckId());
         assertEquals("/test", packet.getNsp());
-        assertNotNull(packet.getDataSource());
+        // assertNotNull(packet.getDataSource());
         assertTrue(packet.hasAttachments());
         assertTrue(packet.isAttachmentsLoaded());
         assertEquals(1, packet.getAttachments().size());
@@ -234,7 +225,7 @@ public class PacketTest extends BaseProtocolTest {
         Object copiedData = copiedPacket.getData();
         assertEquals(originalData, copiedData);
         assertSame(originalPacket.getAttachments(), copiedPacket.getAttachments());
-        assertSame(originalPacket.getDataSource(), copiedPacket.getDataSource());
+        // assertSame(originalPacket.getDataSource(), copiedPacket.getDataSource());
     }
 
     @Test
@@ -259,7 +250,7 @@ public class PacketTest extends BaseProtocolTest {
         Object oldData = oldPacket.getData();
         Object newData = newPacket.getData();
         assertEquals(oldData, newData);
-        assertSame(oldPacket.getDataSource(), newPacket.getDataSource());
+        // assertSame(oldPacket.getDataSource(), newPacket.getDataSource());
     }
 
     private Packet createPacket() {
@@ -269,7 +260,7 @@ public class PacketTest extends BaseProtocolTest {
         packet.setData("data");
         packet.setAckId(1L);
         packet.setNsp("old");
-        packet.setDataSource(Unpooled.wrappedBuffer(new byte[]{10}));
+        // packet.setDataSource(Unpooled.wrappedBuffer(new byte[]{10}));
         packet.initAttachments(1);
         packet.addAttachment(Unpooled.wrappedBuffer(new byte[]{20}));
         return packet;

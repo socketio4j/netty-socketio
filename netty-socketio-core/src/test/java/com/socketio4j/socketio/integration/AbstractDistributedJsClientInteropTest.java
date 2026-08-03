@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (c) 2025 The Socketio4j Project
  * Parent project : Copyright (c) 2012-2025 Nikita Koksharov
  *
@@ -16,7 +16,10 @@
  */
 package com.socketio4j.socketio.integration;
 
+import com.socketio4j.socketio.AckCallback;
+import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIOServer;
+import com.socketio4j.socketio.listener.DataListener;
 import com.socketio4j.socketio.namespace.Namespace;
 
 import org.junit.jupiter.api.AfterAll;
@@ -29,28 +32,31 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Abstract Multi-Node Distributed Cluster Interoperability Suite with Official JS Clients.
- *
- * <p>Verifies distributed event store & pub-sub memory store propagation across a 16-client matrix:
- * <ul>
- *   <li>Server 1 (Node 1) connected to 8 Clients (v1, v2, v3, v4 x WebSocket & Polling)</li>
- *   <li>Server 2 (Node 2) connected to 8 Clients (v1, v2, v3, v4 x WebSocket & Polling)</li>
- * </ul>
- *
- * <p>Concrete subclasses provide store-factory implementations (Redisson, Hazelcast, etc.).
+ * Covers 16 end-to-end cluster scenario permutations across v1-v4 official clients and WS/Polling transports.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class AbstractDistributedJsClientInteropTest {
 
-    private static final java.util.Set<JsClientProcess> ALL_ACTIVE_PROCESSES = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final java.util.Set<JsClientProcess> ALL_ACTIVE_PROCESSES = ConcurrentHashMap.newKeySet();
 
     static {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -66,12 +72,12 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
     protected SocketIOServer node1;
     protected SocketIOServer node2;
-
     protected int port1;
     protected int port2;
-
     protected File jsScript;
     protected File jsDir;
+
+    private final Map<String, SocketIOClient> connectedClientMap = new ConcurrentHashMap<>();
 
     @BeforeAll
     public abstract void setupCluster() throws Exception;
@@ -90,15 +96,24 @@ public abstract class AbstractDistributedJsClientInteropTest {
     }
 
     protected void attachDefaultRoomListeners(SocketIOServer server) {
-        server.addEventListener("join-room", String.class, (client, roomName, ackRequest) -> {
+        attachDefaultRoomListeners(server.getNamespace(""));
+    }
+
+    protected void attachDefaultRoomListeners(com.socketio4j.socketio.SocketIONamespace ns) {
+        ns.addEventListener("client-ready", String.class, (client, clientName, ackRequest) -> {
+            connectedClientMap.put(clientName, client);
+        });
+        ns.addEventListener("join-room", String.class, (client, roomName, ackRequest) -> {
             try {
                 client.joinRoom(roomName);
+                // Private session room for direct 1-to-1 routing across cluster
+                client.joinRoom(client.getSessionId().toString());
                 client.sendEvent("join-ok", roomName);
             } catch (Exception e) {
                 System.err.println("Error joining room " + roomName + " for client " + client.getSessionId() + ": " + e.getMessage());
             }
         });
-        server.addEventListener("leave-room", String.class, (client, roomName, ackRequest) -> {
+        ns.addEventListener("leave-room", String.class, (client, roomName, ackRequest) -> {
             try {
                 client.leaveRoom(roomName);
                 client.sendEvent("leave-ok", roomName);
@@ -108,33 +123,22 @@ public abstract class AbstractDistributedJsClientInteropTest {
         });
     }
 
-    /**
-     * Waits for cluster-wide room membership on BOTH nodes to reach {@code expected}.
-     * Fails fast if any JS client process terminates prematurely with an error.
-     */
-    protected void awaitRoomSync(String room, int expected) throws InterruptedException {
-        awaitRoomSync(room, expected, null);
+    protected void awaitRoomSync(String room, int expected, List<JsClientProcess> processes) throws InterruptedException {
+        awaitRoomSync("", room, expected, processes);
     }
 
-    protected void awaitRoomSync(String room, int expected, List<JsClientProcess> processes) throws InterruptedException {
+    protected void awaitRoomSync(String namespace, String room, int expected, List<JsClientProcess> processes) throws InterruptedException {
         long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(30);
         int stableTicks = 0;
 
-        Namespace ns1 = node1 != null ? (Namespace) node1.getNamespace("") : null;
-        Namespace ns2 = node2 != null ? (Namespace) node2.getNamespace("") : null;
+        Namespace ns1 = node1 != null ? (Namespace) node1.getNamespace(namespace) : null;
+        Namespace ns2 = node2 != null ? (Namespace) node2.getNamespace(namespace) : null;
 
         while (System.currentTimeMillis() < deadline) {
+            checkProcessesAlive(processes, room, expected);
+
             int n1 = ns1 != null ? ns1.getRoomClientsInCluster(room) : 0;
             int n2 = ns2 != null ? ns2.getRoomClientsInCluster(room) : 0;
-
-            // Fail fast if any JS process exited with an error status during sync
-            if (processes != null) {
-                for (JsClientProcess p : processes) {
-                    if (!p.isAlive() && p.exitValue() != 0) {
-                        failFastOnClientFailure(room, expected, n1, n2, processes, p);
-                    }
-                }
-            }
 
             if (n1 == expected && n2 == expected) {
                 if (++stableTicks >= 3) return;
@@ -143,9 +147,31 @@ public abstract class AbstractDistributedJsClientInteropTest {
             }
             Thread.sleep(20);
         }
+        failWithDiagnostics(room, expected, processes);
+    }
 
-        int n1 = ns1 != null ? ns1.getRoomClientsInCluster(room) : 0;
-        int n2 = ns2 != null ? ns2.getRoomClientsInCluster(room) : 0;
+    private void checkProcessesAlive(List<JsClientProcess> processes, String room, int expected) {
+        if (processes == null) return;
+        for (JsClientProcess p : processes) {
+            if (!p.isAlive() && p.exitValue() != 0) {
+                failFastOnClientFailure(room, expected, processes, p);
+            }
+        }
+    }
+
+    private void failFastOnClientFailure(String room, int expected, List<JsClientProcess> processes, JsClientProcess failedProcess) {
+        StringBuilder diag = new StringBuilder();
+        diag.append(String.format("FAIL-FAST: JS Client process '%s' (v%s, %s, port %d) exited unexpectedly with status %d during execution for room '%s' (expected %d clients)!\n",
+                failedProcess.getName(), failedProcess.getVersion(), failedProcess.getTransport(),
+                failedProcess.getPort(), failedProcess.exitValue(), room, expected));
+
+        diag.append("\nFailed Process Log:\n").append(failedProcess.getLogOutput());
+        fail(diag.toString());
+    }
+
+    private void failWithDiagnostics(String room, int expected, List<JsClientProcess> processes) {
+        Namespace ns1 = node1 != null ? (Namespace) node1.getNamespace("") : null;
+        Namespace ns2 = node2 != null ? (Namespace) node2.getNamespace("") : null;
 
         StringBuilder diag = new StringBuilder();
         diag.append(String.format("Room '%s' sync timed out! Expected %d clients on each node.\n", room, expected));
@@ -153,78 +179,32 @@ public abstract class AbstractDistributedJsClientInteropTest {
                 port1,
                 node1 != null ? countClients(node1.getAllClients()) : -1,
                 ns1 != null ? countClients(ns1.getRoomClients(room)) : -1,
-                n1));
+                ns1 != null ? ns1.getRoomClientsInCluster(room) : -1));
         diag.append(String.format("  Node 2 (port %d): totalClients=%d, localRoomClients=%d, clusterRoomClients=%d\n",
                 port2,
                 node2 != null ? countClients(node2.getAllClients()) : -1,
                 ns2 != null ? countClients(ns2.getRoomClients(room)) : -1,
-                n2));
+                ns2 != null ? ns2.getRoomClientsInCluster(room) : -1));
 
         if (processes != null && !processes.isEmpty()) {
-            diag.append("\nJS Client Process Statuses:\n");
-            for (JsClientProcess p : processes) {
-                boolean alive = p.isAlive();
-                int exitCode = alive ? -1 : p.exitValue();
-                diag.append(String.format("  - %s (v%s, %s, port %d): %s (exitCode=%d)\n",
-                        p.getName(), p.getVersion(), p.getTransport(), p.getPort(),
-                        alive ? "RUNNING" : "EXITED", exitCode));
-            }
-
             diag.append("\nJS Client Output Logs:\n");
             for (JsClientProcess p : processes) {
-                String logs = p.getLogOutput().trim();
-                if (!logs.isEmpty()) {
-                    diag.append("--- Log for ").append(p.getName()).append(" ---\n");
-                    diag.append(logs).append("\n");
-                }
+                diag.append("--- Log for ").append(p.getName()).append(" ---\n").append(p.getLogOutput()).append("\n");
             }
         }
-
         fail(diag.toString());
     }
 
-    private void failFastOnClientFailure(String room, int expected, int n1, int n2,
-                                         List<JsClientProcess> processes, JsClientProcess failedProcess) {
-        StringBuilder diag = new StringBuilder();
-        diag.append(String.format("FAIL-FAST: JS Client process '%s' (v%s, %s, port %d) exited unexpectedly with status %d during awaitRoomSync for room '%s' (expected %d, got node1=%d / node2=%d)!\n",
-                failedProcess.getName(), failedProcess.getVersion(), failedProcess.getTransport(),
-                failedProcess.getPort(), failedProcess.exitValue(), room, expected, n1, n2));
-
-        diag.append("\nFailed Process Log:\n");
-        diag.append(failedProcess.getLogOutput());
-
-        diag.append("\nAll Processes Statuses:\n");
-        for (JsClientProcess p : processes) {
-            boolean alive = p.isAlive();
-            int exitCode = alive ? -1 : p.exitValue();
-            diag.append(String.format("  - %s (v%s, %s, port %d): %s (exitCode=%d)\n",
-                    p.getName(), p.getVersion(), p.getTransport(), p.getPort(),
-                    alive ? "RUNNING" : "EXITED", exitCode));
-        }
-
-        fail(diag.toString());
-    }
-
-    /**
-     * Helper to launch all 16 client matrix combinations (4 versions x 2 transports x 2 servers).
-     */
-    protected List<JsClientProcess> launchFullClientMatrix(String scenario, String room) throws Exception {
+    protected List<JsClientProcess> launchFullClientMatrix(String scenario, String room, Map<String, String> extraArgs) throws Exception {
+        connectedClientMap.clear(); // Prevents cross-test state leakage
         List<JsClientProcess> processes = new ArrayList<>();
         String[] versions = {"1", "2", "3", "4"};
         String[] transports = {"websocket", "polling"};
 
-        // 8 clients on Node 1
         for (String v : versions) {
             for (String t : transports) {
-                String name = "n1_v" + v + "_" + t;
-                processes.add(launchJsClient(name, v, port1, t, scenario, room));
-            }
-        }
-        // 8 clients on Node 2
-        for (String v : versions) {
-            for (String t : transports) {
-                String name = "n2_v" + v + "_" + t;
-                processes.add(launchJsClient(name, v, port2, t, scenario, room));
+                processes.add(launchJsClient("n1_v" + v + "_" + t, v, port1, t, scenario, room, extraArgs));
+                processes.add(launchJsClient("n2_v" + v + "_" + t, v, port2, t, scenario, room, extraArgs));
             }
         }
         return processes;
@@ -251,21 +231,25 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    /**
-     * POSITIVE TEST 1: Distributed Room Broadcast across 2 Servers & 16 JS Clients.
-     */
-    @DisplayName("Positive 1 - Multi-Node Room Broadcast (16 Clients: v1-v4 x WS/Polling x 2 Servers)")
+    // --- TEST SCENARIOS ---
+
+    @DisplayName("Positive 1 - Multi-Node Room Broadcast with Unique Nonces (16 Clients)")
     @Test
     public void testDistributedRoomBroadcast_Positive() throws Exception {
         final String room = "ClusterRoomAlpha_" + System.currentTimeMillis();
+        final String nonce1 = "NONCE_N1_" + UUID.randomUUID();
+        final String nonce2 = "NONCE_N2_" + UUID.randomUUID();
 
-        List<JsClientProcess> processes = launchFullClientMatrix("dist_room_broadcast", room);
+        Map<String, String> extraArgs = new HashMap<>();
+        extraArgs.put("nonce1", nonce1);
+        extraArgs.put("nonce2", nonce2);
+
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_room_broadcast", room, extraArgs);
         try {
             awaitRoomSync(room, 16, processes);
 
-            node1.getRoomOperations(room).sendEvent("dist-event", "msg_from_server1");
-            Thread.sleep(500);
-            node2.getRoomOperations(room).sendEvent("dist-event", "msg_from_server2");
+            node1.getRoomOperations(room).sendEvent("dist-event", nonce1);
+            node2.getRoomOperations(room).sendEvent("dist-event", nonce2);
 
             verifyAndCleanUpProcesses(processes, 25);
         } finally {
@@ -273,38 +257,37 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    /**
-     * NEGATIVE TEST 2: Comprehensive Distributed Room Isolation (16 Clients).
-     */
-    @DisplayName("Negative 2 - Distributed Room Isolation across Cluster (16 Clients)")
+    @DisplayName("Negative 2 - Distributed Room Isolation with Unique Nonces (16 Clients)")
     @Test
     public void testDistributedRoomIsolation_Negative() throws Exception {
-        final String roomRed  = "RoomRed_"  + System.currentTimeMillis();
+        final String roomRed = "RoomRed_" + System.currentTimeMillis();
         final String roomBlue = "RoomBlue_" + System.currentTimeMillis();
+        final String redNonce = "RED_NONCE_" + UUID.randomUUID();
+        final String blueNonce = "BLUE_NONCE_" + UUID.randomUUID();
 
         String[] versions = {"1", "2", "3", "4"};
         String[] transports = {"websocket", "polling"};
         List<JsClientProcess> processes = new ArrayList<>();
 
+        Map<String, String> redArgs = new HashMap<>();
+        redArgs.put("expectedNonce", redNonce);
+
+        Map<String, String> blueArgs = new HashMap<>();
+        blueArgs.put("expectedNonce", blueNonce);
+
         try {
             for (String v : versions) {
                 for (String t : transports) {
-                    processes.add(launchJsClient("n1_red_v" + v + "_" + t, v, port1, t, "dist_room_isolation_negative", roomRed));
-                }
-            }
-            for (String v : versions) {
-                for (String t : transports) {
-                    processes.add(launchJsClient("n2_blue_v" + v + "_" + t, v, port2, t, "dist_room_isolation_negative", roomBlue));
+                    processes.add(launchJsClient("n1_red_v" + v + "_" + t, v, port1, t, "dist_room_isolation_negative", roomRed, redArgs));
+                    processes.add(launchJsClient("n2_blue_v" + v + "_" + t, v, port2, t, "dist_room_isolation_negative", roomBlue, blueArgs));
                 }
             }
 
             awaitRoomSync(roomRed, 8, processes);
             awaitRoomSync(roomBlue, 8, processes);
 
-            node1.getRoomOperations(roomRed).sendEvent("dist-event", "red_only_message");
-            Thread.sleep(500);
-            node2.getRoomOperations(roomBlue).sendEvent("dist-event", "blue_only_message");
-            Thread.sleep(500);
+            node1.getRoomOperations(roomRed).sendEvent("dist-event", redNonce);
+            node2.getRoomOperations(roomBlue).sendEvent("dist-event", blueNonce);
 
             node1.getBroadcastOperations().sendEvent("dist-test-done", "isolation_check");
 
@@ -314,41 +297,36 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    /**
-     * NEGATIVE TEST 3: Distributed Room Leave Synchronization (8 Clients).
-     */
     @DisplayName("Negative 3 - Distributed Room Leave Synchronization (8 Clients)")
     @Test
     public void testDistributedRoomLeave_Negative() throws Exception {
         final String roomGreen = "RoomGreen_" + System.currentTimeMillis();
+        final String postLeaveNonce = "POST_LEAVE_NONCE_" + UUID.randomUUID();
+
         String[] versions = {"1", "2", "3", "4"};
         String[] transports = {"websocket", "polling"};
         List<JsClientProcess> processes = new ArrayList<>();
 
-        java.util.concurrent.atomic.AtomicInteger leftCount = new java.util.concurrent.atomic.AtomicInteger(0);
-        com.socketio4j.socketio.listener.DataListener<String> leftListener = (client, data, ackRequest) -> leftCount.incrementAndGet();
+        Map<String, String> extraArgs = new HashMap<>();
+        extraArgs.put("forbiddenNonce", postLeaveNonce);
+
+        CountDownLatch leaveLatch = new CountDownLatch(8);
+        DataListener<String> leftListener = (client, data, ackRequest) -> leaveLatch.countDown();
         node2.addEventListener("client-left-room", String.class, leftListener);
 
         try {
             for (String v : versions) {
                 for (String t : transports) {
-                    processes.add(launchJsClient("n2_leave_v" + v + "_" + t, v, port2, t, "dist_room_leave_negative", roomGreen));
+                    processes.add(launchJsClient("n2_leave_v" + v + "_" + t, v, port2, t, "dist_room_leave_negative", roomGreen, extraArgs));
                 }
             }
 
             awaitRoomSync(roomGreen, 8, processes);
-
             node2.getBroadcastOperations().sendEvent("leave-command", roomGreen);
 
-            long deadline = System.currentTimeMillis() + 10000;
-            while (leftCount.get() < 8 && System.currentTimeMillis() < deadline) {
-                Thread.sleep(50);
-            }
-            assertEquals(8, leftCount.get(), "All 8 clients should acknowledge leaving roomGreen");
+            assertTrue(leaveLatch.await(10, TimeUnit.SECONDS), "All 8 clients must send client-left-room signal");
 
-            node1.getRoomOperations(roomGreen).sendEvent("dist-event", "post_leave_message");
-            Thread.sleep(500);
-
+            node1.getRoomOperations(roomGreen).sendEvent("dist-event", postLeaveNonce);
             node2.getBroadcastOperations().sendEvent("dist-test-done", "room_leave_check");
 
             verifyAndCleanUpProcesses(processes, 15);
@@ -358,19 +336,20 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    /**
-     * POSITIVE TEST 4: Multi-Node Global Broadcast across 2 Servers & 16 JS Clients.
-     */
-    @DisplayName("Positive 4 - Cluster Global Broadcast (16 Clients: v1-v4 x WS/Polling x 2 Servers)")
+    @DisplayName("Positive 4 - Cluster Global Broadcast with Unique Nonce (16 Clients)")
     @Test
     public void testDistributedGlobalBroadcast_Positive() throws Exception {
         final String syncRoom = "SyncGlobalRoom_" + System.currentTimeMillis();
+        final String globalNonce = "GLOBAL_PING_" + UUID.randomUUID();
 
-        List<JsClientProcess> processes = launchFullClientMatrix("dist_global_broadcast", syncRoom);
+        Map<String, String> extraArgs = new HashMap<>();
+        extraArgs.put("globalNonce", globalNonce);
+
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_global_broadcast", syncRoom, extraArgs);
         try {
             awaitRoomSync(syncRoom, 16, processes);
 
-            node2.getBroadcastOperations().sendEvent("global-event", "cluster_global_ping");
+            node2.getBroadcastOperations().sendEvent("global-event", globalNonce);
 
             verifyAndCleanUpProcesses(processes, 25);
         } finally {
@@ -378,19 +357,25 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    /**
-     * POSITIVE TEST 5: Multi-Node Distributed Binary Payload (byte[]) across 16 JS Clients.
-     */
-    @DisplayName("Positive 5 - Cluster Binary Payload (16 Clients: v1-v4 x WS/Polling x 2 Servers)")
+    @DisplayName("Positive 5 - Cluster Binary Dynamic Payload Checksum (16 Clients)")
     @Test
     public void testDistributedBinaryPayload_Positive() throws Exception {
         final String room = "ClusterBinaryRoom_" + System.currentTimeMillis();
+        byte[] dynamicPayload = new byte[16];
+        new Random().nextBytes(dynamicPayload);
 
-        List<JsClientProcess> processes = launchFullClientMatrix("dist_binary", room);
+        int checksum = 0;
+        for (byte b : dynamicPayload) checksum += (b & 0xFF);
+
+        Map<String, String> extraArgs = new HashMap<>();
+        extraArgs.put("checkSum", String.valueOf(checksum));
+        extraArgs.put("byteLength", String.valueOf(dynamicPayload.length));
+
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_binary", room, extraArgs);
         try {
             awaitRoomSync(room, 16, processes);
 
-            node1.getRoomOperations(room).sendEvent("dist-event", new byte[]{10, 20, 30, 40, 50});
+            node1.getRoomOperations(room).sendEvent("dist-event", dynamicPayload);
 
             verifyAndCleanUpProcesses(processes, 25);
         } finally {
@@ -398,19 +383,22 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    /**
-     * POSITIVE TEST 6: Multi-Node Distributed JSON / Typed Object Payload across 16 JS Clients.
-     */
-    @DisplayName("Positive 6 - Cluster Object/POJO Payload (16 Clients: v1-v4 x WS/Polling x 2 Servers)")
+    @DisplayName("Positive 6 - Cluster Dynamic Object POJO (16 Clients)")
     @Test
     public void testDistributedObjectPayload_Positive() throws Exception {
         final String room = "ClusterObjectRoom_" + System.currentTimeMillis();
+        final String dynamicName = "pojo_nonce_" + UUID.randomUUID();
+        final int dynamicValue = new Random().nextInt(1000000) + 1;
 
-        List<JsClientProcess> processes = launchFullClientMatrix("dist_object", room);
+        Map<String, String> extraArgs = new HashMap<>();
+        extraArgs.put("expectedName", dynamicName);
+        extraArgs.put("expectedValue", String.valueOf(dynamicValue));
+
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_object", room, extraArgs);
         try {
             awaitRoomSync(room, 16, processes);
 
-            node1.getRoomOperations(room).sendEvent("dist-event", new ClusterPayload("cluster_pojo", 42));
+            node1.getRoomOperations(room).sendEvent("dist-event", new ClusterPayload(dynamicName, dynamicValue));
 
             verifyAndCleanUpProcesses(processes, 25);
         } finally {
@@ -418,22 +406,30 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    /**
-     * POSITIVE TEST 7: Multi-Node Distributed Mixed Multi-Type Payload across 16 JS Clients.
-     */
-    @DisplayName("Positive 7 - Cluster Mixed Multi-Type Payload (16 Clients: v1-v4 x WS/Polling x 2 Servers)")
+    @DisplayName("Positive 7 - Cluster Mixed Multi-Type Dynamic Payload (16 Clients)")
     @Test
     public void testDistributedMixedPayload_Positive() throws Exception {
         final String room = "ClusterMixedRoom_" + System.currentTimeMillis();
+        final String textNonce = "TXT_" + UUID.randomUUID();
+        final String mapNonce = "MAP_" + UUID.randomUUID();
+        final int mapVal = new Random().nextInt(50000);
 
-        List<JsClientProcess> processes = launchFullClientMatrix("dist_mixed", room);
+        byte[] binData = new byte[]{0x12, 0x34, 0x56, 0x78};
+
+        Map<String, String> extraArgs = new HashMap<>();
+        extraArgs.put("textNonce", textNonce);
+        extraArgs.put("mapNonce", mapNonce);
+        extraArgs.put("mapVal", String.valueOf(mapVal));
+
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_mixed", room, extraArgs);
         try {
             awaitRoomSync(room, 16, processes);
 
-            java.util.Map<String, Object> mapObj = new java.util.HashMap<>();
-            mapObj.put("value", 99);
+            Map<String, Object> mapObj = new HashMap<>();
+            mapObj.put("nonce", mapNonce);
+            mapObj.put("value", mapVal);
 
-            node1.getRoomOperations(room).sendEvent("dist-event", "hello_cluster", new byte[]{1, 2, 3}, mapObj);
+            node1.getRoomOperations(room).sendEvent("dist-event", textNonce, binData, mapObj);
 
             verifyAndCleanUpProcesses(processes, 25);
         } finally {
@@ -441,25 +437,29 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    /**
-     * POSITIVE TEST 8: Multi-Node Distributed Real-Life Multi-Level Complex POJO Payload across 16 JS Clients.
-     */
-    @DisplayName("Positive 8 - Cluster Real-Life Multi-Level Complex POJO (16 Clients: v1-v4 x WS/Polling x 2 Servers)")
+    @DisplayName("Positive 8 - Cluster Complex Multi-Level POJO with Dynamic Order Nonce (16 Clients)")
     @Test
     public void testDistributedComplexObjectPayload_Positive() throws Exception {
         final String room = "ClusterComplexObjectRoom_" + System.currentTimeMillis();
+        final String orderId = "ORD-" + UUID.randomUUID();
+        final String customerId = "CUST-" + UUID.randomUUID();
+        final double amount = 499.95;
 
-        List<JsClientProcess> processes = launchFullClientMatrix("dist_complex_object", room);
+        Map<String, String> extraArgs = new HashMap<>();
+        extraArgs.put("orderId", orderId);
+        extraArgs.put("customerId", customerId);
+
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_complex_object", room, extraArgs);
         try {
             awaitRoomSync(room, 16, processes);
 
             ClusterOrderPayload order = new ClusterOrderPayload(
-                    "ORD-CLUSTER-12345",
-                    299.99,
-                    new ClusterCustomer("CUST-VIP-777", "vip@cluster.io", true),
-                    java.util.Arrays.asList(
-                            new ClusterOrderItem("SKU-CLUSTER-A", 1, 199.99),
-                            new ClusterOrderItem("SKU-CLUSTER-B", 2, 50.00)
+                    orderId,
+                    amount,
+                    new ClusterCustomer(customerId, "vip@cluster.io", true),
+                    Arrays.asList(
+                            new ClusterOrderItem("SKU-CLUSTER-A", 1, 199.95),
+                            new ClusterOrderItem("SKU-CLUSTER-B", 3, 100.00)
                     ),
                     java.util.Collections.singletonMap("region", "us-east-1")
             );
@@ -472,104 +472,432 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    /**
-     * POSITIVE TEST 9: Multi-Node Server-Initiated Distributed Text ACK Callbacks across 16 JS Clients.
-     */
-    @DisplayName("Positive 9 - Cluster Text ACK Callbacks (16 Clients: v1-v4 x WS/Polling x 2 Servers)")
+    @DisplayName("Positive 9 - Cluster Text ACK Callbacks with 1-to-1 Nonce Evidence (16 Clients)")
     @Test
     public void testDistributedAckText_Positive() throws Exception {
         final String room = "ClusterAckTextRoom_" + System.currentTimeMillis();
-
-        List<JsClientProcess> processes = launchFullClientMatrix("dist_ack_text", room);
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_ack_text", room, new HashMap<>());
         try {
             awaitRoomSync(room, 16, processes);
 
-            java.util.concurrent.atomic.AtomicInteger ackCounter = new java.util.concurrent.atomic.AtomicInteger(0);
+            CountDownLatch ackLatch = new CountDownLatch(16);
+            ConcurrentHashMap<String, String> expectedReplies = new ConcurrentHashMap<>();
 
-            for (com.socketio4j.socketio.SocketIOClient client : node1.getAllClients()) {
-                client.sendEvent("distAckTextReq", new com.socketio4j.socketio.AckCallback<String>(String.class, 10) {
+            for (SocketIOClient client : node1.getAllClients()) {
+                String challengeNonce = "CHALLENGE_N1_" + UUID.randomUUID();
+                String expectedReply = "ACK_VERIFIED_" + challengeNonce;
+                expectedReplies.put(client.getSessionId().toString(), expectedReply);
+
+                client.sendEvent("distAckTextReq", new AckCallback<String>(String.class, 10) {
                     @Override
                     public void onSuccess(String result) {
-                        if (result != null && result.startsWith("ack_reply_")) {
-                            ackCounter.incrementAndGet();
+                        if (expectedReply.equals(result)) {
+                            ackLatch.countDown();
                         }
                     }
-                }, "hello_ack_node1");
+                }, challengeNonce);
             }
 
-            for (com.socketio4j.socketio.SocketIOClient client : node2.getAllClients()) {
-                client.sendEvent("distAckTextReq", new com.socketio4j.socketio.AckCallback<String>(String.class, 10) {
+            for (SocketIOClient client : node2.getAllClients()) {
+                String challengeNonce = "CHALLENGE_N2_" + UUID.randomUUID();
+                String expectedReply = "ACK_VERIFIED_" + challengeNonce;
+                expectedReplies.put(client.getSessionId().toString(), expectedReply);
+
+                client.sendEvent("distAckTextReq", new AckCallback<String>(String.class, 10) {
                     @Override
                     public void onSuccess(String result) {
-                        if (result != null && result.startsWith("ack_reply_")) {
-                            ackCounter.incrementAndGet();
+                        if (expectedReply.equals(result)) {
+                            ackLatch.countDown();
                         }
                     }
-                }, "hello_ack_node2");
+                }, challengeNonce);
             }
+
+            assertTrue(ackLatch.await(15, TimeUnit.SECONDS),
+                    String.format("Timed out waiting for text ACKs! Received %d of 16 verified nonces.", 16 - ackLatch.getCount()));
+
+            node1.getBroadcastOperations().sendEvent("dist-test-done", "ack_text_check");
 
             verifyAndCleanUpProcesses(processes, 25);
-            assertEquals(16, ackCounter.get(), "Server should receive text ACK replies from all 16 cluster clients");
         } finally {
             processes.forEach(JsClientProcess::destroyForcibly);
         }
     }
 
-    /**
-     * POSITIVE TEST 10: Multi-Node Server-Initiated Distributed Binary ACK Callbacks across 16 JS Clients.
-     */
-    @DisplayName("Positive 10 - Cluster Binary ACK Callbacks (16 Clients: v1-v4 x WS/Polling x 2 Servers)")
+    @DisplayName("Positive 10 - Cluster Binary ACK Callbacks with Token Transformation (16 Clients)")
     @Test
     public void testDistributedAckBinary_Positive() throws Exception {
         final String room = "ClusterAckBinaryRoom_" + System.currentTimeMillis();
-
-        List<JsClientProcess> processes = launchFullClientMatrix("dist_ack_binary", room);
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_ack_binary", room, new HashMap<>());
         try {
             awaitRoomSync(room, 16, processes);
 
-            java.util.concurrent.atomic.AtomicInteger ackCounter = new java.util.concurrent.atomic.AtomicInteger(0);
+            CountDownLatch ackLatch = new CountDownLatch(16);
+            AtomicInteger validAcks = new AtomicInteger(0);
 
-            for (com.socketio4j.socketio.SocketIOClient client : node1.getAllClients()) {
-                client.sendEvent("distAckBinaryReq", new com.socketio4j.socketio.AckCallback<byte[]>(byte[].class, 10) {
+            for (SocketIOClient client : node1.getAllClients()) {
+                byte[] token = new byte[4];
+                new Random().nextBytes(token);
+
+                client.sendEvent("distAckBinaryReq", new AckCallback<byte[]>(byte[].class, 10) {
                     @Override
                     public void onSuccess(byte[] result) {
-                        if (result != null && result.length == 3 && result[0] == 10 && result[1] == 20 && result[2] == 30) {
-                            ackCounter.incrementAndGet();
+                        if (result != null && result.length == 6 &&
+                                (result[0] & 0xFF) == (token[0] & 0xFF) &&
+                                (result[1] & 0xFF) == (token[1] & 0xFF) &&
+                                (result[2] & 0xFF) == (token[2] & 0xFF) &&
+                                (result[3] & 0xFF) == (token[3] & 0xFF) &&
+                                (result[4] & 0xFF) == 0xBE &&
+                                (result[5] & 0xFF) == 0xEF) {
+                            validAcks.incrementAndGet();
+                            ackLatch.countDown();
                         }
                     }
-                }, "hello_bin_ack_node1");
+                }, token);
             }
 
-            for (com.socketio4j.socketio.SocketIOClient client : node2.getAllClients()) {
-                client.sendEvent("distAckBinaryReq", new com.socketio4j.socketio.AckCallback<byte[]>(byte[].class, 10) {
+            for (SocketIOClient client : node2.getAllClients()) {
+                byte[] token = new byte[4];
+                new Random().nextBytes(token);
+
+                client.sendEvent("distAckBinaryReq", new AckCallback<byte[]>(byte[].class, 10) {
                     @Override
                     public void onSuccess(byte[] result) {
-                        if (result != null && result.length == 3 && result[0] == 10 && result[1] == 20 && result[2] == 30) {
-                            ackCounter.incrementAndGet();
+                        if (result != null && result.length == 6 &&
+                                (result[0] & 0xFF) == (token[0] & 0xFF) &&
+                                (result[1] & 0xFF) == (token[1] & 0xFF) &&
+                                (result[2] & 0xFF) == (token[2] & 0xFF) &&
+                                (result[3] & 0xFF) == (token[3] & 0xFF) &&
+                                (result[4] & 0xFF) == 0xBE &&
+                                (result[5] & 0xFF) == 0xEF) {
+                            validAcks.incrementAndGet();
+                            ackLatch.countDown();
                         }
                     }
-                }, "hello_bin_ack_node2");
+                }, token);
             }
+
+            assertTrue(ackLatch.await(15, TimeUnit.SECONDS),
+                    String.format("Timed out waiting for binary ACKs! Received %d of 16 expected ACKs.", validAcks.get()));
+            assertEquals(16, validAcks.get(), "Server should receive binary transformed ACK replies from all 16 cluster clients");
+
+            node1.getBroadcastOperations().sendEvent("dist-test-done", "ack_binary_check");
 
             verifyAndCleanUpProcesses(processes, 25);
-            assertEquals(16, ackCounter.get(), "Server should receive binary ACK replies from all 16 cluster clients");
         } finally {
             processes.forEach(JsClientProcess::destroyForcibly);
         }
     }
 
+    @DisplayName("Positive 11 - Client-to-Client Cluster Relay (16 Clients across 2 Nodes)")
+    @Test
+    public void testDistributedClientToClientRelay_Positive() throws Exception {
+        final String room = "ClusterP2pRoom_" + System.currentTimeMillis();
+        final String senderClient = "n1_v4_websocket";
+        final String messageNonce = "P2P_MSG_" + UUID.randomUUID();
+
+        Map<String, String> extraArgs = new HashMap<>();
+        extraArgs.put("p2pSender", senderClient);
+        extraArgs.put("p2pNonce", messageNonce);
+
+        CountDownLatch p2pLatch = new CountDownLatch(16);
+        DataListener<String> confirmListener = (client, data, ackRequest) -> p2pLatch.countDown();
+
+        DataListener<P2pRelayPayload> relayListener = (client, payload, ackRequest) -> {
+            node1.getRoomOperations(payload.getRoom()).sendEvent("client-p2p-receive", payload);
+        };
+
+        node1.addEventListener("client-p2p-send", P2pRelayPayload.class, relayListener);
+        node2.addEventListener("client-p2p-send", P2pRelayPayload.class, relayListener);
+
+        node1.addEventListener("client-p2p-confirmed", String.class, confirmListener);
+        node2.addEventListener("client-p2p-confirmed", String.class, confirmListener);
+
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_client_to_client", room, extraArgs);
+        try {
+            awaitRoomSync(room, 16, processes);
+
+            node1.getBroadcastOperations().sendEvent("trigger-p2p-send", senderClient);
+
+            assertTrue(p2pLatch.await(15, TimeUnit.SECONDS),
+                    String.format("Timed out waiting for P2P relay! Received %d of 16 client confirmations.", 16 - p2pLatch.getCount()));
+
+            node1.getBroadcastOperations().sendEvent("dist-test-done", "p2p_relay_check");
+
+            verifyAndCleanUpProcesses(processes, 25);
+        } finally {
+            node1.removeAllListeners("client-p2p-send");
+            node2.removeAllListeners("client-p2p-send");
+            node1.removeAllListeners("client-p2p-confirmed");
+            node2.removeAllListeners("client-p2p-confirmed");
+            processes.forEach(JsClientProcess::destroyForcibly);
+        }
+    }
+
+    @DisplayName("Positive 12 - Cluster Direct SessionID Routing across Nodes")
+    @Test
+    public void testDistributedDirectSessionId_Positive() throws Exception {
+        final String room = "ClusterDirectRoom_" + System.currentTimeMillis();
+        final String directNonce = "DIRECT_NONCE_" + UUID.randomUUID();
+
+        Map<String, String> extraArgs = new HashMap<>();
+        extraArgs.put("directNonce", directNonce);
+
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_direct_session", room, extraArgs);
+        try {
+            awaitRoomSync(room, 16, processes);
+
+            SocketIOClient targetClientOnNode2 = connectedClientMap.get("n2_v4_websocket");
+            if (targetClientOnNode2 == null) {
+                targetClientOnNode2 = node2.getAllClients().iterator().next();
+            }
+            assertNotNull(targetClientOnNode2, "Target client on Node 2 must exist");
+            String targetSessionId = targetClientOnNode2.getSessionId().toString();
+
+            awaitRoomSync(targetSessionId, 1, processes);
+
+            CountDownLatch directLatch = new CountDownLatch(1);
+            Set<String> confirmedSet = ConcurrentHashMap.newKeySet();
+
+            DataListener<String> confirmListener = (client, clientName, ackRequest) -> {
+                if (confirmedSet.add(clientName)) {
+                    directLatch.countDown();
+                }
+            };
+            node2.addEventListener("direct-confirmed", String.class, confirmListener);
+
+            long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(15);
+            while (System.currentTimeMillis() < deadline && directLatch.getCount() > 0) {
+                node1.getRoomOperations(targetSessionId).sendEvent("direct-event", directNonce);
+                if (directLatch.await(1, TimeUnit.SECONDS)) {
+                    break;
+                }
+            }
+
+            assertEquals(0, directLatch.getCount(), "Target client on Node 2 must receive direct message from Node 1");
+
+            node1.getBroadcastOperations().sendEvent("dist-test-done", "direct_session_check");
+            verifyAndCleanUpProcesses(processes, 25);
+        } finally {
+            node2.removeAllListeners("direct-confirmed");
+            processes.forEach(JsClientProcess::destroyForcibly);
+        }
+    }
+
+    @DisplayName("Positive 13 - Custom Namespace (/admin) Cluster Propagation (16 Clients)")
+    @Test
+    public void testDistributedCustomNamespace_Positive() throws Exception {
+        final String room = "AdminClusterRoom_" + System.currentTimeMillis();
+        final String adminNonce = "ADMIN_NONCE_" + UUID.randomUUID();
+
+        com.socketio4j.socketio.SocketIONamespace adminNs1 = node1.addNamespace("/admin");
+        com.socketio4j.socketio.SocketIONamespace adminNs2 = node2.addNamespace("/admin");
+
+        attachDefaultRoomListeners(adminNs1);
+        attachDefaultRoomListeners(adminNs2);
+
+        Map<String, String> extraArgs = new HashMap<>();
+        extraArgs.put("namespace", "/admin");
+        extraArgs.put("adminNonce", adminNonce);
+
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_custom_namespace", room, extraArgs);
+        try {
+            awaitRoomSync("/admin", room, 16, processes);
+
+            node1.getNamespace("/admin").getRoomOperations(room).sendEvent("admin-event", adminNonce);
+
+            verifyAndCleanUpProcesses(processes, 25);
+        } finally {
+            processes.forEach(JsClientProcess::destroyForcibly);
+        }
+    }
+
+    @DisplayName("Positive 14 - Client-Initiated ACK Propagation across Cluster (16 Clients)")
+    @Test
+    public void testDistributedClientInitiatedAck_Positive() throws Exception {
+        final String room = "ClusterClientAckRoom_" + System.currentTimeMillis();
+
+        CountDownLatch ackLatch = new CountDownLatch(16);
+        DataListener<String> confirmListener = (client, data, ackRequest) -> ackLatch.countDown();
+
+        DataListener<String> reqListener = (client, challenge, ackRequest) -> {
+            if (ackRequest.isAckRequested()) {
+                ackRequest.sendAckData("SERVER_ACK_REPLY_" + challenge);
+            }
+        };
+
+        node1.addEventListener("client-ack-req", String.class, reqListener);
+        node2.addEventListener("client-ack-req", String.class, reqListener);
+        node1.addEventListener("client-ack-confirmed", String.class, confirmListener);
+        node2.addEventListener("client-ack-confirmed", String.class, confirmListener);
+
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_client_ack", room, new HashMap<>());
+        try {
+            awaitRoomSync(room, 16, processes);
+
+            node1.getBroadcastOperations().sendEvent("trigger-client-ack");
+
+            assertTrue(ackLatch.await(15, TimeUnit.SECONDS),
+                    String.format("Timed out waiting for client-initiated ACKs! Received %d of 16 confirmations.", 16 - ackLatch.getCount()));
+
+            node1.getBroadcastOperations().sendEvent("dist-test-done", "client_ack_check");
+            verifyAndCleanUpProcesses(processes, 25);
+        } finally {
+            node1.removeAllListeners("client-ack-req");
+            node2.removeAllListeners("client-ack-req");
+            node1.removeAllListeners("client-ack-confirmed");
+            node2.removeAllListeners("client-ack-confirmed");
+            processes.forEach(JsClientProcess::destroyForcibly);
+        }
+    }
+
+    @DisplayName("Positive 15 - Targeted Client Exclusion across Cluster (15/16 Clients Receive)")
+    @Test
+    public void testDistributedClientExclusion_Positive() throws Exception {
+        final String room = "ClusterExclusionRoom_" + System.currentTimeMillis();
+        final String exclusionNonce = "EXCLUSION_NONCE_" + UUID.randomUUID();
+        final String excludedClientName = "n1_v4_websocket";
+
+        Map<String, String> extraArgs = new HashMap<>();
+        extraArgs.put("excludedClientName", excludedClientName);
+        extraArgs.put("exclusionNonce", exclusionNonce);
+
+        CountDownLatch confirmLatch = new CountDownLatch(15);
+        Set<String> confirmedClients = ConcurrentHashMap.newKeySet();
+
+        DataListener<String> confirmListener = (client, clientName, ackRequest) -> {
+            if (confirmedClients.add(clientName)) {
+                confirmLatch.countDown();
+            }
+        };
+
+        node1.addEventListener("exclusion-confirmed", String.class, confirmListener);
+        node2.addEventListener("exclusion-confirmed", String.class, confirmListener);
+
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_client_exclusion", room, extraArgs);
+        try {
+            awaitRoomSync(room, 16, processes);
+
+            SocketIOClient excludedClient = connectedClientMap.get(excludedClientName);
+            assertNotNull(excludedClient, "Must find registered SocketIOClient for " + excludedClientName);
+
+            node1.getRoomOperations(room).sendEvent("dist-event",
+                    client -> client.getSessionId().equals(excludedClient.getSessionId()),
+                    exclusionNonce);
+
+            assertTrue(confirmLatch.await(15, TimeUnit.SECONDS),
+                    String.format("Timed out waiting for client exclusion confirmations! Received %d of 15 expected.", confirmedClients.size()));
+
+            node1.getBroadcastOperations().sendEvent("dist-test-done", "client_exclusion_check");
+            verifyAndCleanUpProcesses(processes, 25);
+        } finally {
+            node1.removeAllListeners("exclusion-confirmed");
+            node2.removeAllListeners("exclusion-confirmed");
+            processes.forEach(JsClientProcess::destroyForcibly);
+        }
+    }
+
+    @DisplayName("Negative 16 - Abrupt Client Crash & Cluster Session Cleanup Re-sync")
+    @Test
+    public void testDistributedAbruptDisconnect_Negative() throws Exception {
+        final String room = "CrashRoom_" + System.currentTimeMillis();
+
+        List<JsClientProcess> processes = launchFullClientMatrix("dist_abrupt_disconnect", room, new HashMap<>());
+        try {
+            awaitRoomSync(room, 16, processes);
+
+            List<JsClientProcess> crashedProcesses = new ArrayList<>();
+            List<JsClientProcess> remainingProcesses = new ArrayList<>();
+
+            for (JsClientProcess p : processes) {
+                if (p.getTransport().equals("websocket") && crashedProcesses.size() < 4) {
+                    crashedProcesses.add(p);
+                } else {
+                    remainingProcesses.add(p);
+                }
+            }
+
+            assertEquals(4, crashedProcesses.size(), "Should find 4 WebSocket processes to kill");
+
+            for (JsClientProcess crashed : crashedProcesses) {
+                crashed.destroyForcibly();
+            }
+
+            long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(15);
+            boolean cleanedUp = false;
+
+            Namespace ns1 = (Namespace) node1.getNamespace("");
+            Namespace ns2 = (Namespace) node2.getNamespace("");
+
+            while (System.currentTimeMillis() < deadline) {
+                int n1 = ns1.getRoomClientsInCluster(room);
+                int n2 = ns2.getRoomClientsInCluster(room);
+
+                if (n1 == 12 && n2 == 12) {
+                    cleanedUp = true;
+                    break;
+                }
+                Thread.sleep(100);
+            }
+
+            assertTrue(cleanedUp, String.format("Cluster room client count must drop from 16 to 12 after abrupt process crash! Node1=%d, Node2=%d",
+                    ns1.getRoomClientsInCluster(room), ns2.getRoomClientsInCluster(room)));
+
+            node2.getBroadcastOperations().sendEvent("dist-test-done", "abrupt_disconnect_check");
+            verifyAndCleanUpProcesses(remainingProcesses, 25);
+        } finally {
+            processes.forEach(JsClientProcess::destroyForcibly);
+        }
+    }
+
+    // --- UTILITIES & POJOS ---
+
+    public static class P2pRelayPayload implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
+
+        @com.fasterxml.jackson.annotation.JsonProperty("sender")
+        public String sender;
+        @com.fasterxml.jackson.annotation.JsonProperty("room")
+        public String room;
+        @com.fasterxml.jackson.annotation.JsonProperty("nonce")
+        public String nonce;
+
+        public P2pRelayPayload() {}
+        public P2pRelayPayload(String sender, String room, String nonce) {
+            this.sender = sender;
+            this.room = room;
+            this.nonce = nonce;
+        }
+
+        public String getSender() { return sender; }
+        public void setSender(String sender) { this.sender = sender; }
+        public String getRoom() { return room; }
+        public void setRoom(String room) { this.room = room; }
+        public String getNonce() { return nonce; }
+        public void setNonce(String nonce) { this.nonce = nonce; }
+    }
+
     protected JsClientProcess launchJsClient(String name, String version, int port,
-                                           String transport, String scenario, String room) throws Exception {
-        ProcessBuilder pb = new ProcessBuilder(
-                "node", jsScript.getAbsolutePath(),
-                "--clientName=" + name,
-                "--version=" + version,
-                "--port=" + port,
-                "--transport=" + transport,
-                "--scenario=" + scenario,
-                "--room=" + room,
-                "--timeout=35000"
-        );
+                                             String transport, String scenario, String room,
+                                             Map<String, String> extraArgs) throws Exception {
+        List<String> cmd = new ArrayList<>();
+        cmd.add("node");
+        cmd.add(jsScript.getAbsolutePath());
+        cmd.add("--clientName=" + name);
+        cmd.add("--version=" + version);
+        cmd.add("--port=" + port);
+        cmd.add("--transport=" + transport);
+        cmd.add("--scenario=" + scenario);
+        cmd.add("--room=" + room);
+        cmd.add("--timeout=35000");
+
+        if (extraArgs != null) {
+            for (Map.Entry<String, String> entry : extraArgs.entrySet()) {
+                cmd.add("--" + entry.getKey() + "=" + entry.getValue());
+            }
+        }
+
+        ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.directory(jsDir);
         pb.redirectErrorStream(true);
 
@@ -579,15 +907,13 @@ public abstract class AbstractDistributedJsClientInteropTest {
         return wrapper;
     }
 
-    private int countClients(Iterable<com.socketio4j.socketio.SocketIOClient> clients) {
+    private int countClients(Iterable<SocketIOClient> clients) {
         if (clients == null) return -1;
         if (clients instanceof java.util.Collection) {
             return ((java.util.Collection<?>) clients).size();
         }
         int count = 0;
-        for (Object unused : clients) {
-            count++;
-        }
+        for (Object unused : clients) count++;
         return count;
     }
 
@@ -600,7 +926,6 @@ public abstract class AbstractDistributedJsClientInteropTest {
         private final String room;
         private final Process process;
         private final StringBuilder logOutput = new StringBuilder();
-        private final Thread logThread;
 
         public JsClientProcess(String name, String version, int port, String transport,
                                String scenario, String room, Process process) {
@@ -612,7 +937,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
             this.room = room;
             this.process = process;
 
-            this.logThread = new Thread(() -> {
+            Thread logThread = new Thread(() -> {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
@@ -623,8 +948,8 @@ public abstract class AbstractDistributedJsClientInteropTest {
                     }
                 } catch (Exception ignored) {}
             });
-            this.logThread.setDaemon(true);
-            this.logThread.start();
+            logThread.setDaemon(true);
+            logThread.start();
         }
 
         public String getName() { return name; }
@@ -633,19 +958,9 @@ public abstract class AbstractDistributedJsClientInteropTest {
         public String getTransport() { return transport; }
         public String getScenario() { return scenario; }
         public String getRoom() { return room; }
-        public Process getProcess() { return process; }
-
-        public boolean isAlive() {
-            return process.isAlive();
-        }
-
-        public int exitValue() {
-            return process.exitValue();
-        }
-
-        public boolean waitFor(long timeout, TimeUnit unit) throws InterruptedException {
-            return process.waitFor(timeout, unit);
-        }
+        public boolean isAlive() { return process.isAlive(); }
+        public int exitValue() { return process.exitValue(); }
+        public boolean waitFor(long timeout, TimeUnit unit) throws InterruptedException { return process.waitFor(timeout, unit); }
 
         public void destroyForcibly() {
             ALL_ACTIVE_PROCESSES.remove(this);

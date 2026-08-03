@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import com.socketio4j.socketio.AckCallback;
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.ack.AckManager;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.namespace.Namespace;
 
@@ -36,6 +37,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.base64.Base64;
 import io.netty.util.CharsetUtil;
 
+@Internal
 public class PacketDecoder {
 
     private static final Logger log = LoggerFactory.getLogger(PacketDecoder.class);
@@ -499,7 +501,7 @@ public class PacketDecoder {
                     }
                     int len = (int) rawLen;
                     int payloadStart = frame.readerIndex() + 1; // skip 0xFF separator
-                    if (len < 0 || payloadStart + len > frame.writerIndex()) {
+                    if (payloadStart + len > frame.writerIndex()) {
                         throw new IOException("Malformed polling wrapper: length " + len
                                 + " exceeds remaining frame bytes " + (frame.writerIndex() - payloadStart));
                     }
@@ -574,7 +576,7 @@ public class PacketDecoder {
 
         if (binaryPacket.isAttachmentsLoaded()) {
             LinkedList<ByteBuf> slices = new LinkedList<>();
-            ByteBuf source = binaryPacket.getDataSource();
+            ByteBuf source = head.getLastBinaryPacketSource();
             for (int i = 0; i < binaryPacket.getAttachments().size(); i++) {
                 ByteBuf attachment = binaryPacket.getAttachments().get(i);
                 ByteBuf scanValue = Unpooled.copiedBuffer("{\"_placeholder\":true,\"num\":" + i + "}", CharsetUtil.UTF_8);
@@ -598,8 +600,11 @@ public class PacketDecoder {
             slices.add(source.slice());
 
             ByteBuf compositeBuf = Unpooled.wrappedBuffer(slices.toArray(new ByteBuf[0]));
-            parseBody(head, compositeBuf, binaryPacket);
-            head.setLastBinaryPacket(null);
+            try {
+                parseBody(head, compositeBuf, binaryPacket);
+            } finally {
+                head.clearPendingBinaryPacket();
+            }
             return binaryPacket;
         }
         return new Packet(PacketType.MESSAGE);
@@ -711,9 +716,8 @@ public class PacketDecoder {
      */
     private void handleBinaryAttachments(ClientHead head, ByteBuf frame, Packet packet) {
         if (packet.hasAttachments() && !packet.isAttachmentsLoaded()) {
-            packet.setDataSource(Unpooled.copiedBuffer(frame));
+            head.setPendingBinaryPacket(packet, Unpooled.copiedBuffer(frame));
             frame.skipBytes(frame.readableBytes());
-            head.setLastBinaryPacket(packet);
         }
     }
 

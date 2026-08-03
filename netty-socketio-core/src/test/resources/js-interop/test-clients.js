@@ -24,10 +24,19 @@ const parseArgs = () => {
 };
 
 const args = parseArgs();
-const version = args.version || '4';
+const version = args.version;
+if (!version) {
+    failFast("Missing required --version argument");
+}
 const port = args.port || '8080';
-const transport = args.transport || 'websocket';
-const scenario = args.scenario || 'connect';
+const transport = args.transport;
+if (!transport) {
+    failFast("Missing required --transport argument");
+}
+const scenario = args.scenario;
+if (!scenario) {
+    failFast("Missing required --scenario argument");
+}
 
 console.log(`Running JS Client Interop Test: version=v${version}, port=${port}, transport=${transport}, scenario=${scenario}`);
 

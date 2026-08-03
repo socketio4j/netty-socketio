@@ -24,6 +24,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,16 +36,22 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.AckCallback;
+import com.socketio4j.socketio.Configuration;
+import com.socketio4j.socketio.DisconnectableHub;
+import com.socketio4j.socketio.HandshakeData;
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.ack.AckManager;
 import com.socketio4j.socketio.handler.ClientHead;
+import com.socketio4j.socketio.handler.ClientsBox;
+import com.socketio4j.socketio.scheduler.CancelableScheduler;
+import com.socketio4j.socketio.store.Store;
+import com.socketio4j.socketio.store.StoreFactory;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -59,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -101,15 +109,7 @@ public class PacketDecoderTest extends BaseProtocolTest {
         closeableMocks.close();
     }
 
-    private AtomicReference<Packet> stubLastBinaryPacket() {
-        AtomicReference<Packet> lastBinaryPacket = new AtomicReference<>();
-        doAnswer(invocation -> {
-            lastBinaryPacket.set(invocation.getArgument(0));
-            return null;
-        }).when(clientHead).setLastBinaryPacket(any());
-        when(clientHead.getLastBinaryPacket()).thenAnswer(invocation -> lastBinaryPacket.get());
-        return lastBinaryPacket;
-    }
+
 
     // ==================== CONNECT Packet Tests ====================
 
@@ -314,7 +314,29 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // BINARY_EVENT packet text frame: "451-[\"hello\",{\"_placeholder\":true,\"num\":0}]" (MESSAGE + BINARY_EVENT)
         ByteBuf buffer = Unpooled.copiedBuffer("451-[\"hello\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
 
-        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
+        AtomicReference<Packet> lastBinaryPacket = new AtomicReference<>();
+        AtomicReference<ByteBuf> lastBinaryPacketSource = new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            lastBinaryPacketSource.set(invocation.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+
+        when(clientHead.getLastBinaryPacket())
+                .thenAnswer(i -> lastBinaryPacket.get());
+
+        when(clientHead.getLastBinaryPacketSource())
+                .thenAnswer(i -> lastBinaryPacketSource.get());
+
+        doAnswer(i -> {
+            ByteBuf source = lastBinaryPacketSource.getAndSet(null);
+            if (source != null) {
+                source.release();
+            }
+            lastBinaryPacket.set(null);
+            return null;
+        }).when(clientHead).clearPendingBinaryPacket();
 
         // Mock JSON support for event data after attachments load
         Map<String, Object> placeholder = new HashMap<>();
@@ -352,7 +374,29 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // BINARY_EVENT packet with namespace: "451-/admin,456[\"project:delete\",{\"_placeholder\":true,\"num\":0}]" (MESSAGE + BINARY_EVENT)
         ByteBuf buffer = Unpooled.copiedBuffer("451-/admin,456[\"project:delete\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
 
-        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
+        AtomicReference<Packet> lastBinaryPacket = new AtomicReference<>();
+        AtomicReference<ByteBuf> lastBinaryPacketSource = new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            lastBinaryPacketSource.set(invocation.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+
+        when(clientHead.getLastBinaryPacket())
+                .thenAnswer(i -> lastBinaryPacket.get());
+
+        when(clientHead.getLastBinaryPacketSource())
+                .thenAnswer(i -> lastBinaryPacketSource.get());
+
+        doAnswer(i -> {
+            ByteBuf source = lastBinaryPacketSource.getAndSet(null);
+            if (source != null) {
+                source.release();
+            }
+            lastBinaryPacket.set(null);
+            return null;
+        }).when(clientHead).clearPendingBinaryPacket();
 
         // Mock JSON support for event data after attachments load
         Map<String, Object> placeholder = new HashMap<>();
@@ -926,7 +970,29 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // EIOv3 client
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
 
-        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
+        AtomicReference<Packet> lastBinaryPacket = new AtomicReference<>();
+        AtomicReference<ByteBuf> lastBinaryPacketSource = new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            lastBinaryPacketSource.set(invocation.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+
+        when(clientHead.getLastBinaryPacket())
+                .thenAnswer(i -> lastBinaryPacket.get());
+
+        when(clientHead.getLastBinaryPacketSource())
+                .thenAnswer(i -> lastBinaryPacketSource.get());
+
+        doAnswer(i -> {
+            ByteBuf source = lastBinaryPacketSource.getAndSet(null);
+            if (source != null) {
+                source.release();
+            }
+            lastBinaryPacket.set(null);
+            return null;
+        }).when(clientHead).clearPendingBinaryPacket();
 
         // 1. Decode text frame first
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"hello\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -962,7 +1028,29 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // EIOv3 client
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
 
-        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
+        AtomicReference<Packet> lastBinaryPacket = new AtomicReference<>();
+        AtomicReference<ByteBuf> lastBinaryPacketSource = new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            lastBinaryPacketSource.set(invocation.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+
+        when(clientHead.getLastBinaryPacket())
+                .thenAnswer(i -> lastBinaryPacket.get());
+
+        when(clientHead.getLastBinaryPacketSource())
+                .thenAnswer(i -> lastBinaryPacketSource.get());
+
+        doAnswer(i -> {
+            ByteBuf source = lastBinaryPacketSource.getAndSet(null);
+            if (source != null) {
+                source.release();
+            }
+            lastBinaryPacket.set(null);
+            return null;
+        }).when(clientHead).clearPendingBinaryPacket();
 
         // 1. Decode text frame first
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"hello\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -993,7 +1081,29 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // EIOv3 client
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
 
-        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
+        AtomicReference<Packet> lastBinaryPacket = new AtomicReference<>();
+        AtomicReference<ByteBuf> lastBinaryPacketSource = new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            lastBinaryPacketSource.set(invocation.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+
+        when(clientHead.getLastBinaryPacket())
+                .thenAnswer(i -> lastBinaryPacket.get());
+
+        when(clientHead.getLastBinaryPacketSource())
+                .thenAnswer(i -> lastBinaryPacketSource.get());
+
+        doAnswer(i -> {
+            ByteBuf source = lastBinaryPacketSource.getAndSet(null);
+            if (source != null) {
+                source.release();
+            }
+            lastBinaryPacket.set(null);
+            return null;
+        }).when(clientHead).clearPendingBinaryPacket();
 
         // 1. Decode text frame first
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"hello\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -1027,7 +1137,29 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // EIOv4 client (default)
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
 
-        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
+        AtomicReference<Packet> lastBinaryPacket = new AtomicReference<>();
+        AtomicReference<ByteBuf> lastBinaryPacketSource = new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            lastBinaryPacketSource.set(invocation.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+
+        when(clientHead.getLastBinaryPacket())
+                .thenAnswer(i -> lastBinaryPacket.get());
+
+        when(clientHead.getLastBinaryPacketSource())
+                .thenAnswer(i -> lastBinaryPacketSource.get());
+
+        doAnswer(i -> {
+            ByteBuf source = lastBinaryPacketSource.getAndSet(null);
+            if (source != null) {
+                source.release();
+            }
+            lastBinaryPacket.set(null);
+            return null;
+        }).when(clientHead).clearPendingBinaryPacket();
 
         // 1. Decode text frame first
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"hello\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -1061,7 +1193,29 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // EIOv4 client over long polling
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
 
-        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
+        AtomicReference<Packet> lastBinaryPacket = new AtomicReference<>();
+        AtomicReference<ByteBuf> lastBinaryPacketSource = new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            lastBinaryPacketSource.set(invocation.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+
+        when(clientHead.getLastBinaryPacket())
+                .thenAnswer(i -> lastBinaryPacket.get());
+
+        when(clientHead.getLastBinaryPacketSource())
+                .thenAnswer(i -> lastBinaryPacketSource.get());
+
+        doAnswer(i -> {
+            ByteBuf source = lastBinaryPacketSource.getAndSet(null);
+            if (source != null) {
+                source.release();
+            }
+            lastBinaryPacket.set(null);
+            return null;
+        }).when(clientHead).clearPendingBinaryPacket();
 
         // 1. Decode text frame first
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"event\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -1107,7 +1261,29 @@ public class PacketDecoderTest extends BaseProtocolTest {
     void testDecodeMalformedPollingAttachmentLengthHeader() throws IOException {
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
 
-        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
+        AtomicReference<Packet> lastBinaryPacket = new AtomicReference<>();
+        AtomicReference<ByteBuf> lastBinaryPacketSource = new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            lastBinaryPacketSource.set(invocation.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+
+        when(clientHead.getLastBinaryPacket())
+                .thenAnswer(i -> lastBinaryPacket.get());
+
+        when(clientHead.getLastBinaryPacketSource())
+                .thenAnswer(i -> lastBinaryPacketSource.get());
+
+        doAnswer(i -> {
+            ByteBuf source = lastBinaryPacketSource.getAndSet(null);
+            if (source != null) {
+                source.release();
+            }
+            lastBinaryPacket.set(null);
+            return null;
+        }).when(clientHead).clearPendingBinaryPacket();
 
         // 1. Decode text frame first
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"event\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -1288,7 +1464,29 @@ public class PacketDecoderTest extends BaseProtocolTest {
     void testDecodeEIOv3PollingXHR2AttachmentBinaryHeader() throws IOException {
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
 
-        AtomicReference<Packet> lastBinaryPacket = stubLastBinaryPacket();
+        AtomicReference<Packet> lastBinaryPacket = new AtomicReference<>();
+        AtomicReference<ByteBuf> lastBinaryPacketSource = new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            lastBinaryPacketSource.set(invocation.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+
+        when(clientHead.getLastBinaryPacket())
+                .thenAnswer(i -> lastBinaryPacket.get());
+
+        when(clientHead.getLastBinaryPacketSource())
+                .thenAnswer(i -> lastBinaryPacketSource.get());
+
+        doAnswer(i -> {
+            ByteBuf source = lastBinaryPacketSource.getAndSet(null);
+            if (source != null) {
+                source.release();
+            }
+            lastBinaryPacket.set(null);
+            return null;
+        }).when(clientHead).clearPendingBinaryPacket();
 
         // 1. First packet: BINARY_EVENT with 1 attachment
         ByteBuf textBuffer = Unpooled.copiedBuffer("451-[\"binEv\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
@@ -1313,5 +1511,27 @@ public class PacketDecoderTest extends BaseProtocolTest {
 
         textBuffer.release();
         binBuffer.release();
+    }
+
+    private ClientHead createClientHead(EngineIOVersion version, Transport transport) {
+        StoreFactory storeFactory = mock(StoreFactory.class);
+        Store store = mock(Store.class);
+        when(storeFactory.createStore(any(UUID.class))).thenReturn(store);
+
+        return new ClientHead(
+                UUID.randomUUID(),
+                mock(AckManager.class),
+                mock(DisconnectableHub.class),
+                storeFactory,
+                mock(HandshakeData.class),
+                mock(ClientsBox.class),
+                transport,
+                mock(CancelableScheduler.class),
+                mock(Configuration.class),
+                Collections.singletonMap(
+                        EngineIOVersion.EIO,
+                        Collections.singletonList(version.getValue())
+                )
+        );
     }
 }
