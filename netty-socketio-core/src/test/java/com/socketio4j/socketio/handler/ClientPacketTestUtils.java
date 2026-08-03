@@ -16,6 +16,8 @@
  */
 package com.socketio4j.socketio.handler;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Queue;
 
 import com.socketio4j.socketio.protocol.Packet;
@@ -113,7 +115,7 @@ public class ClientPacketTestUtils {
         Packet errorPacket = packetQueue.peek();
 
         assertEquals(expectedNamespace, errorPacket.getNsp(), "Error packet namespace should match expected");
-        assertEquals(expectedErrorMessage, errorPacket.getData(), "Error packet message should match expected");
+        assertEquals(Collections.singletonMap("message", expectedErrorMessage), errorPacket.getData(), "Error packet message should match expected");
     }
 
     /**

@@ -120,7 +120,21 @@ function fail(message) {
     console.error(message);
     process.exit(1);
 }
+function getErrorMessage(err) {
+    if (typeof err === "string") {
+        return err;
+    }
 
+    if (err && typeof err.message === "string") {
+        return err.message;
+    }
+
+    if (err && err.message != null) {
+        return String(err.message);
+    }
+
+    return String(err);
+}
 
 switch (scenario) {
 
@@ -164,8 +178,10 @@ switch (scenario) {
 
         socket.on("connect_error", err => {
 
-            if (err.message !== "Invalid namespace") {
-                fail(`Unexpected error: ${err.message}`);
+            const message = getErrorMessage(err);
+
+            if (message !== "Invalid namespace") {
+                fail(`Unexpected error: ${message}`);
                 return;
             }
 
@@ -177,8 +193,10 @@ switch (scenario) {
 
             // Socket.IO v1/v2
 
-            if (err !== "Invalid namespace") {
-                fail(`Unexpected error: ${err}`);
+            const message = getErrorMessage(err);
+
+            if (message !== "Invalid namespace") {
+                fail(`Unexpected error: ${message}`);
                 return;
             }
 
