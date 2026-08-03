@@ -35,6 +35,8 @@ import com.socketio4j.socketio.protocol.EngineIOVersion;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketType;
 
+import io.netty.channel.ChannelFuture;
+
 public class NamespaceClient implements SocketIOClient {
 
     private static final Logger log = LoggerFactory.getLogger(NamespaceClient.class);
@@ -138,15 +140,21 @@ public class NamespaceClient implements SocketIOClient {
         Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.DISCONNECT);
 
-        baseClient.send(packet.withNsp(namespace.getName()))
-                .addListener(future -> {
-                    if (future.isSuccess()) {
-                        onDisconnect();
-                    } else {
-                        log.warn("Failed to send namespace disconnect for client {} in namespace {}",
-                                getSessionId(), namespace.getName(), future.cause());
-                    }
-                });
+        ChannelFuture future = baseClient.send(packet.withNsp(namespace.getName()));
+
+        if (future == null) {
+            onDisconnect();
+            return;
+        }
+
+        future.addListener(f -> {
+            if (!f.isSuccess()) {
+                log.warn("Failed to send namespace disconnect for client {} in namespace {}",
+                        getSessionId(), namespace.getName(), f.cause());
+            }
+
+            onDisconnect();
+        });
     }
 
     @Override

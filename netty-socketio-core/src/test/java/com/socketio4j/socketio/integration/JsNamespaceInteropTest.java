@@ -34,6 +34,7 @@ import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIONamespace;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.namespace.Namespace;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.Assert.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -1001,6 +1002,33 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         assertEquals(10, textEvents.get());
         assertEquals(10, binaryEvents.get());
         assertEquals(10, ackEvents.get());
+    }
+
+    @ParameterizedTest(name = "[NS-021] Client v{0} - Polling Namespace Disconnect")
+    @ValueSource(strings = {
+            "1",
+            "2",
+            "3",
+            "4"
+    })
+    void testNamespaceServerDisconnectPolling(String version) throws Exception {
+
+        AtomicInteger disconnects = new AtomicInteger();
+
+        chat.addConnectListener(client -> {
+
+            disconnects.incrementAndGet();
+
+            client.disconnect();
+        });
+
+        runNamespaceJsTest(
+                version,
+                "polling",
+                "namespace_polling_server_disconnect",
+                "");
+
+        assertEquals(1, disconnects.get());
     }
 
 }

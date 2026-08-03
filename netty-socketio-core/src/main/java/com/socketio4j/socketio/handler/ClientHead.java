@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -137,7 +138,7 @@ public class ClientHead {
         return handshakeData.getHttpHeaders().get(HttpHeaderNames.ORIGIN);
     }
 
-    public ChannelFuture send(Packet packet) {
+    public @Nullable ChannelFuture send(Packet packet) {
         return send(packet, getCurrentTransport());
     }
 
@@ -186,7 +187,7 @@ public class ClientHead {
         }, configuration.getPingTimeout() + configuration.getPingInterval(), TimeUnit.MILLISECONDS);
     }
 
-    public ChannelFuture send(Packet packet, Transport transport) {
+    public @Nullable ChannelFuture send(Packet packet, Transport transport) {
         TransportState state = channels.get(transport);
         state.getPacketsQueue().add(packet);
 

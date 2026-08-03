@@ -1023,6 +1023,25 @@ switch (scenario) {
         break;
     }
 
+    case "namespace_polling_server_disconnect": {
+
+        const socket = createSocket("/chat", false);
+
+        socket.on("disconnect", reason => {
+
+            if (reason !== "io server disconnect") {
+                fail("Unexpected disconnect reason: " + reason);
+                return;
+            }
+
+            success("NS-021 PASSED");
+        });
+
+        handleConnectError(socket);
+
+        break;
+    }
+
     default:
         fail(`Unknown scenario: ${scenario}`);
 }
