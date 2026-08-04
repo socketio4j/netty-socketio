@@ -19,11 +19,14 @@ package com.socketio4j.socketio.protocol;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,7 +40,9 @@ import com.socketio4j.socketio.Configuration;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
+import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.util.CharsetUtil;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -1116,120 +1121,105 @@ public class PacketEncoderTest extends BaseProtocolTest {
             buffer.release();
         }
     }
+
     @Test
     public void testEncodePacketsEIOv3PollingBatchWithXHR2Attachment() throws IOException {
-
-        Packet connect = new Packet(PacketType.MESSAGE);
-        connect.setSubType(PacketType.CONNECT);
-        connect.setNsp("");
 
         Packet binaryEvent = new Packet(PacketType.MESSAGE);
         binaryEvent.setSubType(PacketType.EVENT);
         binaryEvent.setNsp("");
         binaryEvent.setName("binEv");
-
-        byte[] attachment = {10, 20, 30};
-
-        // Use byte[], not ByteBuf
         binaryEvent.setData(Arrays.asList(
                 "hello",
-                attachment
+                new byte[]{10, 20, 30}
         ));
 
         Queue<Packet> queue = new LinkedList<>();
-        queue.add(connect);
         queue.add(binaryEvent);
 
         ByteBuf buffer = Unpooled.buffer();
 
         try {
-            EncodePacketsResult result = encoder.encodePackets(EngineIOVersion.V3,
+
+            EncodePacketsResult result = encoder.encodePackets(
+                    EngineIOVersion.V3,
                     queue,
                     buffer,
                     allocator,
                     Integer.MAX_VALUE);
 
             assertTrue(result.hasBinary());
+            assertTrue(queue.isEmpty());
 
-            byte[] encoded = new byte[buffer.readableBytes()];
-            buffer.getBytes(0, encoded);
-
-            String utf8 = new String(encoded, CharsetUtil.ISO_8859_1);
-            System.out.println("hasBinary = " + result.hasBinary());
-
-            System.out.println(
-                    Arrays.toString(encoded));
-
-            System.out.println(
-                    buffer.toString(CharsetUtil.ISO_8859_1));
-            //
-            // First packet
-            //
-            assertTrue(
-                    utf8.startsWith("2:40"),
-                    "Unexpected polling payload: " + utf8);
+            String payload = buffer.toString(CharsetUtil.ISO_8859_1);
 
             //
-            // Binary event should contain a placeholder.
+            // Placeholder packet should be present.
             //
-            assertTrue(
-                    utf8.contains("\"_placeholder\":true"),
-                    utf8);
-
-            assertTrue(
-                    utf8.contains("\"num\":0"),
-                    utf8);
+            assertTrue(payload.contains("\"binEv\""));
+            assertTrue(payload.contains("\"hello\""));
+            assertTrue(payload.contains("\"_placeholder\":true"));
+            assertTrue(payload.contains("\"num\":0"));
 
             //
-            // Verify XHR2 attachment frame:
-            // 0x01 <ascii length> 0xFF 0x04 <binary bytes>
+            // Verify XHR2 attachment frame.
             //
-            boolean xhr2Found = false;
+            byte[] encoded = ByteBufUtil.getBytes(buffer);
 
-            for (int i = 0; i < encoded.length - 5; i++) {
+            byte[] expectedAttachment = {
+                    0x01,
+                    0x04,
+                    (byte) 0xFF,
+                    0x04,
+                    10,
+                    20,
+                    30
+            };
 
-                if (encoded[i] != 0x01) {
-                    continue;
-                }
-
-                int p = i + 1;
-
-                while (p < encoded.length
-                        && encoded[p] >= '0'
-                        && encoded[p] <= '9') {
-                    p++;
-                }
-
-                if (p >= encoded.length) {
-                    continue;
-                }
-
-                if (encoded[p] != (byte) 0xFF) {
-                    continue;
-                }
-
-                if (p + 4 >= encoded.length) {
-                    continue;
-                }
-
-                if (encoded[p + 1] != 0x04) {
-                    continue;
-                }
-
-                assertEquals(10, encoded[p + 2] & 0xFF);
-                assertEquals(20, encoded[p + 3] & 0xFF);
-                assertEquals(30, encoded[p + 4] & 0xFF);
-
-                xhr2Found = true;
-                break;
-            }
-
-            assertTrue(
-                    xhr2Found,
-                    "Missing XHR2 binary attachment frame");
+            assertArrayEquals(
+                    expectedAttachment,
+                    Arrays.copyOfRange(
+                            encoded,
+                            encoded.length - expectedAttachment.length,
+                            encoded.length));
 
         } finally {
             buffer.release();
         }
+    }
+    private static Packet event(String name, Object... args) {
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setSubType(PacketType.EVENT);
+        packet.setName(name);
+        packet.setData(
+                Arrays.asList(args));
+
+        return packet;
+    }
+    @Test
+    void testEncodePacketsV3TextThenBinary() throws Exception {
+
+        Queue<Packet> packets = new ConcurrentLinkedQueue<>();
+
+        packets.add(event("batchText1", "TEXT1"));
+        packets.add(event("batchBinary",  new byte[]{1,2,3,4,5}));
+
+        ByteBuf out = Unpooled.buffer();
+
+        EncodePacketsResult result =
+                encoder.encodePackets(
+                        EngineIOVersion.V3,
+                        packets,
+                        out,
+                        UnpooledByteBufAllocator.DEFAULT,
+                        50);
+
+        assertTrue(result.hasBinary());
+
+        assertEquals(
+                "000204ff34325b2262617463685465787431222c225445585431225d"
+                        + "000409ff3435312d5b22626174636842696e617279222c7b225f706c616365686f6c646572223a747275652c226e756d223a307d5d"
+                        + "0106ff040102030405",
+                ByteBufUtil.hexDump(out));
     }
 }

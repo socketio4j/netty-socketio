@@ -62,11 +62,36 @@ public class PacketEncoder {
         return allocator.heapBuffer();
     }
 
-    public void encodeJsonP(EngineIOVersion engineIOVersion, Integer jsonpIndex, Queue<Packet> packets,
-                            ByteBuf out, ByteBufAllocator allocator,
+    /**
+     * Encodes Engine.IO polling responses using Base64 text encoding.
+     *
+     * <p>If {@code jsonpIndex != null}, the encoded payload is additionally wrapped
+     * in a JSONP callback for legacy clients.</p>
+     *
+     * <p>Supports the following Engine.IO polling modes:</p>
+     * <ul>
+     *   <li><b>Base64 polling</b> ({@code b64=1})</li>
+     *   <li><b>JSONP polling</b> ({@code j=<index>}), which uses the same Base64
+     *       payload encoding wrapped in a JSONP callback.</li>
+     * </ul>
+     *
+     * @param engineIOVersion Engine.IO protocol version.
+     * @param jsonpIndex JSONP callback index, or {@code null} for standard Base64
+     *                   polling.
+     * @param packets packets to encode.
+     * @param out destination buffer.
+     * @param allocator buffer allocator.
+     * @param limit maximum number of packets to encode.
+     * @throws IOException if packet encoding fails.
+     */
+    public void encodeJsonP(EngineIOVersion engineIOVersion,
+                            Integer jsonpIndex,
+                            Queue<Packet> packets,
+                            ByteBuf out,
+                            ByteBufAllocator allocator,
                             int limit) throws IOException {
 
-        boolean jsonpMode = jsonpIndex != null;
+        boolean wrapJsonp = jsonpIndex != null;
 
         ByteBuf buf = allocateBuffer(allocator);
         try {
@@ -80,7 +105,8 @@ public class PacketEncoder {
 
                 ByteBuf packetBuf = allocateBuffer(allocator);
                 try {
-                    EncodeResult encodeResult = encodePacket(engineIOVersion, packet, packetBuf, allocator, true);
+                    EncodeResult encodeResult =
+                            encodePacket(engineIOVersion, packet, packetBuf, allocator, true);
 
                     int packetSize = packetBuf.writerIndex();
                     buf.writeBytes(toChars(packetSize));
@@ -105,15 +131,15 @@ public class PacketEncoder {
                 i++;
             }
 
-            if (jsonpMode) {
+            if (wrapJsonp) {
                 out.writeBytes(JSONP_HEAD);
                 out.writeBytes(toChars(jsonpIndex));
                 out.writeBytes(JSONP_START);
             }
 
-            processUtf8(buf, out, jsonpMode);
+            processUtf8(buf, out, wrapJsonp);
 
-            if (jsonpMode) {
+            if (wrapJsonp) {
                 out.writeBytes(JSONP_END);
             }
         } finally {
@@ -136,35 +162,33 @@ public class PacketEncoder {
         }
     }
 
-    public EncodePacketsResult encodePackets(EngineIOVersion  engineIOVersion, Queue<Packet> packets,
-                              ByteBuf buffer,
-                              ByteBufAllocator allocator,
-                              int limit) throws IOException {
+    public EncodePacketsResult encodePackets(EngineIOVersion engineIOVersion,
+                                             Queue<Packet> packets,
+                                             ByteBuf buffer,
+                                             ByteBufAllocator allocator,
+                                             int limit) throws IOException {
 
         int count = 0;
         boolean first = true;
         boolean hasBinary = false;
 
-        while (count < limit) {
-            Packet packet = packets.poll();
-            if (packet == null) {
-                break;
-            }
+        if (EngineIOVersion.V4.equals(engineIOVersion)) {
 
-            if (EngineIOVersion.V4.equals(engineIOVersion)) {
+            while (count < limit) {
+                Packet packet = packets.poll();
+                if (packet == null) {
+                    break;
+                }
 
-                //
-                // Engine.IO v4 polling
-                //
                 if (!first) {
                     buffer.writeByte(0x1E);
                 }
 
-                EncodeResult result = encodePacket(engineIOVersion, packet, buffer, allocator, false);
-                if (result.hasAttachments()) {
-                    hasBinary = true;
-                }
-                // HTTP polling attachments MUST be base64 packets
+                EncodeResult result =
+                        encodePacket(engineIOVersion, packet, buffer, allocator, false);
+
+                hasBinary |= result.hasAttachments();
+
                 for (ByteBuf attachment : result.getAttachments()) {
                     buffer.writeByte(0x1E);
                     buffer.writeByte('b');
@@ -177,53 +201,104 @@ public class PacketEncoder {
                     }
                 }
 
-            } else if (EngineIOVersion.V3.equals(engineIOVersion)
-                    || EngineIOVersion.V2.equals(engineIOVersion)) {
-
-                //
-                // Encode one Engine.IO packet
-                //
-                ByteBuf packetBuf = allocator.buffer();
-                EncodeResult result;
-                try {
-                    result = encodePacket(engineIOVersion, packet, packetBuf, allocator, false);
-                    if (result.hasAttachments()) {
-                        hasBinary = true;
-                    }
-                    //
-                    // v2/v3 payload format:
-                    // <character-count>:<packet>
-                    //
-                    int chars = packetBuf.toString(CharsetUtil.UTF_8).length();
-
-                    buffer.writeCharSequence(Integer.toString(chars), CharsetUtil.US_ASCII);
-                    buffer.writeByte(':');
-                    buffer.writeBytes(packetBuf);
-
-                } finally {
-                    packetBuf.release();
-                }
-
-                //
-                // Binary payload (XHR2)
-                //
-                for (ByteBuf attachment : result.getAttachments()) {
-                    buffer.writeByte(1);
-                    buffer.writeBytes(toChars(attachment.readableBytes() + 1));
-                    buffer.writeByte(0xFF);
-                    buffer.writeByte(4);
-                    buffer.writeBytes(attachment);
-                }
-
-            } else {
-                throw new IllegalStateException(
-                        "Unsupported Engine.IO version: " + engineIOVersion);
+                first = false;
+                count++;
             }
 
-            first = false;
-            count++;
+            return new EncodePacketsResult(hasBinary);
         }
-        return new EncodePacketsResult(hasBinary);
+
+        if (EngineIOVersion.V2.equals(engineIOVersion)
+                || EngineIOVersion.V3.equals(engineIOVersion)) {
+
+            class EncodedPacket {
+                final ByteBuf packet;
+                final EncodeResult result;
+
+                EncodedPacket(ByteBuf packet, EncodeResult result) {
+                    this.packet = packet;
+                    this.result = result;
+                }
+            }
+
+            List<EncodedPacket> encodedPackets = new ArrayList<>();
+
+            try {
+
+                //
+                // First pass - encode everything once
+                //
+                while (count < limit) {
+
+                    Packet packet = packets.poll();
+                    if (packet == null) {
+                        break;
+                    }
+
+                    ByteBuf packetBuf = allocator.buffer();
+
+                    EncodeResult result =
+                            encodePacket(engineIOVersion,
+                                    packet,
+                                    packetBuf,
+                                    allocator,
+                                    false);
+
+                    hasBinary |= result.hasAttachments();
+
+                    encodedPackets.add(new EncodedPacket(packetBuf, result));
+
+                    count++;
+                }
+
+                //
+                // Second pass - write using the chosen framing
+                //
+                for (EncodedPacket encoded : encodedPackets) {
+
+                    if (hasBinary) {
+
+                        // Binary Engine.IO payload
+                        buffer.writeByte(0);
+                        buffer.writeBytes(longToBytes(encoded.packet.readableBytes()));
+                        buffer.writeByte(0xFF);
+
+                    } else {
+
+                        // Text Engine.IO payload
+                        int chars =
+                                encoded.packet.toString(CharsetUtil.UTF_8).length();
+
+                        buffer.writeCharSequence(
+                                Integer.toString(chars),
+                                CharsetUtil.US_ASCII);
+
+                        buffer.writeByte(':');
+                    }
+
+                    buffer.writeBytes(encoded.packet);
+
+                    for (ByteBuf attachment : encoded.result.getAttachments()) {
+                        buffer.writeByte(1);
+                        buffer.writeBytes(longToBytes(attachment.readableBytes() + 1));
+                        buffer.writeByte(0xFF);
+                        buffer.writeByte(4);
+                        buffer.writeBytes(attachment);
+                    }
+                }
+
+            } finally {
+
+                for (EncodedPacket encoded : encodedPackets) {
+                    encoded.packet.release();
+                }
+            }
+
+            return new EncodePacketsResult(hasBinary);
+        }
+
+        throw new IllegalStateException(
+                "Unsupported Engine.IO version: " + engineIOVersion);
     }
 
     private byte toChar(int number) {
