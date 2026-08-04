@@ -650,7 +650,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         public void setCustomerEmail(String customerEmail) { this.customerEmail = customerEmail; }
     }
 
-    @ParameterizedTest(name = "Client v{0} over {1} - Join Single Room")
+    @ParameterizedTest(name = "[ROOM-001] Client v{0} over {1} - Join Single Room")
     @CsvSource({
             "1, websocket",
             "1, polling",
@@ -681,7 +681,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         assertTrue(joined.get());
     }
     ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    @ParameterizedTest(name = "Client v{0} over {1} - Leave Room")
+    @ParameterizedTest(name = "[ROOM-002] Client v{0} over {1} - Leave Room")
     @CsvSource({
             "1, websocket",
             "1, polling",
@@ -727,7 +727,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         assertTrue(left.get());
     }
 
-    @ParameterizedTest(name = "Client v{0} over {1} - Join Same Room Twice")
+    @ParameterizedTest(name = "[ROOM-003] Client v{0} over {1} - Join Same Room Twice")
     @CsvSource({
             "1, websocket",
             "1, polling",

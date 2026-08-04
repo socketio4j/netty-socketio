@@ -21,6 +21,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.LinkedList;
 import java.util.Map;
 
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -237,7 +238,7 @@ public class PacketDecoder {
         return decodePackets(buffer, client, client.getCurrentTransport());
     }
 
-    public Packet decodePackets(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
+    public @Nullable Packet decodePackets(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
         if (isStringPacket(buffer)) {
             return decodeWithStringHeader(buffer, client, transport);
         } else if (hasLengthHeader(buffer)) {
@@ -291,7 +292,7 @@ public class PacketDecoder {
         return new String(bytes, CharsetUtil.UTF_8);
     }
 
-    private Packet decode(ClientHead head, ByteBuf frame, Transport transport) throws IOException {
+    private @Nullable Packet decode(ClientHead head, ByteBuf frame, Transport transport) throws IOException {
 
         Packet lastPacket = head.getLastBinaryPacket();
         // Assume attachments follow.
