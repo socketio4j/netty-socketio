@@ -44,6 +44,7 @@ import io.netty.util.CharsetUtil;
 public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage> {
 
     private static final Logger log = LoggerFactory.getLogger(InPacketHandler.class);
+    private static final int MAX_LOG_PREVIEW = 64;
 
     private final PacketListener packetListener;
     private final PacketDecoder decoder;
@@ -139,13 +140,36 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                              client.getSessionId(), ns.getName());
                 }
             } catch (Exception ex) {
-                String c;
+                final String preview;
+                final int payloadSize;
+
                 if (content.refCnt() > 0) {
-                    c = content.toString(CharsetUtil.UTF_8);
+                    payloadSize = content.readableBytes();
+                    int length = Math.min(payloadSize, MAX_LOG_PREVIEW);
+                    preview = io.netty.buffer.ByteBufUtil.hexDump(
+                            content,
+                            content.readerIndex(),
+                            length);
                 } else {
-                    c = "<released>";
+                    payloadSize = -1;
+                    preview = "<released>";
                 }
-                log.error("Error during data processing. Client sessionId: {}, data: {}", client.getSessionId(), c, ex);
+
+                if (payloadSize > MAX_LOG_PREVIEW) log.error(
+                        "Error during data processing. Client sessionId: {}, payloadSize={} bytes, payloadPreview={}{}",
+                        client.getSessionId(),
+                        payloadSize,
+                        preview,
+                        "... (truncated)",
+                        ex);
+                else log.error(
+                        "Error during data processing. Client sessionId: {}, payloadSize={} bytes, payloadPreview={}{}",
+                        client.getSessionId(),
+                        payloadSize,
+                        preview,
+                        "",
+                        ex);
+
                 throw ex;
             }
         }

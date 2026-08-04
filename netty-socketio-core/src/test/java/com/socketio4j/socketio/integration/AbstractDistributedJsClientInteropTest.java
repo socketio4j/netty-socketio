@@ -40,9 +40,11 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -476,47 +478,59 @@ public abstract class AbstractDistributedJsClientInteropTest {
     @Test
     public void testDistributedAckText_Positive() throws Exception {
         final String room = "ClusterAckTextRoom_" + System.currentTimeMillis();
-        List<JsClientProcess> processes = launchFullClientMatrix("dist_ack_text", room, new HashMap<>());
+
+        List<JsClientProcess> processes =
+                launchFullClientMatrix("dist_ack_text", room, new HashMap<>());
+
         try {
             awaitRoomSync(room, 16, processes);
 
             CountDownLatch ackLatch = new CountDownLatch(16);
-            ConcurrentHashMap<String, String> expectedReplies = new ConcurrentHashMap<>();
+            ConcurrentLinkedQueue<String> failures = new ConcurrentLinkedQueue<>();
 
-            for (SocketIOClient client : node1.getAllClients()) {
-                String challengeNonce = "CHALLENGE_N1_" + UUID.randomUUID();
-                String expectedReply = "ACK_VERIFIED_" + challengeNonce;
-                expectedReplies.put(client.getSessionId().toString(), expectedReply);
-
-                client.sendEvent("distAckTextReq", new AckCallback<String>(String.class, 10) {
-                    @Override
-                    public void onSuccess(String result) {
-                        if (expectedReply.equals(result)) {
-                            ackLatch.countDown();
-                        }
-                    }
-                }, challengeNonce);
-            }
-
-            for (SocketIOClient client : node2.getAllClients()) {
-                String challengeNonce = "CHALLENGE_N2_" + UUID.randomUUID();
-                String expectedReply = "ACK_VERIFIED_" + challengeNonce;
-                expectedReplies.put(client.getSessionId().toString(), expectedReply);
+            Consumer<SocketIOClient> sendAckRequest = client -> {
+                String nonce = "CHALLENGE_" + client.getSessionId() + "_" + UUID.randomUUID();
+                String expectedReply = "ACK_VERIFIED_" + nonce;
 
                 client.sendEvent("distAckTextReq", new AckCallback<String>(String.class, 10) {
                     @Override
-                    public void onSuccess(String result) {
-                        if (expectedReply.equals(result)) {
+                    public void onSuccess(String actualReply) {
+                        if (expectedReply.equals(actualReply)) {
                             ackLatch.countDown();
+                        } else {
+                            failures.add(String.format(
+                                    "Client=%s expected='%s' actual='%s'",
+                                    client.getSessionId(),
+                                    expectedReply,
+                                    actualReply));
                         }
                     }
-                }, challengeNonce);
-            }
 
-            assertTrue(ackLatch.await(15, TimeUnit.SECONDS),
-                    String.format("Timed out waiting for text ACKs! Received %d of 16 verified nonces.", 16 - ackLatch.getCount()));
+                    @Override
+                    public void onTimeout() {
+                        failures.add(String.format(
+                                "ACK timeout from client %s",
+                                client.getSessionId()));
+                    }
+                }, nonce);
+            };
 
-            node1.getBroadcastOperations().sendEvent("dist-test-done", "ack_text_check");
+            node1.getAllClients().forEach(sendAckRequest);
+            node2.getAllClients().forEach(sendAckRequest);
+
+            assertTrue(
+                    ackLatch.await(15, TimeUnit.SECONDS),
+                    String.format(
+                            "Timed out waiting for ACKs. Received %d/16.%nFailures:%n%s",
+                            16 - ackLatch.getCount(),
+                            String.join("\n", failures)));
+
+            assertTrue(
+                    failures.isEmpty(),
+                    "ACK payload verification failed:\n" + String.join("\n", failures));
+
+            node1.getBroadcastOperations()
+                    .sendEvent("dist-test-done", "ack_text_check");
 
             verifyAndCleanUpProcesses(processes, 25);
         } finally {
@@ -553,7 +567,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
                             ackLatch.countDown();
                         }
                     }
-                }, token);
+                }, (Object) token);
             }
 
             for (SocketIOClient client : node2.getAllClients()) {
@@ -574,7 +588,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
                             ackLatch.countDown();
                         }
                     }
-                }, token);
+                }, (Object) token);
             }
 
             assertTrue(ackLatch.await(15, TimeUnit.SECONDS),
@@ -913,7 +927,9 @@ public abstract class AbstractDistributedJsClientInteropTest {
             return ((java.util.Collection<?>) clients).size();
         }
         int count = 0;
-        for (Object unused : clients) count++;
+        for (Object ignored : clients) {
+            count++;
+        }
         return count;
     }
 

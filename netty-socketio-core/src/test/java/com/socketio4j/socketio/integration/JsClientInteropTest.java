@@ -321,7 +321,26 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
             getServer().removeConnectListener(listener);
         }
     }
+    @ParameterizedTest(name = "Client v{0} over {1} - Server Batch Text/Binary/Text")
+    @CsvSource({
+            "1, polling",
+            "2, polling",
+            "3, polling",
+            "4, polling"
+    })
+    public void testJsServerBatchTextBinaryText(String version, String transport) throws Exception {
 
+        getServer().addConnectListener(client -> {
+
+            // Send three packets consecutively.
+            client.sendEvent("batchText1", "TEXT1");
+            client.sendEvent("batchBinary", new byte[] {1, 2, 3, 4, 5});
+            client.sendEvent("batchText2", "TEXT2");
+
+        });
+
+        runJsTest(version, transport, "server_batch_text_binary_text");
+    }
     @ParameterizedTest(name = "Client v{0} over {1} - Binary Payload (byte[])")
     @CsvSource({
             "1, websocket",

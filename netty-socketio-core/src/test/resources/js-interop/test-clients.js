@@ -53,7 +53,13 @@ if (version === '1') {
     console.error(`Unsupported client version: ${version}`);
     process.exit(1);
 }
+const pkg = require(`socket.io-client-v${version}/package.json`);
 
+console.log("====================================");
+console.log("Requested client :", version);
+console.log("Package name     :", pkg.name);
+console.log("Package version  :", pkg.version);
+console.log("====================================");
 const url = `http://localhost:${port}`;
 const options = {
     transports: [transport],
@@ -71,7 +77,27 @@ const timeout = setTimeout(() => {
 
 socket.on('connect', () => {
     console.log(`[v${version} JS Client] Connected successfully via ${transport}`);
+    console.log("Socket.IO package :", pkg.version);
 
+    if (socket.io && socket.io.engine) {
+        console.log("Transport        :", socket.io.engine.transport.name);
+
+        try {
+            const eio = require(`socket.io-client-v${version}/node_modules/engine.io-client/package.json`);
+            console.log("Engine.IO client:", eio.version);
+        } catch (e) {
+            console.log("Engine.IO package not directly accessible");
+        }
+    }
+    const transportObj = socket.io.engine.transport;
+
+    console.log("Transport:", transportObj.name);
+
+    if (transportObj && transportObj.query) {
+        console.log("EIO:", transportObj.query.EIO);
+    }
+
+    console.log("Transport object:", transportObj);
     if (scenario === 'connect') {
         clearTimeout(timeout);
         socket.disconnect();
@@ -531,4 +557,69 @@ if (scenario === "disconnect_rooms") {
             process.exit(0);
         }, 300);
     });
+}
+if (scenario === "server_batch_text_binary_text") {
+
+    const received = [];
+
+    socket.on("batchText1", (msg) => {
+
+        if (msg !== "TEXT1") {
+            console.error("batchText1 mismatch:", msg);
+            process.exit(1);
+        }
+
+        received.push("TEXT1");
+        checkDone();
+    });
+
+    socket.on("batchBinary", (data) => {
+
+        const buf = Buffer.from(data);
+
+        if (buf.length !== 5
+            || buf[0] !== 1
+            || buf[1] !== 2
+            || buf[2] !== 3
+            || buf[3] !== 4
+            || buf[4] !== 5) {
+
+            console.error("Binary payload mismatch:", buf);
+            process.exit(1);
+        }
+
+        received.push("BIN");
+        checkDone();
+    });
+
+    socket.on("batchText2", (msg) => {
+
+        if (msg !== "TEXT2") {
+            console.error("batchText2 mismatch:", msg);
+            process.exit(1);
+        }
+
+        received.push("TEXT2");
+        checkDone();
+    });
+
+    function checkDone() {
+
+        if (received.length !== 3) {
+            return;
+        }
+
+        if (received[0] !== "TEXT1"
+            || received[1] !== "BIN"
+            || received[2] !== "TEXT2") {
+
+            console.error("Packet ordering incorrect:", received);
+            process.exit(1);
+        }
+
+        clearTimeout(timeout);
+        socket.disconnect();
+        console.log("Server batch text/binary/text PASSED");
+        process.exit(0);
+    }
 }
