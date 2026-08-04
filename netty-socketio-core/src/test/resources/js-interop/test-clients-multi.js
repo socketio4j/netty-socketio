@@ -74,48 +74,50 @@ for (let i = 0; i < clientCount; i++) {
     });
 }
 
-function disconnectAll() {
-    clients.forEach(c => c.socket.disconnect());
+function disconnectAll(exitCode, message, isError) {
+    let remaining = clients.length;
+
+    if (remaining === 0) {
+        if (isError) {
+            console.error(message);
+        } else {
+            console.log(message);
+        }
+        process.exit(exitCode);
+        return;
+    }
+
+    clients.forEach(client => {
+        const finish = () => {
+            if (--remaining === 0) {
+                if (isError) {
+                    console.error(message);
+                } else {
+                    console.log(message);
+                }
+                process.exit(exitCode);
+            }
+        };
+
+        if (client.socket.connected) {
+            client.socket.once("disconnect", finish);
+            client.socket.disconnect();
+        } else {
+            finish();
+        }
+    });
 }
 
 function success(message) {
     clearTimeout(timeout);
-    disconnectAll();
-    console.log(message);
-    process.exit(0);
+    disconnectAll(0, message, false);
 }
 
 function fail(message) {
     clearTimeout(timeout);
-    disconnectAll();
-    console.error(message);
-    process.exit(1);
+    disconnectAll(1, message, true);
 }
 
-Promise.all(
-    clients.map(client =>
-        new Promise((resolve, reject) => {
-
-            client.socket.on("connect", () => {
-                client.connected = true;
-                console.log(`Client ${client.id} connected`);
-                resolve();
-            });
-
-            client.socket.on("connect_error", reject);
-        })
-    )
-).then(() => {
-
-    console.log("All clients connected");
-
-    //
-    // TEST CASE GOES HERE
-    //
-
-}).catch(err => {
-    fail(err);
-});
 
 Promise.all(
     clients.map(client =>
