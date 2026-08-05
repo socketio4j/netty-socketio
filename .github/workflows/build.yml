@@ -62,6 +62,23 @@ jobs:
           cd netty-socketio-core/src/test/resources/js-interop
           npm ci || npm install
 
+      # --- Install Playwright Browsers ---
+      - name: Install Playwright Browsers
+        run: |
+          cd netty-socketio-core/src/test/resources/js-interop
+          npx playwright install --with-deps chromium firefox webkit
+
+      # --- Verify Playwright ---
+      - name: Verify Playwright
+        run: |
+          cd netty-socketio-core/src/test/resources/js-interop
+          npx playwright --version
+
+      # --- Verify Python ---
+      - name: Verify Python
+        run: |
+          python3 --version
+          python3 -c "import http.server; print('http.server OK')"
       # --- Testcontainers configuration for CI ---
       - name: Disable Testcontainers reuse
         run: |

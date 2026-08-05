@@ -238,12 +238,29 @@ public class PacketDecoder {
         return decodePackets(buffer, client, client.getCurrentTransport());
     }
 
-    public @Nullable Packet decodePackets(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
+    public @Nullable Packet decodePackets(ByteBuf buffer,
+                                          ClientHead client,
+                                          Transport transport) throws IOException {
+
+        Packet pending = client.getLastBinaryPacket();
+
+        if (pending != null
+                && pending.hasAttachments()
+                && !pending.isAttachmentsLoaded()) {
+
+            if (transport == Transport.WEBSOCKET) {
+                return decode(client, buffer, transport);
+            }
+        }
+
         if (isStringPacket(buffer)) {
             return decodeWithStringHeader(buffer, client, transport);
-        } else if (hasLengthHeader(buffer)) {
+        }
+
+        if (hasLengthHeader(buffer)) {
             return decodeWithLengthHeader(buffer, client, transport);
         }
+
         return decode(client, buffer, transport);
     }
 

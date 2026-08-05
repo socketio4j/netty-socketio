@@ -60,7 +60,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
     }
 
     @Override
-    protected void channelRead0(io.netty.channel.ChannelHandlerContext ctx, PacketsMessage message)
+    protected void channelRead0(ChannelHandlerContext ctx, PacketsMessage message)
                 throws Exception {
         ByteBuf content = message.getContent();
         ClientHead client = message.getClient();
@@ -179,17 +179,26 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         }
     }
     private static Object toConnectErrorPayload(ClientHead client, Object errorData) {
-        if (client.getEngineIOVersion() == EngineIOVersion.V4
-                && errorData instanceof Map) {
-            return errorData;
+
+        if (client.getEngineIOVersion() == EngineIOVersion.V4) {
+            if (errorData instanceof Map) {
+                return errorData;
+            }
+
+            if (errorData != null) {
+                return Collections.singletonMap(
+                        "message",
+                        String.valueOf(errorData));
+            }
+            return Collections.singletonMap(
+                    "message",
+                    "Authentication failed");
         }
 
-        String message = "Authentication failed";
         if (errorData != null) {
-            message = String.valueOf(errorData);
+            return String.valueOf(errorData);
         }
-
-        return Collections.singletonMap("message", message);
+        return "Authentication failed";
     }
 
     @Override

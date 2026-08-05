@@ -236,13 +236,27 @@ public class ClientHead {
         for (NamespaceClient client : namespaceClients.values()) {
             client.onDisconnect();
         }
-        for (TransportState state : channels.values()) {
-            if (state.getChannel() != null) {
-                clientsBox.remove(state.getChannel());
+        for (Transport transport : Transport.values()) {
+            TransportState state = channels.get(transport);
+            Channel channel = state.getChannel();
+            if (channel != null) {
+                releaseTransport(transport, channel);
             }
         }
     }
+    public void releaseTransport(Transport transport, Channel channel) {
+        TransportState state = channels.get(transport);
 
+        if (state == null) {
+            return;
+        }
+
+        Channel current = state.getChannel();
+        if (current != null && current.equals(channel)) {
+            clientsBox.remove(current);
+            state.update(null);
+        }
+    }
     public HandshakeData getHandshakeData() {
         return handshakeData;
     }

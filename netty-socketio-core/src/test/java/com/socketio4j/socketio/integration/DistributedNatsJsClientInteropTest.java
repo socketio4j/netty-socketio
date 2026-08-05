@@ -25,6 +25,7 @@ import org.junit.jupiter.api.TestInstance;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
+import com.socketio4j.socketio.integration.interop.AbstractDistributedJsClientInteropTest;
 import com.socketio4j.socketio.store.CustomizedNatsContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.memory.MemoryStoreFactory;

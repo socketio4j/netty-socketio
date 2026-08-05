@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.integration;
+package com.socketio4j.socketio.integration.interop;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -33,6 +33,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIONamespace;
 import com.socketio4j.socketio.SocketIOServer;
+import com.socketio4j.socketio.integration.AbstractSocketIOIntegrationTest;
 import com.socketio4j.socketio.namespace.Namespace;
 import org.junit.jupiter.params.provider.ValueSource;
 
