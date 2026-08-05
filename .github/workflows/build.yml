@@ -30,64 +30,70 @@ jobs:
 
       # --- Checkout ---
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      # --- Enable Docker (already preinstalled on runners) ---
+      # --- Enable Docker ---
       - name: Start Docker daemon
         run: |
           sudo systemctl start docker
           sudo systemctl status docker --no-pager
 
-      # --- Validate Docker works ---
-      - name: Docker Info
-        run: docker info
-
       # --- Java / Maven Setup ---
       - name: Set up Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ inputs.javaVersion }}
           distribution: temurin
           cache: maven
 
-      # --- Node.js Setup for JS Interop Tests ---
+      # --- Node.js 22 Setup with Package Caching ---
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: 'netty-socketio-core/src/test/resources/js-interop/package-lock.json'
 
       # --- Install JS Client Interop Dependencies ---
       - name: Install JS Interop Dependencies
         run: |
           cd netty-socketio-core/src/test/resources/js-interop
-          npm ci || npm install
+          npm ci
 
-      # --- Install Playwright Browsers ---
-      - name: Install Playwright Browsers
+      # --- Cache Playwright Browsers ---
+      - name: Cache Playwright Browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('netty-socketio-core/src/test/resources/js-interop/package-lock.json', 'netty-socketio-core/src/test/resources/js-interop/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      # --- Install Playwright Browsers & OS Deps (On Cache Miss) ---
+      - name: Install Playwright Browsers & OS Deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: |
           cd netty-socketio-core/src/test/resources/js-interop
           npx playwright install --with-deps chromium firefox webkit
 
-      # --- Verify Playwright ---
-      - name: Verify Playwright
+      # --- Install OS Deps Only (On Cache Hit) ---
+      - name: Install Playwright OS Dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: |
           cd netty-socketio-core/src/test/resources/js-interop
-          npx playwright --version
+          npx playwright install-deps chromium firefox webkit
 
-      # --- Verify Python ---
-      - name: Verify Python
-        run: |
-          python3 --version
-          python3 -c "import http.server; print('http.server OK')"
       # --- Testcontainers configuration for CI ---
       - name: Disable Testcontainers reuse
         run: |
           echo "testcontainers.reuse.enable=false" > ~/.testcontainers.properties
-          cat ~/.testcontainers.properties
 
       # --- Build + Tests ---
       - name: Build Project
-        timeout-minutes: 120
+        timeout-minutes: 60
         run: |
-          export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN"
+          export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN \
+                             -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN \
+                             -Dcom.socketio4j.socketio.level=WARN"
           mvn --batch-mode --errors --fail-at-end -DforkCount=1 verify
