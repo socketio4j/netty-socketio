@@ -138,13 +138,23 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     })
     public void testJsTextMessaging(String version, String transport) throws Exception {
         AtomicBoolean received = new AtomicBoolean(false);
+        AtomicReference<String> clientReceived = new AtomicReference<>();
         getServer().addEventListener("testText", String.class, (client, data, ackRequest) -> {
             received.set(true);
             client.sendEvent("textResponse", "hello from server");
         });
+        getServer().addEventListener("clientTextResponse", String.class, (client, data, ackRequest) -> {
+            clientReceived.set(data);
+        });
 
-        runJsTest(version, transport, "text");
-        assertTrue(received.get(), "Server should have received testText event");
+        try {
+            runJsTest(version, transport, "text");
+            assertTrue(received.get(), "Server should have received testText event");
+            assertEquals("hello from server", clientReceived.get(), "Server verified: JS client received exact text response");
+        } finally {
+            getServer().removeAllListeners("testText");
+            getServer().removeAllListeners("clientTextResponse");
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Client Event Text ACK")
@@ -160,13 +170,23 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     })
     public void testJsEventAck(String version, String transport) throws Exception {
         AtomicBoolean received = new AtomicBoolean(false);
+        AtomicReference<String> clientAckData = new AtomicReference<>();
         getServer().addEventListener("testAck", String.class, (client, data, ackRequest) -> {
             received.set(true);
             ackRequest.sendAckData("ack_reply_" + data);
         });
+        getServer().addEventListener("clientAckResponse", String.class, (client, data, ackRequest) -> {
+            clientAckData.set(data);
+        });
 
-        runJsTest(version, transport, "ack");
-        assertTrue(received.get(), "Server should have received testAck event");
+        try {
+            runJsTest(version, transport, "ack");
+            assertTrue(received.get(), "Server should have received testAck event");
+            assertEquals("ack_reply_ping_ack_data", clientAckData.get(), "Server verified: JS client received expected ACK data");
+        } finally {
+            getServer().removeAllListeners("testAck");
+            getServer().removeAllListeners("clientAckResponse");
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Client Event Binary ACK")
@@ -182,13 +202,23 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     })
     public void testJsEventAckBinary(String version, String transport) throws Exception {
         AtomicBoolean received = new AtomicBoolean(false);
+        AtomicReference<byte[]> clientAckData = new AtomicReference<>();
         getServer().addEventListener("testAckBinary", String.class, (client, data, ackRequest) -> {
             received.set(true);
             ackRequest.sendAckData(new byte[] { 50, 51, 52 });
         });
+        getServer().addEventListener("clientAckBinaryResponse", byte[].class, (client, data, ackRequest) -> {
+            clientAckData.set(data);
+        });
 
-        runJsTest(version, transport, "ack_binary");
-        assertTrue(received.get(), "Server should have received testAckBinary event");
+        try {
+            runJsTest(version, transport, "ack_binary");
+            assertTrue(received.get(), "Server should have received testAckBinary event");
+            assertArrayEquals(new byte[] { 50, 51, 52 }, clientAckData.get(), "Server verified: JS client received expected binary ACK");
+        } finally {
+            getServer().removeAllListeners("testAckBinary");
+            getServer().removeAllListeners("clientAckBinaryResponse");
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Server-Initiated Text ACK Callback")
@@ -329,17 +359,27 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
             "4, polling"
     })
     public void testJsServerBatchTextBinaryText(String version, String transport) throws Exception {
+        java.util.List<String> clientSequence = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
-        getServer().addConnectListener(client -> {
+        getServer().addEventListener("clientBatchDone", String.class, (client, sequence, ackSender) -> {
+            clientSequence.addAll(java.util.Arrays.asList(sequence.split(",")));
+        });
 
-            // Send three packets consecutively.
+        com.socketio4j.socketio.listener.ConnectListener connectListener = client -> {
             client.sendEvent("batchText1", "TEXT1");
             client.sendEvent("batchBinary", new byte[] {1, 2, 3, 4, 5});
             client.sendEvent("batchText2", "TEXT2");
+        };
 
-        });
-
-        runJsTest(version, transport, "server_batch_text_binary_text");
+        getServer().addConnectListener(connectListener);
+        try {
+            runJsTest(version, transport, "server_batch_text_binary_text");
+            assertEquals(java.util.Arrays.asList("TEXT1", "BIN", "TEXT2"), clientSequence,
+                    "Server verified: JS client received batched packets in strict order [TEXT1, BIN, TEXT2]");
+        } finally {
+            getServer().removeConnectListener(connectListener);
+            getServer().removeAllListeners("clientBatchDone");
+        }
     }
     @ParameterizedTest(name = "Client v{0} over {1} - Binary Payload (byte[])")
     @CsvSource({
@@ -354,14 +394,27 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     })
     public void testJsBinaryPayload(String version, String transport) throws Exception {
         AtomicReference<byte[]> receivedData = new AtomicReference<>();
+        AtomicReference<byte[]> clientReceivedData = new AtomicReference<>();
+
         getServer().addEventListener("testBinary", byte[].class, (client, data, ackRequest) -> {
             receivedData.set(data);
             client.sendEvent("binaryResponse", new byte[] { 100, 101, 102 });
         });
 
-        runJsTest(version, transport, "binary");
-        assertArrayEquals(new byte[] { 10, 20, 30, 40, 50 }, receivedData.get(),
-                "Server should receive intact binary payload");
+        getServer().addEventListener("clientBinaryResponse", byte[].class, (client, data, ackRequest) -> {
+            clientReceivedData.set(data);
+        });
+
+        try {
+            runJsTest(version, transport, "binary");
+            assertArrayEquals(new byte[] { 10, 20, 30, 40, 50 }, receivedData.get(),
+                    "Server should receive intact binary payload");
+            assertArrayEquals(new byte[] { 100, 101, 102 }, clientReceivedData.get(),
+                    "Server verified: JS client received intact binary response");
+        } finally {
+            getServer().removeAllListeners("testBinary");
+            getServer().removeAllListeners("clientBinaryResponse");
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Multiple Binary Attachments")
@@ -378,12 +431,8 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     public void testJsMultiBinaryAttachments(String version, String transport) throws Exception {
         AtomicReference<byte[]> attachment1 = new AtomicReference<>();
         AtomicReference<byte[]> attachment2 = new AtomicReference<>();
+        AtomicReference<byte[]> clientReceivedData = new AtomicReference<>();
 
-        // JS sends: socket.emit('testMultiBinary', Buffer[1,2,3], Buffer[4,5,6])
-        // Socket.IO binary protocol packs multiple Buffers as separate attachments.
-        // addMultiTypeEventListener delivers all args via MultiTypeArgs; regular
-        // DataListener<byte[]> only delivers args.get(0) and would miss the second
-        // buffer.
         getServer().addMultiTypeEventListener("testMultiBinary", (client, data, ackRequest) -> {
             byte[] buf1 = data.get(0);
             byte[] buf2 = data.get(1);
@@ -392,11 +441,22 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
             client.sendEvent("binaryResponse", new byte[] { 100, 101, 102 });
         }, byte[].class, byte[].class);
 
-        runJsTest(version, transport, "multi_binary");
-        assertArrayEquals(new byte[] { 1, 2, 3 }, attachment1.get(),
-                "Server should receive first binary attachment intact");
-        assertArrayEquals(new byte[] { 4, 5, 6 }, attachment2.get(),
-                "Server should receive second binary attachment intact");
+        getServer().addEventListener("clientBinaryResponse", byte[].class, (client, data, ackRequest) -> {
+            clientReceivedData.set(data);
+        });
+
+        try {
+            runJsTest(version, transport, "multi_binary");
+            assertArrayEquals(new byte[] { 1, 2, 3 }, attachment1.get(),
+                    "Server should receive first binary attachment intact");
+            assertArrayEquals(new byte[] { 4, 5, 6 }, attachment2.get(),
+                    "Server should receive second binary attachment intact");
+            assertArrayEquals(new byte[] { 100, 101, 102 }, clientReceivedData.get(),
+                    "Server verified: JS client received binary response");
+        } finally {
+            getServer().removeAllListeners("testMultiBinary");
+            getServer().removeAllListeners("clientBinaryResponse");
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Map/Generic Object")
@@ -414,9 +474,8 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     public void testJsMapObject(String version, String transport) throws Exception {
         AtomicReference<String> receivedName = new AtomicReference<>();
         AtomicReference<Integer> receivedValue = new AtomicReference<>();
+        AtomicReference<java.util.Map<String, Object>> clientReceivedObj = new AtomicReference<>();
 
-        // JS sends: socket.emit('testObject', {name: 'hello', value: 42})
-        // Server receives it as a Map<String,Object> (Jackson's default for generic Object.class)
         getServer().addEventListener("testObject", Object.class, (client, data, ackRequest) -> {
             java.util.Map<String, Object> obj = (java.util.Map<String, Object>) data;
             String name = (String) obj.get("name");
@@ -429,9 +488,21 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
             client.sendEvent("objectResponse", response);
         });
 
-        runJsTest(version, transport, "object");
-        assertEquals("hello", receivedName.get(), "Server should receive the name field from JS object");
-        assertEquals(42, receivedValue.get(), "Server should receive the value field from JS object");
+        getServer().addEventListener("clientObjectResponse", Object.class, (client, data, ackRequest) -> {
+            clientReceivedObj.set((java.util.Map<String, Object>) data);
+        });
+
+        try {
+            runJsTest(version, transport, "object");
+            assertEquals("hello", receivedName.get(), "Server should receive the name field from JS object");
+            assertEquals(42, receivedValue.get(), "Server should receive the value field from JS object");
+            assertNotNull(clientReceivedObj.get(), "JS client must emit object response back to server");
+            assertEquals("hello", clientReceivedObj.get().get("echo"), "Server verified: JS client received echo");
+            assertEquals(84, ((Number) clientReceivedObj.get().get("doubled")).intValue(), "Server verified: JS client received doubled");
+        } finally {
+            getServer().removeAllListeners("testObject");
+            getServer().removeAllListeners("clientObjectResponse");
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Custom Typed Java POJO Object")
@@ -447,19 +518,30 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     })
     public void testJsCustomPojo(String version, String transport) throws Exception {
         AtomicReference<Payload> receivedPayload = new AtomicReference<>();
+        AtomicReference<ObjectResponse> clientReceivedPojo = new AtomicReference<>();
 
-        // JS sends: socket.emit('testPojo', {name: 'hello', value: 42})
-        // Server deserializes directly into typed Custom POJO (Payload.class)
         getServer().addEventListener("testPojo", Payload.class, (client, data, ackRequest) -> {
             receivedPayload.set(data);
             ObjectResponse response = new ObjectResponse(data.getName(), data.getValue() * 2);
             client.sendEvent("pojoResponse", response);
         });
 
-        runJsTest(version, transport, "pojo");
-        assertNotNull(receivedPayload.get(), "Server should deserialize into custom POJO");
-        assertEquals("hello", receivedPayload.get().getName(), "Server should deserialize name getter");
-        assertEquals(42, receivedPayload.get().getValue(), "Server should deserialize value getter");
+        getServer().addEventListener("clientPojoResponse", ObjectResponse.class, (client, data, ackRequest) -> {
+            clientReceivedPojo.set(data);
+        });
+
+        try {
+            runJsTest(version, transport, "pojo");
+            assertNotNull(receivedPayload.get(), "Server should deserialize into custom POJO");
+            assertEquals("hello", receivedPayload.get().getName(), "Server should deserialize name getter");
+            assertEquals(42, receivedPayload.get().getValue(), "Server should deserialize value getter");
+            assertNotNull(clientReceivedPojo.get(), "JS client must emit POJO response back to server");
+            assertEquals("hello", clientReceivedPojo.get().getEcho(), "Server verified: JS client received POJO echo");
+            assertEquals(84, clientReceivedPojo.get().getDoubled(), "Server verified: JS client received POJO doubled");
+        } finally {
+            getServer().removeAllListeners("testPojo");
+            getServer().removeAllListeners("clientPojoResponse");
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Mixed String + Binary Args")
@@ -476,11 +558,9 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     public void testJsMixedArgs(String version, String transport) throws Exception {
         AtomicReference<String> receivedText = new AtomicReference<>();
         AtomicReference<byte[]> receivedBytes = new AtomicReference<>();
+        AtomicReference<String> clientText = new AtomicReference<>();
+        AtomicReference<byte[]> clientBytes = new AtomicReference<>();
 
-        // JS sends: socket.emit('testMixed', 'hello_text', Buffer[7,8,9])
-        // MultiTypeEventListener is required because args are heterogeneous: String +
-        // byte[].
-        // Server echoes both back: text with '_reply' suffix, bytes as-is.
         getServer().addMultiTypeEventListener("testMixed", (client, data, ackRequest) -> {
             String text = data.get(0);
             byte[] bytes = data.get(1);
@@ -489,10 +569,22 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
             client.sendEvent("mixedResponse", text + "_reply", bytes);
         }, String.class, byte[].class);
 
-        runJsTest(version, transport, "mixed");
-        assertEquals("hello_text", receivedText.get(), "Server should receive the String argument");
-        assertArrayEquals(new byte[] { 7, 8, 9 }, receivedBytes.get(),
-                "Server should receive the binary argument intact");
+        getServer().addMultiTypeEventListener("clientMixedResponse", (client, data, ackRequest) -> {
+            clientText.set(data.get(0));
+            clientBytes.set(data.get(1));
+        }, String.class, byte[].class);
+
+        try {
+            runJsTest(version, transport, "mixed");
+            assertEquals("hello_text", receivedText.get(), "Server should receive the String argument");
+            assertArrayEquals(new byte[] { 7, 8, 9 }, receivedBytes.get(),
+                    "Server should receive the binary argument intact");
+            assertEquals("hello_text_reply", clientText.get(), "Server verified: JS client received mixed text response");
+            assertArrayEquals(new byte[] { 7, 8, 9 }, clientBytes.get(), "Server verified: JS client received mixed binary response");
+        } finally {
+            getServer().removeAllListeners("testMixed");
+            getServer().removeAllListeners("clientMixedResponse");
+        }
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Real-Life Multi-Level Complex POJO")
@@ -508,6 +600,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     })
     public void testJsComplexCustomPojo(String version, String transport) throws Exception {
         AtomicReference<OrderPayload> receivedOrder = new AtomicReference<>();
+        AtomicReference<OrderResponse> clientReceivedOrder = new AtomicReference<>();
 
         getServer().addEventListener("testComplexPojo", OrderPayload.class, (client, data, ackRequest) -> {
             receivedOrder.set(data);
@@ -520,67 +613,47 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
             client.sendEvent("complexPojoResponse", response);
         });
 
-        runJsTest(version, transport, "complex_pojo");
+        getServer().addEventListener("clientComplexPojoResponse", OrderResponse.class, (client, data, ackRequest) -> {
+            clientReceivedOrder.set(data);
+        });
 
-        OrderPayload order = receivedOrder.get();
-        assertNotNull(order, "Server should deserialize multi-level complex order payload");
-        assertEquals("ORD-98765", order.getOrderId());
-        assertEquals(149.98, order.getTotalAmount(), 0.001);
+        try {
+            runJsTest(version, transport, "complex_pojo");
 
-        assertNotNull(order.getCustomer(), "Order customer should be deserialized");
-        assertEquals("CUST-001", order.getCustomer().getCustomerId());
-        assertEquals("alice@example.com", order.getCustomer().getEmail());
-        assertTrue(order.getCustomer().isVipStatus());
+            OrderPayload order = receivedOrder.get();
+            assertNotNull(order, "Server should deserialize multi-level complex order payload");
+            assertEquals("ORD-98765", order.getOrderId());
+            assertEquals(149.98, order.getTotalAmount(), 0.001);
 
-        assertNotNull(order.getItems(), "Order items list should be deserialized");
-        assertEquals(2, order.getItems().size());
-        assertEquals("ITEM-A", order.getItems().get(0).getSku());
-        assertEquals(2, order.getItems().get(0).getQuantity());
-        assertEquals(49.99, order.getItems().get(0).getUnitPrice(), 0.001);
+            assertNotNull(order.getCustomer(), "Order customer should be deserialized");
+            assertEquals("CUST-001", order.getCustomer().getCustomerId());
+            assertEquals("alice@example.com", order.getCustomer().getEmail());
+            assertTrue(order.getCustomer().isVipStatus());
 
-        assertNotNull(order.getMetadata(), "Order metadata map should be deserialized");
-        assertEquals("mobile_app", order.getMetadata().get("source"));
+            assertNotNull(order.getItems(), "Order items list should be deserialized");
+            assertEquals(2, order.getItems().size());
+            assertEquals("ITEM-A", order.getItems().get(0).getSku());
+            assertEquals(2, order.getItems().get(0).getQuantity());
+            assertEquals(49.99, order.getItems().get(0).getUnitPrice(), 0.001);
+
+            assertNotNull(order.getMetadata(), "Order metadata map should be deserialized");
+            assertEquals("mobile_app", order.getMetadata().get("source"));
+
+            OrderResponse clientResp = clientReceivedOrder.get();
+            assertNotNull(clientResp, "Server verified: JS client received complex POJO response");
+            assertEquals("ORD-98765", clientResp.getOrderId());
+            assertEquals("PROCESSED", clientResp.getStatus());
+            assertEquals(2, clientResp.getProcessedItemCount());
+            assertEquals("alice@example.com", clientResp.getCustomerEmail());
+        } finally {
+            getServer().removeAllListeners("testComplexPojo");
+            getServer().removeAllListeners("clientComplexPojoResponse");
+        }
     }
 
     // ---------------------------------------------------------------------------
-    // Custom POJO classes used by testJsCustomPojo & testJsComplexCustomPojo
-    // ---------------------------------------------------------------------------
+    // Top-level Payload and ObjectResponse classes are used for Jackson JPMS compatibility
 
-    public static class Payload {
-        @JsonProperty("name")
-        public String name;
-        @JsonProperty("value")
-        public int value;
-
-        public Payload() {}
-        public Payload(String name, int value) {
-            this.name = name;
-            this.value = value;
-        }
-
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-        public int getValue() { return value; }
-        public void setValue(int value) { this.value = value; }
-    }
-
-    public static class ObjectResponse {
-        @JsonProperty("echo")
-        public String echo;
-        @JsonProperty("doubled")
-        public int doubled;
-
-        public ObjectResponse() {}
-        public ObjectResponse(String echo, int doubled) {
-            this.echo = echo;
-            this.doubled = doubled;
-        }
-
-        public String getEcho() { return echo; }
-        public void setEcho(String echo) { this.echo = echo; }
-        public int getDoubled() { return doubled; }
-        public void setDoubled(int doubled) { this.doubled = doubled; }
-    }
 
     public static class OrderPayload {
         @JsonProperty("orderId")

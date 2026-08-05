@@ -146,10 +146,15 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
 
         AtomicInteger connected = new AtomicInteger();
         AtomicInteger helloReceived = new AtomicInteger();
+        java.util.concurrent.atomic.AtomicReference<String> clientReceived = new java.util.concurrent.atomic.AtomicReference<>();
 
         chat.addConnectListener(client -> {
             connected.incrementAndGet();
         });
+
+        chat.addMultiTypeEventListener("clientNsReceived", (client, data, ackSender) -> {
+            clientReceived.set(data.get(1));
+        }, String.class, String.class);
 
         getServer().addEventListener("helloEvent", String.class,
                 (client, data, ackSender) -> {
@@ -158,8 +163,6 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
 
         chat.addEventListener("helloEvent", String.class,
                 (client, data, ackSender) -> {
-
-
 
                     helloReceived.incrementAndGet();
 
@@ -174,6 +177,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
 
         assertEquals(1, connected.get());
         assertEquals(1, helloReceived.get());
+        assertEquals("Hello back!", clientReceived.get(), "Server verified: JS client received Hello back!");
     }
     @ParameterizedTest(name = "[NS-002] Client v{0} over {1} - Reject Unknown Namespace")
     @CsvSource({
@@ -216,10 +220,15 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
 
         AtomicInteger defaultEvents = new AtomicInteger();
         AtomicInteger chatEvents = new AtomicInteger();
+        java.util.concurrent.atomic.AtomicReference<String> clientReceived = new java.util.concurrent.atomic.AtomicReference<>();
 
         getServer().addEventListener("helloEvent", String.class,
                 (client, data, ackSender) ->
                         defaultEvents.incrementAndGet());
+
+        chat.addMultiTypeEventListener("clientNsReceived", (client, data, ackSender) -> {
+            clientReceived.set(data.get(1));
+        }, String.class, String.class);
 
         chat.addEventListener("helloEvent", String.class,
                 (client, data, ackSender) -> {
@@ -240,6 +249,8 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
 
         assertEquals(1, chatEvents.get(),
                 "Chat namespace should receive exactly one event");
+
+        assertEquals("Hello back!", clientReceived.get(), "Server verified: JS client received Hello back!");
     }
 
     @ParameterizedTest(name = "[NS-004] Client v{0} over {1} - Multiple Namespace Connections")

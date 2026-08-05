@@ -150,14 +150,11 @@ switch (scenario) {
         });
 
         socket.on("helloResponse", msg => {
-
-            if (msg !== "Hello back!") {
-                fail(`Unexpected response: ${msg}`);
-                return;
-            }
-
-            disconnectAll(socket);
-            success("NS-001 PASSED");
+            socket.emit("clientNsReceived", "helloResponse", msg);
+            setTimeout(() => {
+                disconnectAll(socket);
+                success("NS-001 PASSED");
+            }, 100);
         });
 
         handleConnectError(socket);
@@ -216,14 +213,11 @@ switch (scenario) {
         });
 
         socket.on("helloResponse", msg => {
-
-            if (msg !== "Hello back!") {
-                fail(`Unexpected response: ${msg}`);
-                return;
-            }
-
-            disconnectAll(socket);
-            success("NS-003 PASSED");
+            socket.emit("clientNsReceived", "helloResponse", msg);
+            setTimeout(() => {
+                disconnectAll(socket);
+                success("NS-003 PASSED");
+            }, 100);
         });
 
         handleConnectError(socket);

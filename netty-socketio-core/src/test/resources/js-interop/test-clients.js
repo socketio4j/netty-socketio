@@ -112,31 +112,26 @@ socket.on('connect', () => {
     if (scenario === 'ack') {
         socket.emit('testAck', 'ping_ack_data', (response) => {
             console.log(`[v${version} JS Client] Received ack response:`, response);
-            if (response === 'ack_reply_ping_ack_data') {
+            socket.emit('clientAckResponse', response);
+            setTimeout(() => {
                 clearTimeout(timeout);
                 socket.disconnect();
                 console.log('Ack scenario PASSED');
                 process.exit(0);
-            } else {
-                console.error('Ack response mismatch:', response);
-                process.exit(1);
-            }
+            }, 100);
         });
     }
 
     if (scenario === 'ack_binary') {
         socket.emit('testAckBinary', 'ping_ack_binary_data', (response) => {
             console.log(`[v${version} JS Client] Received ack_binary response:`, response);
-            const buf = Buffer.from(response);
-            if (buf.length === 3 && buf[0] === 50 && buf[1] === 51 && buf[2] === 52) {
+            socket.emit('clientAckBinaryResponse', response);
+            setTimeout(() => {
                 clearTimeout(timeout);
                 socket.disconnect();
                 console.log('Ack binary scenario PASSED');
                 process.exit(0);
-            } else {
-                console.error('Ack binary response mismatch:', buf);
-                process.exit(1);
-            }
+            }, 100);
         });
     }
 
@@ -192,82 +187,68 @@ socket.on('connect', () => {
 
 socket.on('textResponse', (data) => {
     console.log(`[v${version} JS Client] Received textResponse:`, data);
-    if (data === 'hello from server') {
+    socket.emit('clientTextResponse', data);
+    setTimeout(() => {
         clearTimeout(timeout);
         socket.disconnect();
         console.log('Text scenario PASSED');
         process.exit(0);
-    } else {
-        console.error('Text response mismatch:', data);
-        process.exit(1);
-    }
+    }, 100);
 });
 
 socket.on('binaryResponse', (data) => {
     console.log(`[v${version} JS Client] Received binaryResponse:`, data);
-    const buf = Buffer.from(data);
-    if (buf.length === 3 && buf[0] === 100 && buf[1] === 101 && buf[2] === 102) {
+    socket.emit('clientBinaryResponse', data);
+    setTimeout(() => {
         clearTimeout(timeout);
         socket.disconnect();
         console.log('Binary scenario PASSED');
         process.exit(0);
-    } else {
-        console.error('Binary data mismatch:', buf);
-        process.exit(1);
-    }
+    }, 100);
 });
 
 socket.on('objectResponse', (data) => {
     console.log(`[v${version} JS Client] Received objectResponse:`, data);
-    if (data && data.echo === 'hello' && data.doubled === 84) {
+    socket.emit('clientObjectResponse', data);
+    setTimeout(() => {
         clearTimeout(timeout);
         socket.disconnect();
         console.log('Object scenario PASSED');
         process.exit(0);
-    } else {
-        console.error('Object response mismatch:', data);
-        process.exit(1);
-    }
+    }, 100);
 });
 
 socket.on('pojoResponse', (data) => {
     console.log(`[v${version} JS Client] Received pojoResponse:`, data);
-    if (data && data.echo === 'hello' && data.doubled === 84) {
+    socket.emit('clientPojoResponse', data);
+    setTimeout(() => {
         clearTimeout(timeout);
         socket.disconnect();
         console.log('POJO scenario PASSED');
         process.exit(0);
-    } else {
-        console.error('POJO response mismatch:', data);
-        process.exit(1);
-    }
+    }, 100);
 });
 
 socket.on('complexPojoResponse', (data) => {
     console.log(`[v${version} JS Client] Received complexPojoResponse:`, data);
-    if (data && data.orderId === 'ORD-98765' && data.status === 'PROCESSED' && data.processedItemCount === 2 && data.customerEmail === 'alice@example.com') {
+    socket.emit('clientComplexPojoResponse', data);
+    setTimeout(() => {
         clearTimeout(timeout);
         socket.disconnect();
         console.log('Complex POJO scenario PASSED');
         process.exit(0);
-    } else {
-        console.error('Complex POJO response mismatch:', data);
-        process.exit(1);
-    }
+    }, 100);
 });
 
 socket.on('mixedResponse', (text, binData) => {
     console.log(`[v${version} JS Client] Received mixedResponse:`, text, binData);
-    const buf = Buffer.from(binData);
-    if (text === 'hello_text_reply' && buf.length === 3 && buf[0] === 7 && buf[1] === 8 && buf[2] === 9) {
+    socket.emit('clientMixedResponse', text, binData);
+    setTimeout(() => {
         clearTimeout(timeout);
         socket.disconnect();
         console.log('Mixed scenario PASSED');
         process.exit(0);
-    } else {
-        console.error('Mixed response mismatch - text:', text, 'buf:', buf);
-        process.exit(1);
-    }
+    }, 100);
 });
 
 if (scenario === 'server_ack_text') {
@@ -617,9 +598,12 @@ if (scenario === "server_batch_text_binary_text") {
             process.exit(1);
         }
 
-        clearTimeout(timeout);
-        socket.disconnect();
-        console.log("Server batch text/binary/text PASSED");
-        process.exit(0);
+        socket.emit("clientBatchDone", received.join(","));
+        setTimeout(() => {
+            clearTimeout(timeout);
+            socket.disconnect();
+            console.log("Server batch text/binary/text PASSED");
+            process.exit(0);
+        }, 100);
     }
 }

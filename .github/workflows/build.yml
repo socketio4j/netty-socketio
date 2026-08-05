@@ -87,7 +87,7 @@ jobs:
 
       # --- Build + Tests ---
       - name: Build Project
-        timeout-minutes: 90
+        timeout-minutes: 120
         run: |
           export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN"
           mvn --batch-mode --errors --fail-at-end -DforkCount=1 verify

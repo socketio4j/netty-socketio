@@ -107,6 +107,11 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
     void testBroadcastToAllClients(String version, String transport) throws Exception {
 
         AtomicInteger startedClients = new AtomicInteger();
+        java.util.List<String> receivedMessages = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+        getServer().addMultiTypeEventListener("clientReceivedBroadcast", (client, data, ackSender) -> {
+            receivedMessages.add(data.get(1));
+        }, Integer.class, String.class);
 
         getServer().addEventListener("start", String.class,
                 (client, ignored, ackSender) -> {
@@ -119,9 +124,18 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
                     }
                 });
 
-        runMultiJsTest(version, transport, "broadcast_all", 3);
+        try {
+            runMultiJsTest(version, transport, "broadcast_all", 3);
 
-        assertEquals(3, startedClients.get());
+            assertEquals(3, startedClients.get());
+            assertEquals(3, receivedMessages.size(), "Server verified: Exactly 3 clients received the broadcast");
+            for (String msg : receivedMessages) {
+                assertEquals("hello_everyone", msg, "Server verified: Received broadcast message content");
+            }
+        } finally {
+            getServer().removeAllListeners("start");
+            getServer().removeAllListeners("clientReceivedBroadcast");
+        }
     }
     @ParameterizedTest(name = "[BCAST-002] Client v{0} over {1} - Broadcast Excluding Client")
     @CsvSource({
@@ -137,6 +151,11 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
     void testBroadcastExcludeClient(String version, String transport) throws Exception {
 
         AtomicInteger startEvents = new AtomicInteger();
+        java.util.List<String> receivedMessages = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+        getServer().addMultiTypeEventListener("clientReceivedBroadcast", (client, data, ackSender) -> {
+            receivedMessages.add(data.get(1));
+        }, Integer.class, String.class);
 
         getServer().addEventListener("start", String.class,
                 (client, ignored, ackSender) -> {
@@ -151,10 +170,19 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
                                     "hello_everyone");
                 });
 
-        runMultiJsTest(version, transport, "broadcast_exclude_client", 3);
+        try {
+            runMultiJsTest(version, transport, "broadcast_exclude_client", 3);
 
-        assertEquals(1, startEvents.get(),
-                "Only one client should initiate the broadcast");
+            assertEquals(1, startEvents.get(),
+                    "Only one client should initiate the broadcast");
+            assertEquals(2, receivedMessages.size(), "Server verified: Exactly 2 clients (excluding sender) received the broadcast");
+            for (String msg : receivedMessages) {
+                assertEquals("hello_everyone", msg, "Server verified: Received broadcast message content");
+            }
+        } finally {
+            getServer().removeAllListeners("start");
+            getServer().removeAllListeners("clientReceivedBroadcast");
+        }
     }
 
     @ParameterizedTest(name = "[BCAST-003] Client v{0} over {1} - Broadcast Excluding Predicate")
@@ -171,6 +199,11 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
     void testBroadcastExcludePredicate(String version, String transport) throws Exception {
 
         AtomicInteger startEvents = new AtomicInteger();
+        java.util.List<String> receivedMessages = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+        getServer().addMultiTypeEventListener("clientReceivedBroadcast", (client, data, ackSender) -> {
+            receivedMessages.add(data.get(1));
+        }, Integer.class, String.class);
 
         getServer().addEventListener("start", String.class,
                 (client, ignored, ackSender) -> {
@@ -185,10 +218,19 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
                                     "hello_everyone");
                 });
 
-        runMultiJsTest(version, transport, "broadcast_exclude_predicate", 3);
+        try {
+            runMultiJsTest(version, transport, "broadcast_exclude_predicate", 3);
 
-        assertEquals(1, startEvents.get(),
-                "Only one client should initiate the broadcast");
+            assertEquals(1, startEvents.get(),
+                    "Only one client should initiate the broadcast");
+            assertEquals(2, receivedMessages.size(), "Server verified: Exactly 2 clients (predicate excluded) received the broadcast");
+            for (String msg : receivedMessages) {
+                assertEquals("hello_everyone", msg, "Server verified: Received broadcast message content");
+            }
+        } finally {
+            getServer().removeAllListeners("start");
+            getServer().removeAllListeners("clientReceivedBroadcast");
+        }
     }
     @ParameterizedTest(name = "[BCAST-004] Client v{0} over {1} - Broadcast To Room")
     @CsvSource({
@@ -206,6 +248,11 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
         AtomicInteger started = new AtomicInteger();
         AtomicInteger joinedRoom = new AtomicInteger();
         AtomicInteger notJoinedRoom = new AtomicInteger();
+        java.util.List<String> receivedRoomMessages = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+        getServer().addMultiTypeEventListener("clientReceivedRoomMessage", (client, data, ackSender) -> {
+            receivedRoomMessages.add(data.get(1));
+        }, Integer.class, String.class);
 
         getServer().addEventListener("start", String.class,
                 (client, room, ackSender) -> {
@@ -227,15 +274,24 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
                     }
                 });
 
-        runMultiJsTest(version, transport, "broadcast_room", 3);
+        try {
+            runMultiJsTest(version, transport, "broadcast_room", 3);
 
-        assertEquals(2, joinedRoom.get(),
-                "Exactly two clients should join roomA");
+            assertEquals(2, joinedRoom.get(),
+                    "Exactly two clients should join roomA");
 
-        assertEquals(1, notJoinedRoom.get(),
-                "Exactly one client should not join roomA");
+            assertEquals(1, notJoinedRoom.get(),
+                    "Exactly one client should not join roomA");
 
-        assertEquals(3, started.get());
+            assertEquals(3, started.get());
+            assertEquals(2, receivedRoomMessages.size(), "Server verified: Exactly 2 clients in roomA received room broadcast");
+            for (String msg : receivedRoomMessages) {
+                assertEquals("hello_room", msg, "Server verified: Received room message content");
+            }
+        } finally {
+            getServer().removeAllListeners("start");
+            getServer().removeAllListeners("clientReceivedRoomMessage");
+        }
     }
     @ParameterizedTest(name = "[BCAST-005] Client v{0} over {1} - Broadcast To Empty Room")
     @CsvSource({
@@ -252,6 +308,11 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
 
         AtomicInteger started = new AtomicInteger();
         AtomicInteger leftRoom = new AtomicInteger();
+        java.util.List<String> receivedRoomMessages = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+        getServer().addMultiTypeEventListener("clientReceivedRoomMessage", (client, data, ackSender) -> {
+            receivedRoomMessages.add(data.get(1));
+        }, Integer.class, String.class);
 
         getServer().addEventListener("start", String.class,
                 (client, room, ackSender) -> {
@@ -271,12 +332,18 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
                     }
                 });
 
-        runMultiJsTest(version, transport, "broadcast_empty_room", 3);
+        try {
+            runMultiJsTest(version, transport, "broadcast_empty_room", 3);
 
-        assertEquals(3, leftRoom.get(),
-                "All clients should have left roomA");
+            assertEquals(3, leftRoom.get(),
+                    "All clients should have left roomA");
 
-        assertEquals(3, started.get());
+            assertEquals(3, started.get());
+            assertEquals(0, receivedRoomMessages.size(), "Server verified: Zero messages delivered to empty room");
+        } finally {
+            getServer().removeAllListeners("start");
+            getServer().removeAllListeners("clientReceivedRoomMessage");
+        }
     }
     @ParameterizedTest(name = "[BCAST-006] Client v{0} over {1} - Broadcast To Non-Existent Room")
     @CsvSource({
@@ -292,6 +359,11 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
     void testBroadcastToNonExistentRoom(String version, String transport) throws Exception {
 
         AtomicInteger started = new AtomicInteger();
+        java.util.List<String> receivedRoomMessages = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+        getServer().addMultiTypeEventListener("clientReceivedRoomMessage", (client, data, ackSender) -> {
+            receivedRoomMessages.add(data.get(1));
+        }, Integer.class, String.class);
 
         getServer().addEventListener("start", String.class,
                 (client, ignored, ackSender) -> {
@@ -304,9 +376,15 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
                     }
                 });
 
-        runMultiJsTest(version, transport, "broadcast_nonexistent_room", 3);
+        try {
+            runMultiJsTest(version, transport, "broadcast_nonexistent_room", 3);
 
-        assertEquals(3, started.get());
+            assertEquals(3, started.get());
+            assertEquals(0, receivedRoomMessages.size(), "Server verified: Zero messages delivered to non-existent room");
+        } finally {
+            getServer().removeAllListeners("start");
+            getServer().removeAllListeners("clientReceivedRoomMessage");
+        }
     }
 
 }
