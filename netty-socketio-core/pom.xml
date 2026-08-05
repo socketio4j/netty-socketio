@@ -207,6 +207,12 @@
       <artifactId>socket.io-client</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- OkHttp for raw HTTP/WS integration tests (EIOv3, SSL, etc.) -->
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>okhttp</artifactId>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>com.github.javafaker</groupId>
       <artifactId>javafaker</artifactId>

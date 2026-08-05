@@ -17,6 +17,7 @@
 package com.socketio4j.socketio.integration.interop;
 
 import java.io.File;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -37,6 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+
 import org.junit.jupiter.api.Test;
 
 import com.socketio4j.socketio.Configuration;
@@ -67,6 +69,8 @@ public class BrowserInteropTest {
             sha256(EXPECTED_BINARY);
 
     private static SocketIOServer server;
+    private static int serverPort;
+    private static int httpPort;
 
     /**
      * Every received event is recorded.
@@ -266,25 +270,41 @@ public class BrowserInteropTest {
     }
 
     /**
-     * Helper for starting external processes.
+     * Find an available port by binding to port 0.
+     */
+    private static int findAvailablePort() throws Exception {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
+
+    /**
+     * Helper for starting external processes with optional environment variables.
      */
     private static Process startProcess(
             File directory,
+            Map<String, String> env,
             String... command)
             throws Exception {
 
-        return new ProcessBuilder(command)
+        ProcessBuilder pb = new ProcessBuilder(command)
                 .directory(directory)
-                .inheritIO()
-                .start();
+                .inheritIO();
+        if (env != null) {
+            pb.environment().putAll(env);
+        }
+        return pb.start();
     }
 
     @BeforeAll
-    static void beforeAll() {
+    static void beforeAll() throws Exception {
+
+        serverPort = findAvailablePort();
+        httpPort = findAvailablePort();
 
         Configuration config = new Configuration();
-        config.setPort(9092);
-        config.setOrigin("http://127.0.0.1:8080");
+        config.setPort(serverPort);
+        config.setOrigin("http://127.0.0.1:" + httpPort);
 
         server = new SocketIOServer(config);
 
@@ -448,18 +468,23 @@ public class BrowserInteropTest {
         File dir = new File("src/test/resources/js-interop");
         Process python = null;
         Process node = null;
+        Map<String, String> env = new java.util.HashMap<>();
+        env.put("HTTP_PORT", String.valueOf(httpPort));
+        env.put("SOCKETIO_PORT", String.valueOf(serverPort));
         try {
              python = startProcess(
                     dir,
+                    null,
                     "python3",
                     "-m",
                     "http.server",
-                    "8080");
+                    String.valueOf(httpPort));
 
-            waitForHttpServer(8080);
+            waitForHttpServer(httpPort);
 
             node = startProcess(
                     dir,
+                    env,
                     "node",
                     "browser-runner.js");
             int exit = node.waitFor();

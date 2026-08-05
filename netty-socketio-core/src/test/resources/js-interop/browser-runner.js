@@ -16,8 +16,10 @@
  */
 const { chromium, firefox, webkit } = require("playwright");
 
+const HTTP_PORT = process.env.HTTP_PORT || "8080";
+const SOCKETIO_PORT = process.env.SOCKETIO_PORT || "9092";
 
-const BASE = "http://127.0.0.1:8080/interop.html";
+const BASE = `http://127.0.0.1:${HTTP_PORT}/interop.html`;
 
 const browsers = [
     { name: "Chromium", type: chromium },
@@ -77,7 +79,8 @@ const transports = [
                     await page.goto(
                         BASE +
                         "?client=" + version +
-                        "&transport=" + transport,
+                        "&transport=" + transport +
+                        "&host=" + encodeURIComponent("http://127.0.0.1:" + SOCKETIO_PORT),
                         {
                             waitUntil: "load"
                         });
