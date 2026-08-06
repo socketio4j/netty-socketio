@@ -70,23 +70,14 @@ public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
 
     @AfterEach
     public void tearDown() throws Exception {
-        if (closeableMocks != null) {
-            closeableMocks.close();
-        }
-        if (storeFactory != null) {
-            storeFactory.shutdown();
-        }
-        if (redissonClient != null) {
-            redissonClient.shutdown();
-        }
-
+        try { if (closeableMocks != null) closeableMocks.close(); } catch (Throwable ignored) {}
+        try { if (storeFactory != null) storeFactory.shutdown(); } catch (Throwable ignored) {}
+        try { if (redissonClient != null) redissonClient.shutdown(); } catch (Throwable ignored) {}
     }
 
     @AfterAll
     public static void afterAll() throws Exception {
-        if (container != null && container.isRunning()) {
-            container.stop();
-        }
+        try { if (container != null && container.isRunning()) container.stop(); } catch (Throwable ignored) {}
     }
 
     @Test

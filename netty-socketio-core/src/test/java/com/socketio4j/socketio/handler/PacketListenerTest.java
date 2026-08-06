@@ -83,7 +83,7 @@ import static org.mockito.Mockito.when;
 
 @DisplayName("PacketListener Tests")
 @TestInstance(Lifecycle.PER_CLASS)
-class PacketListenerTest {
+public class PacketListenerTest {
 
     @Mock
     private AckManager ackManager;

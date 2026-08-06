@@ -22,6 +22,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 
 import com.socketio4j.socketio.AckRequest;
@@ -43,9 +45,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("Comprehensive Protocol Integration Scenarios Test")
 public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegrationTest {
 
-    @Test
-    @DisplayName("Scenario 1: Connection and Disconnection lifecycle (Default & Custom Namespace)")
-    public void testConnectAndDisconnectLifecycle() throws Exception {
+    @ParameterizedTest(name = "Scenario 1 [{0}]")
+    @ValueSource(strings = {"polling", "websocket"})
+    @DisplayName("Scenario 1: Connection and Disconnection lifecycle")
+    public void testConnectAndDisconnectLifecycle(String transport) throws Exception {
         CountDownLatch connectLatch = new CountDownLatch(1);
         CountDownLatch disconnectLatch = new CountDownLatch(1);
         AtomicReference<SocketIOClient> connectedClientRef = new AtomicReference<>();
@@ -65,22 +68,23 @@ public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegratio
             }
         });
 
-        Socket client = createClient();
+        Socket client = createClient(new String[]{transport});
         client.connect();
 
-        assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Client should connect to default namespace");
+        assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Client should connect to default namespace over " + transport);
         assertNotNull(connectedClientRef.get());
 
-        Thread.sleep(500);
+        Thread.sleep(200);
         client.disconnect();
         client.close();
-        assertTrue(disconnectLatch.await(10, TimeUnit.SECONDS), "Client should disconnect cleanly");
+        assertTrue(disconnectLatch.await(10, TimeUnit.SECONDS), "Client should disconnect cleanly over " + transport);
     }
 
-    @Test
+    @ParameterizedTest(name = "Scenario 2 [{0}]")
+    @ValueSource(strings = {"polling", "websocket"})
     @DisplayName("Scenario 2: Custom Namespace Connect and Event Processing")
-    public void testCustomNamespaceConnectAndEvents() throws Exception {
-        String nsName = "/custom_ns";
+    public void testCustomNamespaceConnectAndEvents(String transport) throws Exception {
+        String nsName = "/custom_ns_" + transport;
         SocketIONamespace customNs = getServer().addNamespace(nsName);
 
         CountDownLatch nsConnectLatch = new CountDownLatch(1);
@@ -93,59 +97,61 @@ public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegratio
             nsEventLatch.countDown();
         });
 
-        Socket client = createClient(nsName);
+        Socket client = createClient(nsName, new String[]{transport});
         client.connect();
 
-        assertTrue(nsConnectLatch.await(5, TimeUnit.SECONDS), "Client should connect to custom namespace");
+        assertTrue(nsConnectLatch.await(5, TimeUnit.SECONDS), "Client should connect to custom namespace over " + transport);
 
         client.emit("customEvent", "hello_custom");
-        assertTrue(nsEventLatch.await(5, TimeUnit.SECONDS), "Event should be received in custom namespace");
+        assertTrue(nsEventLatch.await(5, TimeUnit.SECONDS), "Event should be received in custom namespace over " + transport);
         assertEquals("hello_custom", receivedMsg.get());
 
         client.disconnect();
     }
 
-    @Test
+    @ParameterizedTest(name = "Scenario 3 [{0}]")
+    @ValueSource(strings = {"polling", "websocket"})
     @DisplayName("Scenario 3: Send & Receive Event with and without Ack")
-    public void testSendReceiveEventWithAndWithoutAck() throws Exception {
+    public void testSendReceiveEventWithAndWithoutAck(String transport) throws Exception {
         CountDownLatch noAckLatch = new CountDownLatch(1);
         CountDownLatch ackLatch = new CountDownLatch(1);
         AtomicReference<String> noAckData = new AtomicReference<>();
 
-        getServer().addEventListener("noAckEvent", String.class, (client, data, ackRequest) -> {
+        getServer().addEventListener("noAckEvent_" + transport, String.class, (client, data, ackRequest) -> {
             noAckData.set(data);
             noAckLatch.countDown();
         });
 
-        getServer().addEventListener("ackEvent", String.class, (client, data, ackRequest) -> {
+        getServer().addEventListener("ackEvent_" + transport, String.class, (client, data, ackRequest) -> {
             ackRequest.sendAckData("ack_reply_" + data);
         });
 
-        Socket client = createClient();
+        Socket client = createClient(new String[]{transport});
         client.connect();
 
         // 1. Event without Ack
-        client.emit("noAckEvent", "payload_no_ack");
-        assertTrue(noAckLatch.await(5, TimeUnit.SECONDS), "No-ack event should be received");
+        client.emit("noAckEvent_" + transport, "payload_no_ack");
+        assertTrue(noAckLatch.await(5, TimeUnit.SECONDS), "No-ack event should be received over " + transport);
         assertEquals("payload_no_ack", noAckData.get());
 
         // 2. Event with Ack
         AtomicReference<Object[]> clientAckResult = new AtomicReference<>();
-        client.emit("ackEvent", new Object[]{"test_ack"}, args -> {
+        client.emit("ackEvent_" + transport, new Object[]{"test_ack"}, args -> {
             clientAckResult.set(args);
             ackLatch.countDown();
         });
 
-        assertTrue(ackLatch.await(5, TimeUnit.SECONDS), "Ack response should be received by client");
+        assertTrue(ackLatch.await(5, TimeUnit.SECONDS), "Ack response should be received by client over " + transport);
         assertNotNull(clientAckResult.get());
         assertEquals("ack_reply_test_ack", clientAckResult.get()[0]);
 
         client.disconnect();
     }
 
-    @Test
+    @ParameterizedTest(name = "Scenario 4 [{0}]")
+    @ValueSource(strings = {"polling", "websocket"})
     @DisplayName("Scenario 4: Server-initiated Event to Client with Ack")
-    public void testServerToClientEventWithAck() throws Exception {
+    public void testServerToClientEventWithAck(String transport) throws Exception {
         CountDownLatch connectLatch = new CountDownLatch(1);
         CountDownLatch serverAckLatch = new CountDownLatch(1);
         AtomicReference<SocketIOClient> serverClientRef = new AtomicReference<>();
@@ -156,10 +162,10 @@ public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegratio
             connectLatch.countDown();
         });
 
-        Socket client = createClient();
+        Socket client = createClient(new String[]{transport});
 
         CountDownLatch clientReceiveLatch = new CountDownLatch(1);
-        client.on("serverReq", args -> {
+        client.on("serverReq_" + transport, args -> {
             clientReceiveLatch.countDown();
             if (args.length > 0 && args[args.length - 1] instanceof io.socket.client.Ack) {
                 io.socket.client.Ack ack = (io.socket.client.Ack) args[args.length - 1];
@@ -168,9 +174,9 @@ public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegratio
         });
 
         client.connect();
-        assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Client must connect");
+        assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Client must connect over " + transport);
 
-        serverClientRef.get().sendEvent("serverReq", new com.socketio4j.socketio.AckCallback<String>(String.class) {
+        serverClientRef.get().sendEvent("serverReq_" + transport, new com.socketio4j.socketio.AckCallback<String>(String.class) {
             @Override
             public void onSuccess(String result) {
                 serverAckData.set(result);
@@ -178,20 +184,21 @@ public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegratio
             }
         }, "ping_from_server");
 
-        assertTrue(clientReceiveLatch.await(5, TimeUnit.SECONDS), "Client should receive server event");
-        assertTrue(serverAckLatch.await(5, TimeUnit.SECONDS), "Server should receive client ack response");
+        assertTrue(clientReceiveLatch.await(5, TimeUnit.SECONDS), "Client should receive server event over " + transport);
+        assertTrue(serverAckLatch.await(5, TimeUnit.SECONDS), "Server should receive client ack response over " + transport);
         assertEquals("client_response_ack", serverAckData.get());
 
         client.disconnect();
     }
 
-    @Test
+    @ParameterizedTest(name = "Scenario 5 [{0}]")
+    @ValueSource(strings = {"polling", "websocket"})
     @DisplayName("Scenario 5: Binary Attachments (byte[]) Transmission with and without Ack")
-    public void testBinaryAttachmentsTransmission() throws Exception {
+    public void testBinaryAttachmentsTransmission(String transport) throws Exception {
         CountDownLatch binaryEventLatch = new CountDownLatch(1);
         AtomicReference<byte[]> receivedBinary = new AtomicReference<>();
 
-        getServer().addEventListener("binaryEvent", byte[].class, (client, data, ackRequest) -> {
+        getServer().addEventListener("binaryEvent_" + transport, byte[].class, (client, data, ackRequest) -> {
             receivedBinary.set(data);
             if (ackRequest.isAckRequested()) {
                 byte[] responseBinary = new byte[]{100, 101, 102};
@@ -200,52 +207,25 @@ public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegratio
             binaryEventLatch.countDown();
         });
 
-        Socket client = createClient();
+        Socket client = createClient(new String[]{transport});
         client.connect();
 
         byte[] payload = new byte[]{1, 2, 3, 4, 5};
         CountDownLatch binaryAckLatch = new CountDownLatch(1);
         AtomicReference<Object[]> clientBinaryAck = new AtomicReference<>();
 
-        client.emit("binaryEvent", new Object[]{payload}, args -> {
+        client.emit("binaryEvent_" + transport, new Object[]{payload}, args -> {
             clientBinaryAck.set(args);
             binaryAckLatch.countDown();
         });
 
-        assertTrue(binaryEventLatch.await(5, TimeUnit.SECONDS), "Server should receive binary event");
-        assertTrue(binaryAckLatch.await(5, TimeUnit.SECONDS), "Client should receive binary ack response");
+        assertTrue(binaryEventLatch.await(5, TimeUnit.SECONDS), "Server should receive binary event over " + transport);
+        assertTrue(binaryAckLatch.await(5, TimeUnit.SECONDS), "Client should receive binary ack response over " + transport);
 
-        assertArrayEquals(payload, receivedBinary.get(), "Received binary data on server should match");
+        assertArrayEquals(payload, receivedBinary.get(), "Received binary data on server should match over " + transport);
         assertNotNull(clientBinaryAck.get());
         assertTrue(clientBinaryAck.get()[0] instanceof byte[]);
         assertArrayEquals(new byte[]{100, 101, 102}, (byte[]) clientBinaryAck.get()[0]);
-
-        client.disconnect();
-    }
-
-    @Test
-    @DisplayName("Scenario 6: Polling transport connect, event send/receive and disconnect")
-    public void testPollingTransportScenario() throws Exception {
-        CountDownLatch connectLatch = new CountDownLatch(1);
-        CountDownLatch eventLatch = new CountDownLatch(1);
-        AtomicReference<String> receivedData = new AtomicReference<>();
-
-        getServer().addConnectListener(client -> connectLatch.countDown());
-        getServer().addEventListener("pollingEvent", String.class, (client, data, ackRequest) -> {
-            receivedData.set(data);
-            eventLatch.countDown();
-        });
-
-        IO.Options options = new IO.Options();
-        options.transports = new String[]{"polling"};
-        Socket client = IO.socket("http://" + getServerHost() + ":" + getServerPort(), options);
-        client.connect();
-
-        assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Client should connect over polling");
-
-        client.emit("pollingEvent", "hello_polling");
-        assertTrue(eventLatch.await(5, TimeUnit.SECONDS), "Event should be received over polling");
-        assertEquals("hello_polling", receivedData.get());
 
         client.disconnect();
     }

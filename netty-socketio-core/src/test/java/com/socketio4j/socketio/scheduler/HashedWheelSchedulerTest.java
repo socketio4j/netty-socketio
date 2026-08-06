@@ -44,7 +44,7 @@ import static org.mockito.Mockito.verify;
 
 
 @DisplayName("HashedWheelScheduler Tests")
-class HashedWheelSchedulerTest {
+public class HashedWheelSchedulerTest {
 
     private AutoCloseable autoCloseableMocks;
 

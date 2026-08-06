@@ -42,24 +42,6 @@
       </exclusions>
       <scope>provided</scope>
     </dependency>
-      <dependency>
-          <groupId>com.socketio4j</groupId>
-          <artifactId>netty-socketio-core</artifactId>
-          <version>4.0.2-SNAPSHOT</version>
-          <scope>compile</scope>
-      </dependency>
-      <dependency>
-          <groupId>com.socketio4j</groupId>
-          <artifactId>netty-socketio-core</artifactId>
-          <version>4.0.2-SNAPSHOT</version>
-          <scope>compile</scope>
-      </dependency>
-      <dependency>
-          <groupId>com.socketio4j</groupId>
-          <artifactId>netty-socketio-core</artifactId>
-          <version>4.0.2-SNAPSHOT</version>
-          <scope>compile</scope>
-      </dependency>
   </dependencies>
 
 </project>

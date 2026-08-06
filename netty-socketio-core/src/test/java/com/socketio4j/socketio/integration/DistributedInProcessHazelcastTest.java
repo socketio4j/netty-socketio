@@ -70,17 +70,9 @@ public class DistributedInProcessHazelcastTest extends DistributedCommonTest {
 
     @AfterAll
     public void teardown() {
-        if (node1 != null) {
-            node1.stop();
-        }
-        if (node2 != null) {
-            node2.stop();
-        }
-        if (hz1 != null) {
-            hz1.shutdown();
-        }
-        if (hz2 != null) {
-            hz2.shutdown();
-        }
+        try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+        try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+        try { if (hz1 != null) hz1.shutdown(); } catch (Throwable ignored) {}
+        try { if (hz2 != null) hz2.shutdown(); } catch (Throwable ignored) {}
     }
 }

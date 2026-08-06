@@ -61,7 +61,15 @@ public class DistributedHazelcastPubSubSingleChannelUnreliableTest extends Distr
     @BeforeAll
     public void setup() throws Exception {
         if (!HAZELCAST_CONTAINER.isRunning()) {
-            HAZELCAST_CONTAINER.start();
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    HAZELCAST_CONTAINER.start();
+                    break;
+                } catch (Exception e) {
+                    if (attempt == 3) throw e;
+                    Thread.sleep(500);
+                }
+            }
         }
 
         ClientConfig config = new ClientConfig();
@@ -167,21 +175,10 @@ public class DistributedHazelcastPubSubSingleChannelUnreliableTest extends Distr
 
     @AfterAll
     public void stop() {
-
-        if (node1 != null) {
-            node1.stop();
-        }
-        if (node2 != null) {
-            node2.stop();
-        }
-        if (hazelcastInstance != null) {
-            hazelcastInstance.shutdown();
-        }
-        if (hazelcastInstance1 != null) {
-            hazelcastInstance1.shutdown();
-        }
-        if (HAZELCAST_CONTAINER != null) {
-            HAZELCAST_CONTAINER.stop();
-        }
+        try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+        try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+        try { if (hazelcastInstance != null) hazelcastInstance.shutdown(); } catch (Throwable ignored) {}
+        try { if (hazelcastInstance1 != null) hazelcastInstance1.shutdown(); } catch (Throwable ignored) {}
+        try { if (HAZELCAST_CONTAINER != null) HAZELCAST_CONTAINER.stop(); } catch (Throwable ignored) {}
     }
 }

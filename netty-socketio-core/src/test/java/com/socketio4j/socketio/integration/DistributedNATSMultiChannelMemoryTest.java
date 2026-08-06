@@ -194,30 +194,10 @@ public class DistributedNATSMultiChannelMemoryTest extends DistributedCommonTest
 
     @AfterAll
     public void stop() {
-
-        if(nc != null) {
-            try {
-                nc.close();
-            } catch (InterruptedException ignored) {
-             
-            }
-        }
-        if (nc1 != null) {
-            try {
-                nc1.close();
-            } catch (InterruptedException ignored) {
-        
-            }
-        }
-
-        if (node1 != null) {
-            node1.stop();
-        }
-        if (node2 != null) {
-            node2.stop();
-        }
-
-        NATS_CONTAINER.stop();
-    
+        try { if (nc != null) nc.close(); } catch (Throwable ignored) {}
+        try { if (nc1 != null) nc1.close(); } catch (Throwable ignored) {}
+        try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+        try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+        try { if (NATS_CONTAINER != null) NATS_CONTAINER.stop(); } catch (Throwable ignored) {}
     }
 }

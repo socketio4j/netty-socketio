@@ -226,23 +226,10 @@ public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTes
 
     @AfterAll
     public void stop() {
-        try {
-            if (node1 != null) {
-                node1.stop();
-            }
-            if (node2 != null) {
-                node2.stop();
-            }
-        } finally {
-            if (KAFKA.isRunning()) {
-                KAFKA.close();
-            }
-            if (store1 != null) {
-                store1.shutdown();
-            }
-            if (store2 != null) {
-                store2.shutdown();
-            }
-        }
+        try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+        try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+        try { if (store1 != null) store1.shutdown(); } catch (Throwable ignored) {}
+        try { if (store2 != null) store2.shutdown(); } catch (Throwable ignored) {}
+        try { if (KAFKA != null && KAFKA.isRunning()) KAFKA.close(); } catch (Throwable ignored) {}
     }
 }

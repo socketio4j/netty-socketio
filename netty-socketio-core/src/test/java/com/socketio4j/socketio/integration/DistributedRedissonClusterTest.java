@@ -40,19 +40,29 @@ import static com.socketio4j.socketio.integration.DistributedClusterIntegrationS
  * one Redis Testcontainer.
  */
 @ResourceLock("EMBEDDED_REDIS")
-public class DistributedRedissonClusterSuite {
+public class DistributedRedissonClusterTest {
 
     @SuppressWarnings("resource")
     static final CustomizedRedisContainer REDIS = new CustomizedRedisContainer().withReuse(false);
 
     @BeforeAll
     static void startRedis() {
-        REDIS.start();
+        if (!REDIS.isRunning()) {
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    REDIS.start();
+                    break;
+                } catch (Exception e) {
+                    if (attempt == 3) throw e;
+                    try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                }
+            }
+        }
     }
 
     @AfterAll
     static void stopRedis() {
-        REDIS.stop();
+        try { if (REDIS != null && REDIS.isRunning()) REDIS.stop(); } catch (Throwable ignored) {}
     }
 
     private static String redisUrl() {
@@ -94,18 +104,10 @@ public class DistributedRedissonClusterSuite {
 
         @AfterAll
         void tearDownNodes() {
-            if (node1 != null) {
-                node1.stop();
-            }
-            if (node2 != null) {
-                node2.stop();
-            }
-            if (redisClient1 != null) {
-                redisClient1.shutdown();
-            }
-            if (redisClient2 != null) {
-                redisClient2.shutdown();
-            }
+            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+            try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
+            try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
         }
     }
 
@@ -144,18 +146,10 @@ public class DistributedRedissonClusterSuite {
 
         @AfterAll
         void tearDownNodes() {
-            if (node1 != null) {
-                node1.stop();
-            }
-            if (node2 != null) {
-                node2.stop();
-            }
-            if (redisClient1 != null) {
-                redisClient1.shutdown();
-            }
-            if (redisClient2 != null) {
-                redisClient2.shutdown();
-            }
+            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+            try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
+            try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
         }
     }
 
@@ -194,18 +188,10 @@ public class DistributedRedissonClusterSuite {
 
         @AfterAll
         void tearDownNodes() {
-            if (node1 != null) {
-                node1.stop();
-            }
-            if (node2 != null) {
-                node2.stop();
-            }
-            if (redisClient1 != null) {
-                redisClient1.shutdown();
-            }
-            if (redisClient2 != null) {
-                redisClient2.shutdown();
-            }
+            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+            try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
+            try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
         }
     }
 
@@ -244,18 +230,10 @@ public class DistributedRedissonClusterSuite {
 
         @AfterAll
         void tearDownNodes() {
-            if (node1 != null) {
-                node1.stop();
-            }
-            if (node2 != null) {
-                node2.stop();
-            }
-            if (redisClient1 != null) {
-                redisClient1.shutdown();
-            }
-            if (redisClient2 != null) {
-                redisClient2.shutdown();
-            }
+            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+            try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
+            try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
         }
     }
 
@@ -294,18 +272,10 @@ public class DistributedRedissonClusterSuite {
 
         @AfterAll
         void tearDownNodes() {
-            if (node1 != null) {
-                node1.stop();
-            }
-            if (node2 != null) {
-                node2.stop();
-            }
-            if (redisClient1 != null) {
-                redisClient1.shutdown();
-            }
-            if (redisClient2 != null) {
-                redisClient2.shutdown();
-            }
+            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+            try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
+            try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
         }
     }
 
@@ -344,18 +314,10 @@ public class DistributedRedissonClusterSuite {
 
         @AfterAll
         void tearDownNodes() {
-            if (node1 != null) {
-                node1.stop();
-            }
-            if (node2 != null) {
-                node2.stop();
-            }
-            if (redisClient1 != null) {
-                redisClient1.shutdown();
-            }
-            if (redisClient2 != null) {
-                redisClient2.shutdown();
-            }
+            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+            try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
+            try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
         }
     }
 }

@@ -201,10 +201,10 @@ public class DistributedHazelcastJsClientInteropTest extends AbstractDistributed
     @AfterAll
     @Override
     public void teardownCluster() {
-        if (node1 != null) node1.stop();
-        if (node2 != null) node2.stop();
-        if (hazelcastInstance != null) hazelcastInstance.shutdown();
-        if (hazelcastInstance1 != null) hazelcastInstance1.shutdown();
-        if (member != null) member.shutdown();
+        try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+        try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+        try { if (hazelcastInstance != null) hazelcastInstance.shutdown(); } catch (Throwable ignored) {}
+        try { if (hazelcastInstance1 != null) hazelcastInstance1.shutdown(); } catch (Throwable ignored) {}
+        try { if (member != null) member.shutdown(); } catch (Throwable ignored) {}
     }
 }

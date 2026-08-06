@@ -93,10 +93,10 @@ public class DistributedRedissonJsClientInteropTest extends AbstractDistributedJ
     @AfterAll
     @Override
     public void teardownCluster() {
-        if (node1 != null) node1.stop();
-        if (node2 != null) node2.stop();
-        if (redisClient1 != null) redisClient1.shutdown();
-        if (redisClient2 != null) redisClient2.shutdown();
-        if (REDIS.isRunning()) REDIS.stop();
+        try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+        try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+        try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
+        try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
+        try { if (REDIS != null && REDIS.isRunning()) REDIS.stop(); } catch (Throwable ignored) {}
     }
 }

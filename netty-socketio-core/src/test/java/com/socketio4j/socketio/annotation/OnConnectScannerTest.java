@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
  * Tests the functionality of scanning and registering OnConnect annotation handlers.
  */
 
-class OnConnectScannerTest extends AnnotationTestBase {
+public class OnConnectScannerTest extends AnnotationTestBase {
 
     private OnConnectScanner scanner;
     private Configuration config;

@@ -54,7 +54,7 @@ import static org.mockito.Mockito.when;
  * - Parameter index calculation and validation
  */
 
-class OnEventScannerTest extends AnnotationTestBase {
+public class OnEventScannerTest extends AnnotationTestBase {
 
     private OnEventScanner scanner;
     private Configuration config;

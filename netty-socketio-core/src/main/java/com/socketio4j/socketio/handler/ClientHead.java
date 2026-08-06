@@ -231,6 +231,7 @@ public class ClientHead {
     public void onChannelDisconnect() {
         cancelPing();
         cancelPingTimeout();
+        clearPendingBinaryPacket();
 
         disconnected.set(true);
         for (NamespaceClient client : namespaceClients.values()) {
@@ -341,6 +342,9 @@ public class ClientHead {
     }
 
     public void setPendingBinaryPacket(@NotNull Packet packet, @NotNull ByteBuf source) {
+        if (this.lastBinaryPacketSource != null && this.lastBinaryPacketSource != source) {
+            this.lastBinaryPacketSource.release();
+        }
         this.lastBinaryPacket = packet;
         this.lastBinaryPacketSource = source;
     }

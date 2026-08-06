@@ -62,7 +62,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class NamespaceEventHandlingTest extends BaseNamespaceTest {
+public class NamespaceEventHandlingTest extends BaseNamespaceTest {
 
     private Namespace namespace;
 

@@ -67,7 +67,6 @@
     <testcontainers.version>2.0.5</testcontainers.version>
     <netty.version>4.2.15.Final</netty.version>
     <netty.tcnative.version>2.0.78.Final</netty.tcnative.version>
-    <jmockit.version>1.50</jmockit.version>
     <byte-buddy.version>1.18.8</byte-buddy.version>
     <junit.version>6.1.0</junit.version>
     <junit-platform-launcher.version>6.0.2</junit-platform-launcher.version>
@@ -356,12 +355,6 @@
 
       <!-- Test dependencies -->
       <dependency>
-        <groupId>org.jmockit</groupId>
-        <artifactId>jmockit</artifactId>
-        <version>${jmockit.version}</version>
-        <scope>test</scope>
-      </dependency>
-      <dependency>
         <groupId>net.bytebuddy</groupId>
         <artifactId>byte-buddy-agent</artifactId>
         <version>${byte-buddy.version}</version>
@@ -575,7 +568,6 @@
               <compileSourceRoots>
                 <compileSourceRoot>${project.basedir}/src/main/java11</compileSourceRoot>
               </compileSourceRoots>
-              <multiReleaseOutput>true</multiReleaseOutput>
             </configuration>
           </execution>
           <execution>
@@ -614,7 +606,6 @@
         <configuration>
           <rerunFailingTestsCount>3</rerunFailingTestsCount>
           <argLine>
-            -javaagent:"${settings.localRepository}"/org/jmockit/jmockit/${jmockit.version}/jmockit-${jmockit.version}.jar
             <!--For Java 25 support of byte-buddy. Byte-buddy is currently only used in mockito on unit tests within this project, so mitigate this problem by enabling this property-->
             -Dnet.bytebuddy.experimental=true
             -javaagent:"${settings.localRepository}"/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
@@ -627,14 +618,13 @@
           <includes>
             <include>**/*Test.java</include>
             <include>**/*Tests.java</include>
+            <include>**/*Suite.java</include>
           </includes>
             <forkCount>1C</forkCount>
             <reuseForks>true</reuseForks>
             <forkedProcessTimeoutInSeconds>600</forkedProcessTimeoutInSeconds>
             <systemPropertyVariables>
-              <junit.jupiter.execution.parallel.enabled>true</junit.jupiter.execution.parallel.enabled>
-              <junit.jupiter.execution.parallel.mode.default>concurrent</junit.jupiter.execution.parallel.mode.default>
-              <junit.jupiter.execution.parallel.mode.classes.default>concurrent</junit.jupiter.execution.parallel.mode.classes.default>
+                <jmockit-coverage-output>none</jmockit-coverage-output>
             </systemPropertyVariables>
         </configuration>
       </plugin>

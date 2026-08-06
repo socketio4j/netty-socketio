@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
  * Tests the functionality of scanning and registering OnDisconnect annotation handlers.
  */
 
-class OnDisconnectScannerTest extends AnnotationTestBase {
+public class OnDisconnectScannerTest extends AnnotationTestBase {
 
     private OnDisconnectScanner scanner;
     private Configuration config;

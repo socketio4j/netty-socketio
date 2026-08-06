@@ -87,11 +87,39 @@ public abstract class AbstractSocketIOIntegrationTest {
     }
 
     /**
+     * Create a Socket.IO client with specific transports and no upgrade
+     */
+    protected Socket createClient(String[] transports) {
+        try {
+            IO.Options options = new IO.Options();
+            options.transports = transports;
+            options.upgrade = false;
+            return IO.socket("http://" + SERVER_HOST + ":" + serverPort, options);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create socket client", e);
+        }
+    }
+
+    /**
      * Create a Socket.IO client connected to a specific namespace
      */
     protected Socket createClient(String namespace) {
         try {
             return IO.socket("http://" + SERVER_HOST + ":" + serverPort + namespace);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create socket client for namespace: " + namespace, e);
+        }
+    }
+
+    /**
+     * Create a Socket.IO client connected to a specific namespace with specific transports and no upgrade
+     */
+    protected Socket createClient(String namespace, String[] transports) {
+        try {
+            IO.Options options = new IO.Options();
+            options.transports = transports;
+            options.upgrade = false;
+            return IO.socket("http://" + SERVER_HOST + ":" + serverPort + namespace, options);
         } catch (Exception e) {
             throw new RuntimeException("Failed to create socket client for namespace: " + namespace, e);
         }

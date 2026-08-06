@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
-class NamespaceRoomManagementTest extends BaseNamespaceTest {
+public class NamespaceRoomManagementTest extends BaseNamespaceTest {
 
     private Namespace namespace;
 

@@ -41,7 +41,7 @@ import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 
 @ResourceLock("EMBEDDED_HAZELCAST")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class DistributedHazelcastPubSubMultiChannelUnReliableTest extends DistributedCommonTest {
+public class DistributedHazelcastPubSubMultiChannelUnreliableTest extends DistributedCommonTest {
 
     private static final CustomizedHazelcastContainer HAZELCAST_CONTAINER = new CustomizedHazelcastContainer().withReuse(false);
     private HazelcastInstance hazelcastClient;
@@ -61,7 +61,15 @@ public class DistributedHazelcastPubSubMultiChannelUnReliableTest extends Distri
     @BeforeAll
     public void setup() throws Exception {
         if (!HAZELCAST_CONTAINER.isRunning()) {
-            HAZELCAST_CONTAINER.start();
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    HAZELCAST_CONTAINER.start();
+                    break;
+                } catch (Exception e) {
+                    if (attempt == 3) throw e;
+                    Thread.sleep(500);
+                }
+            }
         }
 
         ClientConfig config = new ClientConfig();
@@ -169,22 +177,11 @@ public class DistributedHazelcastPubSubMultiChannelUnReliableTest extends Distri
 
     @AfterAll
     public void stop() {
-
-        if (node1 != null) {
-            node1.stop();
-        }
-        if (node2 != null) {
-            node2.stop();
-        }
-        if (hazelcastClient != null) {
-            hazelcastClient.shutdown();
-        }
-        if (hazelcastClient1 != null) {
-            hazelcastClient1.shutdown();
-        }
-        if (HAZELCAST_CONTAINER != null) {
-            HAZELCAST_CONTAINER.stop();
-        }
+        try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+        try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+        try { if (hazelcastClient != null) hazelcastClient.shutdown(); } catch (Throwable ignored) {}
+        try { if (hazelcastClient1 != null) hazelcastClient1.shutdown(); } catch (Throwable ignored) {}
+        try { if (HAZELCAST_CONTAINER != null) HAZELCAST_CONTAINER.stop(); } catch (Throwable ignored) {}
     }
 
 }

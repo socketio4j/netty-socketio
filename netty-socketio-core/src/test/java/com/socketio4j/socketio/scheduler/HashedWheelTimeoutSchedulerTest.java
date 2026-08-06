@@ -46,7 +46,7 @@ import static org.mockito.Mockito.verify;
 
 
 @DisplayName("HashedWheelTimeoutScheduler Tests")
-class HashedWheelTimeoutSchedulerTest {
+public class HashedWheelTimeoutSchedulerTest {
 
     @Mock
     private ChannelHandlerContext mockCtx;

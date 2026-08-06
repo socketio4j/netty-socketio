@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("SchedulerKey Tests")
-class SchedulerKeyTest {
+public class SchedulerKeyTest {
 
     @Nested
     @DisplayName("Constructor Tests")

@@ -118,23 +118,10 @@ public class DistributedKafkaJsClientInteropTest extends AbstractDistributedJsCl
     @AfterAll
     @Override
     public void teardownCluster() {
-        try {
-            if (node1 != null) {
-                node1.stop();
-            }
-            if (node2 != null) {
-                node2.stop();
-            }
-        } finally {
-            if (KAFKA.isRunning()) {
-                KAFKA.close();
-            }
-            if (kafkaEventStore1 != null) {
-                kafkaEventStore1.shutdown();
-            }
-            if (kafkaEventStore2 != null) {
-                kafkaEventStore2.shutdown();
-            }
-        }
+        try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
+        try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+        try { if (kafkaEventStore1 != null) kafkaEventStore1.shutdown(); } catch (Throwable ignored) {}
+        try { if (kafkaEventStore2 != null) kafkaEventStore2.shutdown(); } catch (Throwable ignored) {}
+        try { if (KAFKA != null && KAFKA.isRunning()) KAFKA.close(); } catch (Throwable ignored) {}
     }
 }

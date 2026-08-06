@@ -241,6 +241,8 @@ public class AnnotationHandleTest extends BaseSpringApplicationTest {
     @Autowired
     private SocketIOServer socketIOServer;
 
+    private Socket socket;
+
     @BeforeEach
     public void setup() throws Exception {
         testConnectController.reset();

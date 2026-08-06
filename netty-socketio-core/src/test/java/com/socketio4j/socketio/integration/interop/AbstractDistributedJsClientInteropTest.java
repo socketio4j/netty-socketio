@@ -57,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Abstract Multi-Node Distributed Cluster Interoperability Suite with Official JS Clients.
  * Covers 16 end-to-end cluster scenario permutations across v1-v4 official clients and WS/Polling transports.
  */
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+
 public abstract class AbstractDistributedJsClientInteropTest {
 
     private static final java.util.Set<JsClientProcess> ALL_ACTIVE_PROCESSES = ConcurrentHashMap.newKeySet();

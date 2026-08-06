@@ -45,7 +45,7 @@ import static org.mockito.Mockito.when;
  * Tests the core functionality of scanning and registering annotation handlers.
  */
 
-class ScannerEngineTest extends AnnotationTestBase {
+public class ScannerEngineTest extends AnnotationTestBase {
 
     private ScannerEngine scannerEngine;
     private Configuration config;
