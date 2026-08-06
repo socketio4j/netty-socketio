@@ -247,7 +247,6 @@ public class InPacketHandlerTest {
             );
 
             PacketsMessage message = new PacketsMessage(client, combinedContent, Transport.POLLING);
-            System.out.println(">>>>>"+combinedContent.toString(StandardCharsets.UTF_8));
             // When: Send the message through the channel
             channel.writeInbound(message);
             channel.runPendingTasks();

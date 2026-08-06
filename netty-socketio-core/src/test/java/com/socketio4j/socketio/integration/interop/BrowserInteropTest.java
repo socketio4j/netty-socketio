@@ -336,21 +336,13 @@ public class BrowserInteropTest {
 
         nsp.addConnectListener(client -> {
                 CONNECTS.incrementAndGet();
-                System.out.printf(
-                        "[%s] CONNECT sid=%s transport=%s eio=%s%n",
-                        namespace,
-                        client.getSessionId(),
-                        client.getTransport(),
-                        client.getEngineIOVersion());
+
         }
         );
 
         nsp.addDisconnectListener(client -> {
                 DISCONNECTS.incrementAndGet();
-                System.out.printf(
-                        "[%s] DISCONNECT sid=%s%n",
-                        namespace,
-                        client.getSessionId());
+
         });
 
         nsp.addEventListener(

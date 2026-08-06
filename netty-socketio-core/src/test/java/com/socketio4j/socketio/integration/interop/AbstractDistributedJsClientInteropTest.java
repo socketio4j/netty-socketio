@@ -959,7 +959,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
                         synchronized (logOutput) {
                             logOutput.append(line).append("\n");
                         }
-                        System.out.println("[JS-" + name + "] " + line);
+
                     }
                 } catch (Exception ignored) {}
             });

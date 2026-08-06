@@ -73,7 +73,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
                     synchronized (output) {
                         output.append(line).append("\n");
                     }
-                    System.out.println("[JS-v" + version + "-" + transport + "] " + line);
+
                 }
             } catch (Exception ignored) {}
         });

@@ -85,7 +85,6 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
                     synchronized (output) {
                         output.append(line).append('\n');
                     }
-                    System.out.println("[NS-JS] " + line);
                 }
 
             } catch (Exception ignored) {
@@ -125,7 +124,6 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
 
     @Override
     protected void configureNamespaces(SocketIOServer server) {
-        System.out.println("configureNamespaces called");
         chat = server.addNamespace("/chat");
     }
 
@@ -272,14 +270,10 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         AtomicInteger chatConnected = new AtomicInteger();
 
         getServer().addConnectListener(client -> {
-            System.out.println("DEFAULT CONNECT  session=" + client.getSessionId()
-                    + " namespace=" + client.getNamespace().getName());
             defaultConnected.incrementAndGet();
         });
 
         chat.addConnectListener(client -> {
-            System.out.println("CHAT CONNECT     session=" + client.getSessionId()
-                    + " namespace=" + client.getNamespace().getName());
             chatConnected.incrementAndGet();
         });
 
@@ -431,11 +425,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
 
         AtomicInteger defaultEvents = new AtomicInteger();
         AtomicInteger chatEvents = new AtomicInteger();
-        for (SocketIONamespace ns : getServer().getAllNamespaces()) {
-            System.out.println(
-                    "NAMESPACE " + ns.getName()
-                            + " object=" + System.identityHashCode(ns));
-        }
+
         Namespace defaultNamespace = (Namespace) getServer().getAllNamespaces().stream()
                 .filter(ns -> ns.getName().equals(""))
                 .findFirst().get();

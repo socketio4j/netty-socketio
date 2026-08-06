@@ -68,8 +68,6 @@ public class JsTransportInteropTest extends AbstractSocketIOIntegrationTest {
                     synchronized (output) {
                         output.append(line).append('\n');
                     }
-
-                    System.out.println("[JS-v" + version + "] " + line);
                 }
 
             } catch (Exception ignored) {

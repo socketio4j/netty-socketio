@@ -72,7 +72,6 @@ public class EIOv3BinaryCompatibilityTest extends AbstractSocketIOIntegrationTes
             @Override
             public void onFailure(WebSocket webSocket, Throwable t, Response response) {
                 failureRef.set(t);
-                System.err.println("WebSocket failure: " + t.getMessage());
             }
         });
 

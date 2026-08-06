@@ -55,10 +55,6 @@ public class DistributedHazelcastJsClientInteropTest extends AbstractDistributed
     @Override
     public void setupCluster() throws Exception {
 
-        System.out.println("==================================================");
-        System.out.println("STARTING HAZELCAST TEST");
-        System.out.println("==================================================");
-
         // ---------- MEMBER ----------
         Config config = new Config();
         config.setClusterName(CLUSTER_NAME);
@@ -69,36 +65,9 @@ public class DistributedHazelcastJsClientInteropTest extends AbstractDistributed
 
         config.getNetworkConfig().getJoin().getMulticastConfig().setEnabled(false);
         config.getNetworkConfig().getJoin().getTcpIpConfig().setEnabled(false);
-        System.out.println("Creating embedded member...");
 
         member = Hazelcast.newHazelcastInstance(config);
-        System.out.println("Multicast : "
-                + config.getNetworkConfig()
-                .getJoin().getMulticastConfig().isEnabled());
-
-        System.out.println("TCP/IP    : "
-                + config.getNetworkConfig()
-                .getJoin().getTcpIpConfig().isEnabled());
-
-        System.out.println("AutoDetect: "
-                + config.getNetworkConfig()
-                .getJoin().getAutoDetectionConfig().isEnabled());
-
-        System.out.println("Interfaces: "
-                + config.getNetworkConfig()
-                .getInterfaces().isEnabled());
-
-        System.out.println("Port      : "
-                + config.getNetworkConfig().getPort());
         Address address = member.getCluster().getLocalMember().getAddress();
-
-        System.out.println("------------------------------------------");
-        System.out.println("Member created");
-        System.out.println("Address      : " + address);
-        System.out.println("Host         : " + address.getHost());
-        System.out.println("Port         : " + address.getPort());
-        System.out.println("UUID         : " + member.getCluster().getLocalMember().getUuid());
-        System.out.println("------------------------------------------");
 
         Thread.sleep(2000);
 
@@ -112,15 +81,7 @@ public class DistributedHazelcastJsClientInteropTest extends AbstractDistributed
                 .setRedoOperation(true)
                 .addAddress(address.getHost() + ":" + address.getPort());
 
-        System.out.println("Creating client #1");
-        System.out.println("Addresses : "
-                + clientConfig1.getNetworkConfig().getAddresses());
-
         hazelcastInstance = HazelcastClient.newHazelcastClient(clientConfig1);
-
-        System.out.println("Client #1 connected");
-        System.out.println("Client members : "
-                + hazelcastInstance.getCluster().getMembers());
 
         // ---------- CLIENT 2 ----------
 
@@ -132,15 +93,7 @@ public class DistributedHazelcastJsClientInteropTest extends AbstractDistributed
                 .setRedoOperation(true)
                 .addAddress(address.getHost() + ":" + address.getPort());
 
-        System.out.println("Creating client #2");
-        System.out.println("Addresses : "
-                + clientConfig2.getNetworkConfig().getAddresses());
-
         hazelcastInstance1 = HazelcastClient.newHazelcastClient(clientConfig2);
-
-        System.out.println("Client #2 connected");
-        System.out.println("Client members : "
-                + hazelcastInstance1.getCluster().getMembers());
 
         // ---------- NODE 1 ----------
 
@@ -165,8 +118,6 @@ public class DistributedHazelcastJsClientInteropTest extends AbstractDistributed
 
         port1 = cfg1.getPort();
 
-        System.out.println("Node #1 started on port " + port1);
-
         // ---------- NODE 2 ----------
 
         Configuration cfg2 = new Configuration();
@@ -189,12 +140,6 @@ public class DistributedHazelcastJsClientInteropTest extends AbstractDistributed
         node2.start();
 
         port2 = cfg2.getPort();
-
-        System.out.println("Node #2 started on port " + port2);
-
-        System.out.println("==================================================");
-        System.out.println("SETUP COMPLETE");
-        System.out.println("==================================================");
 
         initJsScript();
     }
