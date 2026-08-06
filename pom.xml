@@ -465,6 +465,9 @@
           <doclint>none</doclint>
           <quiet>true</quiet>
           <aggregate>false</aggregate>
+          <sourceFileExcludes>
+            <exclude>**/module-info.java</exclude>
+          </sourceFileExcludes>
         </configuration>
       </plugin>
 
@@ -543,9 +546,9 @@
       </plugin>
 
       <plugin>
-        <!-- this trick double-compiles everything so we can have a module-info.class
-      in a JAR compiled for Java 8:
-        https://maven.apache.org/plugins/maven-compiler-plugin/examples/module-info.html-->
+        <!-- Multi-Release JAR (MRJAR / JEP 238) configuration:
+             Base Java 8 source is compiled into root target/classes.
+             Java 11 versioned source (including module-info.java) is compiled into META-INF/versions/11/ -->
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.15.0</version>
@@ -553,21 +556,26 @@
           <execution>
             <id>default-compile</id>
             <configuration>
-              <release>11</release>
-              <!-- no excludes: compile everything to ensure module-info contains right entries -->
+              <release>8</release>
+              <compileSourceRoots>
+                <compileSourceRoot>${project.basedir}/src/main/java</compileSourceRoot>
+              </compileSourceRoots>
+              <excludes>
+                <exclude>**/module-info.java</exclude>
+              </excludes>
             </configuration>
           </execution>
           <execution>
-            <id>base-compile</id>
+            <id>compile-java11</id>
             <goals>
               <goal>compile</goal>
             </goals>
             <configuration>
-              <release>8</release>
-              <!-- recompile everything for target VM except the module-info.java -->
-              <excludes>
-                <exclude>module-info.java</exclude>
-              </excludes>
+              <release>11</release>
+              <compileSourceRoots>
+                <compileSourceRoot>${project.basedir}/src/main/java11</compileSourceRoot>
+              </compileSourceRoots>
+              <multiReleaseOutput>true</multiReleaseOutput>
             </configuration>
           </execution>
           <execution>
@@ -580,7 +588,7 @@
         </executions>
         <!-- defaults for compile and testCompile -->
         <configuration>
-          <release>8</release><!-- or 7 or 8 depending on compatibility expectations -->
+          <release>8</release><!-- baseline for Java 8 compatibility -->
         </configuration>
       </plugin>
 
@@ -634,6 +642,8 @@
         <configuration>
           <instructions>
             <Bundle-Name>${project.artifactId}</Bundle-Name>
+            <Multi-Release>true</Multi-Release>
+            <_fixupmessages>"Split package, multiple jars provide the same package:META-INF/versions/11";is:=ignore</_fixupmessages>
             <Import-Package>
               org.springframework.*;resolution:=optional,com.hazelcast.*;resolution:=optional,org.redisson.*;resolution:=optional,*
             </Import-Package>
@@ -660,6 +670,7 @@
           <excludes>
             <exclude>target/**</exclude>
             <exclude>src/main/java/module-info.java</exclude>
+            <exclude>src/main/java11/module-info.java</exclude>
           </excludes>
           <useDefaultExcludes>true</useDefaultExcludes>
           <mapping>
