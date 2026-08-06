@@ -169,6 +169,9 @@ public class BrowserInteropTest {
         EVENTS.clear();
         UNIQUE_EVENTS.clear();
         EVENT_ORDER.clear();
+        CONNECTS.set(0);
+        DISCONNECTS.set(0);
+        EVENT_SEQUENCE.set(0);
     }
 
     /**
