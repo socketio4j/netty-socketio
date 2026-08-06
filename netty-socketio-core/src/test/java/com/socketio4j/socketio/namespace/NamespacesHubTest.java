@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Test class for NamespacesHub functionality and thread safety.
  */
-public class NamespacesHubTest extends BaseNamespaceTest {
+public class NamespacesHubTest extends AbstractNamespaceTestSupport {
 
     private NamespacesHub namespacesHub;
 

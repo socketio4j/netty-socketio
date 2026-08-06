@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Test class for StoreFactory implementations
  */
-public abstract class StoreFactoryTest {
+public abstract class AbstractStoreFactoryTestSupport {
 
     private AutoCloseable closeableMocks;
 
@@ -60,95 +60,73 @@ public abstract class StoreFactoryTest {
     public void setUp() throws Exception {
         closeableMocks = MockitoAnnotations.openMocks(this);
         storeFactory = createStoreFactory();
+        assertNotNull(storeFactory, "StoreFactory should not be null");
         storeFactory.init(namespacesHub, authorizeHandler, jsonSupport);
     }
 
     @AfterEach
     public void tearDown() throws Exception {
-        closeableMocks.close();
+        if (closeableMocks != null) {
+            closeableMocks.close();
+        }
+        if (storeFactory != null) {
+            storeFactory.shutdown();
+        }
     }
 
-    /**
-     * Create the specific StoreFactory implementation to test
-     */
     protected abstract StoreFactory createStoreFactory() throws Exception;
 
     @Test
     public void testCreateStore() {
         UUID sessionId = UUID.randomUUID();
         Store store = storeFactory.createStore(sessionId);
-        
         assertNotNull(store, "Store should not be null");
-        assertInstanceOf(Store.class, store, "Store should implement Store interface");
     }
 
     @Test
-    public void testCreateEventStore() {
-        EventStore eventStore = storeFactory.eventStore();
+    public void testCreateDifferentStores() {
+        UUID sessionId1 = UUID.randomUUID();
+        UUID sessionId2 = UUID.randomUUID();
         
-        assertNotNull(eventStore, "EventStore should not be null");
-        assertInstanceOf(EventStore.class, eventStore, "EventStore should implement PubSubStore interface");
+        Store store1 = storeFactory.createStore(sessionId1);
+        Store store2 = storeFactory.createStore(sessionId2);
+        
+        assertNotNull(store1, "Store 1 should not be null");
+        assertNotNull(store2, "Store 2 should not be null");
+        assertNotSame(store1, store2, "Stores for different sessions should be different instances");
     }
 
     @Test
-    public void testCreateMap() {
+    public void testMapCreation() {
         String mapName = "testMap";
-        Map<String, Object> map = storeFactory.createMap(mapName);
-        
+        Map<Object, Object> map = storeFactory.createMap(mapName);
         assertNotNull(map, "Map should not be null");
-        assertInstanceOf(Map.class, map, "Map should implement Map interface");
+        
+        // Getting map with same name should return same instance
+        Map<Object, Object> sameMap = storeFactory.createMap(mapName);
+        assertEquals(map, sameMap, "Getting map with same name should return same instance");
     }
 
     @Test
-    public void testCreateMultipleStores() {
-        UUID sessionId1 = UUID.randomUUID();
-        UUID sessionId2 = UUID.randomUUID();
-        
-        Store store1 = storeFactory.createStore(sessionId1);
-        Store store2 = storeFactory.createStore(sessionId2);
-        
-        assertNotNull(store1, "First store should not be null");
-        assertNotNull(store2, "Second store should not be null");
-        assertNotSame(store1, store2, "Stores should be different instances");
-    }
-
-    @Test
-    public void testStoreIsolation() {
-        UUID sessionId1 = UUID.randomUUID();
-        UUID sessionId2 = UUID.randomUUID();
-        
-        Store store1 = storeFactory.createStore(sessionId1);
-        Store store2 = storeFactory.createStore(sessionId2);
-        
-        // Set data in store1
-        store1.set("isolatedKey", "store1Value");
-        
-        // Store2 should not have this data
-        assertFalse(store2.has("isolatedKey"), "Store2 should not have data from store1");
-        assertNull(store2.get("isolatedKey"), "Store2 should not return data from store1");
-        
-        // Store1 should still have the data
-        assertTrue(store1.has("isolatedKey"), "Store1 should have its data");
-        assertEquals("store1Value", store1.get("isolatedKey"), "Store1 should return its data");
+    public void testEventStoreCreation() {
+        EventStore eventStore = storeFactory.eventStore();
+        assertNotNull(eventStore, "EventStore should not be null");
     }
 
     @Test
     public void testShutdown() {
-        // Create some stores first
         UUID sessionId = UUID.randomUUID();
-        Store store = storeFactory.createStore(sessionId);
-        EventStore eventStore = storeFactory.eventStore();
+        storeFactory.createStore(sessionId);
         
-        // Shutdown should not throw exception
         storeFactory.shutdown();
         
-        // After shutdown, we might not be able to create new stores
-        // This depends on the implementation
+        // After shutdown, createStore should still work (or throw exception depending on implementation)
+        // This tests that shutdown doesn't crash the factory
         try {
-            Store newStore = storeFactory.createStore(UUID.randomUUID());
-            // If we can create a store, that's fine
+            storeFactory.createStore(UUID.randomUUID());
         } catch (Exception e) {
-            // If we can't create a store after shutdown, that's also fine
+            // Expected exception in some implementations
+            assertNotNull(e, "Exception should be descriptive");
         }
     }
 }

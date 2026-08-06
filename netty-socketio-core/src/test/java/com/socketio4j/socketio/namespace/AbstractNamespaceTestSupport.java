@@ -20,6 +20,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntConsumer;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -29,7 +30,7 @@ import org.junit.jupiter.api.TestInstance;
  * Base test class for Namespace tests providing shared thread pool and utility methods.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public abstract class BaseNamespaceTest {
+public abstract class AbstractNamespaceTestSupport {
 
     protected ExecutorService sharedExecutor;
     protected static final int DEFAULT_TASK_COUNT = 10;
@@ -61,14 +62,13 @@ public abstract class BaseNamespaceTest {
         CountDownLatch latch = new CountDownLatch(taskCount);
 
         for (int i = 0; i < taskCount; i++) {
-            sharedExecutor.submit(
-                    () -> {
-                        try {
-                            operation.run();
-                        } finally {
-                            latch.countDown();
-                        }
-                    });
+            sharedExecutor.submit(() -> {
+                try {
+                    operation.run();
+                } finally {
+                    latch.countDown();
+                }
+            });
         }
 
         return latch;
@@ -78,53 +78,36 @@ public abstract class BaseNamespaceTest {
      * Execute concurrent operations with index using the shared thread pool.
      *
      * @param taskCount number of tasks to execute concurrently
-     * @param operation the operation to execute in each task (receives task index)
+     * @param operation the operation to execute in each task with index
      * @return the countdown latch for synchronization
      */
-    protected CountDownLatch executeConcurrentOperationsWithIndex(
-            int taskCount, IndexedOperation operation) {
+    protected CountDownLatch executeConcurrentOperationsWithIndex(int taskCount, IntConsumer operation) {
         CountDownLatch latch = new CountDownLatch(taskCount);
 
         for (int i = 0; i < taskCount; i++) {
             final int index = i;
-            sharedExecutor.submit(
-                    () -> {
-                        try {
-                            operation.run(index);
-                        } finally {
-                            latch.countDown();
-                        }
-                    });
+            sharedExecutor.submit(() -> {
+                try {
+                    operation.accept(index);
+                } finally {
+                    latch.countDown();
+                }
+            });
         }
 
         return latch;
     }
 
     /**
-     * Wait for concurrent operations to complete with timeout.
+     * Wait for a countdown latch to reach zero with default timeout.
      *
-     * @param latch the countdown latch
-     * @param timeoutSeconds timeout in seconds
-     * @throws InterruptedException if interrupted
-     */
-    protected void waitForCompletion(CountDownLatch latch, int timeoutSeconds)
-            throws InterruptedException {
-        latch.await(timeoutSeconds, TimeUnit.SECONDS);
-    }
-
-    /**
-     * Wait for concurrent operations to complete with default timeout.
-     *
-     * @param latch the countdown latch
-     * @throws InterruptedException if interrupted
+     * @param latch the countdown latch to wait for
+     * @throws InterruptedException if thread is interrupted while waiting
      */
     protected void waitForCompletion(CountDownLatch latch) throws InterruptedException {
-        waitForCompletion(latch, DEFAULT_TIMEOUT_SECONDS);
-    }
-
-    /** Functional interface for operations that need task index. */
-    @FunctionalInterface
-    protected interface IndexedOperation {
-        void run(int index);
+        boolean completed = latch.await(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        if (!completed) {
+            throw new RuntimeException("Concurrent operations did not complete within " + DEFAULT_TIMEOUT_SECONDS + " seconds");
+        }
     }
 }

@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Test class for EventEntry functionality and thread safety.
  */
-public class EventEntryTest extends BaseNamespaceTest {
+public class EventEntryTest extends AbstractNamespaceTestSupport {
 
     private EventEntry<String> eventEntry;
     private static final String TEST_DATA = "testData";

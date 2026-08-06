@@ -33,16 +33,17 @@ import com.hazelcast.core.HazelcastInstance;
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.integration.interop.AbstractDistributedJsClientInteropTest;
+import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.hazelcast.HazelcastPubSubEventStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
- * Multi-Node JS Client Interoperability Test Suite backed by an embedded Hazelcast member.
+ * Multi-Node JS Client Interoperability Test Suite backed by Hazelcast PubSub.
  */
 @ResourceLock("EMBEDDED_HAZELCAST")
-@DisplayName("Multi-Node Official JS Client Interoperability Suite (Hazelcast)")
+@DisplayName("Multi-Node Official JS Client Interoperability Suite (Hazelcast PubSub)")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedHazelcastJsClientInteropTest extends AbstractDistributedJsClientInteropTest {
     private static final String CLUSTER_NAME = "js-interop-" + UUID.randomUUID();

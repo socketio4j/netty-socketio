@@ -48,7 +48,7 @@ import static org.mockito.Mockito.when;
  * Test class for RedissonReliableStoreFactory using testcontainers
  */
 @ResourceLock("EMBEDDED_REDIS")
-public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
+public class RedissonReliableStoreFactoryTest extends AbstractStoreFactoryTestSupport {
 
     private static GenericContainer<?> container;
     private RedissonClient redissonClient;

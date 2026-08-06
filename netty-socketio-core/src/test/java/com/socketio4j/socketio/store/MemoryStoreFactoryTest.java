@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
 /**
  * Test class for MemoryStoreFactory - no container needed as it's in-memory
  */
-public class MemoryStoreFactoryTest extends StoreFactoryTest {
+public class MemoryStoreFactoryTest extends AbstractStoreFactoryTestSupport {
 
     @Override
     protected StoreFactory createStoreFactory() throws Exception {

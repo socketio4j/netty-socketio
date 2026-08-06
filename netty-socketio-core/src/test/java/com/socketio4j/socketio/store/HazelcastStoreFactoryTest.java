@@ -50,7 +50,7 @@ import static org.mockito.Mockito.when;
  * Test class for HazelcastRingBufferStoreFactory using testcontainers
  */
 @ResourceLock("EMBEDDED_HAZELCAST")
-public class HazelcastStoreFactoryTest extends StoreFactoryTest {
+public class HazelcastStoreFactoryTest extends AbstractStoreFactoryTestSupport {
 
     private static GenericContainer<?> container;
     private HazelcastInstance hazelcastInstance;

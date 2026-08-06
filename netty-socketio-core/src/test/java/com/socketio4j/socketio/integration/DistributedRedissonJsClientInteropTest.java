@@ -34,10 +34,10 @@ import com.socketio4j.socketio.store.redis_pubsub.RedisPubSubEventStore;
 import com.socketio4j.socketio.store.redis_pubsub.RedisStoreFactory;
 
 /**
- * Multi-Node JS Client Interoperability Test Suite backed by Redisson Redis PubSub.
+ * Multi-Node JS Client Interoperability Test Suite backed by Redisson PubSub.
  */
 @ResourceLock("EMBEDDED_REDIS")
-@DisplayName("Multi-Node Official JS Client Interoperability Suite (Redisson Redis PubSub)")
+@DisplayName("Multi-Node Official JS Client Interoperability Suite (Redisson PubSub)")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedRedissonJsClientInteropTest extends AbstractDistributedJsClientInteropTest {
 

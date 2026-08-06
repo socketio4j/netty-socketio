@@ -42,10 +42,10 @@ import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
- * Multi-Node JS Client Interoperability Test Suite backed by Apache Kafka.
+ * Multi-Node JS Client Interoperability Test Suite backed by Kafka.
  */
 @ResourceLock("EMBEDDED_KAFKA")
-@DisplayName("Multi-Node Official JS Client Interoperability Suite (Apache Kafka)")
+@DisplayName("Multi-Node Official JS Client Interoperability Suite (Kafka)")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedKafkaJsClientInteropTest extends AbstractDistributedJsClientInteropTest {
 

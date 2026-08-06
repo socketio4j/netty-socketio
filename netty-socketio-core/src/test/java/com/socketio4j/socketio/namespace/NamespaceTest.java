@@ -51,7 +51,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class NamespaceTest extends BaseNamespaceTest {
+public class NamespaceTest extends AbstractNamespaceTestSupport {
 
     private Namespace namespace;
 
