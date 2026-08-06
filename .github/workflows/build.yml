@@ -9,6 +9,10 @@ on:
       javaVersion:
         required: true
         type: string
+      os:
+        required: false
+        type: string
+        default: "ubuntu-latest"
       delay:
         required: false
         type: string
@@ -16,7 +20,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.os }}
 
     env:
       # Allow Testcontainers to control Docker
@@ -88,5 +92,6 @@ jobs:
         run: |
           export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN \
                              -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN \
-                             -Dcom.socketio4j.socketio.level=WARN"
-          mvn --batch-mode --errors --fail-at-end -DforkCount=1 verify
+                             -Dcom.socketio4j.socketio.level=WARN \
+                             -Dio.netty.leakDetection.level=PARANOID"
+          mvn --batch-mode --errors --fail-at-end -DforkCount=1C verify

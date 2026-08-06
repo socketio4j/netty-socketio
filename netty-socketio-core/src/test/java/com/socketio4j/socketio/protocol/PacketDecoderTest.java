@@ -1456,8 +1456,29 @@ public class PacketDecoderTest extends BaseProtocolTest {
         assertEquals(Long.valueOf(55), binEvPacket.getAckId());
         assertTrue(binEvPacket.hasAttachments());
         assertFalse(binEvPacket.isAttachmentsLoaded());
-        //assertEquals(version, binEvPacket.getEngineIOVersion());
         binEvBuf.release();
+    }
+
+    @Test
+    void testDecodeRecordSeparatorsOnly() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        // Frame with only 0x1E record separators
+        ByteBuf buf = Unpooled.copiedBuffer(new byte[]{0x1E, 0x1E, 0x1E});
+        Packet packet = decoder.decodePackets(buf, clientHead, Transport.POLLING);
+        assertNull(packet);
+        assertEquals(0, buf.readableBytes());
+        buf.release();
+
+        // Frame with leading, trailing, and consecutive separators around valid packet
+        ByteBuf buf2 = Unpooled.copiedBuffer(new byte[]{0x1E, 0x1E, '2', 0x1E, 0x1E});
+        Packet pingPacket = decoder.decodePackets(buf2, clientHead, Transport.POLLING);
+        assertNotNull(pingPacket);
+        assertEquals(PacketType.PING, pingPacket.getType());
+        Packet nextPacket = decoder.decodePackets(buf2, clientHead, Transport.POLLING);
+        assertNull(nextPacket);
+        assertEquals(0, buf2.readableBytes());
+        buf2.release();
     }
 
     @Test
@@ -1511,6 +1532,326 @@ public class PacketDecoderTest extends BaseProtocolTest {
 
         textBuffer.release();
         binBuffer.release();
+    }
+
+    // ==================== Rigorous Engine.IO & Socket.IO Decoder Tests ====================
+
+    @Test
+    void testDecodeV4PollingBase64BinaryAttachment() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        AtomicReference<Packet> pendingPacket = new AtomicReference<>();
+        AtomicReference<ByteBuf> pendingSource = new AtomicReference<>();
+
+        doAnswer(inv -> {
+            pendingPacket.set(inv.getArgument(0));
+            pendingSource.set(inv.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+
+        when(clientHead.getLastBinaryPacket()).thenAnswer(inv -> pendingPacket.get());
+        when(clientHead.getLastBinaryPacketSource()).thenAnswer(inv -> pendingSource.get());
+
+        // 1. Decode BINARY_EVENT header packet: "451-[\"binEv\",{\"_placeholder\":true,\"num\":0}]"
+        ByteBuf headerBuf = Unpooled.copiedBuffer("451-[\"binEv\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
+        Event mockEv = new Event("binEv", Arrays.asList(Collections.singletonMap("_placeholder", true)));
+        when(jsonSupport.readValue(eq(""), any(), eq(Event.class))).thenReturn(mockEv);
+
+        Packet headerPacket = decoder.decodePackets(headerBuf, clientHead, Transport.POLLING);
+        assertNotNull(headerPacket);
+        assertTrue(headerPacket.hasAttachments());
+        assertFalse(headerPacket.isAttachmentsLoaded());
+
+        // 2. Decode EIO v4 polling base64 binary attachment frame: "bChQU" (Base64 of [10, 20, 30])
+        ByteBuf attachBuf = Unpooled.copiedBuffer("bChQU", CharsetUtil.UTF_8);
+        Packet completedPacket = decoder.decodePackets(attachBuf, clientHead, Transport.POLLING);
+        assertNotNull(completedPacket);
+        assertTrue(completedPacket.isAttachmentsLoaded());
+        assertEquals(1, completedPacket.getAttachments().size());
+
+        ByteBuf attachment = completedPacket.getAttachments().get(0);
+        // Base64 "ChQU" is 4 bytes ASCII string holding the base64 characters
+        assertEquals(4, attachment.readableBytes());
+        assertEquals("ChQU", attachment.toString(CharsetUtil.UTF_8));
+
+        headerBuf.release();
+        attachBuf.release();
+    }
+
+    @Test
+    void testDecodeAckWithCustomNamespaceAndAckId() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        ByteBuf buf = Unpooled.copiedBuffer("43/admin,999[\"ack_response_payload\"]", CharsetUtil.UTF_8);
+        Packet packet = decoder.decodePackets(buf, clientHead, Transport.POLLING);
+
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.ACK, packet.getSubType());
+        assertEquals("/admin", packet.getNsp());
+        assertEquals(Long.valueOf(999), packet.getAckId());
+
+        buf.release();
+    }
+
+    @Test
+    void testDecodeBinaryAckHeader() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        ByteBuf buf = Unpooled.copiedBuffer("461-/chat,888[{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
+        Packet packet = decoder.decodePackets(buf, clientHead, Transport.POLLING);
+
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.BINARY_ACK, packet.getSubType());
+        assertEquals("/chat", packet.getNsp());
+        assertEquals(Long.valueOf(888), packet.getAckId());
+        assertTrue(packet.hasAttachments());
+        assertFalse(packet.isAttachmentsLoaded());
+
+        buf.release();
+    }
+
+    @Test
+    void testDecodeUtf8SurrogatePairsAndEmojis() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        String jsonPayload = "[\"chat_message\",\"Hello 🚀🔥 世界\"]";
+        ByteBuf buf = Unpooled.copiedBuffer("42/chat," + jsonPayload, CharsetUtil.UTF_8);
+
+        Event mockEv = new Event("chat_message", Arrays.asList("Hello 🚀🔥 世界"));
+        when(jsonSupport.readValue(eq("/chat"), any(), eq(Event.class))).thenReturn(mockEv);
+
+        Packet packet = decoder.decodePackets(buf, clientHead, Transport.POLLING);
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.EVENT, packet.getSubType());
+        assertEquals("/chat", packet.getNsp());
+        assertEquals("chat_message", packet.getName());
+
+        buf.release();
+    }
+
+    @Test
+    void testDecodeAllWorldLanguagesPayloads() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("tamil", "வணக்கம் உலகம்");
+        map.put("chinese", "你好世界，繁體中文測試");
+        map.put("hindi", "नमस्ते भारत और दुनिया");
+        map.put("arabic", "مرحبا بالعالم");
+        map.put("japanese", "こんにちは世界");
+        map.put("korean", "안녕하세요 세계");
+        map.put("russian", "Привет мир");
+        map.put("greek", "Γειά σου Κόσμε");
+        map.put("hebrew", "שלום עולם");
+        map.put("thai", "สวัสดีชาวโลก");
+        map.put("bengali", "হ্যালো বিশ্ব");
+        map.put("vietnamese", "Xin chào thế giới");
+        map.put("amharic", "ሰላም ዓለም");
+        map.put("georgian", "გამარჯობა მსოფლიო");
+        map.put("armenian", "Բարև աշխարհ");
+
+        ByteBuf buf = Unpooled.copiedBuffer("42/global,[\"world_talk\",{\"text\":\"multilingual\"}]", CharsetUtil.UTF_8);
+
+        Event mockEv = new Event("world_talk", Arrays.asList(map));
+        when(jsonSupport.readValue(eq("/global"), any(), eq(Event.class))).thenReturn(mockEv);
+
+        Packet packet = decoder.decodePackets(buf, clientHead, Transport.POLLING);
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.EVENT, packet.getSubType());
+        assertEquals("/global", packet.getNsp());
+        assertEquals("world_talk", packet.getName());
+
+        buf.release();
+    }
+
+    @Test
+    void testTamilScriptComprehensiveDecoding() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        String thirukkural = "அகர முதல எழுத்தெல்லாம் ஆதி பகவன் முதற்றே உலகு.";
+        String granthaText = "ஸ்ரீராமஜெயம் - ஜ, ஷ, ஸ, ஹ, க்ஷ, ஸ்ரீ";
+
+        String jsonPayload = "[\"தமிழ்_நிகழ்வு\",{\"kural\":\"" + thirukkural + "\",\"grantha\":\"" + granthaText + "\"}]";
+        ByteBuf buf = Unpooled.copiedBuffer("42/தமிழ்," + jsonPayload, CharsetUtil.UTF_8);
+
+        Map<String, Object> dataMap = new HashMap<>();
+        dataMap.put("kural", thirukkural);
+        dataMap.put("grantha", granthaText);
+        Event mockEv = new Event("தமிழ்_நிகழ்வு", Arrays.asList(dataMap));
+        when(jsonSupport.readValue(eq("/தமிழ்"), any(), eq(Event.class))).thenReturn(mockEv);
+
+        Packet packet = decoder.decodePackets(buf, clientHead, Transport.POLLING);
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.EVENT, packet.getSubType());
+        assertEquals("/தமிழ்", packet.getNsp());
+        assertEquals("தமிழ்_நிகழ்வு", packet.getName());
+
+        buf.release();
+    }
+
+    @Test
+    void testAncientTamilBrahmiScriptDecoding() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        // Tamil-Brahmi / Tamili script (Unicode U+11000..U+1107F)
+        String ancientTamiliWord = "𑀢𑀫𑀺𑀵𑀺";
+        String keeladiInscription = "𑀆𑀢𑀦𑀺 𑀘𑀸𑀢𑀦𑀺";
+
+        String jsonPayload = "[\"𑀢𑀫𑀺𑀵𑀺_event\",{\"script\":\"" + ancientTamiliWord + "\",\"inscription\":\"" + keeladiInscription + "\"}]";
+        ByteBuf buf = Unpooled.copiedBuffer("42/ancient_tamili," + jsonPayload, CharsetUtil.UTF_8);
+
+        Map<String, Object> dataMap = new HashMap<>();
+        dataMap.put("script", ancientTamiliWord);
+        dataMap.put("inscription", keeladiInscription);
+        Event mockEv = new Event("𑀢𑀫𑀺𑀵𑀺_event", Arrays.asList(dataMap));
+        when(jsonSupport.readValue(eq("/ancient_tamili"), any(), eq(Event.class))).thenReturn(mockEv);
+
+        Packet packet = decoder.decodePackets(buf, clientHead, Transport.POLLING);
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.EVENT, packet.getSubType());
+        assertEquals("/ancient_tamili", packet.getNsp());
+        assertEquals("𑀢𑀫𑀺𑀵𑀺_event", packet.getName());
+
+        buf.release();
+    }
+
+    @Test
+    void testDecodeMultiDigitAttachmentCountHeader() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        // 12 attachments: "4512-/admin,99["event", ...]"
+        ByteBuf buf = Unpooled.copiedBuffer("4512-/admin,99[\"large_binary_event\"]", CharsetUtil.UTF_8);
+
+        Packet packet = decoder.decodePackets(buf, clientHead, Transport.POLLING);
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.BINARY_EVENT, packet.getSubType());
+        assertEquals("/admin", packet.getNsp());
+        assertEquals(Long.valueOf(99), packet.getAckId());
+        assertTrue(packet.hasAttachments());
+        assertEquals(0, packet.getAttachments().size()); // 0 loaded so far out of 12 expected
+        assertFalse(packet.isAttachmentsLoaded());
+
+        buf.release();
+    }
+
+    @Test
+    void testDecodeLargeAckIdNearLongMax() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        long largeAckId = 9223372036854775800L;
+        ByteBuf buf = Unpooled.copiedBuffer("43/admin," + largeAckId + "[\"reply\"]", CharsetUtil.UTF_8);
+
+        Packet packet = decoder.decodePackets(buf, clientHead, Transport.POLLING);
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.ACK, packet.getSubType());
+        assertEquals("/admin", packet.getNsp());
+        assertEquals(Long.valueOf(largeAckId), packet.getAckId());
+
+        buf.release();
+    }
+
+    @Test
+    void testDecodeComplexNamespaceWithHyphensDotsUnderscores() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        ByteBuf buf = Unpooled.copiedBuffer("42/my-custom_nsp.v2.0,123[\"ping\"]", CharsetUtil.UTF_8);
+
+        Event mockEv = new Event("ping", Collections.emptyList());
+        when(jsonSupport.readValue(eq("/my-custom_nsp.v2.0"), any(), eq(Event.class))).thenReturn(mockEv);
+
+        Packet packet = decoder.decodePackets(buf, clientHead, Transport.POLLING);
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.EVENT, packet.getSubType());
+        assertEquals("/my-custom_nsp.v2.0", packet.getNsp());
+        assertEquals(Long.valueOf(123), packet.getAckId());
+        assertEquals("ping", packet.getName());
+
+        buf.release();
+    }
+
+    @Test
+    void testDecodeEmptyEventArgumentsArray() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        ByteBuf buf = Unpooled.copiedBuffer("42[\"no_args_event\"]", CharsetUtil.UTF_8);
+
+        Event mockEv = new Event("no_args_event", Collections.emptyList());
+        when(jsonSupport.readValue(eq(""), any(), eq(Event.class))).thenReturn(mockEv);
+
+        Packet packet = decoder.decodePackets(buf, clientHead, Transport.POLLING);
+        assertNotNull(packet);
+        assertEquals(PacketType.MESSAGE, packet.getType());
+        assertEquals(PacketType.EVENT, packet.getSubType());
+        assertEquals("", packet.getNsp());
+        assertEquals("no_args_event", packet.getName());
+
+        buf.release();
+    }
+
+    @Test
+    void testDecodeWebSocketV3vsV4BinaryFramePrefix() throws IOException {
+        // WebSocket V3 frame has 0x04 byte prefix; WebSocket V4 has no 0x04 prefix
+
+        // 1. WebSocket V4 Attachment Frame
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+        AtomicReference<Packet> pendingPacketV4 = new AtomicReference<>();
+        AtomicReference<ByteBuf> pendingSourceV4 = new AtomicReference<>();
+        doAnswer(i -> {
+            pendingPacketV4.set(i.getArgument(0));
+            pendingSourceV4.set(i.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+        when(clientHead.getLastBinaryPacket()).thenAnswer(i -> pendingPacketV4.get());
+        when(clientHead.getLastBinaryPacketSource()).thenAnswer(i -> pendingSourceV4.get());
+
+        ByteBuf hdrV4 = Unpooled.copiedBuffer("451-[\"bin\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
+        Event mockEv = new Event("bin", Collections.singletonList(Collections.singletonMap("_placeholder", true)));
+        when(jsonSupport.readValue(eq(""), any(), eq(Event.class))).thenReturn(mockEv);
+        decoder.decodePackets(hdrV4, clientHead, Transport.WEBSOCKET);
+
+        ByteBuf rawPayloadV4 = Unpooled.copiedBuffer(new byte[]{1, 2, 3});
+        Packet resV4 = decoder.decodePackets(rawPayloadV4, clientHead, Transport.WEBSOCKET);
+        assertNotNull(resV4);
+        assertTrue(resV4.isAttachmentsLoaded());
+        assertEquals(1, resV4.getAttachments().size());
+        assertEquals("AQID", resV4.getAttachments().get(0).toString(CharsetUtil.UTF_8)); // Base64 of [1,2,3]
+
+        hdrV4.release();
+        rawPayloadV4.release();
+
+        // 2. WebSocket V3 Attachment Frame (starts with 0x04 byte prefix)
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+        AtomicReference<Packet> pendingPacketV3 = new AtomicReference<>();
+        AtomicReference<ByteBuf> pendingSourceV3 = new AtomicReference<>();
+        doAnswer(i -> {
+            pendingPacketV3.set(i.getArgument(0));
+            pendingSourceV3.set(i.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+        when(clientHead.getLastBinaryPacket()).thenAnswer(i -> pendingPacketV3.get());
+        when(clientHead.getLastBinaryPacketSource()).thenAnswer(i -> pendingSourceV3.get());
+
+        ByteBuf hdrV3 = Unpooled.copiedBuffer("451-[\"bin\",{\"_placeholder\":true,\"num\":0}]", CharsetUtil.UTF_8);
+        decoder.decodePackets(hdrV3, clientHead, Transport.WEBSOCKET);
+
+        ByteBuf rawPayloadV3 = Unpooled.copiedBuffer(new byte[]{0x04, 1, 2, 3}); // 0x04 prefix
+        Packet resV3 = decoder.decodePackets(rawPayloadV3, clientHead, Transport.WEBSOCKET);
+        assertNotNull(resV3);
+        assertTrue(resV3.isAttachmentsLoaded());
+        assertEquals(1, resV3.getAttachments().size());
+        assertEquals("AQID", resV3.getAttachments().get(0).toString(CharsetUtil.UTF_8)); // 0x04 stripped, Base64 of [1,2,3]
+
+        hdrV3.release();
+        rawPayloadV3.release();
     }
 
     private ClientHead createClientHead(EngineIOVersion version, Transport transport) {

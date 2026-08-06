@@ -1222,4 +1222,297 @@ public class PacketEncoderTest extends BaseProtocolTest {
                         + "0106ff040102030405",
                 ByteBufUtil.hexDump(out));
     }
+
+    // ==================== Rigorous Engine.IO & Socket.IO Specification Tests ====================
+
+    @Test
+    void testEncodeV4BatchTextAndBinaryWithBase64Attachments() throws Exception {
+        Queue<Packet> packets = new ConcurrentLinkedQueue<>();
+
+        Packet textPacket = new Packet(PacketType.MESSAGE);
+        textPacket.setSubType(PacketType.EVENT);
+        textPacket.setName("textEvent");
+        textPacket.setData(Arrays.asList("hello_world"));
+        packets.add(textPacket);
+
+        Packet binPacket = new Packet(PacketType.MESSAGE);
+        binPacket.setSubType(PacketType.EVENT);
+        binPacket.setName("binEvent");
+        binPacket.setData(Arrays.asList(new byte[]{10, 20, 30}));
+        packets.add(binPacket);
+
+        ByteBuf out = Unpooled.buffer();
+        try {
+            EncodePacketsResult result = encoder.encodePackets(
+                    EngineIOVersion.V4,
+                    packets,
+                    out,
+                    UnpooledByteBufAllocator.DEFAULT,
+                    10
+            );
+
+            assertTrue(result.hasBinary());
+            String encoded = out.toString(CharsetUtil.UTF_8);
+
+            // In EIO v4 polling, packets are separated by 0x1E (\x1e)
+            String[] parts = encoded.split("\u001e");
+            assertEquals(3, parts.length); // 1. text event, 2. binary event header, 3. base64 attachment
+
+            assertEquals("42[\"textEvent\",\"hello_world\"]", parts[0]);
+            assertTrue(parts[1].startsWith("451-[\"binEvent\",{\"_placeholder\":true,\"num\":0}]"));
+            assertTrue(parts[2].startsWith("b")); // EIO v4 polling binary attachment has 'b' prefix
+
+            // Base64 of bytes {10, 20, 30} is "ChQe"
+            assertEquals("bChQe", parts[2]);
+        } finally {
+            out.release();
+        }
+    }
+
+    @Test
+    void testEncodeV4BinaryAckWithCustomNamespace() throws Exception {
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setSubType(PacketType.ACK);
+        packet.setNsp("/chat");
+        packet.setAckId(777L);
+        packet.setData(Arrays.asList(new byte[]{1, 2, 3, 4}));
+
+        ByteBuf buffer = Unpooled.buffer();
+        try {
+            EncodeResult result = encoder.encodePacket(EngineIOVersion.V4, packet, buffer, UnpooledByteBufAllocator.DEFAULT, false);
+
+            assertTrue(result.hasAttachments());
+            assertEquals(1, result.getAttachments().size());
+            assertEquals("461-/chat,777[{\"_placeholder\":true,\"num\":0}]", buffer.toString(CharsetUtil.UTF_8));
+        } finally {
+            buffer.release();
+        }
+    }
+
+    @Test
+    void testEncodeV3TextOnlyBatchFraming() throws Exception {
+        Queue<Packet> packets = new ConcurrentLinkedQueue<>();
+
+        Packet p1 = new Packet(PacketType.PING);
+        packets.add(p1);
+
+        Packet p2 = new Packet(PacketType.MESSAGE);
+        p2.setSubType(PacketType.EVENT);
+        p2.setName("chat");
+        p2.setData(Arrays.asList("hi"));
+        packets.add(p2);
+
+        ByteBuf out = Unpooled.buffer();
+        try {
+            EncodePacketsResult result = encoder.encodePackets(
+                    EngineIOVersion.V3,
+                    packets,
+                    out,
+                    UnpooledByteBufAllocator.DEFAULT,
+                    10
+            );
+
+            assertFalse(result.hasBinary());
+            String encoded = out.toString(CharsetUtil.UTF_8);
+
+            // EIO v3 text-only polling format is "<char_count>:<packet><char_count>:<packet>"
+            // 1:2 (PING is 1 char '2'), 15:42["chat","hi"] (15 chars)
+            assertEquals("1:215:42[\"chat\",\"hi\"]", encoded);
+        } finally {
+            out.release();
+        }
+    }
+
+    @Test
+    void testEncodeConnectErrorPacketWithMapPayload() throws Exception {
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setSubType(PacketType.ERROR);
+        packet.setNsp("/admin");
+        Map<String, Object> errData = new HashMap<>();
+        errData.put("message", "Not authorized");
+        errData.put("code", 401);
+        packet.setData(errData);
+
+        ByteBuf buffer = Unpooled.buffer();
+        try {
+            encoder.encodePacket(EngineIOVersion.V4, packet, buffer, UnpooledByteBufAllocator.DEFAULT, false);
+
+            String encoded = buffer.toString(CharsetUtil.UTF_8);
+            assertTrue(encoded.startsWith("44/admin,"));
+            assertTrue(encoded.contains("\"message\":\"Not authorized\""));
+            assertTrue(encoded.contains("\"code\":401"));
+        } finally {
+            buffer.release();
+        }
+    }
+
+    @Test
+    void testEncodeUtf8MultibyteCharactersLengthCalculationInV3() throws Exception {
+        // EIO v3 text polling header uses character count, NOT byte count
+        Queue<Packet> packets = new ConcurrentLinkedQueue<>();
+
+        Packet p = new Packet(PacketType.MESSAGE);
+        p.setSubType(PacketType.EVENT);
+        p.setName("emoji");
+        p.setData(Arrays.asList("🚀🔥"));
+        packets.add(p);
+
+        ByteBuf out = Unpooled.buffer();
+        try {
+            encoder.encodePackets(EngineIOVersion.V3, packets, out, UnpooledByteBufAllocator.DEFAULT, 10);
+
+            String encoded = out.toString(CharsetUtil.UTF_8);
+            int colonIndex = encoded.indexOf(':');
+            int headerLen = Integer.parseInt(encoded.substring(0, colonIndex));
+            String body = encoded.substring(colonIndex + 1);
+
+            // In EIO v3, the length header must match the String length (char count) of the body
+            assertEquals(body.length(), headerLen);
+        } finally {
+            out.release();
+        }
+    }
+
+    @Test
+    void testEncodeAllWorldLanguagesInV3AndV4() throws Exception {
+        Map<String, String> languages = new HashMap<>();
+        languages.put("tamil", "வணக்கம் உலகம்");
+        languages.put("chinese", "你好世界，繁體中文測試");
+        languages.put("hindi", "नमस्ते भारत और दुनिया");
+        languages.put("arabic", "مرحبا بالعالم");
+        languages.put("japanese", "こんにちは世界");
+        languages.put("korean", "안녕하세요 세계");
+        languages.put("russian", "Привет мир");
+        languages.put("greek", "Γειά σου Κόσμε");
+        languages.put("hebrew", "שלום עולם");
+        languages.put("thai", "สวัสดีชาวโลก");
+        languages.put("bengali", "হ্যালো বিশ্ব");
+        languages.put("vietnamese", "Xin chào thế giới");
+        languages.put("amharic", "ሰላም ዓለም");
+        languages.put("georgian", "გამარჯობა მსოფლიო");
+        languages.put("armenian", "Բարև աշխարհ");
+
+        // 1. Test EIO v4 encoding for all languages
+        Packet pV4 = new Packet(PacketType.MESSAGE);
+        pV4.setSubType(PacketType.EVENT);
+        pV4.setName("global_chat");
+        pV4.setData(Arrays.asList(languages));
+
+        ByteBuf bufV4 = Unpooled.buffer();
+        try {
+            encoder.encodePacket(EngineIOVersion.V4, pV4, bufV4, UnpooledByteBufAllocator.DEFAULT, false);
+            String encodedV4 = bufV4.toString(CharsetUtil.UTF_8);
+            assertTrue(encodedV4.startsWith("42[\"global_chat\","));
+            for (String sample : languages.values()) {
+                assertTrue(encodedV4.contains(sample), "Missing language sample: " + sample);
+            }
+        } finally {
+            bufV4.release();
+        }
+
+        // 2. Test EIO v3 length header calculation for all languages
+        Queue<Packet> queueV3 = new ConcurrentLinkedQueue<>();
+        queueV3.add(pV4);
+
+        ByteBuf bufV3 = Unpooled.buffer();
+        try {
+            encoder.encodePackets(EngineIOVersion.V3, queueV3, bufV3, UnpooledByteBufAllocator.DEFAULT, 10);
+            String encodedV3 = bufV3.toString(CharsetUtil.UTF_8);
+
+            int colonIndex = encodedV3.indexOf(':');
+            int headerLen = Integer.parseInt(encodedV3.substring(0, colonIndex));
+            String body = encodedV3.substring(colonIndex + 1);
+
+            // EIO v3 header length MUST equal string character count (UTF-16 code units), NOT byte count
+            assertEquals(body.length(), headerLen);
+            for (String sample : languages.values()) {
+                assertTrue(body.contains(sample), "Missing language sample in V3 body: " + sample);
+            }
+        } finally {
+            bufV3.release();
+        }
+    }
+
+    @Test
+    void testTamilScriptComprehensiveEncoding() throws Exception {
+        String thirukkural = "அகர முதல எழுத்தெல்லாம் ஆதி பகவன் முதற்றே உலகு.";
+        String granthaText = "ஸ்ரீராமஜெயம் - ஜ, ஷ, ஸ, ஹ, க்ஷ, ஸ்ரீ";
+        String aythamText = "ஃ - ஆய்த எழுத்து (அஃது, இஃது)";
+
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setSubType(PacketType.EVENT);
+        packet.setName("தமிழ்_நிகழ்வு");
+        packet.setData(Arrays.asList(thirukkural, granthaText, aythamText));
+
+        // 1. EIO v4 Encoding
+        ByteBuf bufV4 = Unpooled.buffer();
+        try {
+            encoder.encodePacket(EngineIOVersion.V4, packet, bufV4, UnpooledByteBufAllocator.DEFAULT, false);
+            String encoded = bufV4.toString(CharsetUtil.UTF_8);
+            assertTrue(encoded.startsWith("42[\"தமிழ்_நிகழ்வு\","));
+            assertTrue(encoded.contains(thirukkural));
+            assertTrue(encoded.contains(granthaText));
+            assertTrue(encoded.contains(aythamText));
+        } finally {
+            bufV4.release();
+        }
+
+        // 2. EIO v3 Encoding with character length check
+        Queue<Packet> queue = new ConcurrentLinkedQueue<>();
+        queue.add(packet);
+        ByteBuf bufV3 = Unpooled.buffer();
+        try {
+            encoder.encodePackets(EngineIOVersion.V3, queue, bufV3, UnpooledByteBufAllocator.DEFAULT, 10);
+            String encodedV3 = bufV3.toString(CharsetUtil.UTF_8);
+            int colonIdx = encodedV3.indexOf(':');
+            int headerLen = Integer.parseInt(encodedV3.substring(0, colonIdx));
+            String body = encodedV3.substring(colonIdx + 1);
+
+            assertEquals(body.length(), headerLen);
+            assertTrue(body.contains(thirukkural));
+        } finally {
+            bufV3.release();
+        }
+    }
+
+    @Test
+    void testAncientTamilBrahmiScriptEncoding() throws Exception {
+        // Tamil-Brahmi / Tamili Script (3rd Century BCE - Keeladi / Mangulam Inscriptions)
+        // Unicode Brahmi Block U+11000..U+1107F (Supplementary Plane 1 - 4-byte UTF-8 / UTF-16 Surrogate Pairs)
+        String ancientTamiliWord = "𑀢𑀫𑀺𑀵𑀺"; // "Tamili" in Tamil-Brahmi script
+        String mangulamInscription = "𑀦𑀺𑀕𑀫𑀢𑀺 𑀘𑀸𑀮𑀺𑀬𑀦𑀺 𑀇𑀮𑀜𑀘𑀝𑀺𑀬𑀦𑀺"; // Mangulam Tamil-Brahmi inscription sample
+
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setSubType(PacketType.EVENT);
+        packet.setName("𑀢𑀫𑀺𑀵𑀺_event");
+        packet.setData(Arrays.asList(ancientTamiliWord, mangulamInscription));
+
+        // 1. EIO v4 Encoding (4-byte UTF-8 handling)
+        ByteBuf bufV4 = Unpooled.buffer();
+        try {
+            encoder.encodePacket(EngineIOVersion.V4, packet, bufV4, UnpooledByteBufAllocator.DEFAULT, false);
+            String encoded = bufV4.toString(CharsetUtil.UTF_8);
+            // Jackson escapes supplementary plane characters (U+11000+) as UTF-16 surrogate escapes (\uD804\uDC22) or raw UTF-8
+            assertTrue(encoded.contains(ancientTamiliWord) || encoded.contains("\\uD804\\uDC22"), "Encoded output must contain Brahmi script or surrogate escapes: " + encoded);
+        } finally {
+            bufV4.release();
+        }
+
+        // 2. EIO v3 Encoding (Surrogate pair char length verification)
+        Queue<Packet> queue = new ConcurrentLinkedQueue<>();
+        queue.add(packet);
+        ByteBuf bufV3 = Unpooled.buffer();
+        try {
+            encoder.encodePackets(EngineIOVersion.V3, queue, bufV3, UnpooledByteBufAllocator.DEFAULT, 10);
+            String encodedV3 = bufV3.toString(CharsetUtil.UTF_8);
+            int colonIdx = encodedV3.indexOf(':');
+            int headerLen = Integer.parseInt(encodedV3.substring(0, colonIdx));
+            String body = encodedV3.substring(colonIdx + 1);
+
+            assertEquals(body.length(), headerLen);
+            assertTrue(body.contains(ancientTamiliWord) || body.contains("\\uD804"), "Body must contain Brahmi script or surrogate escapes: " + body);
+        } finally {
+            bufV3.release();
+        }
+    }
 }

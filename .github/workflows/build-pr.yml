@@ -18,14 +18,9 @@ jobs:
   build:
     strategy:
       matrix:
-        include:
-          - java-version: 17
-            delay: 0
-          - java-version: 21
-            delay: 0
-          - java-version: 25
-            delay: 0
+        os: [ubuntu-latest, macos-latest]
+        java-version: [17, 21, 25]
     uses: ./.github/workflows/build.yml
     with:
+      os: "${{ matrix.os }}"
       javaVersion: "${{ matrix.java-version }}"
-      delay: "${{ matrix.delay }}"
