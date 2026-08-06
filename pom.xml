@@ -624,7 +624,6 @@
             <reuseForks>false</reuseForks>
             <forkedProcessTimeoutInSeconds>600</forkedProcessTimeoutInSeconds>
             <systemPropertyVariables>
-                <jmockit-coverage-output>none</jmockit-coverage-output>
             </systemPropertyVariables>
         </configuration>
       </plugin>
