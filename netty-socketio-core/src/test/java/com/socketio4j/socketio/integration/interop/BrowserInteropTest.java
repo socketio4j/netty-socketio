@@ -21,6 +21,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -36,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
@@ -541,6 +543,12 @@ public class BrowserInteropTest {
         verifyEngineIOVersions();
 
         verifyOrdering();
+
+        Awaitility.await()
+                .atMost(Duration.ofSeconds(5))
+                .until(() ->
+                        CONNECTS.get() == 48 &&
+                                DISCONNECTS.get() == 48);
 
         assertEquals(48, CONNECTS.get());
         assertEquals(48, DISCONNECTS.get());
