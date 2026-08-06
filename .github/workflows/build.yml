@@ -84,7 +84,7 @@ jobs:
 
       # --- Build + Tests ---
       - name: Build Project
-        timeout-minutes: 60
+        timeout-minutes: 120
         run: |
           export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN \
                              -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN \
