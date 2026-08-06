@@ -23,6 +23,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -52,6 +53,7 @@ import static org.mockito.Mockito.when;
  * - Event name validation
  * - Parameter index calculation and validation
  */
+
 class OnEventScannerTest extends AnnotationTestBase {
 
     private OnEventScanner scanner;

@@ -36,6 +36,7 @@ import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.integration.AbstractSocketIOIntegrationTest;
 import com.socketio4j.socketio.namespace.Namespace;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import static org.junit.Assert.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author https://github.com/sanjomo
  * @date 03/08/26 3:59 pm
  */
+@ResourceLock("NODE_JS_INTEROP")
 public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
 
     private void runNamespaceJsTest(

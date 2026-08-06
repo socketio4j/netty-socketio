@@ -40,6 +40,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIONamespace;
@@ -49,6 +50,7 @@ import com.socketio4j.socketio.protocol.EngineIOVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@ResourceLock("NODE_JS_INTEROP")
 public class BrowserInteropTest {
 
     private static final byte[] EXPECTED_BINARY = {

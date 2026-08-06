@@ -19,6 +19,7 @@ package com.socketio4j.socketio.store;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.testcontainers.containers.GenericContainer;
 
 import com.hazelcast.client.HazelcastClient;
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 /**
  * Test class for HazelcastStore using testcontainers
  */
+@ResourceLock("EMBEDDED_HAZELCAST")
 public class HazelcastStoreTest extends AbstractStoreTest {
 
     private HazelcastInstance hazelcastInstance;

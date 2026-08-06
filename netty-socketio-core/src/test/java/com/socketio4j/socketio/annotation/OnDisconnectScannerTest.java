@@ -23,6 +23,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -44,6 +45,7 @@ import static org.mockito.Mockito.when;
  * Unit tests for OnDisconnectScanner class.
  * Tests the functionality of scanning and registering OnDisconnect annotation handlers.
  */
+
 class OnDisconnectScannerTest extends AnnotationTestBase {
 
     private OnDisconnectScanner scanner;

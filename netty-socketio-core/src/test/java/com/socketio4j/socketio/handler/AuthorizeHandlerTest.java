@@ -36,6 +36,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+
 import com.socketio4j.socketio.AuthorizationListener;
 import com.socketio4j.socketio.AuthorizationResult;
 import com.socketio4j.socketio.Configuration;
@@ -88,6 +89,7 @@ import static org.awaitility.Awaitility.await;
  * @see EmbeddedChannel
  * @see Socket.IO Protocol Specification
  */
+
 public class AuthorizeHandlerTest {
 
     private static final String CONNECT_PATH = "/socket.io/";

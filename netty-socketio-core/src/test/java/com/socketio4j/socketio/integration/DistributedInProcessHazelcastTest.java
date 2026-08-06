@@ -26,7 +26,9 @@ import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
+@ResourceLock("EMBEDDED_HAZELCAST")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedInProcessHazelcastTest extends DistributedCommonTest {
 

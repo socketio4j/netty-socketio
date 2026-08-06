@@ -10,6 +10,7 @@ import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.examples.micronaut.base.config.CustomizedSocketIOConfiguration;
 import com.socketio4j.socketio.examples.micronaut.base.controller.TestController;
 
+import io.micronaut.context.annotation.Property;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import io.socket.client.IO;
 import io.socket.client.Socket;
@@ -19,6 +20,7 @@ import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@Property(name = "netty-socket-io.port", value = "0")
 @MicronautTest
 public class MicronautBaseTest {
 
@@ -44,7 +46,8 @@ public class MicronautBaseTest {
         await().atMost(10, TimeUnit.SECONDS)
                 .until(() -> socketIOServer != null && socketIOServer.isStarted());
 
-        socket = IO.socket("http://localhost:9202");
+        int port = socketIOServer.getConfiguration().getPort();
+        socket = IO.socket("http://localhost:" + port);
         socket.connect();
 
         await().atMost(5, TimeUnit.SECONDS)

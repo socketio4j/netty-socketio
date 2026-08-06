@@ -23,23 +23,25 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestInstance;
 
 /**
  * Base test class for Namespace tests providing shared thread pool and utility methods.
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class BaseNamespaceTest {
 
-    protected static ExecutorService sharedExecutor;
+    protected ExecutorService sharedExecutor;
     protected static final int DEFAULT_TASK_COUNT = 10;
     protected static final int DEFAULT_TIMEOUT_SECONDS = 5;
 
     @BeforeAll
-    static void setUpSharedResources() {
+    void setUpSharedResources() {
         sharedExecutor = Executors.newFixedThreadPool(DEFAULT_TASK_COUNT);
     }
 
     @AfterAll
-    static void tearDownSharedResources() throws InterruptedException {
+    void tearDownSharedResources() throws InterruptedException {
         if (sharedExecutor != null) {
             sharedExecutor.shutdown();
             if (!sharedExecutor.awaitTermination(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {

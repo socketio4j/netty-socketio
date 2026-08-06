@@ -16,7 +16,10 @@
  */
 package com.socketio4j.socketio.store.event;
 
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.testcontainers.containers.GenericContainer;
+
+
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
@@ -27,6 +30,7 @@ import com.socketio4j.socketio.store.hazelcast.HazelcastPubSubEventStore;
 /**
  * Test class for HazelcastPubSubStore using testcontainers
  */
+@ResourceLock("EMBEDDED_HAZELCAST")
 public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
 
     private HazelcastInstance hazelcastPub;

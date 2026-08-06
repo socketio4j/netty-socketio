@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.listener.ConnectListener;
 
@@ -40,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Test class for SocketIO room broadcasting functionality.
  * Note: This test is simplified to avoid Kryo serialization issues with Java modules.
  */
+
 @DisplayName("Room Broadcasting Tests - SocketIO Protocol ROOMS & EVENT")
 public class RoomBroadcastTest extends AbstractSocketIOIntegrationTest {
     private final String testEvent = faker.app().name();

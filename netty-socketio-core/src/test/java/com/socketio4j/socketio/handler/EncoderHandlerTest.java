@@ -29,6 +29,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -108,6 +109,7 @@ import static org.mockito.Mockito.when;
  * @see EmbeddedChannel
  * @see Socket.IO Protocol Specification
  */
+
 public class EncoderHandlerTest {
 
     private static final String TEST_ORIGIN = "http://localhost:3000";

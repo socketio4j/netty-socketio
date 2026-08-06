@@ -19,6 +19,7 @@ package com.socketio4j.socketio.handler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -35,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * Unit test for WrongUrlHandler.
  * Verifies that invalid context path requests return HTTP 400 Bad Request and close the channel.
  */
+
 public class WrongUrlHandlerTest {
 
     private WrongUrlHandler handler;

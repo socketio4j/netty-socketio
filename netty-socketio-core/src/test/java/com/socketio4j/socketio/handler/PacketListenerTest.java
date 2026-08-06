@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
+
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -79,6 +80,7 @@ import static org.mockito.Mockito.when;
  * - Mock interactions and verifications
  * - Error scenarios
  */
+
 @DisplayName("PacketListener Tests")
 @TestInstance(Lifecycle.PER_CLASS)
 class PacketListenerTest {
@@ -145,6 +147,7 @@ class PacketListenerTest {
         packetListener = new PacketListener(ackManager, namespacesHub, xhrPollingTransport, scheduler);
     }
 
+    
     @Nested
     @DisplayName("ACK Request Handling")
     class AckRequestHandlingTests {
@@ -187,6 +190,7 @@ class PacketListenerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("PING Packet Handling")
     class PingPacketHandlingTests {
@@ -273,6 +277,7 @@ class PacketListenerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("PONG Packet Handling")
     class PongPacketHandlingTests {
@@ -298,6 +303,7 @@ class PacketListenerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("UPGRADE Packet Handling")
     class UpgradePacketHandlingTests {
@@ -326,6 +332,7 @@ class PacketListenerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("MESSAGE Packet Handling")
     class MessagePacketHandlingTests {
@@ -547,6 +554,7 @@ class PacketListenerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("CLOSE Packet Handling")
     class ClosePacketHandlingTests {
@@ -576,6 +584,7 @@ class PacketListenerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Edge Cases and Error Scenarios")
     class EdgeCasesAndErrorScenariosTests {
@@ -663,6 +672,7 @@ class PacketListenerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Transport Handling")
     class TransportHandlingTests {
@@ -693,6 +703,7 @@ class PacketListenerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Integration Scenarios")
     class IntegrationScenariosTests {

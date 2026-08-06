@@ -20,6 +20,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 
@@ -38,6 +39,7 @@ import static com.socketio4j.socketio.integration.DistributedClusterIntegrationS
  * Runs {@link DistributedCommonTest} against all Redisson-backed cluster variants while sharing
  * one Redis Testcontainer.
  */
+@ResourceLock("EMBEDDED_REDIS")
 public class DistributedRedissonClusterSuite {
 
     @SuppressWarnings("resource")

@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.listener.ConnectListener;
@@ -38,6 +39,7 @@ import io.socket.client.Socket;
  * Test class for SocketIO transport upgrade functionality.
  * Tests the upgrade from HTTP long-polling to WebSocket as specified in Engine.IO protocol v4.
  */
+
 @DisplayName("Transport Upgrade Tests - Engine.IO Protocol Transport Upgrade")
 public class TransportUpgradeTest extends AbstractSocketIOIntegrationTest {
 

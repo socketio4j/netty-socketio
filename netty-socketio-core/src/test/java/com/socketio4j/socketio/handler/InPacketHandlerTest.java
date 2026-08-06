@@ -42,6 +42,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 
+
 import com.socketio4j.socketio.AuthTokenResult;
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.DisconnectableHub;
@@ -111,6 +112,7 @@ import static org.mockito.Mockito.when;
  * @see EmbeddedChannel
  * @see Socket.IO Protocol Specification
  */
+
 @TestInstance(Lifecycle.PER_CLASS)
 public class InPacketHandlerTest {
 
@@ -169,6 +171,7 @@ public class InPacketHandlerTest {
         namespacesHub.create(CUSTOM_NAMESPACE);
     }
 
+    
     @Nested
     @DisplayName("Basic Packet Processing Tests")
     class BasicPacketProcessingTests {
@@ -287,6 +290,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Namespace Management Tests")
     class NamespaceManagementTests {
@@ -417,6 +421,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Engine.IO Version Tests")
     class EngineIOVersionTests {
@@ -525,6 +530,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Authentication and Authorization Tests")
     class AuthenticationTests {
@@ -661,6 +667,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Packet Type Handling Tests")
     class PacketTypeHandlingTests {
@@ -797,6 +804,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Transport and Channel Tests")
     class TransportTests {
@@ -871,6 +879,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Error Handling and Exception Tests")
     class ErrorHandlingTests {
@@ -926,6 +935,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Attachment Handling Tests")
     class AttachmentTests {
@@ -978,6 +988,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Concurrency and Performance Tests")
     class ConcurrencyTests {

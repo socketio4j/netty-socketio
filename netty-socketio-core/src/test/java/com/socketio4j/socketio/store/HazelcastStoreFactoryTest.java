@@ -22,6 +22,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
+
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.testcontainers.containers.GenericContainer;
@@ -46,6 +48,7 @@ import static org.mockito.Mockito.when;
 /**
  * Test class for HazelcastRingBufferStoreFactory using testcontainers
  */
+@ResourceLock("EMBEDDED_HAZELCAST")
 public class HazelcastStoreFactoryTest extends StoreFactoryTest {
 
     private static GenericContainer<?> container;

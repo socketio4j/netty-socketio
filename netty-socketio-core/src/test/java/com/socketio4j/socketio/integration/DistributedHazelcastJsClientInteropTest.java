@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.TestInstance;
 
+
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.cluster.Address;
@@ -35,10 +36,12 @@ import com.socketio4j.socketio.integration.interop.AbstractDistributedJsClientIn
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.hazelcast.HazelcastPubSubEventStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
  * Multi-Node JS Client Interoperability Test Suite backed by an embedded Hazelcast member.
  */
+@ResourceLock("EMBEDDED_HAZELCAST")
 @DisplayName("Multi-Node Official JS Client Interoperability Suite (Hazelcast)")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedHazelcastJsClientInteropTest extends AbstractDistributedJsClientInteropTest {

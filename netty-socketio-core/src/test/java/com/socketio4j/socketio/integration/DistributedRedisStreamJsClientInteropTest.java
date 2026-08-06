@@ -20,6 +20,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.TestInstance;
+
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 
@@ -34,6 +36,7 @@ import com.socketio4j.socketio.store.redis_stream.RedisStreamEventStore;
 /**
  * Multi-Node JS Client Interoperability Test Suite backed by Redis Streams.
  */
+@ResourceLock("EMBEDDED_REDIS")
 @DisplayName("Multi-Node Official JS Client Interoperability Suite (Redis Streams)")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedRedisStreamJsClientInteropTest extends AbstractDistributedJsClientInteropTest {

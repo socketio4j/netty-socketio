@@ -39,6 +39,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 
+
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.store.CustomizedKafkaContainer;
@@ -47,7 +48,9 @@ import com.socketio4j.socketio.store.kafka.KafkaEventStore;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageDeserializer;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageSerializer;
 import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
+@ResourceLock("EMBEDDED_KAFKA")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedKafkaMultiChannelMemoryTest extends DistributedCommonTest {
 

@@ -25,6 +25,7 @@ import org.json.JSONArray;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+
 import com.socketio4j.socketio.SocketIOClient;
 
 import io.socket.client.Socket;
@@ -40,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * Test class for SocketIO binary data transmission functionality.
  * Tests BINARY_EVENT and BINARY_ACK packet types as specified in SocketIO protocol v5.
  */
+
 @DisplayName("Binary Data Tests - SocketIO Protocol BINARY_EVENT & BINARY_ACK")
 public class BinaryDataTest extends AbstractSocketIOIntegrationTest {
     private static final Field SOCKET_IO_SEND_BUFFER;

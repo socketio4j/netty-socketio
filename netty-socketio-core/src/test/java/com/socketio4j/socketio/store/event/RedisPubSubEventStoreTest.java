@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.store.event;
 
+
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
@@ -27,6 +28,7 @@ import com.socketio4j.socketio.store.redis_pubsub.RedisPubSubEventStore;
 /**
  * Test class for RedisPubSubEventStoreTest using testcontainers
  */
+
 public class RedisPubSubEventStoreTest extends AbstractEventStoreTest {
 
     private RedissonClient redissonPub;

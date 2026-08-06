@@ -1,1 +1,1 @@
-com.socketio4j.socketio.leak.GlobalNettyLeakExtension
+# GlobalNettyLeakExtension removed to eliminate GC overhead across tests

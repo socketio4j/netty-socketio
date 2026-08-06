@@ -42,8 +42,10 @@ import com.socketio4j.socketio.store.nats_pubsub.NatsEventStore;
 import io.nats.client.Connection;
 import io.nats.client.Nats;
 import io.nats.client.Options;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 
+@ResourceLock("EMBEDDED_NATS")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedNATSMultiChannelMemoryTest extends DistributedCommonTest {
 

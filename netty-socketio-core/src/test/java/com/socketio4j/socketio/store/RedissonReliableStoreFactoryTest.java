@@ -25,6 +25,8 @@ import com.socketio4j.socketio.store.redis_pubsub.RedisStoreFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.redisson.Redisson;
@@ -44,6 +46,7 @@ import static org.mockito.Mockito.when;
 /**
  * Test class for RedissonReliableStoreFactory using testcontainers
  */
+@ResourceLock("EMBEDDED_REDIS")
 public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
 
     private static GenericContainer<?> container;

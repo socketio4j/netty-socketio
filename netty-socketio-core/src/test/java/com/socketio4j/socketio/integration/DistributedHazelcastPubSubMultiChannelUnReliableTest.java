@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
@@ -38,6 +39,7 @@ import com.socketio4j.socketio.store.hazelcast.HazelcastPubSubEventStore;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 
 
+@ResourceLock("EMBEDDED_HAZELCAST")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedHazelcastPubSubMultiChannelUnReliableTest extends DistributedCommonTest {
 

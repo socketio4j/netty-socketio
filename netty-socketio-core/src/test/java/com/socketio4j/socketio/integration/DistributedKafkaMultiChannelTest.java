@@ -38,6 +38,8 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
+
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
@@ -52,6 +54,7 @@ import com.socketio4j.socketio.store.kafka.serialization.EventMessageDeserialize
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageSerializer;
 import com.socketio4j.socketio.store.redis_pubsub.RedisStoreFactory;
 
+@ResourceLock("EMBEDDED_KAFKA")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedKafkaMultiChannelTest extends DistributedCommonTest {
 

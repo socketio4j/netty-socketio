@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.TestInstance;
 
+
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.integration.interop.AbstractDistributedJsClientInteropTest;
@@ -34,10 +35,12 @@ import com.socketio4j.socketio.store.nats_pubsub.NatsEventStore;
 import io.nats.client.Connection;
 import io.nats.client.Nats;
 import io.nats.client.Options;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
  * Multi-Node JS Client Interoperability Test Suite backed by NATS PubSub.
  */
+@ResourceLock("EMBEDDED_NATS")
 @DisplayName("Multi-Node Official JS Client Interoperability Suite (NATS PubSub)")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedNatsJsClientInteropTest extends AbstractDistributedJsClientInteropTest {

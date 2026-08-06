@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+
 import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.listener.ConnectListener;
@@ -39,7 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Test class for SocketIO large payload transmission functionality.
  * Tests the transmission of large data payloads as specified in SocketIO protocol v5.
  */
-@DisplayName("Large Payload Tests - SocketIO Protocol Large Data Transmission")
+
+@DisplayName("Large Payload Integration Tests")
 public class LargePayloadTest extends AbstractSocketIOIntegrationTest {
 
     @Test

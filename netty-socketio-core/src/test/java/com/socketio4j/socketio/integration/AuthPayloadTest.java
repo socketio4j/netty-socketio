@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+
 import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.AuthTokenResult;
 import com.socketio4j.socketio.SocketIOClient;
@@ -43,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Test class for SocketIO authentication payload functionality.
  * Tests authentication payload handling during connection as specified in SocketIO protocol v5.
  */
+
 @DisplayName("Authentication Payload Tests - SocketIO Protocol CONNECT with Auth")
 public class AuthPayloadTest extends AbstractSocketIOIntegrationTest {
     private static final String authUserIdKey = "userId";

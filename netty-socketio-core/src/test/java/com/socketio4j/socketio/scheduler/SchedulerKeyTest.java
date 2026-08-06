@@ -95,6 +95,7 @@ class SchedulerKeyTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Type Enum Tests")
     class TypeEnumTests {
@@ -132,6 +133,7 @@ class SchedulerKeyTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Equals Tests")
     class EqualsTests {
@@ -264,6 +266,7 @@ class SchedulerKeyTest {
         }
     }
 
+    
     @Nested
     @DisplayName("HashCode Tests")
     class HashCodeTests {
@@ -338,6 +341,7 @@ class SchedulerKeyTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Edge Cases Tests")
     class EdgeCasesTests {

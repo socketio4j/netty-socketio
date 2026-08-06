@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+
 import com.socketio4j.socketio.SocketIOClient;
 
 import io.socket.client.Socket;
@@ -32,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 /**
  * Test class for basic SocketIO client connection functionality.
  */
+
 @DisplayName("Basic Connection Tests - SocketIO Protocol CONNECT/DISCONNECT")
 public class BasicConnectionTest extends AbstractSocketIOIntegrationTest {
 

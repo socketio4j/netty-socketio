@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.listener.ConnectListener;
 
@@ -34,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Test class for SocketIO room management functionality.
  */
+
 @DisplayName("Room Management Tests - SocketIO Protocol ROOMS")
 public class RoomManagementTest extends AbstractSocketIOIntegrationTest {
 

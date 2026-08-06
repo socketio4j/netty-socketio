@@ -629,8 +629,13 @@
             <include>**/*Tests.java</include>
           </includes>
             <forkCount>1C</forkCount>
-            <reuseForks>false</reuseForks>
+            <reuseForks>true</reuseForks>
             <forkedProcessTimeoutInSeconds>600</forkedProcessTimeoutInSeconds>
+            <systemPropertyVariables>
+              <junit.jupiter.execution.parallel.enabled>true</junit.jupiter.execution.parallel.enabled>
+              <junit.jupiter.execution.parallel.mode.default>concurrent</junit.jupiter.execution.parallel.mode.default>
+              <junit.jupiter.execution.parallel.mode.classes.default>concurrent</junit.jupiter.execution.parallel.mode.classes.default>
+            </systemPropertyVariables>
         </configuration>
       </plugin>
 

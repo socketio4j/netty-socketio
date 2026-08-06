@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.listener.ConnectListener;
 import com.socketio4j.socketio.listener.DisconnectListener;
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Test class for SocketIO client disconnection functionality.
  */
+
 @DisplayName("Client Disconnection Tests - SocketIO Protocol DISCONNECT")
 public class ClientDisconnectionTest extends AbstractSocketIOIntegrationTest {
 

@@ -29,6 +29,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.TestInstance;
 
+
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.integration.interop.AbstractDistributedJsClientInteropTest;
@@ -38,10 +39,12 @@ import com.socketio4j.socketio.store.kafka.KafkaEventStore;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageDeserializer;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageSerializer;
 import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
  * Multi-Node JS Client Interoperability Test Suite backed by Apache Kafka.
  */
+@ResourceLock("EMBEDDED_KAFKA")
 @DisplayName("Multi-Node Official JS Client Interoperability Suite (Apache Kafka)")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedKafkaJsClientInteropTest extends AbstractDistributedJsClientInteropTest {

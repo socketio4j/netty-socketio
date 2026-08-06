@@ -20,6 +20,8 @@ import java.util.UUID;
 
 import com.socketio4j.socketio.store.redis_pubsub.RedisStore;
 import org.junit.jupiter.api.Test;
+
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
@@ -34,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Test class for RedissonStore using testcontainers
  */
+@ResourceLock("EMBEDDED_REDIS")
 public class RedissonStoreTest extends AbstractStoreTest {
 
     private RedissonClient redissonClient;

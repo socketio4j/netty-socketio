@@ -26,6 +26,7 @@ import java.util.HashMap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+
 import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIONamespace;
@@ -42,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 /**
  * Test class for SocketIO acknowledgment callbacks functionality.
  */
+
 @DisplayName("Acknowledgment Callbacks Tests - SocketIO Protocol ACK")
 public class AckCallbacksTest extends AbstractSocketIOIntegrationTest {
 

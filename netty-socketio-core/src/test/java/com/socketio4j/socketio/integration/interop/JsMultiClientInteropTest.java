@@ -22,6 +22,8 @@ import java.io.InputStreamReader;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -36,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author https://github.com/sanjomo
  * @date 03/08/26 3:05 pm
  */
+@ResourceLock("NODE_JS_INTEROP")
 public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
     private void runMultiJsTest(String version, String transport, String scenario, int clientCount) throws Exception {
         File jsDir = new File("src/test/resources/js-interop");
