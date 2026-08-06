@@ -32,26 +32,28 @@ import com.socketio4j.socketio.SocketIOServer;
  * Shared helpers for multi-node integration tests (socket bind options, Redisson URL config,
  * identical room/join listeners on each node).
  */
-final class DistributedClusterIntegrationSupport {
+public final class DistributedClusterIntegrationSupport {
 
     private DistributedClusterIntegrationSupport() {
     }
-    static int findAvailablePort() throws Exception {
+
+    public static int findAvailablePort() throws Exception {
         try (ServerSocket socket = new ServerSocket(0)) {
             return socket.getLocalPort();
         }
     }
-    static void applyReuseListenAddress(Configuration configuration) {
+
+    public static void applyReuseListenAddress(Configuration configuration) {
         configuration.getSocketConfig().setReuseAddress(true);
     }
 
-    static Config redisConfig(String url) {
-        Config c = new Config();
-        c.useSingleServer().setAddress(url);
-        return c;
+    public static Config redisConfig(String redisUrl) {
+        Config config = new Config();
+        config.useSingleServer().setAddress(redisUrl);
+        return config;
     }
 
-    static void attachDefaultRoomListeners(SocketIOServer node) {
+    public static void attachDefaultRoomListeners(SocketIOServer node) {
         node.addEventListener("join-room", String.class, (c, room, ack) -> {
             c.joinRoom(room);
             c.sendEvent("join-ok", "OK");

@@ -24,6 +24,7 @@ import com.socketio4j.socketio.store.redis_pubsub.RedisStore;
 import com.socketio4j.socketio.store.redis_pubsub.RedisStoreFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -53,11 +54,14 @@ public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
     private RedissonClient redissonClient;
     private AutoCloseable closeableMocks;
 
-    @Override
-    protected StoreFactory createStoreFactory() throws Exception {
+    @BeforeAll
+    public static void startContainer() {
         container = new CustomizedRedisContainer().withReuse(false);
         container.start();
-        
+    }
+
+    @Override
+    protected StoreFactory createStoreFactory() throws Exception {
         CustomizedRedisContainer customizedRedisContainer = (CustomizedRedisContainer) container;
         Config config = new Config();
         config.useSingleServer()

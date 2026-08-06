@@ -49,7 +49,17 @@ public class DistributedRedisStreamJsClientInteropTest extends AbstractDistribut
     @BeforeAll
     @Override
     public void setupCluster() throws Exception {
-        REDIS.start();
+        if (!REDIS.isRunning()) {
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    REDIS.start();
+                    break;
+                } catch (Exception e) {
+                    if (attempt == 3) throw e;
+                    Thread.sleep(500);
+                }
+            }
+        }
         String redisUrl = "redis://" + REDIS.getHost() + ":" + REDIS.getRedisPort();
 
         org.redisson.config.Config redissonCfg1 = new org.redisson.config.Config();

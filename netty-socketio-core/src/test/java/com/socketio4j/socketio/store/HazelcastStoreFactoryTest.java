@@ -21,6 +21,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
@@ -55,10 +56,14 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
     private HazelcastInstance hazelcastInstance;
     private AutoCloseable closeableMocks;
 
-    @Override
-    protected StoreFactory createStoreFactory() throws Exception {
+    @BeforeAll
+    public static void startContainer() {
         container = new CustomizedHazelcastContainer().withReuse(false);
         container.start();
+    }
+
+    @Override
+    protected StoreFactory createStoreFactory() throws Exception {
         CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
 
         ClientConfig config = new ClientConfig();

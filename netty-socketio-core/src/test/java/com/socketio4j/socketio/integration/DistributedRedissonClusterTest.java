@@ -71,7 +71,7 @@ public class DistributedRedissonClusterTest {
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    class PubSubSingleChannelUnreliable extends DistributedCommonTest {
+    class PubSubSingleChannelUnreliableTest extends DistributedCommonTest {
         private RedissonClient redisClient1;
         private RedissonClient redisClient2;
 
@@ -113,7 +113,7 @@ public class DistributedRedissonClusterTest {
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    class PubSubMultiChannelUnreliable extends DistributedCommonTest {
+    class PubSubMultiChannelUnreliableTest extends DistributedCommonTest {
         private RedissonClient redisClient1;
         private RedissonClient redisClient2;
 
@@ -155,7 +155,7 @@ public class DistributedRedissonClusterTest {
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    class StreamSingleChannel extends DistributedCommonTest {
+    class StreamSingleChannelTest extends DistributedCommonTest {
         private RedissonClient redisClient1;
         private RedissonClient redisClient2;
 
@@ -197,7 +197,7 @@ public class DistributedRedissonClusterTest {
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    class StreamMultiChannel extends DistributedCommonTest {
+    class StreamMultiChannelTest extends DistributedCommonTest {
         private RedissonClient redisClient1;
         private RedissonClient redisClient2;
 
@@ -239,7 +239,7 @@ public class DistributedRedissonClusterTest {
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    class ReliablePubSubSingleChannel extends DistributedCommonTest {
+    class ReliablePubSubSingleChannelTest extends DistributedCommonTest {
         private RedissonClient redisClient1;
         private RedissonClient redisClient2;
 
@@ -281,7 +281,7 @@ public class DistributedRedissonClusterTest {
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    class ReliablePubSubMultiChannel extends DistributedCommonTest {
+    class ReliablePubSubMultiChannelTest extends DistributedCommonTest {
         private RedissonClient redisClient1;
         private RedissonClient redisClient2;
 
