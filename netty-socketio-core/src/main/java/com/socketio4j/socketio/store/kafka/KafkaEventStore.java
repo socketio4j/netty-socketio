@@ -441,11 +441,12 @@ public final class KafkaEventStore implements EventStore {
 
                     // Continue loop → next poll()
                 } catch (WakeupException e) {
-                    // Expected during shutdown - consumer.wakeup() was called
-                    if (running.get()) {
-                        log.error("Unexpected Kafka consumer wakeup", e);
+                    // Expected during shutdown or unsubscribe - consumer.wakeup() was called
+                    if (running.get() && consumers.get(type) == consumer) {
+                        log.error("Unexpected Kafka consumer wakeup for type {}", type, e);
                         throw e;
                     }
+                    log.debug("Kafka consumer wakeup for type {}", type);
                     break;
                 }
             }

@@ -140,36 +140,17 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                              client.getSessionId(), ns.getName());
                 }
             } catch (Exception ex) {
-                final String preview;
                 final int payloadSize;
-
-                if (content.refCnt() > 0) {
-                    payloadSize = content.readableBytes();
+                if (content.refCnt() > 0) payloadSize = content.readableBytes();
+                else payloadSize = -1;
+                log.error("Error during data processing. Client sessionId: {}, payloadSize={} bytes",
+                        client.getSessionId(), payloadSize, ex);
+                if (log.isTraceEnabled() && content.refCnt() > 0) {
                     int length = Math.min(payloadSize, MAX_LOG_PREVIEW);
-                    preview = io.netty.buffer.ByteBufUtil.hexDump(
-                            content,
-                            content.readerIndex(),
-                            length);
-                } else {
-                    payloadSize = -1;
-                    preview = "<released>";
+                    log.trace("Error payload hex preview for sessionId {}: {}",
+                            client.getSessionId(),
+                            io.netty.buffer.ByteBufUtil.hexDump(content, content.readerIndex(), length));
                 }
-
-                if (payloadSize > MAX_LOG_PREVIEW) log.error(
-                        "Error during data processing. Client sessionId: {}, payloadSize={} bytes, payloadPreview={}{}",
-                        client.getSessionId(),
-                        payloadSize,
-                        preview,
-                        "... (truncated)",
-                        ex);
-                else log.error(
-                        "Error during data processing. Client sessionId: {}, payloadSize={} bytes, payloadPreview={}{}",
-                        client.getSessionId(),
-                        payloadSize,
-                        preview,
-                        "",
-                        ex);
-
                 throw ex;
             }
         }

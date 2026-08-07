@@ -107,12 +107,13 @@ public class SchedulerKeyTest {
             SchedulerKey.Type[] types = SchedulerKey.Type.values();
 
             // Then
-            assertThat(types).hasSize(4);
+            assertThat(types).hasSize(5);
             assertThat(types).contains(
                 SchedulerKey.Type.PING,
                 SchedulerKey.Type.PING_TIMEOUT,
                 SchedulerKey.Type.ACK_TIMEOUT,
-                SchedulerKey.Type.UPGRADE_TIMEOUT
+                SchedulerKey.Type.UPGRADE_TIMEOUT,
+                    SchedulerKey.Type.POLL_FLUSH_TIMEOUT
             );
         }
 
