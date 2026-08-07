@@ -167,4 +167,28 @@ public class EventMessageJsonSupportTest {
 
         assertArrayEquals(holder.getData(), decoded.getData());
     }
+
+    @Test
+    void shouldDeserializeTypedByteArrayFromBase64String() throws Exception {
+        ObjectMapper mapper = EventMessageJsonSupport.createObjectMapper();
+
+        String json = "{\"data\":\"AQID\"}";
+
+        TypedBytesHolder decoded = mapper.readValue(json, TypedBytesHolder.class);
+
+        assertNotNull(decoded.getData());
+        assertArrayEquals(new byte[] {1, 2, 3}, decoded.getData());
+    }
+
+    @Test
+    void shouldDeserializeTypedByteArrayFromNumericArray() throws Exception {
+        ObjectMapper mapper = EventMessageJsonSupport.createObjectMapper();
+
+        String json = "{\"data\":[1,2,3]}";
+
+        TypedBytesHolder decoded = mapper.readValue(json, TypedBytesHolder.class);
+
+        assertNotNull(decoded.getData());
+        assertArrayEquals(new byte[] {1, 2, 3}, decoded.getData());
+    }
 }

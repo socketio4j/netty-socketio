@@ -26,6 +26,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -228,7 +229,47 @@ public class ClientHead {
         return !disconnected.get();
     }
 
+    private final List<Runnable> pollFlushedListeners = new CopyOnWriteArrayList<>();
+
+    public boolean hasPollFlushedListeners() {
+        return !pollFlushedListeners.isEmpty();
+    }
+
+    public void onPollFlushed(Runnable listener, long gracePeriodMs) {
+        if (!isConnected()) {
+            listener.run();
+            return;
+        }
+
+        pollFlushedListeners.add(listener);
+
+        if (gracePeriodMs > 0 && scheduler != null) {
+            SchedulerKey key = new SchedulerKey(SchedulerKey.Type.POLL_FLUSH_TIMEOUT, sessionId);
+            scheduler.schedule(key, () -> {
+                if (pollFlushedListeners.remove(listener)) {
+                    log.debug("Polling disconnect grace period expired for session {}, executing deferred cleanup", sessionId);
+                    listener.run();
+                }
+            }, gracePeriodMs, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public void notifyPollFlushed() {
+        if (!pollFlushedListeners.isEmpty()) {
+            List<Runnable> listeners = new ArrayList<>(pollFlushedListeners);
+            pollFlushedListeners.clear();
+            for (Runnable listener : listeners) {
+                try {
+                    listener.run();
+                } catch (Exception e) {
+                    log.error("Error executing poll flushed listener for session {}", sessionId, e);
+                }
+            }
+        }
+    }
+
     public void onChannelDisconnect() {
+        notifyPollFlushed();
         cancelPing();
         cancelPingTimeout();
         clearPendingBinaryPacket();

@@ -19,7 +19,7 @@ package com.socketio4j.socketio.scheduler;
 
 public class SchedulerKey {
 
-    public enum Type {PING, PING_TIMEOUT, ACK_TIMEOUT, UPGRADE_TIMEOUT};
+    public enum Type {PING, PING_TIMEOUT, ACK_TIMEOUT, UPGRADE_TIMEOUT, POLL_FLUSH_TIMEOUT};
 
     private final Type type;
     private final Object sessionId;

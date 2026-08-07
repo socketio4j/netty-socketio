@@ -180,6 +180,15 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             out.release();
         }
 
+        if (msg instanceof OutPacketMessage) {
+            OutPacketMessage outMsg = (OutPacketMessage) msg;
+            if (outMsg.getClientHead().hasPollFlushedListeners()) {
+                promise.addListener(f -> {
+                    outMsg.getClientHead().notifyPollFlushed();
+                });
+            }
+        }
+
         channel.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT, promise).addListener(ChannelFutureListener.CLOSE);
     }
     private void sendError(HttpErrorMessage errorMsg, ChannelHandlerContext ctx, ChannelPromise promise) throws IOException {

@@ -55,4 +55,53 @@ public class NamespaceClientTest {
         verify(baseClient).removeNamespaceClient(client);
         verify(namespace).onDisconnect(client);
     }
+
+    @Test
+    @DisplayName("Should defer cleanup for polling transport when send returns null")
+    void shouldDeferCleanupForPollingTransportWhenSendReturnsNull() {
+        ClientHead baseClient = mock(ClientHead.class);
+        Namespace namespace = mock(Namespace.class);
+
+        when(namespace.getName()).thenReturn("/chat");
+        when(baseClient.isConnected()).thenReturn(true);
+        when(baseClient.getCurrentTransport()).thenReturn(com.socketio4j.socketio.Transport.POLLING);
+        when(baseClient.send(any(Packet.class))).thenReturn(null);
+
+        NamespaceClient client = new NamespaceClient(baseClient, namespace);
+
+        client.disconnect();
+
+        // Should not immediately remove namespace client
+        verify(baseClient, never()).removeNamespaceClient(client);
+        verify(namespace, never()).onDisconnect(client);
+
+        // Verify onPollFlushed was registered and invoke its callback
+        org.mockito.ArgumentCaptor<Runnable> captor = org.mockito.ArgumentCaptor.forClass(Runnable.class);
+        verify(baseClient).onPollFlushed(captor.capture(), eq(5000L));
+
+        captor.getValue().run();
+
+        // Now it should be cleaned up
+        verify(baseClient).removeNamespaceClient(client);
+        verify(namespace).onDisconnect(client);
+    }
+
+    @Test
+    @DisplayName("Should immediately cleanup when send returns null and not polling")
+    void shouldImmediatelyCleanupWhenSendReturnsNullAndNotPolling() {
+        ClientHead baseClient = mock(ClientHead.class);
+        Namespace namespace = mock(Namespace.class);
+
+        when(namespace.getName()).thenReturn("/chat");
+        when(baseClient.isConnected()).thenReturn(true);
+        when(baseClient.getCurrentTransport()).thenReturn(com.socketio4j.socketio.Transport.WEBSOCKET);
+        when(baseClient.send(any(Packet.class))).thenReturn(null);
+
+        NamespaceClient client = new NamespaceClient(baseClient, namespace);
+
+        client.disconnect();
+
+        verify(baseClient).removeNamespaceClient(client);
+        verify(namespace).onDisconnect(client);
+    }
 }

@@ -142,19 +142,20 @@ public class NamespaceClient implements SocketIOClient {
 
         ChannelFuture future = baseClient.send(packet.withNsp(namespace.getName()));
 
-        if (future == null) {
+        if (future != null) {
+            future.addListener(f -> {
+                if (!f.isSuccess()) {
+                    log.warn("Failed to send namespace disconnect for client {} in namespace {}",
+                            getSessionId(), namespace.getName(), f.cause());
+                }
+
+                onDisconnect();
+            });
+        } else if (baseClient.isConnected() && baseClient.getCurrentTransport() == Transport.POLLING) {
+            baseClient.onPollFlushed(this::onDisconnect, 5000);
+        } else {
             onDisconnect();
-            return;
         }
-
-        future.addListener(f -> {
-            if (!f.isSuccess()) {
-                log.warn("Failed to send namespace disconnect for client {} in namespace {}",
-                        getSessionId(), namespace.getName(), f.cause());
-            }
-
-            onDisconnect();
-        });
     }
 
     @Override

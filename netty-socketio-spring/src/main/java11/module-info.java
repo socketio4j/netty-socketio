@@ -4,5 +4,5 @@ module netty.socketio.spring {
   requires netty.socketio.core;
   requires static spring.beans;
   requires static spring.core;
-  requires static org.slf4j;
+  requires org.slf4j;
 }

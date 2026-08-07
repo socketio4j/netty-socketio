@@ -84,7 +84,15 @@ public final class EventMessageJsonSupport {
                             "Expected object containing '$bytes' field");
                 }
 
-                // Default Jackson handling for Base64 string and numeric array
+                if (p.currentToken() == JsonToken.START_ARRAY) {
+                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                    while (p.nextToken() != JsonToken.END_ARRAY) {
+                        baos.write((byte) p.getIntValue());
+                    }
+                    return baos.toByteArray();
+                }
+
+                // Default Jackson handling for Base64 string
                 return p.getBinaryValue();
             }
         });
