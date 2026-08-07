@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.store;
+import com.socketio4j.socketio.store.container.CustomizedHazelcastContainer;
 
 import java.util.UUID;
 

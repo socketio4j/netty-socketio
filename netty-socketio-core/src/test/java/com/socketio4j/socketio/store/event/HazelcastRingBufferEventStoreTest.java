@@ -24,7 +24,7 @@ import org.testcontainers.containers.GenericContainer;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.HazelcastInstance;
-import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
+import com.socketio4j.socketio.store.container.CustomizedHazelcastContainer;
 import com.socketio4j.socketio.store.hazelcast.HazelcastPubSubEventStore;
 
 /**

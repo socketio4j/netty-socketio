@@ -22,7 +22,7 @@ import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 import org.testcontainers.containers.GenericContainer;
 
-import com.socketio4j.socketio.store.CustomizedRedisContainer;
+import com.socketio4j.socketio.store.container.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.redis_pubsub.RedisPubSubEventStore;
 
 /**

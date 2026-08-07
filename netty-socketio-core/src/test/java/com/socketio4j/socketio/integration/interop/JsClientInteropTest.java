@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.interop;
+import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
+
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -34,7 +36,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.socketio4j.socketio.integration.AbstractSocketIOIntegrationTest;
+import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;

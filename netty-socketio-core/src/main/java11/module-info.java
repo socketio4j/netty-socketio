@@ -2,9 +2,9 @@
  * netty.socketio.core module
  *
  * Export strategy:
- *   - Core socketio API & common packages           → exported
- *   - Store implementations (Redis/Hazelcast/etc.) → exported (public SPI)
- *   - Kafka serializer                             → opened only to kafka.clients (reflection)
+ *   - Core socketio API & common packages           -> exported
+ *   - Store implementations (Redis/Hazelcast/etc.) -> exported (public SPI)
+ *   - Kafka serializer                             -> opened only to kafka.clients (reflection)
  *
  * Dependency strategy:
  *   - `requires static` means optional integration when dependency is present
@@ -41,6 +41,7 @@ module netty.socketio.core {
   // ============================================================
   exports com.socketio4j.socketio.store.memory;
 
+
   // ============================================================
   // Optional stores — exported but dependency is static
   // These packages are part of the public store SPI surface
@@ -58,6 +59,7 @@ module netty.socketio.core {
   opens com.socketio4j.socketio.store.kafka.serialization to kafka.clients;
   opens com.socketio4j.socketio.store.event to com.fasterxml.jackson.databind, redisson;
   opens com.socketio4j.socketio.protocol to com.fasterxml.jackson.databind;
+
 
 
   // ============================================================

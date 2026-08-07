@@ -69,7 +69,7 @@
     <netty.tcnative.version>2.0.78.Final</netty.tcnative.version>
     <byte-buddy.version>1.18.8</byte-buddy.version>
     <junit.version>6.1.0</junit.version>
-    <junit-platform-launcher.version>6.0.2</junit-platform-launcher.version>
+    <junit-platform-launcher.version>6.1.0</junit-platform-launcher.version>
     <slf4j.version>2.0.17</slf4j.version>
     <jackson.version>2.22.0</jackson.version>
     <jackson.annotations.version>2.21</jackson.annotations.version>
@@ -379,6 +379,18 @@
         <scope>test</scope>
       </dependency>
       <dependency>
+        <groupId>org.junit.platform</groupId>
+        <artifactId>junit-platform-suite-api</artifactId>
+        <version>${junit-platform-launcher.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.platform</groupId>
+        <artifactId>junit-platform-suite-engine</artifactId>
+        <version>${junit-platform-launcher.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
         <groupId>org.awaitility</groupId>
         <artifactId>awaitility</artifactId>
         <version>${awaitility.version}</version>
@@ -604,16 +616,13 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.5.4</version>
         <configuration>
+          <useModulePath>false</useModulePath>
+          <forkedProcessTimeoutInSeconds>3600</forkedProcessTimeoutInSeconds>
           <rerunFailingTestsCount>3</rerunFailingTestsCount>
           <argLine>
             <!--For Java 25 support of byte-buddy. Byte-buddy is currently only used in mockito on unit tests within this project, so mitigate this problem by enabling this property-->
             -Dnet.bytebuddy.experimental=true
             -javaagent:"${settings.localRepository}"/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
-            --add-opens netty.socketio.core/com.socketio4j.socketio.store.pubsub=ALL-UNNAMED
-            --add-opens netty.socketio.core/com.socketio4j.socketio.store=ALL-UNNAMED
-            --add-opens netty.socketio.core/com.socketio4j.socketio.store.pubsub=redisson
-            --add-opens netty.socketio.core/com.socketio4j.socketio.store=redisson
-            --add-opens netty.socketio.core/com.socketio4j.socketio.integration=com.fasterxml.jackson.databind,ALL-UNNAMED,redisson --add-opens netty.socketio.core/com.socketio4j.socketio.integration.interop=com.fasterxml.jackson.databind,ALL-UNNAMED,redisson
           </argLine>
           <includes>
             <include>**/*Test.java</include>
