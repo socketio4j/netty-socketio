@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.InputStreamReader;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -237,12 +238,14 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     })
     public void testJsServerInitiatedAckText(String version, String transport) throws Exception {
         AtomicReference<String> ackReply = new AtomicReference<>();
+        CountDownLatch ackLatch = new CountDownLatch(1);
 
         com.socketio4j.socketio.listener.ConnectListener listener = client -> {
             client.sendEvent("serverReqAckText", new com.socketio4j.socketio.AckCallback<String>(String.class, 5) {
                 @Override
                 public void onSuccess(String result) {
                     ackReply.set(result);
+                    ackLatch.countDown();
                 }
             }, "hello_from_server");
         };
@@ -250,6 +253,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         getServer().addConnectListener(listener);
         try {
             runJsTest(version, transport, "server_ack_text");
+            assertTrue(ackLatch.await(5, TimeUnit.SECONDS), "Timed out waiting for text ACK reply from JS client callback");
             assertEquals("js_ack_text_reply", ackReply.get(), "Server should receive text ACK reply from JS client callback");
         } finally {
             getServer().removeConnectListener(listener);
@@ -269,12 +273,14 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     })
     public void testJsServerInitiatedAckBinary(String version, String transport) throws Exception {
         AtomicReference<byte[]> ackReply = new AtomicReference<>();
+        CountDownLatch ackLatch = new CountDownLatch(1);
 
         com.socketio4j.socketio.listener.ConnectListener listener = client -> {
             client.sendEvent("serverReqAckBinary", new com.socketio4j.socketio.AckCallback<byte[]>(byte[].class, 5) {
                 @Override
                 public void onSuccess(byte[] result) {
                     ackReply.set(result);
+                    ackLatch.countDown();
                 }
             }, "hello_for_binary_ack");
         };
@@ -282,6 +288,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         getServer().addConnectListener(listener);
         try {
             runJsTest(version, transport, "server_ack_binary");
+            assertTrue(ackLatch.await(5, TimeUnit.SECONDS), "Timed out waiting for binary ACK reply from JS client callback");
             assertArrayEquals(new byte[] { 55, 66, 77 }, ackReply.get(), "Server should receive binary ACK reply from JS client callback");
         } finally {
             getServer().removeConnectListener(listener);
@@ -301,12 +308,14 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     })
     public void testJsServerInitiatedVoidAck(String version, String transport) throws Exception {
         AtomicBoolean voidAckReceived = new AtomicBoolean(false);
+        CountDownLatch ackLatch = new CountDownLatch(1);
 
         com.socketio4j.socketio.listener.ConnectListener listener = client -> {
             client.sendEvent("serverReqVoidAck", new com.socketio4j.socketio.VoidAckCallback(5) {
                 @Override
                 protected void onSuccess() {
                     voidAckReceived.set(true);
+                    ackLatch.countDown();
                 }
             }, "hello_void");
         };
@@ -314,6 +323,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         getServer().addConnectListener(listener);
         try {
             runJsTest(version, transport, "server_ack_void");
+            assertTrue(ackLatch.await(5, TimeUnit.SECONDS), "Timed out waiting for Void ACK callback from JS client");
             assertTrue(voidAckReceived.get(), "Server should receive Void ACK callback from JS client");
         } finally {
             getServer().removeConnectListener(listener);
@@ -334,6 +344,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     public void testJsServerInitiatedMultiTypeAck(String version, String transport) throws Exception {
         AtomicReference<String> stringReply = new AtomicReference<>();
         AtomicReference<byte[]> binaryReply = new AtomicReference<>();
+        CountDownLatch ackLatch = new CountDownLatch(1);
 
         com.socketio4j.socketio.listener.ConnectListener listener = client -> {
             client.sendEvent("serverReqMultiAck", new com.socketio4j.socketio.MultiTypeAckCallback(String.class, byte[].class) {
@@ -341,6 +352,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
                 public void onSuccess(com.socketio4j.socketio.MultiTypeArgs res) {
                     stringReply.set(res.get(0));
                     binaryReply.set(res.get(1));
+                    ackLatch.countDown();
                 }
             }, "hello_multi");
         };
@@ -348,6 +360,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         getServer().addConnectListener(listener);
         try {
             runJsTest(version, transport, "server_ack_multi");
+            assertTrue(ackLatch.await(5, TimeUnit.SECONDS), "Timed out waiting for MultiType ACK callback from JS client");
             assertEquals("reply_string", stringReply.get(), "Server should receive first MultiType ACK arg");
             assertArrayEquals(new byte[] { 88, 99 }, binaryReply.get(), "Server should receive second MultiType ACK arg");
         } finally {

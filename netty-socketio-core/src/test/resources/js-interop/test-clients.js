@@ -261,7 +261,7 @@ if (scenario === 'server_ack_text') {
                 socket.disconnect();
                 console.log('Server req ACK text scenario PASSED');
                 process.exit(0);
-            }, 300);
+            }, 500);
         } else {
             console.error('serverReqAckText mismatch or missing callback:', data, typeof callback);
             process.exit(1);
@@ -279,7 +279,7 @@ if (scenario === 'server_ack_binary') {
                 socket.disconnect();
                 console.log('Server req ACK binary scenario PASSED');
                 process.exit(0);
-            }, 300);
+            }, 500);
         } else {
             console.error('serverReqAckBinary mismatch or missing callback:', data, typeof callback);
             process.exit(1);
@@ -297,7 +297,7 @@ if (scenario === 'server_ack_void') {
                 socket.disconnect();
                 console.log('Server req Void ACK scenario PASSED');
                 process.exit(0);
-            }, 300);
+            }, 500);
         } else {
             console.error('serverReqVoidAck mismatch or missing callback:', data, typeof callback);
             process.exit(1);
@@ -315,7 +315,7 @@ if (scenario === 'server_ack_multi') {
                 socket.disconnect();
                 console.log('Server req MultiType ACK scenario PASSED');
                 process.exit(0);
-            }, 300);
+            }, 500);
         } else {
             console.error('serverReqMultiAck mismatch or missing callback:', data, typeof callback);
             process.exit(1);

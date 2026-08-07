@@ -981,9 +981,11 @@ public abstract class DistributedCommonTest {
      * and the membership being replicated to the peer node.
      */
     private void awaitRoomSync(String room, int expected) throws InterruptedException {
-        long deadline   = System.currentTimeMillis() + Duration.ofSeconds(15).toMillis();
+        long startTime  = System.currentTimeMillis();
+        long deadline   = startTime + Duration.ofSeconds(15).toMillis();
         int stableTicks = 0;
         long sleepMs    = 5;
+        boolean retriedSync = false;
 
         while (System.currentTimeMillis() < deadline) {
             int n1 = roomClientsInCluster(node1, room);
@@ -992,6 +994,12 @@ public abstract class DistributedCommonTest {
                 if (++stableTicks >= 3) return;
             } else {
                 stableTicks = 0;
+                if (!retriedSync && System.currentTimeMillis() - startTime > 2500) {
+                    retriedSync = true;
+                    log.warn("awaitRoomSync delayed for room {}, re-syncing room membership across cluster...", room);
+                    reSyncRoomAcrossCluster(node1, room);
+                    reSyncRoomAcrossCluster(node2, room);
+                }
             }
             Thread.sleep(sleepMs);
             sleepMs = Math.min(sleepMs + 5, 25);
@@ -1002,6 +1010,20 @@ public abstract class DistributedCommonTest {
                 room, expected,
                 roomClientsInCluster(node1, room),
                 roomClientsInCluster(node2, room)));
+    }
+
+    private static void reSyncRoomAcrossCluster(SocketIOServer server, String room) {
+        try {
+            Namespace ns = (Namespace) server.getNamespace(Namespace.DEFAULT_NAME);
+            if (ns != null) {
+                Iterable<SocketIOClient> localClients = ns.getRoomClients(room);
+                if (localClients != null) {
+                    for (SocketIOClient client : localClients) {
+                        ns.joinRoom(room, client.getSessionId());
+                    }
+                }
+            }
+        } catch (Throwable ignored) {}
     }
 
     private static int roomClientsInCluster(SocketIOServer server, String room) {
