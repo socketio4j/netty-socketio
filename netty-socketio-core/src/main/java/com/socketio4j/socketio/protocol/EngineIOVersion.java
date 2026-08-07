@@ -38,9 +38,7 @@ public enum EngineIOVersion {
      * current version
      * @link <a href="https://github.com/socketio/engine.io-protocol/tree/main">Engine.IO version 4</a>
      */
-    V4("4"),
-
-    UNKNOWN("");
+    V4("4");
 
     public static final String EIO = "EIO";
 
@@ -67,6 +65,6 @@ public enum EngineIOVersion {
         if (engineIOVersion != null) {
             return engineIOVersion;
         }
-       return UNKNOWN;
+        return V4;
     }
 }

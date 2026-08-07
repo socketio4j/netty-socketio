@@ -494,7 +494,7 @@ public class PacketDecoder {
         if (version == null) {
             log.warn("addAttachment called with null engineIOVersion for session {}, treating as V4",
                     head.getSessionId());
-            version = EngineIOVersion.UNKNOWN;
+            version = EngineIOVersion.V4;
         }
 
         int ri = frame.readerIndex();

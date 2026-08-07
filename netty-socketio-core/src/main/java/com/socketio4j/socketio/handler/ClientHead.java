@@ -104,7 +104,7 @@ public class ClientHead {
 
         List<String> versions = params.getOrDefault(EngineIOVersion.EIO, new ArrayList<>());
         if (versions.isEmpty()) {
-            engineIOVersion = EngineIOVersion.UNKNOWN;
+            engineIOVersion = EngineIOVersion.V4;
         } else {
             engineIOVersion = EngineIOVersion.fromValue(versions.get(0));
         }

@@ -298,7 +298,7 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
         if (client != null) {
             return client.getEngineIOVersion();
         }
-        return EngineIOVersion.UNKNOWN;
+        return EngineIOVersion.V4;
     }
 
 }

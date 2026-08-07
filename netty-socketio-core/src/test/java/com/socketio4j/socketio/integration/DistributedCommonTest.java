@@ -981,8 +981,9 @@ public abstract class DistributedCommonTest {
      * and the membership being replicated to the peer node.
      */
     private void awaitRoomSync(String room, int expected) throws InterruptedException {
-        long deadline   = System.currentTimeMillis() + Duration.ofMinutes(2).toMillis();
+        long deadline   = System.currentTimeMillis() + Duration.ofSeconds(15).toMillis();
         int stableTicks = 0;
+        long sleepMs    = 5;
 
         while (System.currentTimeMillis() < deadline) {
             int n1 = roomClientsInCluster(node1, room);
@@ -992,7 +993,8 @@ public abstract class DistributedCommonTest {
             } else {
                 stableTicks = 0;
             }
-            Thread.sleep(8);
+            Thread.sleep(sleepMs);
+            sleepMs = Math.min(sleepMs + 5, 25);
         }
 
         fail(String.format(
@@ -1047,6 +1049,10 @@ public abstract class DistributedCommonTest {
     private static IO.Options baseOptions() {
         IO.Options opts = new IO.Options();
         opts.forceNew = true;
+        opts.reconnection = true;
+        opts.reconnectionAttempts = 5;
+        opts.reconnectionDelay = 100;
+        opts.timeout = 10000;
         return opts;
     }
 
@@ -1065,7 +1071,13 @@ public abstract class DistributedCommonTest {
 
     /** Connects all sockets and awaits the connect latch. */
     private void connectAll(CountDownLatch latch, Socket... sockets) throws InterruptedException {
-        for (Socket s : sockets) s.connect();
+        for (Socket s : sockets) {
+            if (s.connected()) {
+                latch.countDown();
+            } else {
+                s.connect();
+            }
+        }
         awaitOrFail(latch, OP_TIMEOUT_SECS, "Not all clients connected within timeout");
     }
 
@@ -1086,19 +1098,26 @@ public abstract class DistributedCommonTest {
     private static void registerCounters(CountDownLatch connectLatch, CountDownLatch joinLatch,
                                           Socket... sockets) {
         for (Socket s : sockets) {
-            s.on(Socket.EVENT_CONNECT, args -> connectLatch.countDown());
-            s.on("join-ok",           args -> joinLatch.countDown());
+            if (connectLatch != null) {
+                s.on(Socket.EVENT_CONNECT, args -> connectLatch.countDown());
+            }
+            if (joinLatch != null) {
+                s.on("join-ok",           args -> joinLatch.countDown());
+            }
+            s.on(Socket.EVENT_CONNECT_ERROR, args ->
+                log.warn("Socket connection error: {}", args.length > 0 ? args[0] : "unknown")
+            );
         }
     }
 
     /**
-     * Disconnects every supplied socket. Any cleanup failures are logged as warnings to avoid
-     * throwing from finally blocks and swallowing actual test assertion errors.
+     * Disconnects every supplied socket. Detaches listeners first to prevent stale callbacks.
      */
     private static void disconnectAll(Socket... sockets) {
         for (Socket s : sockets) {
             if (s != null) {
                 try {
+                    s.off();
                     s.disconnect();
                 } catch (Exception e) {
                     log.warn("Failed to disconnect socket cleanly during test cleanup: {}", e.getMessage());

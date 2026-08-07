@@ -385,8 +385,8 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         ClientHead clientHead = msg.getClientHead();
         ByteBuf out = encoder.allocateBuffer(ctx.alloc());
         EngineIOVersion engineIOVersion = clientHead.getEngineIOVersion();
-        if (engineIOVersion == EngineIOVersion.UNKNOWN) {
-            throw new IllegalStateException("Unknown Engine.IO version for connected client");
+        if (engineIOVersion == null) {
+            engineIOVersion = EngineIOVersion.V4;
         }
 
         Boolean b64 = ctx.channel().attr(EncoderHandler.B64).get();

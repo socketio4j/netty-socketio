@@ -34,7 +34,6 @@ public class EngineIOVersionTest extends BaseProtocolTest {
         assertEquals("2", EngineIOVersion.V2.getValue());
         assertEquals("3", EngineIOVersion.V3.getValue());
         assertEquals("4", EngineIOVersion.V4.getValue());
-        assertEquals("", EngineIOVersion.UNKNOWN.getValue());
     }
 
     @Test
@@ -47,19 +46,19 @@ public class EngineIOVersionTest extends BaseProtocolTest {
 
     @Test
     public void testFromValueWithInvalidVersions() {
-        // Test fromValue with invalid version strings
-        assertEquals(EngineIOVersion.UNKNOWN, EngineIOVersion.fromValue("1"));
-        assertEquals(EngineIOVersion.UNKNOWN, EngineIOVersion.fromValue("5"));
-        assertEquals(EngineIOVersion.UNKNOWN, EngineIOVersion.fromValue("invalid"));
-        assertEquals(EngineIOVersion.UNKNOWN, EngineIOVersion.fromValue(""));
-        assertEquals(EngineIOVersion.UNKNOWN, EngineIOVersion.fromValue(null));
+        // Test fromValue with invalid version strings (defaults to V4)
+        assertEquals(EngineIOVersion.V4, EngineIOVersion.fromValue("1"));
+        assertEquals(EngineIOVersion.V4, EngineIOVersion.fromValue("5"));
+        assertEquals(EngineIOVersion.V4, EngineIOVersion.fromValue("invalid"));
+        assertEquals(EngineIOVersion.V4, EngineIOVersion.fromValue(""));
+        assertEquals(EngineIOVersion.V4, EngineIOVersion.fromValue(null));
     }
 
     @Test
     public void testFromValueWithCaseSensitivity() {
-        // Test fromValue is case sensitive
-        assertEquals(EngineIOVersion.UNKNOWN, EngineIOVersion.fromValue("V2"));
-        assertEquals(EngineIOVersion.UNKNOWN, EngineIOVersion.fromValue("v2"));
+        // Test fromValue fallback to V4 for non-matching case
+        assertEquals(EngineIOVersion.V4, EngineIOVersion.fromValue("V2"));
+        assertEquals(EngineIOVersion.V4, EngineIOVersion.fromValue("v2"));
     }
 
     @Test
@@ -90,11 +89,10 @@ public class EngineIOVersionTest extends BaseProtocolTest {
     }
 
     @Test
-    public void testUnknownVersionBehavior() {
-        // Test UNKNOWN version behavior
+    public void testUnknownVersionFallbackBehavior() {
+        // Test unknown version fallback behavior to V4
         EngineIOVersion unknown = EngineIOVersion.fromValue("999");
-        assertEquals(EngineIOVersion.UNKNOWN, unknown);
-        assertEquals("", unknown.getValue());
+        assertEquals(EngineIOVersion.V4, unknown);
     }
 
     @Test
@@ -103,7 +101,6 @@ public class EngineIOVersionTest extends BaseProtocolTest {
         assertTrue(EngineIOVersion.V2.getValue().matches("\\d+"));
         assertTrue(EngineIOVersion.V3.getValue().matches("\\d+"));
         assertTrue(EngineIOVersion.V4.getValue().matches("\\d+"));
-        assertTrue(EngineIOVersion.UNKNOWN.getValue().isEmpty());
     }
 
     @Test
