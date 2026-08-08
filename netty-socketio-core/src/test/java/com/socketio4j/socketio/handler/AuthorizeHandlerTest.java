@@ -32,6 +32,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import java.util.Collections;
 import java.util.Map;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -174,6 +175,19 @@ public class AuthorizeHandlerTest {
             }
         };
         channel.pipeline().addLast(authorizeHandler);
+    }
+
+    @AfterEach
+    void tearDown() {
+        try {
+            if (channel != null) {
+                channel.finishAndReleaseAll();
+            }
+        } finally {
+            if (scheduler != null) {
+                scheduler.shutdown();
+            }
+        }
     }
 
     /**
