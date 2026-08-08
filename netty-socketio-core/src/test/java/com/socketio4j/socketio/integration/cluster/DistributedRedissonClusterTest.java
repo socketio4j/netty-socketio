@@ -48,6 +48,9 @@ public class DistributedRedissonClusterTest {
     @SuppressWarnings("resource")
     static final CustomizedRedisContainer REDIS = new CustomizedRedisContainer().withReuse(false);
 
+    private static final String STREAM_SINGLE_CHANNEL_PREFIX = "STREAM_SINGLE_";
+    private static final String STREAM_MULTI_CHANNEL_PREFIX = "STREAM_MULTI_";
+
     @BeforeAll
     static void startRedis() {
         if (!REDIS.isRunning()) {
@@ -172,7 +175,7 @@ public class DistributedRedissonClusterTest {
             cfg1.setHostname("127.0.0.1");
             cfg1.setPort(findAvailablePort());
             cfg1.setStoreFactory(new RedisStoreFactory(redisClient1,
-                    new RedisStreamEventStore.Builder(redisClient1).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).prefix("STREAM_SINGLE_1_").build()));
+                    new RedisStreamEventStore.Builder(redisClient1).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).prefix(STREAM_SINGLE_CHANNEL_PREFIX).build()));
             node1 = new SocketIOServer(cfg1);
             DistributedClusterIntegrationSupport.attachDefaultRoomListeners(node1);
             node1.start();
@@ -182,7 +185,7 @@ public class DistributedRedissonClusterTest {
             cfg2.setHostname("127.0.0.1");
             cfg2.setPort(findAvailablePort());
             cfg2.setStoreFactory(new RedisStoreFactory(redisClient2,
-                    new RedisStreamEventStore.Builder(redisClient2).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).prefix("STREAM_SINGLE_2_").build()));
+                    new RedisStreamEventStore.Builder(redisClient2).eventStoreMode(EventStoreMode.SINGLE_CHANNEL).prefix(STREAM_SINGLE_CHANNEL_PREFIX).build()));
             node2 = new SocketIOServer(cfg2);
             DistributedClusterIntegrationSupport.attachDefaultRoomListeners(node2);
             node2.start();
@@ -214,7 +217,7 @@ public class DistributedRedissonClusterTest {
             cfg1.setHostname("127.0.0.1");
             cfg1.setPort(findAvailablePort());
             cfg1.setStoreFactory(new RedisStoreFactory(redisClient1,
-                    new RedisStreamEventStore.Builder(redisClient1).eventStoreMode(EventStoreMode.MULTI_CHANNEL).prefix("STREAM_MULTI_1_").build()));
+                    new RedisStreamEventStore.Builder(redisClient1).eventStoreMode(EventStoreMode.MULTI_CHANNEL).prefix(STREAM_MULTI_CHANNEL_PREFIX).build()));
             node1 = new SocketIOServer(cfg1);
             DistributedClusterIntegrationSupport.attachDefaultRoomListeners(node1);
             node1.start();
@@ -224,7 +227,7 @@ public class DistributedRedissonClusterTest {
             cfg2.setHostname("127.0.0.1");
             cfg2.setPort(findAvailablePort());
             cfg2.setStoreFactory(new RedisStoreFactory(redisClient2,
-                    new RedisStreamEventStore.Builder(redisClient2).eventStoreMode(EventStoreMode.MULTI_CHANNEL).prefix("STREAM_MULTI_2_").build()));
+                    new RedisStreamEventStore.Builder(redisClient2).eventStoreMode(EventStoreMode.MULTI_CHANNEL).prefix(STREAM_MULTI_CHANNEL_PREFIX).build()));
             node2 = new SocketIOServer(cfg2);
             DistributedClusterIntegrationSupport.attachDefaultRoomListeners(node2);
             node2.start();
