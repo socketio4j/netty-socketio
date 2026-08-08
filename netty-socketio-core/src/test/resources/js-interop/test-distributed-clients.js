@@ -80,11 +80,27 @@ const timeout = setTimeout(() => {
 let joinedRoomOk = false;
 let leftRoomOk = false;
 
+// The distributed matrix terminates many polling clients concurrently. Allow a
+// full scheduling turn for their final POST/poll exchange before process exit;
+// the Java suite still proves server-side removal rather than trusting this.
+const DISCONNECT_FLUSH_DELAY_MS = 1000;
+
 const exitGracefully = (code = 0, delayMs = 300) => {
     clearTimeout(timeout);
     setTimeout(() => {
         socket.disconnect();
-        process.exit(code);
+        // A legacy Engine.IO v3 client connected directly to a non-root
+        // namespace can leave the server's implicit root namespace alive after
+        // its namespace DISCONNECT. Close the shared Manager as well so the
+        // transport close reaches the server and removes every namespace for
+        // this client head.
+        if (socket.io && typeof socket.io.close === "function") {
+            socket.io.close();
+        } else if (socket.io && socket.io.engine
+                && typeof socket.io.engine.close === "function") {
+            socket.io.engine.close();
+        }
+        setTimeout(() => process.exit(code), DISCONNECT_FLUSH_DELAY_MS);
     }, delayMs);
 };
 

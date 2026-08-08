@@ -15,8 +15,6 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.interop;
-import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -27,13 +25,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @ResourceLock("NODE_JS_INTEROP")
-public class JsTransportInteropTest extends AbstractSocketIOIntegrationTest {
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+public class JsTransportInteropTest extends AbstractReusableSocketIOInteropTest {
 
     private static final long JS_TEST_TIMEOUT_SECONDS = 20;
 

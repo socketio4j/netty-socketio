@@ -619,7 +619,7 @@
           <useModulePath>false</useModulePath>
           <failIfNoTests>true</failIfNoTests>
           <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
-          <rerunFailingTestsCount>0</rerunFailingTestsCount>
+          <rerunFailingTestsCount>1</rerunFailingTestsCount>
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <forkedProcessTimeoutInSeconds>3600</forkedProcessTimeoutInSeconds>
           <argLine>

@@ -27,7 +27,7 @@ const browsers = [
     { name: "WebKit", type: webkit }
 ];
 
-const versions = [
+const ALL_VERSIONS = [
     "1.7.3",
     "2.1.1",
     "2.3.0",
@@ -41,6 +41,29 @@ const versions = [
     "4.8.1",
     "4.8.3"
 ];
+
+function resolveVersions() {
+    const configured = process.env.SOCKETIO_INTEROP_VERSIONS;
+    if (!configured) {
+        return ALL_VERSIONS;
+    }
+
+    const versions = configured.split(",").map(version => version.trim());
+    if (versions.length === 0 || versions.some(version => !version)) {
+        throw new Error("SOCKETIO_INTEROP_VERSIONS must contain one or more versions");
+    }
+    for (const version of versions) {
+        if (!ALL_VERSIONS.includes(version)) {
+            throw new Error(`Unsupported Socket.IO client version: ${version}`);
+        }
+    }
+    if (new Set(versions).size !== versions.length) {
+        throw new Error("SOCKETIO_INTEROP_VERSIONS must not contain duplicate versions");
+    }
+    return versions;
+}
+
+const versions = resolveVersions();
 
 const transports = [
     "polling",

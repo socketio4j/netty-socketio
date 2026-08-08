@@ -24,3 +24,4 @@ jobs:
     with:
       os: "${{ matrix.os }}"
       javaVersion: "${{ matrix.java-version }}"
+      interopVersions: "smoke"

@@ -18,6 +18,7 @@ package com.socketio4j.socketio.integration.interop;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -29,13 +30,74 @@ import org.junit.jupiter.params.provider.Arguments;
  */
 public final class JsClientInteropMatrix {
 
-    public static final List<String> VERSIONS = new ArrayList<>(Arrays.asList(
+    /** Maven property used to select a compatibility subset. */
+    public static final String VERSIONS_PROPERTY = "socketio.interop.versions";
+
+    /** Complete release matrix, including protocol and regression boundaries. */
+    public static final List<String> FULL_VERSIONS = Collections.unmodifiableList(Arrays.asList(
             "1.7.3", "2.1.1", "2.3.0", "2.4.0", "2.5.0", "3.1.3",
             "4.0.0", "4.7.0", "4.7.2", "4.7.5", "4.8.1", "4.8.3"));
 
-    public static final List<String> TRANSPORTS = new ArrayList<>(Arrays.asList("websocket", "polling"));
+    /** One representative from each supported Socket.IO protocol family. */
+    public static final List<String> SMOKE_VERSIONS = Collections.unmodifiableList(Arrays.asList(
+            "1.7.3", "2.5.0", "3.1.3", "4.8.3"));
+
+    /** Versions selected for this JVM. Defaults to the smoke matrix. */
+    public static final List<String> VERSIONS = resolveVersions(System.getProperty(VERSIONS_PROPERTY));
+
+    public static final List<String> TRANSPORTS = Collections.unmodifiableList(
+            Arrays.asList("websocket", "polling"));
 
     private JsClientInteropMatrix() {
+    }
+
+    /**
+     * Resolves {@value #VERSIONS_PROPERTY}. Accepted values are {@code smoke},
+     * {@code full}, or a comma-separated subset of {@link #FULL_VERSIONS}.
+     * Omitting the property uses the smoke matrix; release verification passes
+     * {@code full} explicitly.
+     */
+    static List<String> resolveVersions(String configuredVersions) {
+        if (configuredVersions == null || configuredVersions.trim().isEmpty()
+                || "smoke".equalsIgnoreCase(configuredVersions.trim())) {
+            return SMOKE_VERSIONS;
+        }
+
+        if ("full".equalsIgnoreCase(configuredVersions.trim())) {
+            return FULL_VERSIONS;
+        }
+
+
+        List<String> versions = new ArrayList<String>();
+        for (String value : configuredVersions.split(",", -1)) {
+            String version = value.trim();
+            if (version.isEmpty()) {
+                throw new IllegalArgumentException("Empty Socket.IO client version in -D"
+                        + VERSIONS_PROPERTY + "=" + configuredVersions);
+            }
+            if (!FULL_VERSIONS.contains(version)) {
+                throw new IllegalArgumentException("Unsupported Socket.IO client version '" + version
+                        + "' in -D" + VERSIONS_PROPERTY + ". Supported versions: " + FULL_VERSIONS);
+            }
+            if (versions.contains(version)) {
+                throw new IllegalArgumentException("Duplicate Socket.IO client version '" + version
+                        + "' in -D" + VERSIONS_PROPERTY);
+            }
+            versions.add(version);
+        }
+        if (versions.isEmpty()) {
+            throw new IllegalArgumentException("No Socket.IO client versions configured in -D"
+                    + VERSIONS_PROPERTY);
+        }
+        return Collections.unmodifiableList(versions);
+    }
+
+    public static String configuredVersionsCsv() {
+        return String.join(",", VERSIONS);
+    }
+
+    public static boolean usesEngineIOV3(String version) {
+        return Arrays.asList("1.7.3", "2.1.1", "2.3.0", "2.4.0", "2.5.0").contains(version);
     }
 
     public static Stream<String> clientVersions() {

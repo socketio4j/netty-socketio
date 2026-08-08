@@ -47,13 +47,25 @@ try {
     process.exit(1);
 }
 
+// A Socket.IO client's local "disconnect" event can precede the final polling
+// write. Retain the process for this bounded period so the server observes the
+// disconnect before Java begins the next isolated parameterized case.
+const DISCONNECT_SETTLE_DELAY_MS = 100;
+const DISCONNECT_FLUSH_DELAY_MS = 250;
+const activeSockets = new Set();
+let completed = false;
+
 function createSocket(namespace = "", forceNew = true) {
-    return io(`http://localhost:${port}${namespace}`, {
+    const socket = io(`http://localhost:${port}${namespace}`, {
         transports: [transport],
         reconnection: false,
         forceNew,
         upgrade: false
     });
+
+    activeSockets.add(socket);
+    socket.once("disconnect", () => activeSockets.delete(socket));
+    return socket;
 }
 
 function handleConnectError(socket) {
@@ -85,36 +97,42 @@ function awaitConnect(sockets, callback) {
 }
 
 function disconnectAll(...sockets) {
-    sockets.forEach(socket => {
-        if (socket && socket.connected) {
-            socket.disconnect();
-        }
-    });
+    setTimeout(() => {
+        sockets.forEach(socket => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+    }, DISCONNECT_SETTLE_DELAY_MS);
 }
 const timeout = setTimeout(() => {
     fail("Test timed out");
 }, 10000);
 
 function success(message) {
-    clearTimeout(timeout);
-
-    if (typeof socket !== "undefined" && socket) {
-        socket.disconnect();
+    if (completed) {
+        return;
     }
 
+    completed = true;
+    clearTimeout(timeout);
+    disconnectAll(...activeSockets);
     console.log(message);
-    process.exit(0);
+    setTimeout(() => process.exit(0),
+        DISCONNECT_SETTLE_DELAY_MS + DISCONNECT_FLUSH_DELAY_MS);
 }
 
 function fail(message) {
-    clearTimeout(timeout);
-
-    if (typeof socket !== "undefined" && socket) {
-        socket.disconnect();
+    if (completed) {
+        return;
     }
 
+    completed = true;
+    clearTimeout(timeout);
+    disconnectAll(...activeSockets);
     console.error(message);
-    process.exit(1);
+    setTimeout(() => process.exit(1),
+        DISCONNECT_SETTLE_DELAY_MS + DISCONNECT_FLUSH_DELAY_MS);
 }
 function getErrorMessage(err) {
     if (typeof err === "string") {

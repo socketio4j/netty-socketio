@@ -149,6 +149,68 @@ public class Namespace implements SocketIONamespace {
         }
     }
 
+    /**
+     * Verifies that no client or room membership remains in this namespace.
+     * Package-private so test infrastructure can enforce reuse isolation
+     * without expanding the public Socket.IO API.
+     */
+    void assertEmptyForTestReuse(String phase) {
+        if (!allClients.isEmpty() || !roomClients.isEmpty() || !clientRooms.isEmpty()) {
+            throw new IllegalStateException("Namespace '" + name + "' retained state " + phase
+                    + ": clients=" + allClients.keySet()
+                    + ", rooms=" + roomClients.keySet()
+                    + ", clientRooms=" + clientRooms.keySet());
+        }
+    }
+
+    /**
+     * Removes every listener type and its JSON event mapping. This is only
+     * visible to package-level test infrastructure used by reusable test
+     * servers; production callers retain the existing targeted APIs.
+     */
+    void clearListenersForTestReuse() {
+        for (String eventName : new ArrayList<>(eventListeners.keySet())) {
+            removeAllListeners(eventName);
+        }
+        catchAllEventListeners.clear();
+        connectListeners.clear();
+        disconnectListeners.clear();
+        pingListeners.clear();
+        pongListeners.clear();
+        eventInterceptors.clear();
+        authDataInterceptors.clear();
+
+        if (!eventListeners.isEmpty()
+                || !catchAllEventListeners.isEmpty()
+                || !connectListeners.isEmpty()
+                || !disconnectListeners.isEmpty()
+                || !pingListeners.isEmpty()
+                || !pongListeners.isEmpty()
+                || !eventInterceptors.isEmpty()
+                || !authDataInterceptors.isEmpty()) {
+            throw new IllegalStateException("Namespace '" + name
+                    + "' retained listeners after reusable-test cleanup");
+        }
+    }
+
+    /**
+     * Fails if a reusable test starts with an event or lifecycle callback from
+     * a previous case.
+     */
+    void assertNoListenersForTestReuse(String phase) {
+        if (!eventListeners.isEmpty()
+                || !catchAllEventListeners.isEmpty()
+                || !connectListeners.isEmpty()
+                || !disconnectListeners.isEmpty()
+                || !pingListeners.isEmpty()
+                || !pongListeners.isEmpty()
+                || !eventInterceptors.isEmpty()
+                || !authDataInterceptors.isEmpty()) {
+            throw new IllegalStateException("Namespace '" + name
+                    + "' retained listeners " + phase);
+        }
+    }
+
     @Override
     public void addOnAnyEventListener(CatchAllEventListener listener) {
         catchAllEventListeners.add(listener);

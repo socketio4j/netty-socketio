@@ -48,6 +48,7 @@ import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIONamespace;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.Transport;
+import com.socketio4j.socketio.namespace.NamespaceTestReuseAssertions;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -58,7 +59,9 @@ public class BrowserInteropTest {
 
     private static final int BROWSER_COUNT = 3;
     private static final int CLIENT_VERSION_COUNT = JsClientInteropMatrix.VERSIONS.size();
-    private static final int EIO3_CLIENT_VERSION_COUNT = 5;
+    private static final int EIO3_CLIENT_VERSION_COUNT = (int) JsClientInteropMatrix.VERSIONS.stream()
+            .filter(JsClientInteropMatrix::usesEngineIOV3)
+            .count();
     private static final int TRANSPORT_COUNT = 2;
     private static final int NAMESPACE_COUNT = 2;
     private static final int EVENT_TYPE_COUNT = 6;
@@ -484,6 +487,7 @@ public class BrowserInteropTest {
         Map<String, String> env = new java.util.HashMap<>();
         env.put("HTTP_PORT", String.valueOf(httpPort));
         env.put("SOCKETIO_PORT", String.valueOf(serverPort));
+        env.put("SOCKETIO_INTEROP_VERSIONS", JsClientInteropMatrix.configuredVersionsCsv());
         try {
              python = startProcess(
                     dir,
@@ -565,6 +569,11 @@ public class BrowserInteropTest {
                     assertEquals(expectedConnections, DISCONNECTS.get(),
                             "Unexpected number of server-observed namespace disconnects");
                 });
+
+        for (SocketIONamespace namespace : server.getAllNamespaces()) {
+            NamespaceTestReuseAssertions.assertEmpty(namespace,
+                    "after browser interop run");
+        }
     }
     private static void verifyNamespaceDistribution() {
 

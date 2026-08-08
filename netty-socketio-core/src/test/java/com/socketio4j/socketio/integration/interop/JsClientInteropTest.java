@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.interop;
-import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -46,7 +47,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 @ResourceLock("NODE_JS_INTEROP")
 @DisplayName("Official JavaScript Socket.IO Client Interoperability Suite (v1, v2, v3, v4)")
-public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+public class JsClientInteropTest extends AbstractReusableSocketIOInteropTest {
 
     private static Stream<String> clientVersions() {
         return JsClientInteropMatrix.clientVersions();
@@ -667,13 +669,13 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
 
         assertTrue(joined.get());
     }
-    ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     @ParameterizedTest(name = "[ROOM-002] Client v{0} over {1} - Leave Room")
     @MethodSource("clientTransports")
     void testLeaveRoom(String version, String transport) throws Exception {
 
         AtomicBoolean joined = new AtomicBoolean(false);
         AtomicBoolean left = new AtomicBoolean(false);
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
         getServer().addEventListener("joinLeaveRoom", String.class,
                 (client, room, ackSender) -> {
@@ -695,14 +697,16 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
                     scheduler.schedule(() -> {
                         client.sendEvent("done");
                     }, 500, TimeUnit.MILLISECONDS);
-
-                    scheduler.shutdown();
                 });
 
-        runJsTest(version, transport, "leave_room");
+        try {
+            runJsTest(version, transport, "leave_room");
 
-        assertTrue(joined.get());
-        assertTrue(left.get());
+            assertTrue(joined.get());
+            assertTrue(left.get());
+        } finally {
+            scheduler.shutdownNow();
+        }
     }
 
     @ParameterizedTest(name = "[ROOM-003] Client v{0} over {1} - Join Same Room Twice")

@@ -21,8 +21,10 @@ import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.listener.DataListener;
 import com.socketio4j.socketio.namespace.Namespace;
+import com.socketio4j.socketio.namespace.NamespaceTestReuseAssertions;
 
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +35,7 @@ import java.io.File;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,14 +91,70 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
     private final Map<String, SocketIOClient> connectedClientMap = new ConcurrentHashMap<>();
     private final ConcurrentLinkedQueue<Throwable> listenerFailures = new ConcurrentLinkedQueue<>();
+    private Set<String> node1BaselineNamespaces;
+    private Set<String> node2BaselineNamespaces;
 
     @BeforeAll
     public abstract void setupCluster() throws Exception;
 
     @BeforeEach
     void resetPerTestState() {
+        captureOrAssertBaselineNamespaces();
+        assertNoConnectedClients("before test case");
         connectedClientMap.clear();
         listenerFailures.clear();
+    }
+
+    @AfterEach
+    void enforcePerTestIsolation() throws Exception {
+        Throwable isolationFailure = null;
+        try {
+            if (!waitForNoConnectedClients(2, TimeUnit.SECONDS)) {
+                String retainedClients = describeConnectedClients();
+                node1.getBroadcastOperations().disconnect();
+                node2.getBroadcastOperations().disconnect();
+
+                // NamespaceClient defers polling cleanup for five seconds when
+                // the client has already gone away. Wait beyond that exact
+                // grace period so a failing case is fully cleaned before its
+                // failure is rethrown and the next case begins.
+                if (!waitForNoConnectedClients(6, TimeUnit.SECONDS)) {
+                    isolationFailure = new AssertionError(
+                            "Distributed interop case left clients connected and forced cleanup did not finish: "
+                                    + retainedClients + "; remaining=" + describeConnectedClients());
+                } else {
+                    isolationFailure = new AssertionError(
+                            "Distributed interop case left clients connected after its client processes exited: "
+                                    + retainedClients);
+                }
+            }
+
+            if (isolationFailure == null) {
+                assertNoConnectedClients("after test case");
+            }
+        } catch (Throwable failure) {
+            isolationFailure = failure;
+        }
+
+        try {
+            removeTestCreatedNamespaces();
+            clearAndReinstallBaselineListeners();
+            captureOrAssertBaselineNamespaces();
+            throwIfListenerFailed();
+        } catch (Throwable cleanupFailure) {
+            if (isolationFailure == null) {
+                isolationFailure = cleanupFailure;
+            } else {
+                isolationFailure.addSuppressed(cleanupFailure);
+            }
+        } finally {
+            connectedClientMap.clear();
+            listenerFailures.clear();
+        }
+
+        if (isolationFailure != null) {
+            rethrow(isolationFailure);
+        }
     }
 
     @AfterAll
@@ -139,6 +198,119 @@ public abstract class AbstractDistributedJsClientInteropTest {
                         "Could not leave room '" + roomName + "' for client " + client.getSessionId(), e));
             }
         });
+    }
+
+    private void captureOrAssertBaselineNamespaces() {
+        if (node1 == null || node2 == null || !node1.isStarted() || !node2.isStarted()) {
+            throw new AssertionError("Distributed interop servers must be running before each test case");
+        }
+
+        Set<String> currentNode1Namespaces = namespaceNames(node1);
+        Set<String> currentNode2Namespaces = namespaceNames(node2);
+        if (node1BaselineNamespaces == null) {
+            node1BaselineNamespaces = currentNode1Namespaces;
+            node2BaselineNamespaces = currentNode2Namespaces;
+            return;
+        }
+
+        if (!node1BaselineNamespaces.equals(currentNode1Namespaces)
+                || !node2BaselineNamespaces.equals(currentNode2Namespaces)) {
+            throw new AssertionError("Distributed interop namespace isolation failed. node1 expected="
+                    + node1BaselineNamespaces + ", actual=" + currentNode1Namespaces
+                    + "; node2 expected=" + node2BaselineNamespaces
+                    + ", actual=" + currentNode2Namespaces);
+        }
+    }
+
+    private Set<String> namespaceNames(SocketIOServer server) {
+        Set<String> names = new HashSet<String>();
+        for (com.socketio4j.socketio.SocketIONamespace namespace : server.getAllNamespaces()) {
+            names.add(namespace.getName());
+        }
+        return names;
+    }
+
+    private boolean waitForNoConnectedClients(long timeout, TimeUnit unit) throws InterruptedException {
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        do {
+            if (allNamespacesAreEmpty(node1) && allNamespacesAreEmpty(node2)) {
+                return true;
+            }
+            TimeUnit.MILLISECONDS.sleep(10);
+        } while (System.nanoTime() < deadline);
+        return allNamespacesAreEmpty(node1) && allNamespacesAreEmpty(node2);
+    }
+
+    private void assertNoConnectedClients(String phase) {
+        assertNamespacesEmpty(node1, phase);
+        assertNamespacesEmpty(node2, phase);
+    }
+
+    private boolean allNamespacesAreEmpty(SocketIOServer server) {
+        for (com.socketio4j.socketio.SocketIONamespace namespace : server.getAllNamespaces()) {
+            if (!namespace.getAllClients().isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void assertNamespacesEmpty(SocketIOServer server, String phase) {
+        for (com.socketio4j.socketio.SocketIONamespace namespace : server.getAllNamespaces()) {
+            NamespaceTestReuseAssertions.assertEmpty(namespace, phase);
+        }
+    }
+
+    private String describeConnectedClients() {
+        return "node1=" + describeConnectedClients(node1)
+                + ", node2=" + describeConnectedClients(node2);
+    }
+
+    private String describeConnectedClients(SocketIOServer server) {
+        List<String> descriptions = new ArrayList<String>();
+        for (com.socketio4j.socketio.SocketIONamespace namespace : server.getAllNamespaces()) {
+            if (!namespace.getAllClients().isEmpty()) {
+                descriptions.add(namespace.getName() + "=" + namespace.getAllClients());
+            }
+        }
+        return descriptions.toString();
+    }
+
+    private void removeTestCreatedNamespaces() {
+        removeTestCreatedNamespaces(node1, node1BaselineNamespaces);
+        removeTestCreatedNamespaces(node2, node2BaselineNamespaces);
+    }
+
+    private void removeTestCreatedNamespaces(SocketIOServer server, Set<String> baselineNamespaces) {
+        for (String namespace : new HashSet<String>(namespaceNames(server))) {
+            if (!baselineNamespaces.contains(namespace)) {
+                server.removeNamespace(namespace);
+            }
+        }
+    }
+
+    private void clearAndReinstallBaselineListeners() {
+        clearListeners(node1);
+        clearListeners(node2);
+        attachDefaultRoomListeners(node1);
+        attachDefaultRoomListeners(node2);
+    }
+
+    private void clearListeners(SocketIOServer server) {
+        for (com.socketio4j.socketio.SocketIONamespace namespace : server.getAllNamespaces()) {
+            NamespaceTestReuseAssertions.clearListeners(namespace);
+            NamespaceTestReuseAssertions.assertNoListeners(namespace, "after distributed test cleanup");
+        }
+    }
+
+    private static void rethrow(Throwable failure) throws Exception {
+        if (failure instanceof Error) {
+            throw (Error) failure;
+        }
+        if (failure instanceof Exception) {
+            throw (Exception) failure;
+        }
+        throw new RuntimeException(failure);
     }
 
     protected void awaitRoomSync(String room, int expected, List<JsClientProcess> processes) throws InterruptedException {

@@ -15,9 +15,6 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.interop;
-import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
-
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -27,10 +24,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 
 import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-
-import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -42,7 +38,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @date 03/08/26 3:05 pm
  */
 @ResourceLock("NODE_JS_INTEROP")
-public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+public class JsMultiClientInteropTest extends AbstractReusableSocketIOInteropTest {
     private void runMultiJsTest(String version, String transport, String scenario, int clientCount) throws Exception {
         File jsDir = new File("src/test/resources/js-interop");
         if (!jsDir.exists()) {

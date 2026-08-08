@@ -4,7 +4,14 @@ on:
     types: [created]
   workflow_dispatch:
 jobs:
-  build:
+  verify-release:
+    uses: ./.github/workflows/build.yml
+    with:
+      javaVersion: "21"
+      interopVersions: "full"
+
+  publish:
+    needs: verify-release
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -27,5 +34,5 @@ jobs:
       env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
-      # for publish, skip test, because test is in CI
+      # Interop and project verification run in verify-release above.
       run: mvn --batch-mode -DskipTests -Dgpg.passphrase=${{ secrets.OSSRH_GPG_SECRET_KEY_PASSWORD }} clean deploy -P release

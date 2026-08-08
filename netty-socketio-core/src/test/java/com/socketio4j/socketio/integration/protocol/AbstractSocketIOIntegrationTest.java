@@ -77,6 +77,14 @@ public abstract class AbstractSocketIOIntegrationTest {
     }
 
     /**
+     * Allows an isolated test suite to reuse the same server for all of its
+     * test methods. The default remains one server per test invocation.
+     */
+    protected boolean reuseServerForTestClass() {
+        return false;
+    }
+
+    /**
      * Create a Socket.IO client connected to the test server
      */
     protected Socket createClient() {
@@ -141,6 +149,13 @@ public abstract class AbstractSocketIOIntegrationTest {
      */
     @BeforeEach
     public void setUp() throws Exception {
+        if (server != null) {
+            if (reuseServerForTestClass()) {
+                return;
+            }
+            throw new IllegalStateException("Previous test server was not stopped before setup");
+        }
+
         // Create SocketIO server configuration
         Configuration serverConfig = new Configuration();
         serverConfig.setHostname(SERVER_HOST);
@@ -214,22 +229,36 @@ public abstract class AbstractSocketIOIntegrationTest {
             failure = e;
         }
 
-        if (server != null) {
+        if (!reuseServerForTestClass() && server != null) {
             try {
-                server.stop();
+                stopServer();
             } catch (Exception e) {
                 if (failure != null) {
                     failure.addSuppressed(e);
                 } else {
                     failure = e;
                 }
-            } finally {
-                server = null;
             }
         }
 
         if (failure != null) {
             throw failure;
+        }
+    }
+
+    /**
+     * Stops the current server. Reusable integration suites call this once in
+     * their {@code @AfterAll} lifecycle callback after verifying test-state
+     * isolation between individual cases.
+     */
+    protected final void stopServer() {
+        if (server == null) {
+            return;
+        }
+        try {
+            server.stop();
+        } finally {
+            server = null;
         }
     }
 

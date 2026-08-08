@@ -33,8 +33,8 @@ import org.junit.jupiter.params.provider.MethodSource;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIONamespace;
 import com.socketio4j.socketio.SocketIOServer;
-import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
 import com.socketio4j.socketio.namespace.Namespace;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
 import static org.junit.Assert.fail;
@@ -45,7 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @date 03/08/26 3:59 pm
  */
 @ResourceLock("NODE_JS_INTEROP")
-public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+public class JsNamespaceInteropTest extends AbstractReusableSocketIOInteropTest {
 
     private void runNamespaceJsTest(
             String version,

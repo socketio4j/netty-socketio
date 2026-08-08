@@ -54,6 +54,11 @@ const options = {
     forceNew: true
 };
 
+// A local Socket.IO "disconnect" event is not proof that a polling client has
+// sent its disconnect packet. Give the final poll a bounded chance to flush so
+// the Java test barrier can prove server-side cleanup before the next case.
+const DISCONNECT_FLUSH_DELAY_MS = 250;
+
 const timeout = setTimeout(() => {
     console.error("Test timed out");
     disconnectAll();
@@ -91,7 +96,7 @@ function disconnectAll(exitCode, message, isError) {
                 } else {
                     console.log(message);
                 }
-                process.exit(exitCode);
+                setTimeout(() => process.exit(exitCode), DISCONNECT_FLUSH_DELAY_MS);
             }
         };
 

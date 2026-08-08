@@ -17,6 +17,10 @@ on:
         required: false
         type: string
         default: "0"
+      interopVersions:
+        required: false
+        type: string
+        default: "smoke"
 
 jobs:
   build:
@@ -94,4 +98,5 @@ jobs:
                              -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN \
                              -Dcom.socketio4j.socketio.level=WARN \
                              -Dio.netty.leakDetection.level=PARANOID"
-          mvn --batch-mode --errors --fail-at-end -DforkCount=1C verify
+          mvn --batch-mode --errors --fail-at-end -DforkCount=1C \
+            -Dsocketio.interop.versions=${{ inputs.interopVersions }} verify

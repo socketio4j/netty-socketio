@@ -94,6 +94,28 @@ const timeout = setTimeout(() => {
     process.exit(1);
 }, 10000);
 
+// A polling client queues its Socket.IO disconnect in the next poll request. Keep
+// Node alive long enough for that request to reach the server before reporting
+// success. The local "disconnect" event is not proof that an older polling client
+// has flushed that request.
+const DISCONNECT_SETTLE_DELAY_MS = 100;
+const DISCONNECT_FLUSH_DELAY_MS = 250;
+let completed = false;
+
+function success(message) {
+    if (completed) {
+        return;
+    }
+
+    completed = true;
+    clearTimeout(timeout);
+    console.log(message);
+    setTimeout(() => {
+        socket.disconnect();
+        setTimeout(() => process.exit(0), DISCONNECT_FLUSH_DELAY_MS);
+    }, DISCONNECT_SETTLE_DELAY_MS);
+}
+
 socket.on('connect', () => {
     connected = true;
     console.log(`[v${version} JS Client] Connected successfully via ${transport}`);
@@ -119,10 +141,11 @@ socket.on('connect', () => {
 
     console.log("Transport object:", transportObj);
     if (scenario === 'connect') {
-        clearTimeout(timeout);
-        socket.disconnect();
-        console.log('Connect scenario PASSED');
-        process.exit(0);
+        // Socket.IO 1.x over polling can deliver its namespace CONNECT and a
+        // following DISCONNECT in separate requests. Do not make them race:
+        // first let the confirmed connection settle on the server, then flush
+        // the disconnect through the normal success path.
+        setTimeout(() => success('Connect scenario PASSED'), 100);
     }
 
     if (scenario === 'text') {
@@ -134,10 +157,7 @@ socket.on('connect', () => {
             console.log(`[v${version} JS Client] Received ack response:`, response);
             socket.emit('clientAckResponse', response);
             setTimeout(() => {
-                clearTimeout(timeout);
-                socket.disconnect();
-                console.log('Ack scenario PASSED');
-                process.exit(0);
+                success('Ack scenario PASSED');
             }, 100);
         });
     }
@@ -147,10 +167,7 @@ socket.on('connect', () => {
             console.log(`[v${version} JS Client] Received ack_binary response:`, response);
             socket.emit('clientAckBinaryResponse', response);
             setTimeout(() => {
-                clearTimeout(timeout);
-                socket.disconnect();
-                console.log('Ack binary scenario PASSED');
-                process.exit(0);
+                success('Ack binary scenario PASSED');
             }, 100);
         });
     }
@@ -209,10 +226,7 @@ socket.on('textResponse', (data) => {
     console.log(`[v${version} JS Client] Received textResponse:`, data);
     socket.emit('clientTextResponse', data);
     setTimeout(() => {
-        clearTimeout(timeout);
-        socket.disconnect();
-        console.log('Text scenario PASSED');
-        process.exit(0);
+        success('Text scenario PASSED');
     }, 100);
 });
 
@@ -220,10 +234,7 @@ socket.on('binaryResponse', (data) => {
     console.log(`[v${version} JS Client] Received binaryResponse:`, data);
     socket.emit('clientBinaryResponse', data);
     setTimeout(() => {
-        clearTimeout(timeout);
-        socket.disconnect();
-        console.log('Binary scenario PASSED');
-        process.exit(0);
+        success('Binary scenario PASSED');
     }, 100);
 });
 
@@ -231,10 +242,7 @@ socket.on('objectResponse', (data) => {
     console.log(`[v${version} JS Client] Received objectResponse:`, data);
     socket.emit('clientObjectResponse', data);
     setTimeout(() => {
-        clearTimeout(timeout);
-        socket.disconnect();
-        console.log('Object scenario PASSED');
-        process.exit(0);
+        success('Object scenario PASSED');
     }, 100);
 });
 
@@ -242,10 +250,7 @@ socket.on('pojoResponse', (data) => {
     console.log(`[v${version} JS Client] Received pojoResponse:`, data);
     socket.emit('clientPojoResponse', data);
     setTimeout(() => {
-        clearTimeout(timeout);
-        socket.disconnect();
-        console.log('POJO scenario PASSED');
-        process.exit(0);
+        success('POJO scenario PASSED');
     }, 100);
 });
 
@@ -253,10 +258,7 @@ socket.on('complexPojoResponse', (data) => {
     console.log(`[v${version} JS Client] Received complexPojoResponse:`, data);
     socket.emit('clientComplexPojoResponse', data);
     setTimeout(() => {
-        clearTimeout(timeout);
-        socket.disconnect();
-        console.log('Complex POJO scenario PASSED');
-        process.exit(0);
+        success('Complex POJO scenario PASSED');
     }, 100);
 });
 
@@ -264,10 +266,7 @@ socket.on('mixedResponse', (text, binData) => {
     console.log(`[v${version} JS Client] Received mixedResponse:`, text, binData);
     socket.emit('clientMixedResponse', text, binData);
     setTimeout(() => {
-        clearTimeout(timeout);
-        socket.disconnect();
-        console.log('Mixed scenario PASSED');
-        process.exit(0);
+        success('Mixed scenario PASSED');
     }, 100);
 });
 
@@ -277,10 +276,7 @@ if (scenario === 'server_ack_text') {
         if (data === 'hello_from_server' && typeof callback === 'function') {
             callback('js_ack_text_reply');
             setTimeout(() => {
-                clearTimeout(timeout);
-                socket.disconnect();
-                console.log('Server req ACK text scenario PASSED');
-                process.exit(0);
+                success('Server req ACK text scenario PASSED');
             }, 500);
         } else {
             console.error('serverReqAckText mismatch or missing callback:', data, typeof callback);
@@ -295,10 +291,7 @@ if (scenario === 'server_ack_binary') {
         if (data === 'hello_for_binary_ack' && typeof callback === 'function') {
             callback(Buffer.from([55, 66, 77]));
             setTimeout(() => {
-                clearTimeout(timeout);
-                socket.disconnect();
-                console.log('Server req ACK binary scenario PASSED');
-                process.exit(0);
+                success('Server req ACK binary scenario PASSED');
             }, 500);
         } else {
             console.error('serverReqAckBinary mismatch or missing callback:', data, typeof callback);
@@ -313,10 +306,7 @@ if (scenario === 'server_ack_void') {
         if (data === 'hello_void' && typeof callback === 'function') {
             callback(); // no arguments (Void ACK)
             setTimeout(() => {
-                clearTimeout(timeout);
-                socket.disconnect();
-                console.log('Server req Void ACK scenario PASSED');
-                process.exit(0);
+                success('Server req Void ACK scenario PASSED');
             }, 500);
         } else {
             console.error('serverReqVoidAck mismatch or missing callback:', data, typeof callback);
@@ -331,10 +321,7 @@ if (scenario === 'server_ack_multi') {
         if (data === 'hello_multi' && typeof callback === 'function') {
             callback('reply_string', Buffer.from([88, 99])); // Heterogeneous multi-type ACK (String + Buffer)
             setTimeout(() => {
-                clearTimeout(timeout);
-                socket.disconnect();
-                console.log('Server req MultiType ACK scenario PASSED');
-                process.exit(0);
+                success('Server req MultiType ACK scenario PASSED');
             }, 500);
         } else {
             console.error('serverReqMultiAck mismatch or missing callback:', data, typeof callback);
@@ -357,9 +344,8 @@ if (scenario === "join_room") {
         console.log("Received:", msg);
 
         if (msg === "hello room") {
-            clearTimeout(timeout);
-            socket.disconnect();
-            process.exit(0);
+            success("Join room scenario PASSED");
+            return;
         }
 
         process.exit(1);
@@ -375,10 +361,7 @@ if (scenario === "leave_room") {
     });
 
     socket.on("done", () => {
-        clearTimeout(timeout);
-        socket.disconnect();
-        console.log("Leave room scenario PASSED");
-        process.exit(0);
+        success("Leave room scenario PASSED");
     });
 }
 if (scenario === "join_same_room_twice") {
@@ -408,10 +391,7 @@ if (scenario === "join_same_room_twice") {
                 process.exit(1);
             }
 
-            clearTimeout(timeout);
-            socket.disconnect();
-            console.log("Join same room twice PASSED");
-            process.exit(0);
+            success("Join same room twice PASSED");
 
         }, 300);
     });
@@ -427,10 +407,7 @@ if (scenario === "leave_unknown_room") {
             process.exit(1);
         }
 
-        clearTimeout(timeout);
-        socket.disconnect();
-        console.log("ROOM-004 PASSED");
-        process.exit(0);
+        success("ROOM-004 PASSED");
     });
 }
 
@@ -449,10 +426,7 @@ if (scenario === "join_multiple_rooms") {
         roomAReceived = true;
 
         if (roomAReceived && roomBReceived) {
-            clearTimeout(timeout);
-            socket.disconnect();
-            console.log("ROOM-005 PASSED");
-            process.exit(0);
+            success("ROOM-005 PASSED");
         }
     });
 
@@ -464,10 +438,7 @@ if (scenario === "join_multiple_rooms") {
         roomBReceived = true;
 
         if (roomAReceived && roomBReceived) {
-            clearTimeout(timeout);
-            socket.disconnect();
-            console.log("ROOM-005 PASSED");
-            process.exit(0);
+            success("ROOM-005 PASSED");
         }
     });
 }
@@ -502,10 +473,7 @@ if (scenario === "leave_one_room") {
                 process.exit(1);
             }
 
-            clearTimeout(timeout);
-            socket.disconnect();
-            console.log("ROOM-006 PASSED");
-            process.exit(0);
+            success("ROOM-006 PASSED");
 
         }, 300);
     });
@@ -528,10 +496,7 @@ if (scenario === "leave_all_rooms") {
             process.exit(1);
         }
 
-        clearTimeout(timeout);
-        socket.disconnect();
-        console.log("ROOM-007 PASSED");
-        process.exit(0);
+        success("ROOM-007 PASSED");
 
     }, 500);
 }
@@ -556,9 +521,7 @@ if (scenario === "disconnect_rooms") {
 
     socket.on("disconnect", () => {
         setTimeout(() => {
-            clearTimeout(timeout);
-            console.log("ROOM-008 PASSED");
-            process.exit(0);
+            success("ROOM-008 PASSED");
         }, 300);
     });
 }
@@ -623,10 +586,7 @@ if (scenario === "server_batch_text_binary_text") {
 
         socket.emit("clientBatchDone", received.join(","));
         setTimeout(() => {
-            clearTimeout(timeout);
-            socket.disconnect();
-            console.log("Server batch text/binary/text PASSED");
-            process.exit(0);
+            success("Server batch text/binary/text PASSED");
         }, 100);
     }
 }
