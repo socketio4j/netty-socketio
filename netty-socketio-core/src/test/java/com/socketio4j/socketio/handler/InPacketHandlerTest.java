@@ -619,6 +619,8 @@ public class InPacketHandlerTest {
             // The authentication failure should be handled gracefully
             // We verify the handler processes the packet without crashing
             assertThat(client.getSessionId()).isNotNull();
+            assertThat(namespaces).isEmpty();
+            assertThat(client.getChildClient(ns)).isNull();
         }
 
         @Test

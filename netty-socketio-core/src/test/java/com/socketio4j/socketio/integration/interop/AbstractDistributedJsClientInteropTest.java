@@ -52,10 +52,14 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Abstract Multi-Node Distributed Cluster Interoperability Suite with Official JS Clients.
- * Covers 16 end-to-end cluster scenario permutations across v1-v4 official clients and WS/Polling transports.
+ * Covers the exact official client-version matrix over WebSocket and polling.
  */
 
 public abstract class AbstractDistributedJsClientInteropTest {
+
+    protected static final int CLIENTS_PER_NODE =
+            JsClientInteropMatrix.VERSIONS.size() * JsClientInteropMatrix.TRANSPORTS.size();
+    protected static final int FULL_MATRIX_CLIENTS = CLIENTS_PER_NODE * 2;
 
     private static final java.util.Set<JsClientProcess> ALL_ACTIVE_PROCESSES = ConcurrentHashMap.newKeySet();
 
@@ -199,8 +203,8 @@ public abstract class AbstractDistributedJsClientInteropTest {
     protected List<JsClientProcess> launchFullClientMatrix(String scenario, String room, Map<String, String> extraArgs) throws Exception {
         connectedClientMap.clear(); // Prevents cross-test state leakage
         List<JsClientProcess> processes = new ArrayList<>();
-        String[] versions = {"1", "2", "3", "4"};
-        String[] transports = {"websocket", "polling"};
+        List<String> versions = JsClientInteropMatrix.VERSIONS;
+        List<String> transports = JsClientInteropMatrix.TRANSPORTS;
 
         for (String v : versions) {
             for (String t : transports) {
@@ -234,7 +238,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
     // --- TEST SCENARIOS ---
 
-    @DisplayName("Positive 1 - Multi-Node Room Broadcast with Unique Nonces (16 Clients)")
+    @DisplayName("Positive 1 - Multi-Node Room Broadcast with Unique Nonces (exact client matrix)")
     @Test
     public void testDistributedRoomBroadcast_Positive() throws Exception {
         final String room = "ClusterRoomAlpha_" + System.currentTimeMillis();
@@ -247,7 +251,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
         List<JsClientProcess> processes = launchFullClientMatrix("dist_room_broadcast", room, extraArgs);
         try {
-            awaitRoomSync(room, 16, processes);
+            awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
             node1.getRoomOperations(room).sendEvent("dist-event", nonce1);
             node2.getRoomOperations(room).sendEvent("dist-event", nonce2);
@@ -258,7 +262,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Negative 2 - Distributed Room Isolation with Unique Nonces (16 Clients)")
+    @DisplayName("Negative 2 - Distributed Room Isolation with Unique Nonces (exact client matrix)")
     @Test
     public void testDistributedRoomIsolation_Negative() throws Exception {
         final String roomRed = "RoomRed_" + System.currentTimeMillis();
@@ -266,8 +270,8 @@ public abstract class AbstractDistributedJsClientInteropTest {
         final String redNonce = "RED_NONCE_" + UUID.randomUUID();
         final String blueNonce = "BLUE_NONCE_" + UUID.randomUUID();
 
-        String[] versions = {"1", "2", "3", "4"};
-        String[] transports = {"websocket", "polling"};
+        List<String> versions = JsClientInteropMatrix.VERSIONS;
+        List<String> transports = JsClientInteropMatrix.TRANSPORTS;
         List<JsClientProcess> processes = new ArrayList<>();
 
         Map<String, String> redArgs = new HashMap<>();
@@ -284,8 +288,8 @@ public abstract class AbstractDistributedJsClientInteropTest {
                 }
             }
 
-            awaitRoomSync(roomRed, 8, processes);
-            awaitRoomSync(roomBlue, 8, processes);
+            awaitRoomSync(roomRed, CLIENTS_PER_NODE, processes);
+            awaitRoomSync(roomBlue, CLIENTS_PER_NODE, processes);
 
             node1.getRoomOperations(roomRed).sendEvent("dist-event", redNonce);
             node2.getRoomOperations(roomBlue).sendEvent("dist-event", blueNonce);
@@ -298,20 +302,20 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Negative 3 - Distributed Room Leave Synchronization (8 Clients)")
+    @DisplayName("Negative 3 - Distributed Room Leave Synchronization (exact client matrix)")
     @Test
     public void testDistributedRoomLeave_Negative() throws Exception {
         final String roomGreen = "RoomGreen_" + System.currentTimeMillis();
         final String postLeaveNonce = "POST_LEAVE_NONCE_" + UUID.randomUUID();
 
-        String[] versions = {"1", "2", "3", "4"};
-        String[] transports = {"websocket", "polling"};
+        List<String> versions = JsClientInteropMatrix.VERSIONS;
+        List<String> transports = JsClientInteropMatrix.TRANSPORTS;
         List<JsClientProcess> processes = new ArrayList<>();
 
         Map<String, String> extraArgs = new HashMap<>();
         extraArgs.put("forbiddenNonce", postLeaveNonce);
 
-        CountDownLatch leaveLatch = new CountDownLatch(8);
+        CountDownLatch leaveLatch = new CountDownLatch(CLIENTS_PER_NODE);
         DataListener<String> leftListener = (client, data, ackRequest) -> leaveLatch.countDown();
         node2.addEventListener("client-left-room", String.class, leftListener);
 
@@ -322,10 +326,11 @@ public abstract class AbstractDistributedJsClientInteropTest {
                 }
             }
 
-            awaitRoomSync(roomGreen, 8, processes);
+            awaitRoomSync(roomGreen, CLIENTS_PER_NODE, processes);
             node2.getBroadcastOperations().sendEvent("leave-command", roomGreen);
 
-            assertTrue(leaveLatch.await(10, TimeUnit.SECONDS), "All 8 clients must send client-left-room signal");
+            assertTrue(leaveLatch.await(10, TimeUnit.SECONDS),
+                    "All clients must send client-left-room signal");
 
             node1.getRoomOperations(roomGreen).sendEvent("dist-event", postLeaveNonce);
             node2.getBroadcastOperations().sendEvent("dist-test-done", "room_leave_check");
@@ -337,7 +342,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Positive 4 - Cluster Global Broadcast with Unique Nonce (16 Clients)")
+    @DisplayName("Positive 4 - Cluster Global Broadcast with Unique Nonce (exact client matrix)")
     @Test
     public void testDistributedGlobalBroadcast_Positive() throws Exception {
         final String syncRoom = "SyncGlobalRoom_" + System.currentTimeMillis();
@@ -348,7 +353,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
         List<JsClientProcess> processes = launchFullClientMatrix("dist_global_broadcast", syncRoom, extraArgs);
         try {
-            awaitRoomSync(syncRoom, 16, processes);
+            awaitRoomSync(syncRoom, FULL_MATRIX_CLIENTS, processes);
 
             node2.getBroadcastOperations().sendEvent("global-event", globalNonce);
 
@@ -358,7 +363,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Positive 5 - Cluster Binary Dynamic Payload Checksum (16 Clients)")
+    @DisplayName("Positive 5 - Cluster Binary Dynamic Payload Checksum (exact client matrix)")
     @Test
     public void testDistributedBinaryPayload_Positive() throws Exception {
         final String room = "ClusterBinaryRoom_" + System.currentTimeMillis();
@@ -374,7 +379,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
         List<JsClientProcess> processes = launchFullClientMatrix("dist_binary", room, extraArgs);
         try {
-            awaitRoomSync(room, 16, processes);
+            awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
             node1.getRoomOperations(room).sendEvent("dist-event", dynamicPayload);
 
@@ -384,7 +389,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Positive 6 - Cluster Dynamic Object POJO (16 Clients)")
+    @DisplayName("Positive 6 - Cluster Dynamic Object POJO (exact client matrix)")
     @Test
     public void testDistributedObjectPayload_Positive() throws Exception {
         final String room = "ClusterObjectRoom_" + System.currentTimeMillis();
@@ -397,7 +402,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
         List<JsClientProcess> processes = launchFullClientMatrix("dist_object", room, extraArgs);
         try {
-            awaitRoomSync(room, 16, processes);
+            awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
             node1.getRoomOperations(room).sendEvent("dist-event", new ClusterPayload(dynamicName, dynamicValue));
 
@@ -407,7 +412,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Positive 7 - Cluster Mixed Multi-Type Dynamic Payload (16 Clients)")
+    @DisplayName("Positive 7 - Cluster Mixed Multi-Type Dynamic Payload (exact client matrix)")
     @Test
     public void testDistributedMixedPayload_Positive() throws Exception {
         final String room = "ClusterMixedRoom_" + System.currentTimeMillis();
@@ -424,7 +429,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
         List<JsClientProcess> processes = launchFullClientMatrix("dist_mixed", room, extraArgs);
         try {
-            awaitRoomSync(room, 16, processes);
+            awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
             Map<String, Object> mapObj = new HashMap<>();
             mapObj.put("nonce", mapNonce);
@@ -438,7 +443,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Positive 8 - Cluster Complex Multi-Level POJO with Dynamic Order Nonce (16 Clients)")
+    @DisplayName("Positive 8 - Cluster Complex Multi-Level POJO with Dynamic Order Nonce (exact client matrix)")
     @Test
     public void testDistributedComplexObjectPayload_Positive() throws Exception {
         final String room = "ClusterComplexObjectRoom_" + System.currentTimeMillis();
@@ -452,7 +457,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
         List<JsClientProcess> processes = launchFullClientMatrix("dist_complex_object", room, extraArgs);
         try {
-            awaitRoomSync(room, 16, processes);
+            awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
             ClusterOrderPayload order = new ClusterOrderPayload(
                     orderId,
@@ -473,7 +478,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Positive 9 - Cluster Text ACK Callbacks with 1-to-1 Nonce Evidence (16 Clients)")
+    @DisplayName("Positive 9 - Cluster Text ACK Callbacks with Exact Client Matrix")
     @Test
     public void testDistributedAckText_Positive() throws Exception {
         final String room = "ClusterAckTextRoom_" + System.currentTimeMillis();
@@ -482,9 +487,9 @@ public abstract class AbstractDistributedJsClientInteropTest {
                 launchFullClientMatrix("dist_ack_text", room, new HashMap<>());
 
         try {
-            awaitRoomSync(room, 16, processes);
+            awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
-            CountDownLatch ackLatch = new CountDownLatch(16);
+            CountDownLatch ackLatch = new CountDownLatch(FULL_MATRIX_CLIENTS);
             ConcurrentLinkedQueue<String> failures = new ConcurrentLinkedQueue<>();
 
             Consumer<SocketIOClient> sendAckRequest = client -> {
@@ -520,8 +525,9 @@ public abstract class AbstractDistributedJsClientInteropTest {
             assertTrue(
                     ackLatch.await(15, TimeUnit.SECONDS),
                     String.format(
-                            "Timed out waiting for ACKs. Received %d/16.%nFailures:%n%s",
-                            16 - ackLatch.getCount(),
+                            "Timed out waiting for ACKs. Received %d/%d.%nFailures:%n%s",
+                            FULL_MATRIX_CLIENTS - ackLatch.getCount(),
+                            FULL_MATRIX_CLIENTS,
                             String.join("\n", failures)));
 
             assertTrue(
@@ -537,15 +543,15 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Positive 10 - Cluster Binary ACK Callbacks with Token Transformation (16 Clients)")
+    @DisplayName("Positive 10 - Cluster Binary ACK Callbacks with Exact Client Matrix")
     @Test
     public void testDistributedAckBinary_Positive() throws Exception {
         final String room = "ClusterAckBinaryRoom_" + System.currentTimeMillis();
         List<JsClientProcess> processes = launchFullClientMatrix("dist_ack_binary", room, new HashMap<>());
         try {
-            awaitRoomSync(room, 16, processes);
+            awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
-            CountDownLatch ackLatch = new CountDownLatch(16);
+            CountDownLatch ackLatch = new CountDownLatch(FULL_MATRIX_CLIENTS);
             AtomicInteger validAcks = new AtomicInteger(0);
 
             for (SocketIOClient client : node1.getAllClients()) {
@@ -591,8 +597,10 @@ public abstract class AbstractDistributedJsClientInteropTest {
             }
 
             assertTrue(ackLatch.await(15, TimeUnit.SECONDS),
-                    String.format("Timed out waiting for binary ACKs! Received %d of 16 expected ACKs.", validAcks.get()));
-            assertEquals(16, validAcks.get(), "Server should receive binary transformed ACK replies from all 16 cluster clients");
+                    String.format("Timed out waiting for binary ACKs! Received %d of %d expected ACKs.",
+                            validAcks.get(), FULL_MATRIX_CLIENTS));
+            assertEquals(FULL_MATRIX_CLIENTS, validAcks.get(),
+                    "Server should receive binary transformed ACK replies from all cluster clients");
 
             node1.getBroadcastOperations().sendEvent("dist-test-done", "ack_binary_check");
 
@@ -602,18 +610,18 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Positive 11 - Client-to-Client Cluster Relay (16 Clients across 2 Nodes)")
+    @DisplayName("Positive 11 - Client-to-Client Cluster Relay (exact client matrix)")
     @Test
     public void testDistributedClientToClientRelay_Positive() throws Exception {
         final String room = "ClusterP2pRoom_" + System.currentTimeMillis();
-        final String senderClient = "n1_v4_websocket";
+        final String senderClient = "n1_v4.8.3_websocket";
         final String messageNonce = "P2P_MSG_" + UUID.randomUUID();
 
         Map<String, String> extraArgs = new HashMap<>();
         extraArgs.put("p2pSender", senderClient);
         extraArgs.put("p2pNonce", messageNonce);
 
-        CountDownLatch p2pLatch = new CountDownLatch(16);
+        CountDownLatch p2pLatch = new CountDownLatch(FULL_MATRIX_CLIENTS);
         DataListener<String> confirmListener = (client, data, ackRequest) -> p2pLatch.countDown();
 
         DataListener<P2pRelayPayload> relayListener = (client, payload, ackRequest) -> {
@@ -628,12 +636,13 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
         List<JsClientProcess> processes = launchFullClientMatrix("dist_client_to_client", room, extraArgs);
         try {
-            awaitRoomSync(room, 16, processes);
+            awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
             node1.getBroadcastOperations().sendEvent("trigger-p2p-send", senderClient);
 
             assertTrue(p2pLatch.await(15, TimeUnit.SECONDS),
-                    String.format("Timed out waiting for P2P relay! Received %d of 16 client confirmations.", 16 - p2pLatch.getCount()));
+                    String.format("Timed out waiting for P2P relay! Received %d of %d client confirmations.",
+                            FULL_MATRIX_CLIENTS - p2pLatch.getCount(), FULL_MATRIX_CLIENTS));
 
             node1.getBroadcastOperations().sendEvent("dist-test-done", "p2p_relay_check");
 
@@ -658,9 +667,9 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
         List<JsClientProcess> processes = launchFullClientMatrix("dist_direct_session", room, extraArgs);
         try {
-            awaitRoomSync(room, 16, processes);
+            awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
-            SocketIOClient targetClientOnNode2 = connectedClientMap.get("n2_v4_websocket");
+            SocketIOClient targetClientOnNode2 = connectedClientMap.get("n2_v4.8.3_websocket");
             if (targetClientOnNode2 == null) {
                 targetClientOnNode2 = node2.getAllClients().iterator().next();
             }
@@ -697,7 +706,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Positive 13 - Custom Namespace (/admin) Cluster Propagation (16 Clients)")
+    @DisplayName("Positive 13 - Custom Namespace (/admin) Cluster Propagation (exact client matrix)")
     @Test
     public void testDistributedCustomNamespace_Positive() throws Exception {
         final String room = "AdminClusterRoom_" + System.currentTimeMillis();
@@ -715,7 +724,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
         List<JsClientProcess> processes = launchFullClientMatrix("dist_custom_namespace", room, extraArgs);
         try {
-            awaitRoomSync("/admin", room, 16, processes);
+            awaitRoomSync("/admin", room, FULL_MATRIX_CLIENTS, processes);
 
             node1.getNamespace("/admin").getRoomOperations(room).sendEvent("admin-event", adminNonce);
 
@@ -725,12 +734,12 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Positive 14 - Client-Initiated ACK Propagation across Cluster (16 Clients)")
+    @DisplayName("Positive 14 - Client-Initiated ACK Propagation across Cluster (exact client matrix)")
     @Test
     public void testDistributedClientInitiatedAck_Positive() throws Exception {
         final String room = "ClusterClientAckRoom_" + System.currentTimeMillis();
 
-        CountDownLatch ackLatch = new CountDownLatch(16);
+        CountDownLatch ackLatch = new CountDownLatch(FULL_MATRIX_CLIENTS);
         DataListener<String> confirmListener = (client, data, ackRequest) -> ackLatch.countDown();
 
         DataListener<String> reqListener = (client, challenge, ackRequest) -> {
@@ -746,12 +755,13 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
         List<JsClientProcess> processes = launchFullClientMatrix("dist_client_ack", room, new HashMap<>());
         try {
-            awaitRoomSync(room, 16, processes);
+            awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
             node1.getBroadcastOperations().sendEvent("trigger-client-ack");
 
             assertTrue(ackLatch.await(15, TimeUnit.SECONDS),
-                    String.format("Timed out waiting for client-initiated ACKs! Received %d of 16 confirmations.", 16 - ackLatch.getCount()));
+                    String.format("Timed out waiting for client-initiated ACKs! Received %d of %d confirmations.",
+                            FULL_MATRIX_CLIENTS - ackLatch.getCount(), FULL_MATRIX_CLIENTS));
 
             node1.getBroadcastOperations().sendEvent("dist-test-done", "client_ack_check");
             verifyAndCleanUpProcesses(processes, 25);
@@ -764,18 +774,18 @@ public abstract class AbstractDistributedJsClientInteropTest {
         }
     }
 
-    @DisplayName("Positive 15 - Targeted Client Exclusion across Cluster (15/16 Clients Receive)")
+    @DisplayName("Positive 15 - Targeted Client Exclusion across Cluster (all but one matrix client)")
     @Test
     public void testDistributedClientExclusion_Positive() throws Exception {
         final String room = "ClusterExclusionRoom_" + System.currentTimeMillis();
         final String exclusionNonce = "EXCLUSION_NONCE_" + UUID.randomUUID();
-        final String excludedClientName = "n1_v4_websocket";
+        final String excludedClientName = "n1_v4.8.3_websocket";
 
         Map<String, String> extraArgs = new HashMap<>();
         extraArgs.put("excludedClientName", excludedClientName);
         extraArgs.put("exclusionNonce", exclusionNonce);
 
-        CountDownLatch confirmLatch = new CountDownLatch(15);
+        CountDownLatch confirmLatch = new CountDownLatch(FULL_MATRIX_CLIENTS - 1);
         Set<String> confirmedClients = ConcurrentHashMap.newKeySet();
 
         DataListener<String> confirmListener = (client, clientName, ackRequest) -> {
@@ -789,7 +799,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
         List<JsClientProcess> processes = launchFullClientMatrix("dist_client_exclusion", room, extraArgs);
         try {
-            awaitRoomSync(room, 16, processes);
+            awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
             SocketIOClient excludedClient = connectedClientMap.get(excludedClientName);
             assertNotNull(excludedClient, "Must find registered SocketIOClient for " + excludedClientName);
@@ -799,7 +809,8 @@ public abstract class AbstractDistributedJsClientInteropTest {
                     exclusionNonce);
 
             assertTrue(confirmLatch.await(15, TimeUnit.SECONDS),
-                    String.format("Timed out waiting for client exclusion confirmations! Received %d of 15 expected.", confirmedClients.size()));
+                    String.format("Timed out waiting for client exclusion confirmations! Received %d of %d expected.",
+                            confirmedClients.size(), FULL_MATRIX_CLIENTS - 1));
 
             node1.getBroadcastOperations().sendEvent("dist-test-done", "client_exclusion_check");
             verifyAndCleanUpProcesses(processes, 25);
@@ -817,7 +828,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
 
         List<JsClientProcess> processes = launchFullClientMatrix("dist_abrupt_disconnect", room, new HashMap<>());
         try {
-            awaitRoomSync(room, 16, processes);
+            awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
             List<JsClientProcess> crashedProcesses = new ArrayList<>();
             List<JsClientProcess> remainingProcesses = new ArrayList<>();
@@ -846,14 +857,15 @@ public abstract class AbstractDistributedJsClientInteropTest {
                 int n1 = ns1.getRoomClientsInCluster(room);
                 int n2 = ns2.getRoomClientsInCluster(room);
 
-                if (n1 == 12 && n2 == 12) {
+                if (n1 == FULL_MATRIX_CLIENTS - 4 && n2 == FULL_MATRIX_CLIENTS - 4) {
                     cleanedUp = true;
                     break;
                 }
                 Thread.sleep(100);
             }
 
-            assertTrue(cleanedUp, String.format("Cluster room client count must drop from 16 to 12 after abrupt process crash! Node1=%d, Node2=%d",
+            assertTrue(cleanedUp, String.format("Cluster room client count must drop from %d to %d after abrupt process crash! Node1=%d, Node2=%d",
+                    FULL_MATRIX_CLIENTS, FULL_MATRIX_CLIENTS - 4,
                     ns1.getRoomClientsInCluster(room), ns2.getRoomClientsInCluster(room)));
 
             node2.getBroadcastOperations().sendEvent("dist-test-done", "abrupt_disconnect_check");

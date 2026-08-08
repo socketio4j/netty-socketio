@@ -46,6 +46,13 @@ public class AuthPacketTest extends BaseProtocolTest {
     }
 
     @Test
+    public void testV4ConstructorIncludesMaxPayload() {
+        AuthPacket authPacket = new AuthPacket(UUID.randomUUID(), new String[] {"websocket"}, 25000, 5000, 1_000_000);
+
+        assertEquals(1_000_000, authPacket.getMaxPayload());
+    }
+
+    @Test
     public void testConstructorWithEmptyUpgrades() {
         UUID sid = UUID.randomUUID();
         String[] emptyUpgrades = {};

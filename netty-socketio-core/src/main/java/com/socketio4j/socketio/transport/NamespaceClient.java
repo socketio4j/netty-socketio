@@ -48,7 +48,6 @@ public class NamespaceClient implements SocketIOClient {
     public NamespaceClient(ClientHead baseClient, Namespace namespace) {
         this.baseClient = baseClient;
         this.namespace = namespace;
-        namespace.addClient(this);
     }
 
     public ClientHead getBaseClient() {

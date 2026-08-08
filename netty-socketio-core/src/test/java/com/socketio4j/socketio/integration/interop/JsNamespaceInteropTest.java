@@ -15,9 +15,6 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.interop;
-import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
-
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -30,14 +27,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIONamespace;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
 import com.socketio4j.socketio.namespace.Namespace;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
 import static org.junit.Assert.fail;
@@ -134,16 +130,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
     //
 
     @ParameterizedTest(name = "[NS-001] Client v{0} over {1} - Connect Custom Namespace")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testConnectCustomNamespace(String version, String transport) throws Exception {
 
         AtomicInteger connected = new AtomicInteger();
@@ -182,16 +169,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         assertEquals("Hello back!", clientReceived.get(), "Server verified: JS client received Hello back!");
     }
     @ParameterizedTest(name = "[NS-002] Client v{0} over {1} - Reject Unknown Namespace")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testRejectUnknownNamespace(String version, String transport) throws Exception {
 
         AtomicInteger connected = new AtomicInteger();
@@ -208,16 +186,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         assertEquals(0, connected.get());
     }
     @ParameterizedTest(name = "[NS-003] Client v{0} over {1} - Namespace Isolation")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceIsolation(String version, String transport) throws Exception {
 
         AtomicInteger defaultEvents = new AtomicInteger();
@@ -256,16 +225,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[NS-004] Client v{0} over {1} - Multiple Namespace Connections")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testMultipleNamespaceConnections(String version, String transport) throws Exception {
 
         AtomicInteger defaultConnected = new AtomicInteger();
@@ -293,16 +253,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[NS-005] Client v{0} over {1} - Force New Creates Separate Connections")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testForceNewCreatesSeparateConnections(String version, String transport) throws Exception {
 
         AtomicInteger connected = new AtomicInteger();
@@ -321,16 +272,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[NS-006A] Client v{0} over {1} - Client Disconnect Namespace")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testClientDisconnectNamespace(String version, String transport) throws Exception {
 
         AtomicInteger defaultEvents = new AtomicInteger();
@@ -356,16 +298,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[NS-006B] Client v{0} over {1} - Server Disconnect Namespace")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testServerDisconnectNamespace(String version, String transport) throws Exception {
 
         AtomicInteger leaveRequests = new AtomicInteger();
@@ -413,16 +346,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[NS-007] Client v{0} over {1} - Namespace Event Isolation")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceEventIsolation(String version, String transport) throws Exception {
 
         AtomicInteger defaultEvents = new AtomicInteger();
@@ -458,16 +382,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         assertEquals(1, chatEvents.get());
     }
     @ParameterizedTest(name = "[NS-008] Client v{0} over {1} - Namespace ACK Isolation")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceAckIsolation(String version, String transport) throws Exception {
 
         AtomicInteger defaultAckRequests = new AtomicInteger();
@@ -504,16 +419,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
                 "Chat namespace ACK handler should be invoked once");
     }
     @ParameterizedTest(name = "[NS-010] Client v{0} over {1} - Binary Event Isolation")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceBinaryIsolation(String version, String transport) throws Exception {
 
         AtomicInteger defaultBinaryEvents = new AtomicInteger();
@@ -547,16 +453,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         assertEquals(1, chatBinaryEvents.get());
     }
     @ParameterizedTest(name = "[NS-011] Client v{0} over {1} - Concurrent Binary Events")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceConcurrentBinaryEvents(String version, String transport) throws Exception {
 
         AtomicInteger defaultBinaryEvents = new AtomicInteger();
@@ -591,16 +488,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[NS-012] Client v{0} over {1} - Cross Namespace Event Ordering")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceEventOrdering(String version, String transport) throws Exception {
 
         List<String> order = Collections.synchronizedList(new ArrayList<>());
@@ -642,16 +530,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         );
     }
     @ParameterizedTest(name = "[NS-013] Client v{0} over {1} - Room Isolation")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceRoomIsolation(String version, String transport) throws Exception {
 
         AtomicInteger defaultJoin = new AtomicInteger();
@@ -690,16 +569,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[NS-014] Client v{0} over {1} - Room Join/Leave Isolation")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceRoomJoinLeaveIsolation(String version, String transport) throws Exception {
 
         AtomicInteger defaultJoins = new AtomicInteger();
@@ -744,16 +614,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         assertEquals(1, defaultLeaves.get());
     }
     @ParameterizedTest(name = "[NS-015] Client v{0} over {1} - Broadcast Excluding Sender")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceBroadcastExcludeSender(String version, String transport) throws Exception {
 
         AtomicInteger defaultRequests = new AtomicInteger();
@@ -789,16 +650,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         assertEquals(1, chatRequests.get());
     }
     @ParameterizedTest(name = "[NS-016] Client v{0} over {1} - Namespace Reconnection Isolation")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceReconnectIsolation(String version, String transport) throws Exception {
 
         AtomicInteger defaultPings = new AtomicInteger();
@@ -827,16 +679,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         assertEquals(1, defaultPings.get());
     }
     @ParameterizedTest(name = "[NS-017] Client v{0} over {1} - Mixed Packet Isolation")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceMixedPacketIsolation(String version, String transport) throws Exception {
 
         AtomicInteger textEvents = new AtomicInteger();
@@ -872,16 +715,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         assertEquals(1, ackEvents.get());
     }
     @ParameterizedTest(name = "[NS-018] Client v{0} over {1} - Namespace Volatile Event Isolation")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceVolatileIsolation(String version, String transport) throws Exception {
 
         AtomicInteger defaultEvents = new AtomicInteger();
@@ -917,16 +751,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         assertEquals(1, chatEvents.get());
     }
     @ParameterizedTest(name = "[NS-019] Client v{0} over {1} - Mixed ACK/Binary/Broadcast")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceMixedMultiplexing(String version, String transport) throws Exception {
 
         AtomicInteger ackEvents = new AtomicInteger();
@@ -965,16 +790,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[NS-020] Client v{0} over {1} - Namespace Stress Multiplexing")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testNamespaceStressMultiplexing(String version, String transport) throws Exception {
 
         AtomicInteger textEvents = new AtomicInteger();
@@ -1011,12 +827,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[NS-021] Client v{0} - Polling Namespace Disconnect")
-    @ValueSource(strings = {
-            "1",
-            "2",
-            "3",
-            "4"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientVersions")
     void testNamespaceServerDisconnectPolling(String version) throws Exception {
 
         AtomicInteger disconnects = new AtomicInteger();

@@ -30,11 +30,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
@@ -49,6 +51,18 @@ import static org.junit.jupiter.api.Assertions.fail;
 @ResourceLock("NODE_JS_INTEROP")
 @DisplayName("Official JavaScript Socket.IO Client Interoperability Suite (v1, v2, v3, v4)")
 public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
+
+    private static Stream<String> clientVersions() {
+        return JsClientInteropMatrix.clientVersions();
+    }
+
+    private static Stream<Arguments> clientTransports() {
+        return JsClientInteropMatrix.clientTransports();
+    }
+
+    private static Stream<Arguments> clientPollingTransports() {
+        return JsClientInteropMatrix.pollingClientTransports();
+    }
 
     private void runJsTest(String version, String transport, String scenario) throws Exception {
         File jsDir = new File("src/test/resources/js-interop");
@@ -107,16 +121,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Connect Scenario")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsConnect(String version, String transport) throws Exception {
         AtomicBoolean connected = new AtomicBoolean(false);
         com.socketio4j.socketio.listener.ConnectListener listener = client -> connected.set(true);
@@ -130,16 +135,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Text Messaging & Response")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsTextMessaging(String version, String transport) throws Exception {
         AtomicBoolean received = new AtomicBoolean(false);
         AtomicReference<String> clientReceived = new AtomicReference<>();
@@ -162,16 +158,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Client Event Text ACK")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsEventAck(String version, String transport) throws Exception {
         AtomicBoolean received = new AtomicBoolean(false);
         AtomicReference<String> clientAckData = new AtomicReference<>();
@@ -194,16 +181,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Client Event Binary ACK")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsEventAckBinary(String version, String transport) throws Exception {
         AtomicBoolean received = new AtomicBoolean(false);
         AtomicReference<byte[]> clientAckData = new AtomicReference<>();
@@ -226,16 +204,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Server-Initiated Text ACK Callback")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsServerInitiatedAckText(String version, String transport) throws Exception {
         AtomicReference<String> ackReply = new AtomicReference<>();
         CountDownLatch ackLatch = new CountDownLatch(1);
@@ -261,16 +230,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Server-Initiated Binary ACK Callback")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsServerInitiatedAckBinary(String version, String transport) throws Exception {
         AtomicReference<byte[]> ackReply = new AtomicReference<>();
         CountDownLatch ackLatch = new CountDownLatch(1);
@@ -296,16 +256,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Server-Initiated Void ACK Callback")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsServerInitiatedVoidAck(String version, String transport) throws Exception {
         AtomicBoolean voidAckReceived = new AtomicBoolean(false);
         CountDownLatch ackLatch = new CountDownLatch(1);
@@ -331,16 +282,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Server-Initiated MultiType ACK Callback")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsServerInitiatedMultiTypeAck(String version, String transport) throws Exception {
         AtomicReference<String> stringReply = new AtomicReference<>();
         AtomicReference<byte[]> binaryReply = new AtomicReference<>();
@@ -368,12 +310,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         }
     }
     @ParameterizedTest(name = "Client v{0} over {1} - Server Batch Text/Binary/Text")
-    @CsvSource({
-            "1, polling",
-            "2, polling",
-            "3, polling",
-            "4, polling"
-    })
+    @MethodSource("clientPollingTransports")
     public void testJsServerBatchTextBinaryText(String version, String transport) throws Exception {
         java.util.List<String> clientSequence = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
@@ -398,16 +335,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         }
     }
     @ParameterizedTest(name = "Client v{0} over {1} - Binary Payload (byte[])")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsBinaryPayload(String version, String transport) throws Exception {
         AtomicReference<byte[]> receivedData = new AtomicReference<>();
         AtomicReference<byte[]> clientReceivedData = new AtomicReference<>();
@@ -434,16 +362,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Multiple Binary Attachments")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsMultiBinaryAttachments(String version, String transport) throws Exception {
         AtomicReference<byte[]> attachment1 = new AtomicReference<>();
         AtomicReference<byte[]> attachment2 = new AtomicReference<>();
@@ -476,16 +395,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Map/Generic Object")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     @SuppressWarnings("unchecked")
     public void testJsMapObject(String version, String transport) throws Exception {
         AtomicReference<String> receivedName = new AtomicReference<>();
@@ -522,16 +432,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Custom Typed Java POJO Object")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsCustomPojo(String version, String transport) throws Exception {
         AtomicReference<Payload> receivedPayload = new AtomicReference<>();
         AtomicReference<ObjectResponse> clientReceivedPojo = new AtomicReference<>();
@@ -561,16 +462,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Mixed String + Binary Args")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsMixedArgs(String version, String transport) throws Exception {
         AtomicReference<String> receivedText = new AtomicReference<>();
         AtomicReference<byte[]> receivedBytes = new AtomicReference<>();
@@ -604,16 +496,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "Client v{0} over {1} - Real-Life Multi-Level Complex POJO")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     public void testJsComplexCustomPojo(String version, String transport) throws Exception {
         AtomicReference<OrderPayload> receivedOrder = new AtomicReference<>();
         AtomicReference<OrderResponse> clientReceivedOrder = new AtomicReference<>();
@@ -759,16 +642,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[ROOM-001] Client v{0} over {1} - Join Single Room")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     void testJoinSingleRoom(String version, String transport) throws Exception {
 
         AtomicBoolean joined = new AtomicBoolean(false);
@@ -790,16 +664,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
     ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     @ParameterizedTest(name = "[ROOM-002] Client v{0} over {1} - Leave Room")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     void testLeaveRoom(String version, String transport) throws Exception {
 
         AtomicBoolean joined = new AtomicBoolean(false);
@@ -836,16 +701,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[ROOM-003] Client v{0} over {1} - Join Same Room Twice")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     void testJoinSameRoomTwice(String version, String transport) throws Exception {
 
         AtomicInteger joinCount = new AtomicInteger();
@@ -871,16 +727,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
                 "Server should execute both joinRoom() calls");
     }
     @ParameterizedTest(name = "[ROOM-004] Client v{0} over {1} - Leave Room Not Joined")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     void testLeaveRoomNotJoined(String version, String transport) throws Exception {
 
         AtomicBoolean handlerInvoked = new AtomicBoolean();
@@ -909,16 +756,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[ROOM-005] Client v{0} over {1} - Join Multiple Rooms")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     void testJoinMultipleRooms(String version, String transport) throws Exception {
 
         AtomicBoolean joinedRoomA = new AtomicBoolean();
@@ -956,16 +794,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         assertTrue(rooms.get().contains("roomB"), "Client should be in roomB");
     }
     @ParameterizedTest(name = "[ROOM-006] Client v{0} over {1} - Leave One of Multiple Rooms")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     void testLeaveOneOfMultipleRooms(String version, String transport) throws Exception {
 
         AtomicReference<Set<String>> rooms = new AtomicReference<>();
@@ -1002,16 +831,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[ROOM-007] Client v{0} over {1} - Leave All Rooms")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     void testLeaveAllRooms(String version, String transport) throws Exception {
 
         AtomicReference<Set<String>> rooms = new AtomicReference<>();
@@ -1048,16 +868,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
         assertFalse(rooms.get().contains("roomC"));
     }
     @ParameterizedTest(name = "[ROOM-008] Client v{0} over {1} - Auto Remove From Rooms On Disconnect")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("clientTransports")
     void testAutoRemoveRoomsOnDisconnect(String version, String transport) throws Exception {
 
         AtomicReference<Set<String>> roomsBeforeDisconnect = new AtomicReference<>();

@@ -147,7 +147,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
         String[] invalidNumericTypes = {"7", "8", "9"};
         for (String type : invalidNumericTypes) {
             ByteBuf buffer = Unpooled.copiedBuffer(type + "data", CharsetUtil.UTF_8);
-            assertThrows(IllegalStateException.class, () -> decoder.decodePackets(buffer, clientHead));
+            assertThrows(IllegalArgumentException.class, () -> decoder.decodePackets(buffer, clientHead));
             buffer.release();
         }
     }

@@ -25,6 +25,13 @@ const parseArgs = () => {
 };
 
 const args = parseArgs();
+
+function failFast(reason, details = null) {
+    console.error(`[${clientName || "client"} CRITICAL FAILURE] ${reason}`,
+        details ? JSON.stringify(details) : "");
+    process.exit(1);
+}
+
 const clientName = args.clientName || 'client1';
 const version = args.version;
 if (!version) {
@@ -45,19 +52,14 @@ if (!targetRoom) {
 }
 const customNamespace = args.namespace || '';
 
-const failFast = (reason, details = null) => {
-    console.error(`[${clientName} CRITICAL FAILURE] ${reason}`, details ? JSON.stringify(details) : '');
-    process.exit(1);
-};
-
 process.on('uncaughtException', (err) => failFast('Uncaught Exception', err.stack || err));
 process.on('unhandledRejection', (reason) => failFast('Unhandled Rejection', reason));
 
 let io;
 try {
-    io = require(`socket.io-client-v${version}`);
+    io = require("./client-loader").loadSocketIoClient(version).io;
 } catch (e) {
-    failFast(`Failed to load socket.io-client-v${version}`, e.message);
+    failFast(`Failed to load Socket.IO client ${version}`, e.message);
 }
 
 const url = `http://localhost:${port}${customNamespace}`;

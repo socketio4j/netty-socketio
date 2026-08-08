@@ -224,6 +224,9 @@ public class HttpTransportTest {
     server.addEventListener("hello", String.class, (client, data, ackSender) ->
         ackSender.sendAckData(data));
     final String sessionId = connectForSessionId(null);
+    // Socket.IO v5 requires an explicit CONNECT before events are accepted.
+    postMessage(sessionId, "40");
+    assertTrue(pollForListOfResponses(sessionId)[0].startsWith("40"));
     final ArrayList<String> events = new ArrayList<>();
     events.add("420[\"hello\", \"world\"]");
     events.add("421[\"hello\", \"socketio\"]");
@@ -249,6 +252,111 @@ public class HttpTransportTest {
       assertNotNull(response);
       assertTrue(response.startsWith("0{"), "Handshake response should start with Engine.IO OPEN packet '0{'");
     }
+  }
+
+  @Test
+  public void testV4HandshakeAdvertisesRequiredMaxPayload() throws URISyntaxException, IOException {
+    final URI uri = createTestServerUri("EIO=4&transport=polling");
+    HttpURLConnection http = (HttpURLConnection) uri.toURL().openConnection();
+    http.connect();
+
+    assertEquals(200, http.getResponseCode());
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(http.getInputStream(), StandardCharsets.UTF_8))) {
+      JsonNode handshake = mapper.readTree(reader.lines().collect(Collectors.joining("\n")).substring(1));
+      assertEquals(server.getConfiguration().getMaxHttpContentLength(), handshake.get("maxPayload").asInt());
+      assertNotNull(handshake.get("sid"));
+      assertNotNull(handshake.get("upgrades"));
+      assertNotNull(handshake.get("pingInterval"));
+      assertNotNull(handshake.get("pingTimeout"));
+    }
+  }
+
+  @Test
+  public void testInvalidEngineIOVersionAndUnknownSessionAreBadRequest() throws IOException, URISyntaxException {
+    HttpURLConnection missingVersion = (HttpURLConnection) createTestServerUri("transport=polling").toURL().openConnection();
+    missingVersion.connect();
+    assertEquals(400, missingVersion.getResponseCode());
+
+    HttpURLConnection unsupportedVersion = (HttpURLConnection) createTestServerUri("EIO=5&transport=polling").toURL().openConnection();
+    unsupportedVersion.connect();
+    assertEquals(400, unsupportedVersion.getResponseCode());
+
+    HttpURLConnection invalidTransportCase = (HttpURLConnection) createTestServerUri("EIO=4&transport=POLLING").toURL().openConnection();
+    invalidTransportCase.connect();
+    assertEquals(400, invalidTransportCase.getResponseCode());
+
+    HttpURLConnection unknownSession = (HttpURLConnection) createTestServerUri(
+        "EIO=4&transport=polling&sid=00000000-0000-0000-0000-000000000000").toURL().openConnection();
+    unknownSession.connect();
+    assertEquals(400, unknownSession.getResponseCode());
+  }
+
+  @Test
+  public void testInitialPollingHandshakeRequiresGet() throws Exception {
+    for (String method : new String[] { "POST", "PUT" }) {
+      HttpURLConnection request = (HttpURLConnection) createTestServerUri("EIO=4&transport=polling").toURL().openConnection();
+      request.setRequestMethod(method);
+      request.setDoOutput(true);
+      try (OutputStream output = request.getOutputStream()) {
+        output.write(new byte[0]);
+      }
+      assertEquals(400, request.getResponseCode(), method + " must not create an Engine.IO session");
+    }
+  }
+
+  @Test
+  public void testV4PreflightIsStatelessAndBinaryPollingResponsesAreText() throws Exception {
+    HttpURLConnection options = (HttpURLConnection) createTestServerUri("EIO=4&transport=polling").toURL().openConnection();
+    options.setRequestMethod("OPTIONS");
+    options.connect();
+    assertEquals(200, options.getResponseCode());
+    assertEquals(null, options.getHeaderField("Set-Cookie"));
+
+    server.addConnectListener(client -> client.sendEvent("blob", new byte[] { 1, 2, 3 }));
+    String sessionId = connectForSessionId(null);
+    postMessage(sessionId, "40");
+
+    HttpURLConnection poll = (HttpURLConnection) createTestServerUri(
+        "EIO=4&transport=polling&sid=" + sessionId).toURL().openConnection();
+    poll.connect();
+    assertEquals(200, poll.getResponseCode());
+    assertTrue(poll.getHeaderField("Content-Type").contains("text/plain"));
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(poll.getInputStream(), StandardCharsets.UTF_8))) {
+      assertTrue(reader.lines().collect(Collectors.joining("\n")).contains("bAQID"));
+    }
+  }
+
+  @Test
+  public void testV4RejectsRawBinaryPollingPost() throws Exception {
+    String sessionId = connectForSessionId(null);
+    HttpURLConnection post = (HttpURLConnection) createTestServerUri(
+        "EIO=4&transport=polling&sid=" + sessionId).toURL().openConnection();
+    post.setRequestMethod("POST");
+    post.setDoOutput(true);
+    post.setRequestProperty("Content-Type", "application/octet-stream");
+    try (OutputStream output = post.getOutputStream()) {
+      output.write(new byte[] { 4, 1, 2, 3 });
+    }
+
+    assertEquals(400, post.getResponseCode());
+  }
+
+  @Test
+  public void testV4RejectsMalformedPollingPayloadAndClosesSession() throws Exception {
+    String sessionId = connectForSessionId(null);
+    HttpURLConnection malformedPost = (HttpURLConnection) createTestServerUri(
+        "EIO=4&transport=polling&sid=" + sessionId).toURL().openConnection();
+    malformedPost.setRequestMethod("POST");
+    malformedPost.setDoOutput(true);
+    try (OutputStream output = malformedPost.getOutputStream()) {
+      output.write("abc".getBytes(StandardCharsets.UTF_8));
+    }
+    assertEquals(400, malformedPost.getResponseCode());
+
+    HttpURLConnection subsequentPoll = (HttpURLConnection) createTestServerUri(
+        "EIO=4&transport=polling&sid=" + sessionId).toURL().openConnection();
+    subsequentPoll.connect();
+    assertEquals(400, subsequentPoll.getResponseCode());
   }
 
   /**

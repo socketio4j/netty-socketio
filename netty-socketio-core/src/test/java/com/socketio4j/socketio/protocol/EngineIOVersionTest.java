@@ -45,6 +45,15 @@ public class EngineIOVersionTest extends BaseProtocolTest {
     }
 
     @Test
+    public void testSupportedHandshakeVersions() {
+        assertTrue(EngineIOVersion.isSupported("2"));
+        assertTrue(EngineIOVersion.isSupported("3"));
+        assertTrue(EngineIOVersion.isSupported("4"));
+        assertTrue(!EngineIOVersion.isSupported("5"));
+        assertTrue(!EngineIOVersion.isSupported(null));
+    }
+
+    @Test
     public void testFromValueWithInvalidVersions() {
         // Test fromValue with invalid version strings (defaults to V4)
         assertEquals(EngineIOVersion.V4, EngineIOVersion.fromValue("1"));

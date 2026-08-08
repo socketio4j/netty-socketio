@@ -122,8 +122,10 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
     private void write(XHROptionsMessage msg, ChannelHandlerContext ctx, ChannelPromise promise) {
         HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.OK);
 
-        res.headers().add(HttpHeaderNames.SET_COOKIE, "io=" + msg.getSessionId())
-                .add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE)
+        if (msg.getSessionId() != null) {
+            res.headers().add(HttpHeaderNames.SET_COOKIE, "io=" + msg.getSessionId());
+        }
+        res.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE)
                 .add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, HttpHeaderNames.CONTENT_TYPE);
 
         String origin = ctx.channel().attr(ORIGIN).get();
@@ -405,12 +407,14 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             sendMessage(msg, channel, out, type, promise, HttpResponseStatus.OK);
         } else {
             EncodePacketsResult result = encoder.encodePackets(engineIOVersion, queue, out, ctx.alloc(), 50);
+            // Engine.IO v4 polling serializes every binary packet as base64 text
+            // ("b<base64>") in a record-separated text payload. Only the legacy
+            // v2/v3 binary payload format is sent as application/octet-stream.
             String contentType;
-            if (result.hasBinary()) {
+            if (result.hasBinary() && !EngineIOVersion.V4.equals(engineIOVersion))
                 contentType = "application/octet-stream";
-            } else {
+            else
                 contentType = "text/plain";
-            }
 
             if (log.isDebugEnabled()) {
                 log.debug("Using {} encoding, sessionId: {}", contentType, msg.getSessionId());

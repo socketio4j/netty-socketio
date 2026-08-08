@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
 
@@ -108,7 +108,7 @@ public class JsTransportInteropTest extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[UPGRADE-001] JS Client v{0} - Transport Upgrade")
-    @ValueSource(strings = {"1", "2", "3", "4"})
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientVersions")
     void testTransportUpgrade(String version) throws Exception {
 
         AtomicInteger connectCount = new AtomicInteger();

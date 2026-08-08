@@ -18,6 +18,7 @@ package com.socketio4j.socketio.transport;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -77,7 +78,7 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
 
             List<String> transport = queryDecoder.parameters().get("transport");
 
-            if (transport != null && NAME.equals(transport.get(0))) {
+            if (transport != null && transport.size() == 1 && NAME.equals(transport.get(0))) {
                 List<String> sid = queryDecoder.parameters().get("sid");
                 List<String> j = queryDecoder.parameters().get("j");
                 List<String> b64 = queryDecoder.parameters().get("b64");
@@ -88,23 +89,25 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
                 String userAgent = req.headers().get(HttpHeaderNames.USER_AGENT);
                 ctx.channel().attr(EncoderHandler.USER_AGENT).set(userAgent);
 
-                if (j != null && j.get(0) != null) {
-                    Integer index = Integer.valueOf(j.get(0));
-                    ctx.channel().attr(EncoderHandler.JSONP_INDEX).set(index);
-                }
-                if (b64 != null && b64.get(0) != null) {
-                    String flag = b64.get(0);
-                    if ("true".equals(flag)) {
-                        flag = "1";
-                    } else if ("false".equals(flag)) {
-                        flag = "0";
-                    }
-                    Integer enable = Integer.valueOf(flag);
-                    ctx.channel().attr(EncoderHandler.B64).set(enable == 1);
-                }
-
                 try {
-                    if (sid != null && sid.get(0) != null) {
+                    if (j != null && j.size() == 1 && j.get(0) != null) {
+                        Integer index = Integer.valueOf(j.get(0));
+                        ctx.channel().attr(EncoderHandler.JSONP_INDEX).set(index);
+                    }
+                    if (b64 != null && b64.size() == 1 && b64.get(0) != null) {
+                        String flag = b64.get(0);
+                        if ("true".equals(flag)) {
+                            flag = "1";
+                        } else if ("false".equals(flag)) {
+                            flag = "0";
+                        }
+                        Integer enable = Integer.valueOf(flag);
+                        ctx.channel().attr(EncoderHandler.B64).set(enable == 1);
+                    }
+
+                    if (HttpMethod.OPTIONS.equals(req.method())) {
+                        onOptions(ctx, origin);
+                    } else if (sid != null && sid.size() == 1 && sid.get(0) != null) {
                         final UUID sessionId = UUID.fromString(sid.get(0));
                         handleMessage(req, sessionId, queryDecoder, ctx);
                     } else {
@@ -112,8 +115,13 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
                         ClientHead client = ctx.channel().attr(ClientHead.CLIENT).get();
                         if (client != null) {
                             handleMessage(req, client.getSessionId(), queryDecoder, ctx);
+                        } else {
+                            sendError(ctx);
                         }
                     }
+                } catch (IllegalArgumentException e) {
+                    log.debug("Malformed polling query for {}", req.uri(), e);
+                    sendError(ctx);
                 } finally {
                     req.release();
                 }
@@ -128,32 +136,27 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             String origin = req.headers().get(HttpHeaderNames.ORIGIN);
             if (queryDecoder.parameters().containsKey("disconnect")) {
                 ClientHead client = clientsBox.get(sessionId);
+                if (client == null) {
+                    sendError(ctx);
+                    return;
+                }
                 client.onChannelDisconnect();
                 ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId));
             } else if (HttpMethod.POST.equals(req.method())) {
-                onPost(sessionId, ctx, origin, req.content());
+                onPost(sessionId, ctx, origin, req);
             } else if (HttpMethod.GET.equals(req.method())) {
                 onGet(sessionId, ctx, origin);
-            } else if (HttpMethod.OPTIONS.equals(req.method())) {
-                onOptions(sessionId, ctx, origin);
             } else {
                 log.error("Wrong {} method invocation for {}", req.method(), sessionId);
                 sendError(ctx);
             }
     }
 
-    private void onOptions(UUID sessionId, ChannelHandlerContext ctx, String origin) {
-        ClientHead client = clientsBox.get(sessionId);
-        if (client == null) {
-            log.error("{} is not registered. Closing connection", sessionId);
-            sendError(ctx);
-            return;
-        }
-
-        ctx.channel().writeAndFlush(new XHROptionsMessage(origin, sessionId));
+    private void onOptions(ChannelHandlerContext ctx, String origin) {
+        ctx.channel().writeAndFlush(new XHROptionsMessage(origin, null));
     }
 
-    private void onPost(UUID sessionId, ChannelHandlerContext ctx, String origin, ByteBuf content)
+    private void onPost(UUID sessionId, ChannelHandlerContext ctx, String origin, FullHttpRequest req)
                                                                                 throws IOException {
         ClientHead client = clientsBox.get(sessionId);
         if (client == null) {
@@ -162,12 +165,41 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             return;
         }
 
+        String contentType = req.headers().get(HttpHeaderNames.CONTENT_TYPE);
+        if (client.getEngineIOVersion().getValue().equals("4")
+                && contentType != null
+                && contentType.toLowerCase(Locale.ROOT).startsWith("application/octet-stream")) {
+            log.debug("Rejecting raw binary Engine.IO v4 polling POST for session {}", sessionId);
+            client.onChannelDisconnect();
+            sendError(ctx);
+            return;
+        }
+
+        // Engine.IO v4 polling is a record-separated text payload. Reject an
+        // invalid Engine.IO frame before acknowledging the POST so the client
+        // receives the protocol-mandated 400 and the session cannot be reused.
+        if (client.getEngineIOVersion().getValue().equals("4")
+                && !isValidV4PollingPayload(req.content())) {
+            log.debug("Rejecting malformed Engine.IO v4 polling payload for session {}", sessionId);
+            client.onChannelDisconnect();
+            sendError(ctx);
+            return;
+        }
+
+        if (!client.tryAcquirePollingPost()) {
+            log.debug("Rejecting overlapping polling POST for session {}", sessionId);
+            client.onChannelDisconnect();
+            sendError(ctx);
+            return;
+        }
+
         // FullHttpRequest is reference-counted and can be released by upstream.
         // Retain the content since we pass it further down the pipeline.
-        content = content.retain();
+        ByteBuf content = req.content().retain();
 
         // release POST response before message processing
-        ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId));
+        ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId))
+                .addListener(future -> client.releasePollingPost());
 
         Boolean b64 = ctx.channel().attr(EncoderHandler.B64).get();
         if (b64 != null && b64) {
@@ -190,6 +222,29 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         }
     }
 
+    private boolean isValidV4PollingPayload(ByteBuf content) {
+        if (!content.isReadable()) {
+            return false;
+        }
+        int frameStart = content.readerIndex();
+        int end = content.writerIndex();
+        for (int i = frameStart; i <= end; i++) {
+            if (i == end || content.getByte(i) == 0x1E) {
+                if (i == frameStart) {
+                    return false;
+                }
+                byte type = content.getByte(frameStart);
+                // "b" is the v4 polling binary frame marker. Other frames
+                // begin with the ASCII Engine.IO packet type (0 through 6).
+                if (type != 'b' && (type < '0' || type > '6')) {
+                    return false;
+                }
+                frameStart = i + 1;
+            }
+        }
+        return true;
+    }
+
     protected void onGet(UUID sessionId, ChannelHandlerContext ctx, String origin) {
         ClientHead client = clientsBox.get(sessionId);
         if (client == null) {
@@ -198,13 +253,18 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        client.bindChannel(ctx.channel(), Transport.POLLING);
+        if (!client.tryBindPollingChannel(ctx.channel())) {
+            log.debug("Rejecting overlapping polling GET for session {}", sessionId);
+            client.onChannelDisconnect();
+            sendError(ctx);
+            return;
+        }
 
         authorizeHandler.connect(client);
     }
 
     private void sendError(ChannelHandlerContext ctx) {
-        HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+        HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.BAD_REQUEST);
         ctx.channel().writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
     }
 

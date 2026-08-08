@@ -31,23 +31,11 @@ const transport = args.transport;
 const clientCount = parseInt(args.clients || "2", 10);
 
 let io;
-
-switch (version) {
-    case "1":
-        io = require("socket.io-client-v1");
-        break;
-    case "2":
-        io = require("socket.io-client-v2");
-        break;
-    case "3":
-        io = require("socket.io-client-v3");
-        break;
-    case "4":
-        io = require("socket.io-client-v4");
-        break;
-    default:
-        console.error("Unsupported version:", version);
-        process.exit(1);
+try {
+    ({ io } = require("./client-loader").loadSocketIoClient(version));
+} catch (e) {
+    console.error(e.message || e);
+    process.exit(1);
 }
 
 const url = `http://localhost:${port}`;

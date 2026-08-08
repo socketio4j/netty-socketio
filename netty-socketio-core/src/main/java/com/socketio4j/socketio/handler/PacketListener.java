@@ -45,6 +45,62 @@ public class PacketListener {
         this.scheduler = scheduler;
     }
 
+    /**
+     * Handles Engine.IO packets that are valid before any Socket.IO namespace has
+     * been connected. Engine.IO ping/pong and transport upgrade are session-level
+     * concerns, while {@link #onPacket(Packet, NamespaceClient, Transport)} handles
+     * the namespace-scoped Socket.IO message layer.
+     */
+    public void onTransportPacket(Packet packet, ClientHead client, Transport transport) {
+        switch (packet.getType()) {
+        case PING: {
+            Packet outPacket = new Packet(PacketType.PONG);
+            outPacket.setData(packet.getData());
+            client.send(outPacket, transport);
+            if ("probe".equals(packet.getData())) {
+                client.send(new Packet(PacketType.NOOP), Transport.POLLING);
+            } else {
+                client.schedulePingTimeout();
+            }
+            notifyPing(client, packet, true);
+            break;
+        }
+        case PONG:
+            client.schedulePingTimeout();
+            notifyPing(client, packet, false);
+            break;
+
+        case UPGRADE:
+            client.schedulePingTimeout();
+            scheduler.cancel(new SchedulerKey(SchedulerKey.Type.UPGRADE_TIMEOUT, client.getSessionId()));
+            client.upgradeCurrentTransport(transport);
+            break;
+
+        case CLOSE:
+            client.onChannelDisconnect();
+            break;
+
+        default:
+            break;
+        }
+    }
+
+    private void notifyPing(ClientHead client, Packet packet, boolean ping) {
+        Namespace namespace = namespacesHub.get(packet.getNsp());
+        if (namespace == null) {
+            return;
+        }
+        NamespaceClient namespaceClient = client.getChildClient(namespace);
+        if (namespaceClient == null) {
+            return;
+        }
+        if (ping) {
+            namespace.onPing(namespaceClient);
+        } else {
+            namespace.onPong(namespaceClient);
+        }
+    }
+
     public void onPacket(Packet packet, NamespaceClient client, Transport transport) {
         final AckRequest ackRequest = new AckRequest(packet, client);
 

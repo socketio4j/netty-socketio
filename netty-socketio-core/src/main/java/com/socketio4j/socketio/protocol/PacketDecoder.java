@@ -59,6 +59,37 @@ public class PacketDecoder {
     }
 
     /**
+     * Engine.IO v2/v3 encodes a polling payload containing binary as a series
+     * of frames: {@code <0 = string | 1 = binary><byte-valued length><0xFF><data>}.
+     * The length digits are bytes in the 0..9 range, not ASCII characters.
+     */
+    private boolean hasLegacyBinaryPayloadHeader(ByteBuf buffer) {
+        if (buffer.readableBytes() < 3) {
+            return false;
+        }
+
+        int readerIndex = buffer.readerIndex();
+        byte marker = buffer.getByte(readerIndex);
+        if (marker != 0 && marker != 1) {
+            return false;
+        }
+
+        int maxHeaderLength = Math.min(buffer.readableBytes(), 12);
+        int separatorIndex = buffer.bytesBefore(maxHeaderLength, (byte) -1);
+        if (separatorIndex <= 1) {
+            return false;
+        }
+
+        for (int i = 1; i < separatorIndex; i++) {
+            byte digit = buffer.getByte(readerIndex + i);
+            if ((digit < 0 || digit > 9) && (digit < '0' || digit > '9')) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * True zero-copy optimized version of preprocessJson that works directly with ByteBuf
      * without string conversion and without creating new ByteBuf instances.
      * 
@@ -199,25 +230,70 @@ public class PacketDecoder {
 
     // fastest way to parse chars to int
     private long readLong(ByteBuf chars, int length) {
+        if (length < 0 || length > chars.readableBytes()) {
+            throw new IllegalArgumentException("Invalid numeric field length: " + length);
+        }
         long result = 0;
         for (int i = chars.readerIndex(); i < chars.readerIndex() + length; i++) {
-            int digit = (chars.getByte(i) & 0xF);
-            for (int j = 0; j < chars.readerIndex() + length-1-i; j++) {
-                digit *= 10;
+            byte value = chars.getByte(i);
+            if (value < '0' || value > '9') {
+                throw new IllegalArgumentException("Non-decimal byte in numeric packet field: " + (char) value);
             }
-            result += digit;
+            int digit = value - '0';
+            if (result > (Long.MAX_VALUE - digit) / 10) {
+                throw new IllegalArgumentException("Numeric packet field overflow");
+            }
+            result = result * 10 + digit;
+        }
+        chars.readerIndex(chars.readerIndex() + length);
+        return result;
+    }
+
+    /**
+     * Engine.IO v2/v3's XHR2 binary wrapper encodes its length as either
+     * byte-valued digits (0..9) or ASCII digits.  This representation is
+     * specific to that wrapper; all text packet headers use {@link #readLong}
+     * and must contain ASCII decimal characters.
+     */
+    private long readLegacyBinaryLength(ByteBuf chars, int length) {
+        if (length < 0 || length > chars.readableBytes()) {
+            throw new IllegalArgumentException("Invalid legacy binary length: " + length);
+        }
+        long result = 0;
+        for (int i = chars.readerIndex(); i < chars.readerIndex() + length; i++) {
+            byte value = chars.getByte(i);
+            int digit;
+            if (value >= 0 && value <= 9) {
+                digit = value;
+            } else if (value >= '0' && value <= '9') {
+                digit = value - '0';
+            } else {
+                throw new IllegalArgumentException("Non-decimal byte in legacy binary length: " + value);
+            }
+            if (result > (Long.MAX_VALUE - digit) / 10) {
+                throw new IllegalArgumentException("Legacy binary length overflow");
+            }
+            result = result * 10 + digit;
         }
         chars.readerIndex(chars.readerIndex() + length);
         return result;
     }
 
     private PacketType readType(ByteBuf buffer) {
-        int typeId = buffer.readByte() & 0xF;
+        byte value = buffer.readByte();
+        if (value < '0' || value > '6') {
+            throw new IllegalArgumentException("Invalid Engine.IO packet type: " + (char) value);
+        }
+        int typeId = value - '0';
         return PacketType.valueOf(typeId);
     }
 
     private PacketType readInnerType(ByteBuf buffer) {
-        int typeId = buffer.readByte() & 0xF;
+        byte value = buffer.readByte();
+        if (value < '0' || value > '6') {
+            throw new IllegalArgumentException("Invalid Socket.IO packet type: " + (char) value);
+        }
+        int typeId = value - '0';
         return PacketType.valueOfInner(typeId);
     }
 
@@ -242,6 +318,10 @@ public class PacketDecoder {
                                           ClientHead client,
                                           Transport transport) throws IOException {
 
+        if (transport == Transport.POLLING && hasLegacyBinaryPayloadHeader(buffer)) {
+            return decodeLegacyBinaryPayload(buffer, client, transport);
+        }
+
         Packet pending = client.getLastBinaryPacket();
 
         if (pending != null
@@ -262,6 +342,47 @@ public class PacketDecoder {
         }
 
         return decode(client, buffer, transport);
+    }
+
+    private Packet decodeLegacyBinaryPayload(ByteBuf buffer,
+                                             ClientHead client,
+                                             Transport transport) throws IOException {
+        byte marker = buffer.readByte();
+        int maxHeaderLength = Math.min(buffer.readableBytes(), 11);
+        int lengthHeaderSize = buffer.bytesBefore(maxHeaderLength, (byte) -1);
+        if (lengthHeaderSize <= 0) {
+            throw new IOException("Malformed legacy polling payload: missing length separator");
+        }
+
+        long rawLength = readLegacyBinaryLength(buffer, lengthHeaderSize);
+        if (rawLength < 0 || rawLength > Integer.MAX_VALUE) {
+            throw new IOException("Malformed legacy polling payload: length overflow " + rawLength);
+        }
+        if (!buffer.isReadable() || buffer.readByte() != (byte) -1) {
+            throw new IOException("Malformed legacy polling payload: missing 0xFF separator");
+        }
+
+        int length = (int) rawLength;
+        if (length > buffer.readableBytes()) {
+            throw new IOException("Malformed legacy polling payload: length " + length
+                    + " exceeds remaining bytes " + buffer.readableBytes());
+        }
+        ByteBuf payload = buffer.readSlice(length);
+
+        if (marker == 0) {
+            Packet pending = client.getLastBinaryPacket();
+            if (pending != null && pending.hasAttachments() && !pending.isAttachmentsLoaded()
+                    && payload.isReadable() && payload.getByte(payload.readerIndex()) == 'b') {
+                return addAttachment(client, payload, pending, transport);
+            }
+            return decode(client, payload, transport);
+        }
+
+        Packet pending = client.getLastBinaryPacket();
+        if (pending == null || !pending.hasAttachments() || pending.isAttachmentsLoaded()) {
+            throw new IOException("Unexpected binary Engine.IO polling payload without a pending attachment packet");
+        }
+        return addLegacyPollingBinaryAttachment(client, payload, pending);
     }
 
     /**
@@ -513,7 +634,7 @@ public class PacketDecoder {
                             throw new IOException("Malformed polling wrapper: non-digit character in length header");
                         }
                     }
-                    long rawLen = readLong(frame, headEndIndex);
+                    long rawLen = readLegacyBinaryLength(frame, headEndIndex);
                     if (rawLen < 0 || rawLen > Integer.MAX_VALUE) {
                         throw new IOException("Malformed polling wrapper: length overflow " + rawLen);
                     }
@@ -592,40 +713,60 @@ public class PacketDecoder {
             frame.skipBytes(frame.readableBytes());
         }
 
-        if (binaryPacket.isAttachmentsLoaded()) {
-            LinkedList<ByteBuf> slices = new LinkedList<>();
-            ByteBuf source = head.getLastBinaryPacketSource();
-            for (int i = 0; i < binaryPacket.getAttachments().size(); i++) {
-                ByteBuf attachment = binaryPacket.getAttachments().get(i);
-                ByteBuf scanValue = Unpooled.copiedBuffer("{\"_placeholder\":true,\"num\":" + i + "}", CharsetUtil.UTF_8);
-                int pos = PacketEncoder.find(source, scanValue);
-                if (pos == -1) {
-                    scanValue = Unpooled.copiedBuffer("{\"num\":" + i + ",\"_placeholder\":true}", CharsetUtil.UTF_8);
-                    pos = PacketEncoder.find(source, scanValue);
-                    if (pos == -1) {
-                        throw new IllegalStateException("Can't find attachment by index: " + i + " in packet source");
-                    }
-                }
+        return completeAttachment(head, binaryPacket);
+    }
 
-                ByteBuf prefixBuf = source.slice(source.readerIndex(), pos - source.readerIndex());
-                slices.add(prefixBuf);
-                slices.add(quotes);
-                slices.add(attachment);
-                slices.add(quotes);
-
-                source.readerIndex(pos + scanValue.readableBytes());
-            }
-            slices.add(source.slice());
-
-            ByteBuf compositeBuf = Unpooled.wrappedBuffer(slices.toArray(new ByteBuf[0]));
-            try {
-                parseBody(head, compositeBuf, binaryPacket);
-            } finally {
-                head.clearPendingBinaryPacket();
-            }
-            return binaryPacket;
+    private Packet addLegacyPollingBinaryAttachment(ClientHead head,
+                                                    ByteBuf payload,
+                                                    Packet binaryPacket) throws IOException {
+        if (payload.isReadable() && payload.getByte(payload.readerIndex()) == 4) {
+            payload.skipBytes(1);
         }
-        return new Packet(PacketType.MESSAGE);
+        ByteBuf attachment = Base64.encode(payload);
+        try {
+            binaryPacket.addAttachment(Unpooled.copiedBuffer(attachment));
+        } finally {
+            attachment.release();
+        }
+        return completeAttachment(head, binaryPacket);
+    }
+
+    private Packet completeAttachment(ClientHead head, Packet binaryPacket) throws IOException {
+        if (!binaryPacket.isAttachmentsLoaded()) {
+            return new Packet(PacketType.MESSAGE);
+        }
+
+        LinkedList<ByteBuf> slices = new LinkedList<>();
+        ByteBuf source = head.getLastBinaryPacketSource();
+        for (int i = 0; i < binaryPacket.getAttachments().size(); i++) {
+            ByteBuf attachment = binaryPacket.getAttachments().get(i);
+            ByteBuf scanValue = Unpooled.copiedBuffer("{\"_placeholder\":true,\"num\":" + i + "}", CharsetUtil.UTF_8);
+            int pos = PacketEncoder.find(source, scanValue);
+            if (pos == -1) {
+                scanValue = Unpooled.copiedBuffer("{\"num\":" + i + ",\"_placeholder\":true}", CharsetUtil.UTF_8);
+                pos = PacketEncoder.find(source, scanValue);
+                if (pos == -1) {
+                    throw new IllegalStateException("Can't find attachment by index: " + i + " in packet source");
+                }
+            }
+
+            ByteBuf prefixBuf = source.slice(source.readerIndex(), pos - source.readerIndex());
+            slices.add(prefixBuf);
+            slices.add(quotes);
+            slices.add(attachment);
+            slices.add(quotes);
+
+            source.readerIndex(pos + scanValue.readableBytes());
+        }
+        slices.add(source.slice());
+
+        ByteBuf compositeBuf = Unpooled.wrappedBuffer(slices.toArray(new ByteBuf[0]));
+        try {
+            parseBody(head, compositeBuf, binaryPacket);
+        } finally {
+            head.clearPendingBinaryPacket();
+        }
+        return binaryPacket;
     }
 
     private void parseBody(ClientHead head, ByteBuf frame, Packet packet) throws IOException {

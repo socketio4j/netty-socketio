@@ -84,6 +84,16 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                              client.getSessionId(), packet.hasAttachments());
                 }
 
+                // Engine.IO control packets are connection-level packets: they are not
+                // scoped to a Socket.IO namespace. In particular, an Engine.IO v4 client
+                // is required to reply to the server PING before it sends its Socket.IO
+                // CONNECT packet, so routing them through NamespaceClient would silently
+                // drop a perfectly valid PONG from a newly opened connection.
+                if (packet.getType() != PacketType.MESSAGE) {
+                    packetListener.onTransportPacket(packet, client, message.getTransport());
+                    continue;
+                }
+
                 Namespace ns = namespacesHub.get(packet.getNsp());
                 if (ns == null) {
                     if (packet.getSubType() == PacketType.CONNECT) {
@@ -107,17 +117,24 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                         log.debug("Processing CONNECT packet for namespace: {} from client: {}, Engine.IO version: {}", 
                                  ns.getName(), client.getSessionId(), client.getEngineIOVersion());
                     }
-                    client.addNamespaceClient(ns);
-                    NamespaceClient nClient = client.getChildClient(ns);
-                    //:TODO lyjnew client namespace send connect packet 0+namespace  socket io v4
-                    // https://socket.io/docs/v4/socket-io-protocol/#connection-to-a-namespace
+                    NamespaceClient nClient = new NamespaceClient(client, ns);
                     if (EngineIOVersion.V4.equals(client.getEngineIOVersion())) {
-                        handleV4Connect(packet, client, ns, nClient);
+                        if (!handleV4Connect(packet, client, ns, nClient)) {
+                            return;
+                        }
                     }
+                    client.addNamespaceClient(nClient);
                 }
 
                 NamespaceClient nClient = client.getChildClient(ns);
                 if (nClient == null) {
+                    if (EngineIOVersion.V4.equals(client.getEngineIOVersion())) {
+                        // Socket.IO protocol v5 requires CONNECT before any other
+                        // Socket.IO packet on a namespace. Do not let an unconnected
+                        // client emit events or ACKs into application code.
+                        client.onChannelDisconnect();
+                        ctx.close();
+                    }
                     log.debug("Can't find namespace client in namespace: {}, sessionId: {} probably it was disconnected.", ns.getName(), client.getSessionId());
                     return;
                 }
@@ -204,7 +221,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         }
     }
 
-    private void handleV4Connect(Packet packet, ClientHead client, Namespace ns, NamespaceClient nClient) {
+    private boolean handleV4Connect(Packet packet, ClientHead client, Namespace ns, NamespaceClient nClient) {
         if (log.isDebugEnabled()) {
             log.debug("Starting Engine.IO v4 connect handling for client: {}, namespace: {}, hasAuthData: {}", 
                      client.getSessionId(), ns.getName(), packet.getData() != null);
@@ -234,7 +251,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                 p.setNsp(packet.getNsp());
                 p.setData(toConnectErrorPayload(allowAuth.getErrorData()));
                 client.send(p);
-                return;
+                return false;
             }
         } else {
             if (log.isDebugEnabled()) {
@@ -251,6 +268,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
             log.debug("Completed Engine.IO v4 connect handling for client: {}, namespace: {}", 
                      client.getSessionId(), ns.getName());
         }
+        return true;
     }
 
     /**

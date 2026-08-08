@@ -55,6 +55,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @ResourceLock("NODE_JS_INTEROP")
 public class BrowserInteropTest {
 
+    private static final int BROWSER_COUNT = 3;
+    private static final int CLIENT_VERSION_COUNT = JsClientInteropMatrix.VERSIONS.size();
+    private static final int EIO3_CLIENT_VERSION_COUNT = 5;
+    private static final int TRANSPORT_COUNT = 2;
+    private static final int NAMESPACE_COUNT = 2;
+    private static final int EVENT_TYPE_COUNT = 6;
+
     private static final byte[] EXPECTED_BINARY = {
             0, 1, 2, 3, 4, 5, 10, 20, 30, 40,
             50, 60, 70, 80, 90, 100,
@@ -513,18 +520,12 @@ public class BrowserInteropTest {
     }
     private static void verifyEvents() {
 
-        final int browsers = 3;
-        final int clientVersions = 4;
-        final int transports = 2;
-        final int namespaces = 2;
-        final int eventTypes = 6;
-
         final int expectedEvents =
-                browsers *
-                        clientVersions *
-                        transports *
-                        namespaces *
-                        eventTypes;
+                BROWSER_COUNT *
+                        CLIENT_VERSION_COUNT *
+                        TRANSPORT_COUNT *
+                        NAMESPACE_COUNT *
+                        EVENT_TYPE_COUNT;
 
         assertEquals(
                 expectedEvents,
@@ -547,11 +548,15 @@ public class BrowserInteropTest {
         Awaitility.await()
                 .atMost(Duration.ofSeconds(5))
                 .until(() ->
-                        CONNECTS.get() == 48 &&
-                                DISCONNECTS.get() == 48);
+                        CONNECTS.get() == BROWSER_COUNT * CLIENT_VERSION_COUNT *
+                                TRANSPORT_COUNT * NAMESPACE_COUNT &&
+                                DISCONNECTS.get() == BROWSER_COUNT * CLIENT_VERSION_COUNT *
+                                        TRANSPORT_COUNT * NAMESPACE_COUNT);
 
-        assertEquals(48, CONNECTS.get());
-        assertEquals(48, DISCONNECTS.get());
+        assertEquals(BROWSER_COUNT * CLIENT_VERSION_COUNT * TRANSPORT_COUNT * NAMESPACE_COUNT,
+                CONNECTS.get());
+        assertEquals(BROWSER_COUNT * CLIENT_VERSION_COUNT * TRANSPORT_COUNT * NAMESPACE_COUNT,
+                DISCONNECTS.get());
     }
     private static void verifyNamespaceDistribution() {
 
@@ -593,9 +598,10 @@ public class BrowserInteropTest {
 
         }
 
-        assertEquals(144, polling);
-        assertEquals(144, websocket);
-        assertEquals(288, EVENTS.size());
+        assertEquals(EVENTS.size() / TRANSPORT_COUNT, polling);
+        assertEquals(EVENTS.size() / TRANSPORT_COUNT, websocket);
+        assertEquals(BROWSER_COUNT * CLIENT_VERSION_COUNT * TRANSPORT_COUNT *
+                NAMESPACE_COUNT * EVENT_TYPE_COUNT, EVENTS.size());
     }
     private static void verifyEngineIOVersions() {
 
@@ -621,9 +627,12 @@ public class BrowserInteropTest {
             }
         }
 
-        assertEquals(288, EVENTS.size());
-        assertEquals(144, v3);
-        assertEquals(144, v4);
+        assertEquals(BROWSER_COUNT * CLIENT_VERSION_COUNT * TRANSPORT_COUNT *
+                NAMESPACE_COUNT * EVENT_TYPE_COUNT, EVENTS.size());
+        assertEquals(BROWSER_COUNT * EIO3_CLIENT_VERSION_COUNT * TRANSPORT_COUNT *
+                NAMESPACE_COUNT * EVENT_TYPE_COUNT, v3);
+        assertEquals(BROWSER_COUNT * (CLIENT_VERSION_COUNT - EIO3_CLIENT_VERSION_COUNT) *
+                TRANSPORT_COUNT * NAMESPACE_COUNT * EVENT_TYPE_COUNT, v4);
     }
     private static void verifyOrdering() {
 

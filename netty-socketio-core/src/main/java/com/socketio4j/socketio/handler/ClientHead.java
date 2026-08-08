@@ -66,6 +66,7 @@ public class ClientHead {
     public static final AttributeKey<ClientHead> CLIENT = AttributeKey.<ClientHead>valueOf("client");
 
     private final AtomicBoolean disconnected = new AtomicBoolean();
+    private final AtomicBoolean pollingPostActive = new AtomicBoolean();
     private final Map<Namespace, NamespaceClient> namespaceClients = new ConcurrentHashMap<>();
     private final Map<Transport, TransportState> channels = new HashMap<Transport, TransportState>(2);
     private final HandshakeData handshakeData;
@@ -121,6 +122,40 @@ public class ClientHead {
         clientsBox.add(channel, this);
 
         sendPackets(transport, channel);
+    }
+
+    /**
+     * Binds the outstanding long-poll response, rejecting a second concurrent
+     * GET instead of replacing the first response channel.
+     */
+    public synchronized boolean tryBindPollingChannel(Channel channel) {
+        TransportState state = channels.get(Transport.POLLING);
+        Channel current = state.getChannel();
+        if (current != null && current != channel && current.isActive()) {
+            return false;
+        }
+        bindChannel(channel, Transport.POLLING);
+        return true;
+    }
+
+    /** Engine.IO permits only one WebSocket connection for a session. */
+    public synchronized boolean tryBindWebSocketChannel(Channel channel) {
+        TransportState state = channels.get(Transport.WEBSOCKET);
+        Channel current = state.getChannel();
+        if (current != null && current != channel && current.isActive()) {
+            return false;
+        }
+        bindChannel(channel, Transport.WEBSOCKET);
+        return true;
+    }
+
+    /** Engine.IO permits only one polling POST to be active for a session. */
+    public boolean tryAcquirePollingPost() {
+        return pollingPostActive.compareAndSet(false, true);
+    }
+
+    public void releasePollingPost() {
+        pollingPostActive.set(false);
     }
 
     public void releasePollingChannel(Channel channel) {
@@ -217,7 +252,20 @@ public class ClientHead {
 
     public NamespaceClient addNamespaceClient(Namespace namespace) {
         NamespaceClient client = new NamespaceClient(this, namespace);
-        namespaceClients.put(namespace, client);
+        return addNamespaceClient(client);
+    }
+
+    /**
+     * Registers a namespace client after protocol-level validation has succeeded.
+     * A Socket.IO v5 CONNECT carrying authentication data must not become visible to
+     * namespace listeners before that authentication has been accepted.
+     */
+    public NamespaceClient addNamespaceClient(NamespaceClient client) {
+        NamespaceClient existing = namespaceClients.putIfAbsent(client.getNamespace(), client);
+        if (existing != null) {
+            return existing;
+        }
+        client.getNamespace().addClient(client);
         return client;
     }
 
@@ -269,14 +317,24 @@ public class ClientHead {
     }
 
     public void onChannelDisconnect() {
+        if (!disconnected.compareAndSet(false, true)) {
+            return;
+        }
         notifyPollFlushed();
         cancelPing();
         cancelPingTimeout();
         clearPendingBinaryPacket();
 
-        disconnected.set(true);
+        boolean hasNamespaceClients = !namespaceClients.isEmpty();
         for (NamespaceClient client : namespaceClients.values()) {
             client.onDisconnect();
+        }
+        // EIO4 does not connect a Socket.IO namespace until the client sends
+        // "40". A failed or abandoned handshake therefore still needs to
+        // remove its ClientHead and destroy its store even though there is no
+        // NamespaceClient whose disconnect callback could do that work.
+        if (!hasNamespaceClients) {
+            disconnectableHub.onDisconnect(this);
         }
         for (Transport transport : Transport.values()) {
             TransportState state = channels.get(transport);

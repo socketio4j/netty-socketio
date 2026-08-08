@@ -28,7 +28,7 @@ const scenario = args.scenario;
 if (!version || !port || !scenario) {
     console.error(
         "Usage: node test-clients-transport.js " +
-        "--version=<1|2|3|4> " +
+        "--version=<exact Socket.IO client version> " +
         "--port=<port> " +
         "--scenario=<scenario>"
     );
@@ -36,18 +36,7 @@ if (!version || !port || !scenario) {
 }
 
 function loadSocketIoClient(version) {
-    switch (version) {
-        case "1":
-            return require("socket.io-client-v1");
-        case "2":
-            return require("socket.io-client-v2");
-        case "3":
-            return require("socket.io-client-v3");
-        case "4":
-            return require("socket.io-client-v4");
-        default:
-            throw new Error("Unsupported Socket.IO client version: " + version);
-    }
+    return require("./client-loader").loadSocketIoClient(version).io;
 }
 
 const io = loadSocketIoClient(version);

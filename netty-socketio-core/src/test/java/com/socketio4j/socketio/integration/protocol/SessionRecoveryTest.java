@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test;
 
 
 import com.socketio4j.socketio.SocketIOClient;
+import com.socketio4j.socketio.SocketIONamespace;
 import com.socketio4j.socketio.listener.ConnectListener;
 import com.socketio4j.socketio.listener.DisconnectListener;
 
@@ -199,8 +200,10 @@ public class SessionRecoveryTest extends AbstractSocketIOIntegrationTest {
         // Test session recovery with custom namespace
         AtomicReference<SocketIOClient> connectedClient = new AtomicReference<>();
         AtomicReference<Boolean> reconnected = new AtomicReference<>(false);
+        String namespaceName = generateNamespaceName("session-recovery");
+        SocketIONamespace namespace = getServer().addNamespace(namespaceName);
 
-        getServer().addConnectListener(new ConnectListener() {
+        namespace.addConnectListener(new ConnectListener() {
             @Override
             public void onConnect(SocketIOClient client) {
                 if (connectedClient.get() == null) {
@@ -221,7 +224,7 @@ public class SessionRecoveryTest extends AbstractSocketIOIntegrationTest {
             options.reconnectionAttempts = 3;
             options.reconnectionDelay = 1000;
 
-            client = IO.socket("http://localhost:" + getServerPort() + "/custom", options);
+            client = IO.socket("http://localhost:" + getServerPort() + namespaceName, options);
         } catch (Exception e) {
             throw new RuntimeException("Failed to create socket client", e);
         }

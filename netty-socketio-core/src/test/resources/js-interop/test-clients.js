@@ -41,19 +41,14 @@ if (!scenario) {
 console.log(`Running JS Client Interop Test: version=v${version}, port=${port}, transport=${transport}, scenario=${scenario}`);
 
 let io;
-if (version === '1') {
-    io = require('socket.io-client-v1');
-} else if (version === '2') {
-    io = require('socket.io-client-v2');
-} else if (version === '3') {
-    io = require('socket.io-client-v3');
-} else if (version === '4') {
-    io = require('socket.io-client-v4');
-} else {
-    console.error(`Unsupported client version: ${version}`);
-    process.exit(1);
+let clientPackage;
+let pkg;
+try {
+    ({ io, clientPackage, packageMetadata: pkg } =
+        require("./client-loader").loadSocketIoClient(version));
+} catch (e) {
+    failFast(e.message || e);
 }
-const pkg = require(`socket.io-client-v${version}/package.json`);
 
 console.log("====================================");
 console.log("Requested client :", version);
@@ -83,7 +78,7 @@ socket.on('connect', () => {
         console.log("Transport        :", socket.io.engine.transport.name);
 
         try {
-            const eio = require(`socket.io-client-v${version}/node_modules/engine.io-client/package.json`);
+            const eio = require(`${clientPackage}/node_modules/engine.io-client/package.json`);
             console.log("Engine.IO client:", eio.version);
         } catch (e) {
             console.log("Engine.IO package not directly accessible");

@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
 
@@ -99,16 +99,7 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
         }
     }
     @ParameterizedTest(name = "[BCAST-001] Client v{0} over {1} - Broadcast To All Clients")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testBroadcastToAllClients(String version, String transport) throws Exception {
 
         AtomicInteger startedClients = new AtomicInteger();
@@ -143,16 +134,7 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
         }
     }
     @ParameterizedTest(name = "[BCAST-002] Client v{0} over {1} - Broadcast Excluding Client")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testBroadcastExcludeClient(String version, String transport) throws Exception {
 
         AtomicInteger startEvents = new AtomicInteger();
@@ -191,16 +173,7 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
     }
 
     @ParameterizedTest(name = "[BCAST-003] Client v{0} over {1} - Broadcast Excluding Predicate")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testBroadcastExcludePredicate(String version, String transport) throws Exception {
 
         AtomicInteger startEvents = new AtomicInteger();
@@ -238,16 +211,7 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
         }
     }
     @ParameterizedTest(name = "[BCAST-004] Client v{0} over {1} - Broadcast To Room")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testBroadcastToRoom(String version, String transport) throws Exception {
 
         AtomicInteger started = new AtomicInteger();
@@ -299,16 +263,7 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
         }
     }
     @ParameterizedTest(name = "[BCAST-005] Client v{0} over {1} - Broadcast To Empty Room")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testBroadcastToEmptyRoom(String version, String transport) throws Exception {
 
         AtomicInteger started = new AtomicInteger();
@@ -351,16 +306,7 @@ public class JsMultiClientInteropTest  extends AbstractSocketIOIntegrationTest {
         }
     }
     @ParameterizedTest(name = "[BCAST-006] Client v{0} over {1} - Broadcast To Non-Existent Room")
-    @CsvSource({
-            "1, websocket",
-            "1, polling",
-            "2, websocket",
-            "2, polling",
-            "3, websocket",
-            "3, polling",
-            "4, websocket",
-            "4, polling"
-    })
+    @MethodSource("com.socketio4j.socketio.integration.interop.JsClientInteropMatrix#clientTransports")
     void testBroadcastToNonExistentRoom(String version, String transport) throws Exception {
 
         AtomicInteger started = new AtomicInteger();

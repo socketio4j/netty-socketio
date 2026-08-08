@@ -520,9 +520,20 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // Invalid packet type: "9[data]" - this should cause issues
         ByteBuf buffer = Unpooled.copiedBuffer("9[data]", CharsetUtil.UTF_8);
 
-        assertThrows(IllegalStateException.class, () -> decoder.decodePackets(buffer, clientHead));
+        assertThrows(IllegalArgumentException.class, () -> decoder.decodePackets(buffer, clientHead));
 
         buffer.release();
+    }
+
+    @Test
+    void testDecodeRejectsNonDecimalPacketTypeAndLengthHeader() {
+        ByteBuf nonDecimalType = Unpooled.copiedBuffer("a", CharsetUtil.UTF_8);
+        assertThrows(IllegalArgumentException.class, () -> decoder.decodePackets(nonDecimalType, clientHead));
+        nonDecimalType.release();
+
+        ByteBuf nonDecimalHeader = Unpooled.copiedBuffer("42a[]", CharsetUtil.UTF_8);
+        assertThrows(IllegalArgumentException.class, () -> decoder.decodePackets(nonDecimalHeader, clientHead));
+        nonDecimalHeader.release();
     }
 
     @Test
@@ -530,7 +541,7 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // Packet with invalid namespace format
         ByteBuf buffer = Unpooled.copiedBuffer("42invalid[data]", CharsetUtil.UTF_8);
 
-        assertThrows(NullPointerException.class, () -> decoder.decodePackets(buffer, clientHead));
+        assertThrows(IllegalArgumentException.class, () -> decoder.decodePackets(buffer, clientHead));
 
         buffer.release();
     }
@@ -562,7 +573,7 @@ public class PacketDecoderTest extends BaseProtocolTest {
         // This test is problematic due to buffer index issues, so we'll test a simpler case
         ByteBuf buffer = Unpooled.copiedBuffer("\u00005:42[data]", CharsetUtil.UTF_8);
 
-        assertThrows(IndexOutOfBoundsException.class, () -> decoder.decodePackets(buffer, clientHead));
+        assertThrows(IllegalArgumentException.class, () -> decoder.decodePackets(buffer, clientHead));
 
         buffer.release();
     }
@@ -1533,6 +1544,66 @@ public class PacketDecoderTest extends BaseProtocolTest {
 
         textBuffer.release();
         binBuffer.release();
+    }
+
+    @Test
+    void testDecodeEIOv3BinaryPollingPayloadContainingTextAndAttachment() throws IOException {
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+
+        AtomicReference<Packet> lastBinaryPacket = new AtomicReference<>();
+        AtomicReference<ByteBuf> lastBinaryPacketSource = new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            lastBinaryPacket.set(invocation.getArgument(0));
+            lastBinaryPacketSource.set(invocation.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+        when(clientHead.getLastBinaryPacket()).thenAnswer(i -> lastBinaryPacket.get());
+        when(clientHead.getLastBinaryPacketSource()).thenAnswer(i -> lastBinaryPacketSource.get());
+        doAnswer(i -> {
+            ByteBuf source = lastBinaryPacketSource.getAndSet(null);
+            if (source != null) {
+                source.release();
+            }
+            lastBinaryPacket.set(null);
+            return null;
+        }).when(clientHead).clearPendingBinaryPacket();
+
+        Event mockEvent = new Event("binEv", Arrays.asList(new HashMap<>()));
+        when(jsonSupport.readValue(eq(""), any(), eq(Event.class))).thenReturn(mockEvent);
+
+        byte[] header = "451-[\"binEv\",{\"_placeholder\":true,\"num\":0}]"
+                .getBytes(StandardCharsets.UTF_8);
+        byte[] attachment = new byte[]{4, 100, 101, 102};
+        byte[] textFrame = legacyBinaryPollingFrame((byte) 0, header);
+        byte[] binaryFrame = legacyBinaryPollingFrame((byte) 1, attachment);
+        ByteBuf payload = Unpooled.buffer(textFrame.length + binaryFrame.length)
+                .writeBytes(textFrame)
+                .writeBytes(binaryFrame);
+
+        Packet headerPacket = decoder.decodePackets(payload, clientHead, Transport.POLLING);
+        assertNotNull(headerPacket);
+        assertTrue(headerPacket.hasAttachments());
+        assertFalse(headerPacket.isAttachmentsLoaded());
+
+        Packet completedPacket = decoder.decodePackets(payload, clientHead, Transport.POLLING);
+        assertNotNull(completedPacket);
+        assertTrue(completedPacket.isAttachmentsLoaded());
+        assertEquals("ZGVm", completedPacket.getAttachments().get(0).toString(CharsetUtil.UTF_8));
+        assertEquals(0, payload.readableBytes());
+        payload.release();
+    }
+
+    private byte[] legacyBinaryPollingFrame(byte marker, byte[] frame) {
+        String length = String.valueOf(frame.length);
+        byte[] payload = new byte[1 + length.length() + 1 + frame.length];
+        payload[0] = marker;
+        for (int i = 0; i < length.length(); i++) {
+            payload[i + 1] = (byte) (length.charAt(i) - '0');
+        }
+        payload[length.length() + 1] = (byte) 0xFF;
+        System.arraycopy(frame, 0, payload, length.length() + 2, frame.length);
+        return payload;
     }
 
     // ==================== Rigorous Engine.IO & Socket.IO Decoder Tests ====================
