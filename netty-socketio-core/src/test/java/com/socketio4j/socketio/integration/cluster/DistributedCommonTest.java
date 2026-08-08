@@ -1023,7 +1023,9 @@ public abstract class DistributedCommonTest {
                     }
                 }
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable error) {
+            throw new IllegalStateException("Could not re-synchronize room '" + room + "'", error);
+        }
     }
 
     private static int roomClientsInCluster(SocketIOServer server, String room) {

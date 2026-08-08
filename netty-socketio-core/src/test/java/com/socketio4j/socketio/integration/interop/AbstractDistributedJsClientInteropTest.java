@@ -24,6 +24,7 @@ import com.socketio4j.socketio.namespace.Namespace;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -43,6 +44,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -70,7 +72,9 @@ public abstract class AbstractDistributedJsClientInteropTest {
                     if (p != null && p.isAlive()) {
                         p.destroyForcibly();
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception error) {
+                    System.err.println("Failed to terminate distributed JS process during JVM shutdown: " + error);
+                }
             }
         }));
     }
@@ -83,9 +87,16 @@ public abstract class AbstractDistributedJsClientInteropTest {
     protected File jsDir;
 
     private final Map<String, SocketIOClient> connectedClientMap = new ConcurrentHashMap<>();
+    private final ConcurrentLinkedQueue<Throwable> listenerFailures = new ConcurrentLinkedQueue<>();
 
     @BeforeAll
     public abstract void setupCluster() throws Exception;
+
+    @BeforeEach
+    void resetPerTestState() {
+        connectedClientMap.clear();
+        listenerFailures.clear();
+    }
 
     @AfterAll
     public abstract void teardownCluster() throws Exception;
@@ -115,7 +126,8 @@ public abstract class AbstractDistributedJsClientInteropTest {
                 client.joinRoom(client.getSessionId().toString());
                 client.sendEvent("join-ok", roomName);
             } catch (Exception e) {
-                System.err.println("Error joining room " + roomName + " for client " + client.getSessionId() + ": " + e.getMessage());
+                listenerFailures.add(new IllegalStateException(
+                        "Could not join room '" + roomName + "' for client " + client.getSessionId(), e));
             }
         });
         ns.addEventListener("leave-room", String.class, (client, roomName, ackRequest) -> {
@@ -123,7 +135,8 @@ public abstract class AbstractDistributedJsClientInteropTest {
                 client.leaveRoom(roomName);
                 client.sendEvent("leave-ok", roomName);
             } catch (Exception e) {
-                System.err.println("Error leaving room " + roomName + " for client " + client.getSessionId() + ": " + e.getMessage());
+                listenerFailures.add(new IllegalStateException(
+                        "Could not leave room '" + roomName + "' for client " + client.getSessionId(), e));
             }
         });
     }
@@ -133,6 +146,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
     }
 
     protected void awaitRoomSync(String namespace, String room, int expected, List<JsClientProcess> processes) throws InterruptedException {
+        throwIfListenerFailed();
         long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(30);
         int stableTicks = 0;
 
@@ -140,13 +154,17 @@ public abstract class AbstractDistributedJsClientInteropTest {
         Namespace ns2 = node2 != null ? (Namespace) node2.getNamespace(namespace) : null;
 
         while (System.currentTimeMillis() < deadline) {
+            throwIfListenerFailed();
             checkProcessesAlive(processes, room, expected);
 
             int n1 = ns1 != null ? ns1.getRoomClientsInCluster(room) : 0;
             int n2 = ns2 != null ? ns2.getRoomClientsInCluster(room) : 0;
 
             if (n1 == expected && n2 == expected) {
-                if (++stableTicks >= 3) return;
+                if (++stableTicks >= 3) {
+                    throwIfListenerFailed();
+                    return;
+                }
             } else {
                 stableTicks = 0;
             }
@@ -162,6 +180,18 @@ public abstract class AbstractDistributedJsClientInteropTest {
                 failFastOnClientFailure(room, expected, processes, p);
             }
         }
+    }
+
+    private void throwIfListenerFailed() {
+        Throwable failure = listenerFailures.poll();
+        if (failure == null) {
+            return;
+        }
+        Throwable additionalFailure;
+        while ((additionalFailure = listenerFailures.poll()) != null) {
+            failure.addSuppressed(additionalFailure);
+        }
+        throw new AssertionError("Distributed interop server listener failed", failure);
     }
 
     private void failFastOnClientFailure(String room, int expected, List<JsClientProcess> processes, JsClientProcess failedProcess) {
@@ -201,7 +231,6 @@ public abstract class AbstractDistributedJsClientInteropTest {
     }
 
     protected List<JsClientProcess> launchFullClientMatrix(String scenario, String room, Map<String, String> extraArgs) throws Exception {
-        connectedClientMap.clear(); // Prevents cross-test state leakage
         List<JsClientProcess> processes = new ArrayList<>();
         List<String> versions = JsClientInteropMatrix.VERSIONS;
         List<String> transports = JsClientInteropMatrix.TRANSPORTS;
@@ -229,6 +258,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
                             p.getName(), p.getVersion(), p.getTransport(), p.getPort(), p.exitValue(), p.getLogOutput()));
                 }
             }
+            throwIfListenerFailed();
         } finally {
             for (JsClientProcess p : processes) {
                 p.destroyForcibly();
@@ -953,6 +983,8 @@ public abstract class AbstractDistributedJsClientInteropTest {
         private final String room;
         private final Process process;
         private final StringBuilder logOutput = new StringBuilder();
+        private final AtomicReference<Throwable> logFailure = new AtomicReference<>();
+        private final Thread logThread;
 
         public JsClientProcess(String name, String version, int port, String transport,
                                String scenario, String room, Process process) {
@@ -964,7 +996,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
             this.room = room;
             this.process = process;
 
-            Thread logThread = new Thread(() -> {
+            logThread = new Thread(() -> {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
@@ -973,7 +1005,9 @@ public abstract class AbstractDistributedJsClientInteropTest {
                         }
 
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception error) {
+                    logFailure.compareAndSet(null, error);
+                }
             });
             logThread.setDaemon(true);
             logThread.start();
@@ -987,7 +1021,22 @@ public abstract class AbstractDistributedJsClientInteropTest {
         public String getRoom() { return room; }
         public boolean isAlive() { return process.isAlive(); }
         public int exitValue() { return process.exitValue(); }
-        public boolean waitFor(long timeout, TimeUnit unit) throws InterruptedException { return process.waitFor(timeout, unit); }
+        public boolean waitFor(long timeout, TimeUnit unit) throws InterruptedException {
+            boolean finished = process.waitFor(timeout, unit);
+            if (!finished) {
+                return false;
+            }
+
+            logThread.join(TimeUnit.SECONDS.toMillis(1));
+            if (logThread.isAlive()) {
+                throw new IllegalStateException("Timed out while reading output for distributed JS client '" + name + "'");
+            }
+            Throwable error = logFailure.get();
+            if (error != null) {
+                throw new IllegalStateException("Could not read output for distributed JS client '" + name + "'", error);
+            }
+            return true;
+        }
 
         public void destroyForcibly() {
             ALL_ACTIVE_PROCESSES.remove(this);

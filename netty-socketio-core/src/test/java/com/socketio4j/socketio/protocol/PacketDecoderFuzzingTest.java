@@ -77,20 +77,22 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
 
     @Test
     void testFuzzRandomByteArrays() {
-        Random random = new Random(42);
-        for (int i = 0; i < 500; i++) {
-            byte[] randomBytes = new byte[random.nextInt(128) + 1];
-            random.nextBytes(randomBytes);
+        long[] seeds = {42L, 73L, 101L, 211L, 503L, 997L, 2027L, 7919L};
+        for (long seed : seeds) {
+            Random random = new Random(seed);
+            for (int i = 0; i < 256; i++) {
+                byte[] randomBytes = new byte[random.nextInt(256) + 1];
+                random.nextBytes(randomBytes);
 
-            ByteBuf buffer = Unpooled.copiedBuffer(randomBytes);
-            try {
-                // Decoder should either parse or throw a known exception without JVM error/OOM
-                decoder.decodePackets(buffer, clientHead, Transport.POLLING);
-            } catch (Exception expected) {
-                // Expected handled exceptions for random junk bytes
-                assertExpectedParsingException(expected);
-            } finally {
-                buffer.release();
+                ByteBuf buffer = Unpooled.copiedBuffer(randomBytes);
+                try {
+                    // Decoder should either parse or reject the input with a protocol parsing exception.
+                    decoder.decodePackets(buffer, clientHead, Transport.POLLING);
+                } catch (Exception expected) {
+                    assertExpectedParsingException(expected);
+                } finally {
+                    buffer.release();
+                }
             }
         }
     }
@@ -155,9 +157,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
     private static void assertExpectedParsingException(Exception exception) {
         assertTrue(exception instanceof IOException
                         || exception instanceof IllegalArgumentException
-                        || exception instanceof IllegalStateException
-                        || exception instanceof IndexOutOfBoundsException
-                        || exception instanceof NullPointerException,
+                        || exception instanceof IllegalStateException,
                 () -> "Unexpected exception type: " + exception.getClass().getName());
     }
 }

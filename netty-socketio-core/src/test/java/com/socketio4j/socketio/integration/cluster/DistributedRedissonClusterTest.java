@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.cluster;
+
+import com.socketio4j.socketio.TestResourceCleanup;
 import com.socketio4j.socketio.integration.cluster.DistributedCommonTest;
 import com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport;
 import static com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport.*;
@@ -60,7 +62,12 @@ public class DistributedRedissonClusterTest {
                     break;
                 } catch (Exception e) {
                     if (attempt == 3) throw e;
-                    try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException error) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("Interrupted while starting Redis test container", error);
+                    }
                 }
             }
         }
@@ -68,7 +75,8 @@ public class DistributedRedissonClusterTest {
 
     @AfterAll
     static void stopRedis() {
-        try { if (REDIS != null && REDIS.isRunning()) REDIS.stop(); } catch (Throwable ignored) {}
+        TestResourceCleanup.runAll("Redis test container cleanup",
+                () -> { if (REDIS != null && REDIS.isRunning()) REDIS.stop(); });
     }
 
     private static String redisUrl() {
@@ -110,10 +118,11 @@ public class DistributedRedissonClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
-            try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Redis pub/sub single-channel cluster cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (redisClient1 != null) redisClient1.shutdown(); },
+                    () -> { if (redisClient2 != null) redisClient2.shutdown(); });
         }
     }
 
@@ -152,10 +161,11 @@ public class DistributedRedissonClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
-            try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Redis pub/sub multi-channel cluster cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (redisClient1 != null) redisClient1.shutdown(); },
+                    () -> { if (redisClient2 != null) redisClient2.shutdown(); });
         }
     }
 
@@ -194,10 +204,11 @@ public class DistributedRedissonClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
-            try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Redis stream single-channel cluster cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (redisClient1 != null) redisClient1.shutdown(); },
+                    () -> { if (redisClient2 != null) redisClient2.shutdown(); });
         }
     }
 
@@ -236,10 +247,11 @@ public class DistributedRedissonClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
-            try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Redis stream multi-channel cluster cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (redisClient1 != null) redisClient1.shutdown(); },
+                    () -> { if (redisClient2 != null) redisClient2.shutdown(); });
         }
     }
 
@@ -278,10 +290,11 @@ public class DistributedRedissonClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
-            try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Reliable Redis pub/sub single-channel cluster cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (redisClient1 != null) redisClient1.shutdown(); },
+                    () -> { if (redisClient2 != null) redisClient2.shutdown(); });
         }
     }
 
@@ -321,10 +334,11 @@ public class DistributedRedissonClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (redisClient1 != null) redisClient1.shutdown(); } catch (Throwable ignored) {}
-            try { if (redisClient2 != null) redisClient2.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Reliable Redis pub/sub multi-channel cluster cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (redisClient1 != null) redisClient1.shutdown(); },
+                    () -> { if (redisClient2 != null) redisClient2.shutdown(); });
         }
     }
 }

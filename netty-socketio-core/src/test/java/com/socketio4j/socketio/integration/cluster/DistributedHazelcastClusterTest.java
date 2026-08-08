@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.cluster;
+
+import com.socketio4j.socketio.TestResourceCleanup;
 import com.socketio4j.socketio.integration.cluster.DistributedCommonTest;
 import com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport;
 import static com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport.*;
@@ -64,7 +66,12 @@ public class DistributedHazelcastClusterTest {
                     break;
                 } catch (Exception e) {
                     if (attempt == 3) throw new RuntimeException("Failed to start Hazelcast container", e);
-                    try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException error) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("Interrupted while starting Hazelcast test container", error);
+                    }
                 }
             }
         }
@@ -72,7 +79,8 @@ public class DistributedHazelcastClusterTest {
 
     @AfterAll
     static void stopHazelcast() {
-        try { if (HAZELCAST_CONTAINER != null && HAZELCAST_CONTAINER.isRunning()) HAZELCAST_CONTAINER.stop(); } catch (Throwable ignored) {}
+        TestResourceCleanup.runAll("Hazelcast test container cleanup",
+                () -> { if (HAZELCAST_CONTAINER != null && HAZELCAST_CONTAINER.isRunning()) HAZELCAST_CONTAINER.stop(); });
     }
 
     private static ClientConfig hazelcastClientConfig() {
@@ -125,10 +133,11 @@ public class DistributedHazelcastClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (hazelcastInstance != null) hazelcastInstance.shutdown(); } catch (Throwable ignored) {}
-            try { if (hazelcastInstance1 != null) hazelcastInstance1.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Hazelcast member cluster cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (hazelcastInstance != null) hazelcastInstance.shutdown(); },
+                    () -> { if (hazelcastInstance1 != null) hazelcastInstance1.shutdown(); });
         }
     }
 
@@ -173,10 +182,11 @@ public class DistributedHazelcastClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (hazelcastClient != null) hazelcastClient.shutdown(); } catch (Throwable ignored) {}
-            try { if (hazelcastClient1 != null) hazelcastClient1.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Hazelcast client cluster cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (hazelcastClient != null) hazelcastClient.shutdown(); },
+                    () -> { if (hazelcastClient1 != null) hazelcastClient1.shutdown(); });
         }
     }
 
@@ -221,10 +231,11 @@ public class DistributedHazelcastClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (hazelcastInstance != null) hazelcastInstance.shutdown(); } catch (Throwable ignored) {}
-            try { if (hazelcastInstance1 != null) hazelcastInstance1.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Hazelcast member single-channel cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (hazelcastInstance != null) hazelcastInstance.shutdown(); },
+                    () -> { if (hazelcastInstance1 != null) hazelcastInstance1.shutdown(); });
         }
     }
 
@@ -269,10 +280,11 @@ public class DistributedHazelcastClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (hazelcastInstance != null) hazelcastInstance.shutdown(); } catch (Throwable ignored) {}
-            try { if (hazelcastInstance1 != null) hazelcastInstance1.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Hazelcast member multi-channel cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (hazelcastInstance != null) hazelcastInstance.shutdown(); },
+                    () -> { if (hazelcastInstance1 != null) hazelcastInstance1.shutdown(); });
         }
     }
 }

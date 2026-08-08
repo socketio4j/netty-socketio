@@ -18,6 +18,7 @@ package com.socketio4j.socketio.transport;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -28,6 +29,7 @@ import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -60,6 +62,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class HttpTransportTest {
 
+  private static final String TEST_ORIGIN = "http://localhost:3000";
+
   private SocketIOServer server;
 
   private final ObjectMapper mapper = new ObjectMapper();
@@ -79,6 +83,7 @@ public class HttpTransportTest {
     config.setRandomSession(true);
     config.setTransports(Transport.POLLING);
     config.setPort(port);
+    config.setOrigin(TEST_ORIGIN);
     config.setExceptionListener(new ExceptionListener() {
       @Override
       public void onEventException(Exception e, List<Object> args, SocketIOClient client) {
@@ -255,6 +260,28 @@ public class HttpTransportTest {
   }
 
   @Test
+  public void testUnknownPollingSessionErrorIncludesCorsHeaders() throws URISyntaxException, IOException {
+    final URI uri = createTestServerUri("EIO=4&transport=polling&sid=" + UUID.randomUUID());
+    HttpURLConnection http = (HttpURLConnection) uri.toURL().openConnection();
+    http.setRequestProperty("Origin", TEST_ORIGIN);
+    http.connect();
+
+    assertEquals(400, http.getResponseCode(), "Unknown polling session must be rejected");
+    assertEquals(TEST_ORIGIN, http.getHeaderField("Access-Control-Allow-Origin"),
+        "Polling errors must retain configured CORS behavior");
+    assertEquals("true", http.getHeaderField("Access-Control-Allow-Credentials"));
+
+    InputStream errorStream = http.getErrorStream();
+    assertNotNull(errorStream, "HTTP error response must contain a body");
+    try (BufferedReader reader = new BufferedReader(
+        new InputStreamReader(errorStream, StandardCharsets.UTF_8))) {
+      JsonNode error = mapper.readTree(reader.lines().collect(Collectors.joining("\n")));
+      assertEquals(1, error.get("code").asInt(), "Unknown sessions must use Engine.IO error code 1");
+      assertEquals("Session ID unknown", error.get("message").asText());
+    }
+  }
+
+  @Test
   public void testV4HandshakeAdvertisesRequiredMaxPayload() throws URISyntaxException, IOException {
     final URI uri = createTestServerUri("EIO=4&transport=polling");
     HttpURLConnection http = (HttpURLConnection) uri.toURL().openConnection();
@@ -372,9 +399,9 @@ public class HttpTransportTest {
       try (ServerSocket socket = new ServerSocket(0)) {
           socket.setReuseAddress(true);
           return socket.getLocalPort();
-      } catch (IOException ignored) {
+      } catch (IOException error) {
+          throw new IllegalStateException("Could not allocate a free TCP/IP port", error);
       }
-    throw new IllegalStateException("Could not find a free TCP/IP port to start embedded SocketIO Server on");
   }
 
 }

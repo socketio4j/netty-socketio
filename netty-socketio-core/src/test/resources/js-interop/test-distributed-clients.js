@@ -26,13 +26,14 @@ const parseArgs = () => {
 
 const args = parseArgs();
 
+const clientName = args.clientName || 'client1';
+
 function failFast(reason, details = null) {
     console.error(`[${clientName || "client"} CRITICAL FAILURE] ${reason}`,
         details ? JSON.stringify(details) : "");
     process.exit(1);
 }
 
-const clientName = args.clientName || 'client1';
 const version = args.version;
 if (!version) {
     failFast("Missing required --version argument");
@@ -82,7 +83,7 @@ let leftRoomOk = false;
 const exitGracefully = (code = 0, delayMs = 300) => {
     clearTimeout(timeout);
     setTimeout(() => {
-        try { socket.disconnect(); } catch (e) {}
+        socket.disconnect();
         process.exit(code);
     }, delayMs);
 };

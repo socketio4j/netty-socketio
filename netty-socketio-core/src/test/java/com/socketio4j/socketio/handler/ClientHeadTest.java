@@ -35,10 +35,13 @@ import com.socketio4j.socketio.store.StoreFactory;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.CharsetUtil;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -138,5 +141,25 @@ public class ClientHeadTest {
 
         clientHead.clearPendingBinaryPacket();
         assertEquals(0, buf2.refCnt());
+    }
+
+    @Test
+    void testUpgradeDiscardsObsoletePollingNoop() {
+        EmbeddedChannel websocketChannel = new EmbeddedChannel();
+        clientHead.bindChannel(websocketChannel, Transport.WEBSOCKET);
+
+        Packet noop = new Packet(PacketType.NOOP);
+        Packet message = new Packet(PacketType.MESSAGE);
+        clientHead.getPacketsQueue(Transport.POLLING).add(noop);
+        clientHead.getPacketsQueue(Transport.POLLING).add(message);
+        clientHead.beginUpgrade();
+
+        clientHead.upgradeCurrentTransport(Transport.WEBSOCKET);
+
+        assertFalse(clientHead.isUpgradeInProgress());
+        assertEquals(1, clientHead.getPacketsQueue(Transport.WEBSOCKET).size());
+        assertTrue(clientHead.getPacketsQueue(Transport.WEBSOCKET).contains(message));
+        assertFalse(clientHead.getPacketsQueue(Transport.WEBSOCKET).contains(noop));
+        websocketChannel.finishAndReleaseAll();
     }
 }

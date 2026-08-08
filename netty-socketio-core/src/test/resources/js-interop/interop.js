@@ -34,6 +34,13 @@ const MIXED = {
     number: 42
 };
 
+// A Socket.IO client emits its local "disconnect" callback before a browser
+// context necessarily finishes writing the namespace disconnect packet. Keep
+// the page alive just long enough for that write to leave the browser; Java
+// still requires the server to observe every disconnect before this case can
+// pass.
+const DISCONNECT_FLUSH_DELAY_MS = 100;
+
 console.log("interop.js loaded");
 
 function toUint8Array(data) {
@@ -159,9 +166,15 @@ function connect(namespace) {
 
 function closeSocket(socket) {
 
-    return new Promise(resolve => {
+    return new Promise((resolve, reject) => {
 
         let completed = false;
+        const timeout = setTimeout(() => {
+            if (!completed) {
+                completed = true;
+                reject(new Error("Timed out waiting for Socket.IO disconnect"));
+            }
+        }, 1000);
 
         function finish() {
 
@@ -170,7 +183,8 @@ function closeSocket(socket) {
             }
 
             completed = true;
-            resolve();
+            clearTimeout(timeout);
+            setTimeout(resolve, DISCONNECT_FLUSH_DELAY_MS);
         }
 
         socket.once("disconnect", reason => {
@@ -180,8 +194,6 @@ function closeSocket(socket) {
         });
 
         socket.close();
-
-        setTimeout(finish, 1000);
     });
 }
 

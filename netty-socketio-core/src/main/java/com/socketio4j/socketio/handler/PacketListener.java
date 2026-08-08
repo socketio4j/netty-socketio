@@ -32,6 +32,8 @@ import com.socketio4j.socketio.scheduler.SchedulerKey;
 import com.socketio4j.socketio.transport.NamespaceClient;
 import com.socketio4j.socketio.transport.PollingTransport;
 
+import io.netty.channel.ChannelFuture;
+
 public class PacketListener {
 
     private final NamespacesHub namespacesHub;
@@ -56,10 +58,18 @@ public class PacketListener {
         case PING: {
             Packet outPacket = new Packet(PacketType.PONG);
             outPacket.setData(packet.getData());
-            client.send(outPacket, transport);
             if ("probe".equals(packet.getData())) {
-                client.send(new Packet(PacketType.NOOP), Transport.POLLING);
+                ChannelFuture pongFuture = client.send(outPacket, transport);
+                if (pongFuture != null) {
+                    pongFuture.addListener(future -> {
+                        if (future.isSuccess()) {
+                            client.beginUpgrade();
+                            client.send(new Packet(PacketType.NOOP), Transport.POLLING);
+                        }
+                    });
+                }
             } else {
+                client.send(outPacket, transport);
                 client.schedulePingTimeout();
             }
             notifyPing(client, packet, true);

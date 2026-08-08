@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.cluster;
+
+import com.socketio4j.socketio.TestResourceCleanup;
 import com.socketio4j.socketio.integration.cluster.DistributedCommonTest;
 import com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport;
 import static com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport.*;
@@ -64,7 +66,12 @@ public class DistributedNATSClusterTest {
                     break;
                 } catch (Exception e) {
                     if (attempt == 3) throw new RuntimeException("Failed to start NATS container", e);
-                    try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException error) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("Interrupted while starting NATS test container", error);
+                    }
                 }
             }
         }
@@ -72,7 +79,8 @@ public class DistributedNATSClusterTest {
 
     @AfterAll
     static void stopNats() {
-        try { if (NATS_CONTAINER != null && NATS_CONTAINER.isRunning()) NATS_CONTAINER.stop(); } catch (Throwable ignored) {}
+        TestResourceCleanup.runAll("NATS test container cleanup",
+                () -> { if (NATS_CONTAINER != null && NATS_CONTAINER.isRunning()) NATS_CONTAINER.stop(); });
     }
 
     @Nested
@@ -128,10 +136,11 @@ public class DistributedNATSClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (nc != null) nc.close(); } catch (Throwable ignored) {}
-            try { if (nc1 != null) nc1.close(); } catch (Throwable ignored) {}
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("NATS cluster node cleanup",
+                    () -> { if (nc != null) nc.close(); },
+                    () -> { if (nc1 != null) nc1.close(); },
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); });
         }
     }
 
@@ -188,10 +197,11 @@ public class DistributedNATSClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (nc != null) nc.close(); } catch (Throwable ignored) {}
-            try { if (nc1 != null) nc1.close(); } catch (Throwable ignored) {}
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("NATS cluster node cleanup",
+                    () -> { if (nc != null) nc.close(); },
+                    () -> { if (nc1 != null) nc1.close(); },
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); });
         }
     }
 }

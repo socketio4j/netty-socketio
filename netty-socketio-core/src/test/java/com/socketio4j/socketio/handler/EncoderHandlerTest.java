@@ -217,6 +217,8 @@ public class EncoderHandlerTest {
         HttpResponse response = channel.readOutbound();
         assertThat(response.status()).isEqualTo(HttpResponseStatus.BAD_REQUEST);
         assertThat(response.headers().get("Content-Type")).isEqualTo("application/json");
+        assertThat(response.headers().get("Access-Control-Allow-Origin")).isEqualTo(TEST_ORIGIN);
+        assertThat(response.headers().get("Access-Control-Allow-Credentials")).isEqualTo("true");
     }
 
     @Test

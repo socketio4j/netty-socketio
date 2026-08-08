@@ -252,19 +252,15 @@ public class NamespacesHubTest extends AbstractNamespaceTestSupport {
                 executeConcurrentOperationsWithIndex(
                         taskCount,
                         index -> {
-                            try {
-                                String namespaceName = "concurrentNamespace" + index;
-                                Namespace namespace = namespacesHub.create(namespaceName);
-                                assertNotNull(namespace);
-                                assertEquals(namespaceName, namespace.getName());
+                            String namespaceName = "concurrentNamespace" + index;
+                            Namespace namespace = namespacesHub.create(namespaceName);
+                            assertNotNull(namespace);
+                            assertEquals(namespaceName, namespace.getName());
 
-                                // Verify namespace is immediately accessible
-                                Namespace retrievedNamespace = namespacesHub.get(namespaceName);
-                                assertNotNull(retrievedNamespace);
-                                assertSame(namespace, retrievedNamespace);
-                            } catch (Exception e) {
-                                // Log exception but continue
-                            }
+                            // Verify namespace is immediately accessible
+                            Namespace retrievedNamespace = namespacesHub.get(namespaceName);
+                            assertNotNull(retrievedNamespace);
+                            assertSame(namespace, retrievedNamespace);
                         });
 
         waitForCompletion(createLatch);
@@ -278,14 +274,10 @@ public class NamespacesHubTest extends AbstractNamespaceTestSupport {
                 executeConcurrentOperationsWithIndex(
                         taskCount,
                         index -> {
-                            try {
-                                String namespaceName = "concurrentNamespace" + index;
-                                Namespace namespace = namespacesHub.get(namespaceName);
-                                assertNotNull(namespace);
-                                assertEquals(namespaceName, namespace.getName());
-                            } catch (Exception e) {
-                                // Log exception but continue
-                            }
+                            String namespaceName = "concurrentNamespace" + index;
+                            Namespace namespace = namespacesHub.get(namespaceName);
+                            assertNotNull(namespace);
+                            assertEquals(namespaceName, namespace.getName());
                         });
 
         waitForCompletion(retrieveLatch);

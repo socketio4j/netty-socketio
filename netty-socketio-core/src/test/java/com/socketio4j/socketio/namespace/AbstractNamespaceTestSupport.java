@@ -16,7 +16,11 @@
  */
 package com.socketio4j.socketio.namespace;
 
+import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +39,7 @@ public abstract class AbstractNamespaceTestSupport {
     protected ExecutorService sharedExecutor;
     protected static final int DEFAULT_TASK_COUNT = 10;
     protected static final int DEFAULT_TIMEOUT_SECONDS = 5;
+    private final Map<CountDownLatch, Queue<Throwable>> taskFailures = new ConcurrentHashMap<>();
 
     @BeforeAll
     void setUpSharedResources() {
@@ -47,6 +52,9 @@ public abstract class AbstractNamespaceTestSupport {
             sharedExecutor.shutdown();
             if (!sharedExecutor.awaitTermination(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 sharedExecutor.shutdownNow();
+                if (!sharedExecutor.awaitTermination(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Concurrent test executor did not terminate");
+                }
             }
         }
     }
@@ -60,11 +68,15 @@ public abstract class AbstractNamespaceTestSupport {
      */
     protected CountDownLatch executeConcurrentOperations(int taskCount, Runnable operation) {
         CountDownLatch latch = new CountDownLatch(taskCount);
+        Queue<Throwable> failures = new ConcurrentLinkedQueue<>();
+        taskFailures.put(latch, failures);
 
         for (int i = 0; i < taskCount; i++) {
             sharedExecutor.submit(() -> {
                 try {
                     operation.run();
+                } catch (Throwable error) {
+                    failures.add(error);
                 } finally {
                     latch.countDown();
                 }
@@ -83,12 +95,16 @@ public abstract class AbstractNamespaceTestSupport {
      */
     protected CountDownLatch executeConcurrentOperationsWithIndex(int taskCount, IntConsumer operation) {
         CountDownLatch latch = new CountDownLatch(taskCount);
+        Queue<Throwable> failures = new ConcurrentLinkedQueue<>();
+        taskFailures.put(latch, failures);
 
         for (int i = 0; i < taskCount; i++) {
             final int index = i;
             sharedExecutor.submit(() -> {
                 try {
                     operation.accept(index);
+                } catch (Throwable error) {
+                    failures.add(error);
                 } finally {
                     latch.countDown();
                 }
@@ -108,6 +124,16 @@ public abstract class AbstractNamespaceTestSupport {
         boolean completed = latch.await(DEFAULT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         if (!completed) {
             throw new RuntimeException("Concurrent operations did not complete within " + DEFAULT_TIMEOUT_SECONDS + " seconds");
+        }
+
+        Queue<Throwable> failures = taskFailures.remove(latch);
+        if (failures != null && !failures.isEmpty()) {
+            AssertionError failure = new AssertionError(
+                    "Concurrent operation failed in " + failures.size() + " worker(s)");
+            for (Throwable error : failures) {
+                failure.addSuppressed(error);
+            }
+            throw failure;
         }
     }
 }

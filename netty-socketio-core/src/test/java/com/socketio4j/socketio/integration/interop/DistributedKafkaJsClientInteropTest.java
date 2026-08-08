@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.interop;
+
+import com.socketio4j.socketio.TestResourceCleanup;
 import com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport;
 import static com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport.*;
 
@@ -121,10 +123,11 @@ public class DistributedKafkaJsClientInteropTest extends AbstractDistributedJsCl
     @AfterAll
     @Override
     public void teardownCluster() {
-        try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-        try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-        try { if (kafkaEventStore1 != null) kafkaEventStore1.shutdown(); } catch (Throwable ignored) {}
-        try { if (kafkaEventStore2 != null) kafkaEventStore2.shutdown(); } catch (Throwable ignored) {}
-        try { if (KAFKA != null && KAFKA.isRunning()) KAFKA.close(); } catch (Throwable ignored) {}
+        TestResourceCleanup.runAll("Kafka distributed interop cleanup",
+                () -> { if (node1 != null) node1.stop(); },
+                () -> { if (node2 != null) node2.stop(); },
+                () -> { if (kafkaEventStore1 != null) kafkaEventStore1.shutdown(); },
+                () -> { if (kafkaEventStore2 != null) kafkaEventStore2.shutdown(); },
+                () -> { if (KAFKA != null && KAFKA.isRunning()) KAFKA.close(); });
     }
 }

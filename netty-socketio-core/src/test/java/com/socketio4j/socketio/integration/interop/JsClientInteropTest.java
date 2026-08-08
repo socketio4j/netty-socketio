@@ -16,8 +16,6 @@
  */
 package com.socketio4j.socketio.integration.interop;
 import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
-
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -39,8 +37,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
-
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -82,6 +78,7 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
 
         Process process = pb.start();
         StringBuilder output = new StringBuilder();
+        AtomicReference<Throwable> outputFailure = new AtomicReference<>();
 
         Thread outputThread = new Thread(() -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
@@ -90,9 +87,10 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
                     synchronized (output) {
                         output.append(line).append("\n");
                     }
-
                 }
-            } catch (Exception ignored) {}
+            } catch (Throwable error) {
+                outputFailure.set(error);
+            }
         });
         outputThread.setDaemon(true);
         outputThread.start();
@@ -102,6 +100,13 @@ public class JsClientInteropTest extends AbstractSocketIOIntegrationTest {
             if (!completed) {
                 fail(String.format("JS client process timed out after 20s (v%s, %s, scenario=%s, port=%d).\nOutput logs:\n%s",
                         version, transport, scenario, getServerPort(), getOutput(output)));
+            }
+            outputThread.join(TimeUnit.SECONDS.toMillis(1));
+            if (outputThread.isAlive()) {
+                fail("JS client output reader did not terminate\n" + getOutput(output));
+            }
+            if (outputFailure.get() != null) {
+                throw new AssertionError("Unable to read JS client output", outputFailure.get());
             }
 
             assertEquals(0, process.exitValue(),

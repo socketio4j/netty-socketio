@@ -154,24 +154,20 @@ public class NamespaceTest extends AbstractNamespaceTestSupport {
                 executeConcurrentOperationsWithIndex(
                         taskCount,
                         index -> {
-                            try {
-                                SocketIOClient client = mock(SocketIOClient.class);
-                                UUID sessionId = UUID.randomUUID();
-                                when(client.getSessionId()).thenReturn(sessionId);
-                                when(client.getAllRooms()).thenReturn(Collections.emptySet());
+                            SocketIOClient client = mock(SocketIOClient.class);
+                            UUID sessionId = UUID.randomUUID();
+                            when(client.getSessionId()).thenReturn(sessionId);
+                            when(client.getAllRooms()).thenReturn(Collections.emptySet());
 
-                                namespace.addClient(client);
-                                addedSessionIds.add(sessionId);
-                            } catch (Exception e) {
-                                // Log exception but continue
-                            }
+                            namespace.addClient(client);
+                            addedSessionIds.add(sessionId);
                         });
 
         waitForCompletion(latch);
 
         // Verify all clients were added safely
         assertEquals(taskCount + 1, namespace.getAllClients().size());
-        assertTrue(namespace.getAllClients().size() > taskCount);
+        assertEquals(taskCount, addedSessionIds.size());
 
         // Verify each added client can be retrieved
         for (UUID sessionId : addedSessionIds) {
@@ -222,17 +218,13 @@ public class NamespaceTest extends AbstractNamespaceTestSupport {
                 executeConcurrentOperationsWithIndex(
                         taskCount,
                         index -> {
-                            try {
-                                String concurrentEventName = "concurrentEvent" + index;
-                                DataListener<String> concurrentListener = (client, data, ackRequest) -> {
-                                };
-                                assertNotNull(concurrentListener);
+                            String concurrentEventName = "concurrentEvent" + index;
+                            DataListener<String> concurrentListener = (client, data, ackRequest) -> {
+                            };
+                            assertNotNull(concurrentListener);
 
-                                namespace.addEventListener(concurrentEventName, String.class, concurrentListener);
-                                addedEventNames.add(concurrentEventName);
-                            } catch (Exception e) {
-                                // Log exception but continue
-                            }
+                            namespace.addEventListener(concurrentEventName, String.class, concurrentListener);
+                            addedEventNames.add(concurrentEventName);
                         });
 
         waitForCompletion(latch);
@@ -240,6 +232,7 @@ public class NamespaceTest extends AbstractNamespaceTestSupport {
         // Verify all listeners were added safely
         verify(jsonSupport, times(taskCount + 1))
                 .addEventMapping(eq(NAMESPACE_NAME), anyString(), eq(String.class));
+        assertEquals(taskCount, addedEventNames.size());
 
         // Verify specific event names were processed
         for (String addedEventName : addedEventNames) {

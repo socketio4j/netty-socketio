@@ -51,6 +51,7 @@ import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ResourceLock("NODE_JS_INTEROP")
 public class BrowserInteropTest {
@@ -61,6 +62,9 @@ public class BrowserInteropTest {
     private static final int TRANSPORT_COUNT = 2;
     private static final int NAMESPACE_COUNT = 2;
     private static final int EVENT_TYPE_COUNT = 6;
+    // Individual browser cases retain their 30-second page timeout. This
+    // larger process deadline accommodates cold browser launch overhead.
+    private static final long BROWSER_RUNNER_TIMEOUT_SECONDS = 240;
 
     private static final byte[] EXPECTED_BINARY = {
             0, 1, 2, 3, 4, 5, 10, 20, 30, 40,
@@ -249,19 +253,22 @@ public class BrowserInteropTest {
 
         long deadline =
                 System.currentTimeMillis() + 10000;
+        Exception lastConnectionFailure = null;
 
         while (System.currentTimeMillis() < deadline) {
 
             try (Socket ignored =
                          new Socket("127.0.0.1", port)) {
                 return;
-            } catch (Exception ignore) {
+            } catch (Exception error) {
+                lastConnectionFailure = error;
                 Thread.sleep(100);
             }
         }
 
         throw new IllegalStateException(
-                "HTTP server did not start on port " + port);
+                "HTTP server did not start on port " + port,
+                lastConnectionFailure);
     }
 
     /**
@@ -493,7 +500,9 @@ public class BrowserInteropTest {
                     env,
                     "node",
                     "browser-runner.js");
-            int exit = node.waitFor();
+            assertTrue(node.waitFor(BROWSER_RUNNER_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+                    "Browser interop runner timed out after " + BROWSER_RUNNER_TIMEOUT_SECONDS + " seconds");
+            int exit = node.exitValue();
 
             assertEquals(0, exit);
 
@@ -545,18 +554,17 @@ public class BrowserInteropTest {
 
         verifyOrdering();
 
+        final int expectedConnections = BROWSER_COUNT * CLIENT_VERSION_COUNT *
+                TRANSPORT_COUNT * NAMESPACE_COUNT;
+
         Awaitility.await()
                 .atMost(Duration.ofSeconds(5))
-                .until(() ->
-                        CONNECTS.get() == BROWSER_COUNT * CLIENT_VERSION_COUNT *
-                                TRANSPORT_COUNT * NAMESPACE_COUNT &&
-                                DISCONNECTS.get() == BROWSER_COUNT * CLIENT_VERSION_COUNT *
-                                        TRANSPORT_COUNT * NAMESPACE_COUNT);
-
-        assertEquals(BROWSER_COUNT * CLIENT_VERSION_COUNT * TRANSPORT_COUNT * NAMESPACE_COUNT,
-                CONNECTS.get());
-        assertEquals(BROWSER_COUNT * CLIENT_VERSION_COUNT * TRANSPORT_COUNT * NAMESPACE_COUNT,
-                DISCONNECTS.get());
+                .untilAsserted(() -> {
+                    assertEquals(expectedConnections, CONNECTS.get(),
+                            "Unexpected number of namespace connects");
+                    assertEquals(expectedConnections, DISCONNECTS.get(),
+                            "Unexpected number of server-observed namespace disconnects");
+                });
     }
     private static void verifyNamespaceDistribution() {
 

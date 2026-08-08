@@ -47,6 +47,7 @@ import io.socket.client.Socket;
 public abstract class AbstractSocketIOIntegrationTest {
 
     private static final Logger log = LoggerFactory.getLogger(AbstractSocketIOIntegrationTest.class);
+    private static final int MAX_SERVER_START_ATTEMPTS = 10;
     protected final Faker faker = new Faker();
 
     private SocketIOServer server;
@@ -144,8 +145,9 @@ public abstract class AbstractSocketIOIntegrationTest {
         Configuration serverConfig = new Configuration();
         serverConfig.setHostname(SERVER_HOST);
 
-        boolean successful = false;
-        while (!successful) {
+        Exception lastFailure = null;
+        boolean started = false;
+        for (int attempt = 1; attempt <= MAX_SERVER_START_ATTEMPTS; attempt++) {
             try {
                 // Find an available port for this test
                 serverPort = findAvailablePort();
@@ -159,13 +161,39 @@ public abstract class AbstractSocketIOIntegrationTest {
                 configureNamespaces(server);
                 server.start();
 
-                // Verify server started successfully
-                successful = true;
+                started = true;
+                break;
             } catch (Exception e) {
-                log.warn("Port {} is not available, retrying...", serverPort);
-                // If server failed to start, try again with a different port
-                TimeUnit.SECONDS.sleep(1);
+                lastFailure = e;
+
+                if (server != null) {
+                    try {
+                        server.stop();
+                    } catch (Exception stopFailure) {
+                        e.addSuppressed(stopFailure);
+                    } finally {
+                        server = null;
+                    }
+                }
+
+                log.warn(
+                        "Socket.IO server setup attempt {}/{} on port {} failed: {}",
+                        attempt,
+                        MAX_SERVER_START_ATTEMPTS,
+                        serverPort,
+                        e.toString());
+
+                if (attempt < MAX_SERVER_START_ATTEMPTS) {
+                    TimeUnit.SECONDS.sleep(1);
+                }
             }
+        }
+
+        if (!started) {
+            throw new IllegalStateException(
+                    "Unable to start Socket.IO integration server after "
+                            + MAX_SERVER_START_ATTEMPTS + " attempts",
+                    lastFailure);
         }
 
         // Allow subclasses to do additional setup
@@ -178,17 +206,30 @@ public abstract class AbstractSocketIOIntegrationTest {
      */
     @AfterEach
     public void tearDown() throws Exception {
-        // Allow subclasses to do additional teardown
-        additionalTeardown();
+        Exception failure = null;
 
-        // Stop SocketIO server
+        try {
+            additionalTeardown();
+        } catch (Exception e) {
+            failure = e;
+        }
+
         if (server != null) {
             try {
                 server.stop();
             } catch (Exception e) {
-                // Log but don't fail the test
-                System.err.println("Error stopping SocketIO server: " + e.getMessage());
+                if (failure != null) {
+                    failure.addSuppressed(e);
+                } else {
+                    failure = e;
+                }
+            } finally {
+                server = null;
             }
+        }
+
+        if (failure != null) {
+            throw failure;
         }
     }
 

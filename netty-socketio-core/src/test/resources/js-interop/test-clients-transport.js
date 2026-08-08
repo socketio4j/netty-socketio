@@ -17,6 +17,14 @@
 
 const minimist = require("minimist");
 
+function failUnhandled(kind, error) {
+    console.error(`${kind}:`, error && error.stack ? error.stack : error);
+    process.exit(1);
+}
+
+process.on("uncaughtException", error => failUnhandled("Uncaught exception", error));
+process.on("unhandledRejection", reason => failUnhandled("Unhandled rejection", reason));
+
 const args = minimist(process.argv.slice(2), {
     string: ["version", "port", "scenario"]
 });
@@ -41,13 +49,43 @@ function loadSocketIoClient(version) {
 
 const io = loadSocketIoClient(version);
 
+const TEST_TIMEOUT_MS = 15_000;
+let completed = false;
+let testTimeout;
+let lastObservedTransport = "not connected";
+
+function activeTransport(socket) {
+    const engine = socket && socket.io && socket.io.engine;
+    const transport = engine && engine.transport;
+    return transport && transport.name ? transport.name : "unknown";
+}
+
+function finish(exitCode, message) {
+    if (completed) {
+        return;
+    }
+
+    completed = true;
+    clearTimeout(testTimeout);
+
+    if (message) {
+        console.error(message);
+    }
+
+    process.exit(exitCode);
+}
+
 function fail(message) {
-    console.error(message);
-    process.exit(1);
+    finish(1, message + " (last transport: " + lastObservedTransport + ")");
 }
 
 function success(socket) {
-    socket.close();
+    // The Java test independently requires the server-side disconnect event.
+    // Do not wait indefinitely for a legacy client's local disconnect callback:
+    // Socket.IO 1.x/2.x can close the transport without delivering that callback.
+    clearTimeout(testTimeout);
+    socket.disconnect();
+    setTimeout(() => finish(0), 250);
 }
 
 function attachCommonHandlers(socket) {
@@ -58,7 +96,7 @@ function attachCommonHandlers(socket) {
             fail("Unexpected disconnect: " + reason);
         }
 
-        process.exit(0);
+        finish(0);
     });
 
     socket.on("connect_error", err => {
@@ -87,6 +125,8 @@ function waitForUpgrade(socket, callback) {
 
         socket.emit("whoAreYou", "", transport => {
 
+            lastObservedTransport = transport || activeTransport(socket);
+
             if (transport === "websocket") {
                 callback();
                 return;
@@ -114,14 +154,17 @@ function runTransportUpgrade() {
 
     socket.on("connect", () => {
 
+        lastObservedTransport = activeTransport(socket);
+
         waitForUpgrade(socket, () => {
             success(socket);
         });
 
     });
 }
-
-
+testTimeout = setTimeout(() => {
+    fail("Transport upgrade test timed out");
+}, TEST_TIMEOUT_MS);
 
 switch (scenario) {
 

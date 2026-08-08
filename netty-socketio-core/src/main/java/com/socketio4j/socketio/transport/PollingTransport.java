@@ -17,8 +17,10 @@
 package com.socketio4j.socketio.transport;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -29,29 +31,26 @@ import com.socketio4j.socketio.handler.AuthorizeHandler;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.handler.ClientsBox;
 import com.socketio4j.socketio.handler.EncoderHandler;
+import com.socketio4j.socketio.messages.HttpErrorMessage;
 import com.socketio4j.socketio.messages.PacketsMessage;
 import com.socketio4j.socketio.messages.XHROptionsMessage;
 import com.socketio4j.socketio.messages.XHRPostMessage;
+import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketDecoder;
+import com.socketio4j.socketio.protocol.PacketType;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequestDecoder;
-import io.netty.handler.codec.http.HttpResponse;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.websocketx.WebSocket13FrameDecoder;
-
-import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 @Sharable
 public class PollingTransport extends ChannelInboundHandlerAdapter {
@@ -137,7 +136,7 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             if (queryDecoder.parameters().containsKey("disconnect")) {
                 ClientHead client = clientsBox.get(sessionId);
                 if (client == null) {
-                    sendError(ctx);
+                    sendUnknownSessionError(ctx);
                     return;
                 }
                 client.onChannelDisconnect();
@@ -161,7 +160,7 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         ClientHead client = clientsBox.get(sessionId);
         if (client == null) {
             log.error("{} is not registered. Closing connection", sessionId);
-            sendError(ctx);
+            sendUnknownSessionError(ctx);
             return;
         }
 
@@ -249,7 +248,7 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         ClientHead client = clientsBox.get(sessionId);
         if (client == null) {
             log.error("{} is not registered. Closing connection", sessionId);
-            sendError(ctx);
+            sendUnknownSessionError(ctx);
             return;
         }
 
@@ -260,12 +259,33 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             return;
         }
 
+        // A legacy Engine.IO client pauses polling only after it receives the
+        // WebSocket probe PONG. Send NOOP on whichever polling GET is current
+        // while that pause is in progress, so a rebinding race cannot strand it.
+        if (client.isUpgradeInProgress()) {
+            client.send(new Packet(PacketType.NOOP), Transport.POLLING);
+        }
+
         authorizeHandler.connect(client);
     }
 
     private void sendError(ChannelHandlerContext ctx) {
-        HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.BAD_REQUEST);
-        ctx.channel().writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
+        sendError(ctx, 3, "Bad request");
+    }
+
+    private void sendUnknownSessionError(ChannelHandlerContext ctx) {
+        sendError(ctx, 1, "Session ID unknown");
+    }
+
+    private void sendError(ChannelHandlerContext ctx, int code, String message) {
+        Map<String, Object> errorData = new HashMap<>();
+        errorData.put("code", code);
+        errorData.put("message", message);
+
+        // Route polling failures through EncoderHandler so configured CORS
+        // headers are present on every cross-origin Engine.IO response,
+        // including a trailing request after a client disconnects.
+        ctx.channel().writeAndFlush(new HttpErrorMessage(errorData));
     }
 
     @Override

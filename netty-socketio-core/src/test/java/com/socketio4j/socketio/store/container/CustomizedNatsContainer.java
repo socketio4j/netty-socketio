@@ -98,7 +98,8 @@ public class CustomizedNatsContainer extends GenericContainer<CustomizedNatsCont
                 if (tempConnection != null) {
                     try {
                         tempConnection.close();
-                    } catch (Exception ignored) {
+                    } catch (Exception closeError) {
+                        throw new IllegalStateException("Could not close failed NATS readiness connection", closeError);
                     }
                 }
                 if (System.currentTimeMillis() > deadline) {
@@ -142,13 +143,25 @@ public class CustomizedNatsContainer extends GenericContainer<CustomizedNatsCont
 
     @Override
     public void stop() {
+        Exception closeFailure = null;
         try {
             if (connection != null) {
                 connection.close();
             }
-        } catch (Exception ignored) {
+        } catch (Exception error) {
+            closeFailure = error;
         }
-        super.stop();
+        try {
+            super.stop();
+        } catch (RuntimeException error) {
+            if (closeFailure != null) {
+                error.addSuppressed(closeFailure);
+            }
+            throw error;
+        }
+        if (closeFailure != null) {
+            throw new IllegalStateException("Could not close NATS readiness connection", closeFailure);
+        }
     }
 
     private static void sleep(long millis) {

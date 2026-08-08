@@ -617,8 +617,11 @@
         <version>3.5.4</version>
         <configuration>
           <useModulePath>false</useModulePath>
+          <failIfNoTests>true</failIfNoTests>
+          <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
+          <rerunFailingTestsCount>0</rerunFailingTestsCount>
+          <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <forkedProcessTimeoutInSeconds>3600</forkedProcessTimeoutInSeconds>
-          <rerunFailingTestsCount>3</rerunFailingTestsCount>
           <argLine>
             <!--For Java 25 support of byte-buddy. Byte-buddy is currently only used in mockito on unit tests within this project, so mitigate this problem by enabling this property-->
             -Dnet.bytebuddy.experimental=true
@@ -629,11 +632,8 @@
             <include>**/*Tests.java</include>
             <include>**/*Suite.java</include>
           </includes>
-            <forkCount>1</forkCount>
-            <reuseForks>false</reuseForks>
-            <forkedProcessTimeoutInSeconds>600</forkedProcessTimeoutInSeconds>
-            <systemPropertyVariables>
-            </systemPropertyVariables>
+          <forkCount>1</forkCount>
+          <reuseForks>false</reuseForks>
         </configuration>
       </plugin>
 

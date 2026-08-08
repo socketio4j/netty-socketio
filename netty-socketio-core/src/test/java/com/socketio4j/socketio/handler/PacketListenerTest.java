@@ -47,6 +47,9 @@ import com.socketio4j.socketio.scheduler.SchedulerKey;
 import com.socketio4j.socketio.transport.NamespaceClient;
 import com.socketio4j.socketio.transport.PollingTransport;
 
+import io.netty.channel.DefaultChannelPromise;
+import io.netty.channel.embedded.EmbeddedChannel;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -274,6 +277,52 @@ public class PacketListenerTest {
 
             // Verify no NOOP packet sent
             verify(baseClient, never()).send(any(Packet.class), eq(Transport.POLLING));
+        }
+
+        @Test
+        @DisplayName("Should release polling only after the probe PONG is written")
+        void shouldReleasePollingOnlyAfterProbePongIsWritten() {
+            EmbeddedChannel channel = new EmbeddedChannel();
+            DefaultChannelPromise pongWrite = new DefaultChannelPromise(channel);
+            when(baseClient.send(any(Packet.class), eq(Transport.WEBSOCKET))).thenReturn(pongWrite);
+
+            Packet packet = createPacket(PacketType.PING);
+            packet.setData("probe");
+
+            packetListener.onTransportPacket(packet, baseClient, Transport.WEBSOCKET);
+
+            verify(baseClient).send(packetCaptor.capture(), eq(Transport.WEBSOCKET));
+            assertEquals(PacketType.PONG, packetCaptor.getValue().getType());
+            assertEquals("probe", packetCaptor.getValue().getData());
+            verify(baseClient, never()).send(any(Packet.class), eq(Transport.POLLING));
+
+            pongWrite.setSuccess();
+            channel.runPendingTasks();
+
+            verify(baseClient).send(packetCaptor.capture(), eq(Transport.POLLING));
+            assertEquals(PacketType.NOOP, packetCaptor.getValue().getType());
+            verify(baseClient, never()).schedulePingTimeout();
+            channel.finishAndReleaseAll();
+        }
+
+        @Test
+        @DisplayName("Should not release polling when the probe PONG write fails")
+        void shouldNotReleasePollingWhenProbePongWriteFails() {
+            EmbeddedChannel channel = new EmbeddedChannel();
+            DefaultChannelPromise pongWrite = new DefaultChannelPromise(channel);
+            when(baseClient.send(any(Packet.class), eq(Transport.WEBSOCKET))).thenReturn(pongWrite);
+
+            Packet packet = createPacket(PacketType.PING);
+            packet.setData("probe");
+
+            packetListener.onTransportPacket(packet, baseClient, Transport.WEBSOCKET);
+            pongWrite.setFailure(new IllegalStateException("simulated WebSocket write failure"));
+            channel.runPendingTasks();
+
+            verify(baseClient).send(any(Packet.class), eq(Transport.WEBSOCKET));
+            verify(baseClient, never()).send(any(Packet.class), eq(Transport.POLLING));
+            verify(baseClient, never()).schedulePingTimeout();
+            channel.finishAndReleaseAll();
         }
     }
 

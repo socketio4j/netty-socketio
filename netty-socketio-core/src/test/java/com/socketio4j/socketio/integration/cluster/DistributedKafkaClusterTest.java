@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.cluster;
+
+import com.socketio4j.socketio.TestResourceCleanup;
 import com.socketio4j.socketio.integration.cluster.DistributedCommonTest;
 import com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport;
 import static com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport.*;
@@ -69,7 +71,12 @@ public class DistributedKafkaClusterTest {
                     break;
                 } catch (Exception e) {
                     if (attempt == 3) throw new RuntimeException("Failed to start Kafka container", e);
-                    try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException error) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("Interrupted while starting Kafka test container", error);
+                    }
                 }
             }
         }
@@ -77,7 +84,8 @@ public class DistributedKafkaClusterTest {
 
     @AfterAll
     static void stopKafka() {
-        try { if (KAFKA != null && KAFKA.isRunning()) KAFKA.close(); } catch (Throwable ignored) {}
+        TestResourceCleanup.runAll("Kafka test container cleanup",
+                () -> { if (KAFKA != null && KAFKA.isRunning()) KAFKA.close(); });
     }
 
     private static KafkaEventStore createKafkaEventStore(String bootstrap, String groupId, EventStoreMode mode) {
@@ -144,10 +152,11 @@ public class DistributedKafkaClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (kafkaEventStore1 != null) kafkaEventStore1.shutdown(); } catch (Throwable ignored) {}
-            try { if (kafkaEventStore2 != null) kafkaEventStore2.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Kafka pub/sub cluster cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (kafkaEventStore1 != null) kafkaEventStore1.shutdown(); },
+                    () -> { if (kafkaEventStore2 != null) kafkaEventStore2.shutdown(); });
         }
     }
 
@@ -188,10 +197,11 @@ public class DistributedKafkaClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (store1 != null) store1.shutdown(); } catch (Throwable ignored) {}
-            try { if (store2 != null) store2.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Kafka single-topic cluster cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (store1 != null) store1.shutdown(); },
+                    () -> { if (store2 != null) store2.shutdown(); });
         }
     }
 
@@ -232,10 +242,11 @@ public class DistributedKafkaClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (store1 != null) store1.shutdown(); } catch (Throwable ignored) {}
-            try { if (store2 != null) store2.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Kafka multi-topic cluster cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (store1 != null) store1.shutdown(); },
+                    () -> { if (store2 != null) store2.shutdown(); });
         }
     }
 
@@ -276,10 +287,11 @@ public class DistributedKafkaClusterTest {
 
         @AfterAll
         void tearDownNodes() {
-            try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-            try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-            try { if (store1 != null) store1.shutdown(); } catch (Throwable ignored) {}
-            try { if (store2 != null) store2.shutdown(); } catch (Throwable ignored) {}
+            TestResourceCleanup.runAll("Kafka reliable pub/sub cluster cleanup",
+                    () -> { if (node1 != null) node1.stop(); },
+                    () -> { if (node2 != null) node2.stop(); },
+                    () -> { if (store1 != null) store1.shutdown(); },
+                    () -> { if (store2 != null) store2.shutdown(); });
         }
     }
 }

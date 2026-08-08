@@ -14,6 +14,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+function failUnhandled(kind, error) {
+    console.error(`${kind}:`, error && error.stack ? error.stack : error);
+    process.exit(1);
+}
+
+process.on("uncaughtException", error => failUnhandled("Uncaught exception", error));
+process.on("unhandledRejection", reason => failUnhandled("Unhandled rejection", reason));
+
+function failFast(reason) {
+    console.error("Critical test setup failure:", reason);
+    process.exit(1);
+}
+
 const parseArgs = () => {
     const args = {};
     process.argv.slice(2).forEach(arg => {
@@ -37,6 +50,17 @@ const scenario = args.scenario;
 if (!scenario) {
     failFast("Missing required --scenario argument");
 }
+
+let connected = false;
+const exitProcess = process.exit.bind(process);
+process.exit = code => {
+    if ((code === undefined || code === 0) && !connected) {
+        console.error("Refusing success before Socket.IO connection is established");
+        exitProcess(1);
+        return;
+    }
+    exitProcess(code);
+};
 
 console.log(`Running JS Client Interop Test: version=v${version}, port=${port}, transport=${transport}, scenario=${scenario}`);
 
@@ -71,6 +95,7 @@ const timeout = setTimeout(() => {
 }, 10000);
 
 socket.on('connect', () => {
+    connected = true;
     console.log(`[v${version} JS Client] Connected successfully via ${transport}`);
     console.log("Socket.IO package :", pkg.version);
 
@@ -485,28 +510,31 @@ if (scenario === "leave_one_room") {
         }, 300);
     });
 }
-socket.emit("leaveAllRooms", "");
+if (scenario === "leave_all_rooms") {
 
-let received = false;
+    socket.emit("leaveAllRooms", "");
 
-socket.on("roomAMessage", () => received = true);
-socket.on("roomBMessage", () => received = true);
-socket.on("roomCMessage", () => received = true);
+    let received = false;
 
-// Wait a little to ensure no messages arrive.
-setTimeout(() => {
+    socket.on("roomAMessage", () => received = true);
+    socket.on("roomBMessage", () => received = true);
+    socket.on("roomCMessage", () => received = true);
 
-    if (received) {
-        console.error("Received room message after leaving all rooms");
-        process.exit(1);
-    }
+    // Wait a little to ensure no messages arrive.
+    setTimeout(() => {
 
-    clearTimeout(timeout);
-    socket.disconnect();
-    console.log("ROOM-007 PASSED");
-    process.exit(0);
+        if (received) {
+            console.error("Received room message after leaving all rooms");
+            process.exit(1);
+        }
 
-}, 500);
+        clearTimeout(timeout);
+        socket.disconnect();
+        console.log("ROOM-007 PASSED");
+        process.exit(0);
+
+    }, 500);
+}
 
 if (scenario === "disconnect_rooms") {
 

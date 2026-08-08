@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.store;
+import com.socketio4j.socketio.TestResourceCleanup;
 import com.socketio4j.socketio.store.container.CustomizedHazelcastContainer;
 
 import java.util.Map;
@@ -82,14 +83,16 @@ public class HazelcastStoreFactoryTest extends AbstractStoreFactoryTestSupport {
 
     @AfterEach
     public void tearDown() throws Exception {
-        try { if (closeableMocks != null) closeableMocks.close(); } catch (Throwable ignored) {}
-        try { if (storeFactory != null) storeFactory.shutdown(); } catch (Throwable ignored) {}
-        try { if (hazelcastInstance != null) hazelcastInstance.shutdown(); } catch (Throwable ignored) {}
+        TestResourceCleanup.runAll("Hazelcast store test cleanup",
+                () -> { if (closeableMocks != null) closeableMocks.close(); },
+                () -> { if (storeFactory != null) storeFactory.shutdown(); },
+                () -> { if (hazelcastInstance != null) hazelcastInstance.shutdown(); });
     }
 
     @AfterAll
     public static void afterAll() throws Exception {
-        try { if (container != null && container.isRunning()) container.stop(); } catch (Throwable ignored) {}
+        TestResourceCleanup.runAll("Hazelcast test container cleanup",
+                () -> { if (container != null && container.isRunning()) container.stop(); });
     }
 
     @Test

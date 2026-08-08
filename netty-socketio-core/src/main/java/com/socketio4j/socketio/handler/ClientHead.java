@@ -67,6 +67,7 @@ public class ClientHead {
 
     private final AtomicBoolean disconnected = new AtomicBoolean();
     private final AtomicBoolean pollingPostActive = new AtomicBoolean();
+    private final AtomicBoolean upgradeInProgress = new AtomicBoolean();
     private final Map<Namespace, NamespaceClient> namespaceClients = new ConcurrentHashMap<>();
     private final Map<Transport, TransportState> channels = new HashMap<Transport, TransportState>(2);
     private final HandshakeData handshakeData;
@@ -406,13 +407,25 @@ public class ClientHead {
         return state.getChannel().equals(channel);
     }
 
+    public void beginUpgrade() {
+        upgradeInProgress.set(true);
+    }
+
+    public boolean isUpgradeInProgress() {
+        return upgradeInProgress.get();
+    }
+
     public void upgradeCurrentTransport(Transport currentTransport) {
+        upgradeInProgress.set(false);
         TransportState state = channels.get(currentTransport);
 
         for (Entry<Transport, TransportState> entry : channels.entrySet()) {
             if (!entry.getKey().equals(currentTransport)) {
 
                 Queue<Packet> queue = entry.getValue().getPacketsQueue();
+                // NOOP only releases the old polling transport. Once the client
+                // has selected the new transport it must not be replayed over it.
+                queue.removeIf(packet -> packet.getType() == PacketType.NOOP);
                 state.setPacketsQueue(queue);
 
                 sendPackets(currentTransport, state.getChannel());

@@ -16,6 +16,8 @@
  */
 package com.socketio4j.socketio.store;
 
+import com.socketio4j.socketio.TestResourceCleanup;
+
 import java.util.Map;
 import java.util.UUID;
 
@@ -139,11 +141,7 @@ public class MemoryStoreFactoryTest extends AbstractStoreFactoryTestSupport {
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-            try {
-                closeableMocks.close();
-            } catch (Exception e) {
-                // Ignore
-            }
+            TestResourceCleanup.runAll("Memory store mock cleanup", closeableMocks::close);
         }
     }
 }

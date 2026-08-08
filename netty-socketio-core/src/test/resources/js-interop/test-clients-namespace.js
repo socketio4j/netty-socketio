@@ -14,6 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+function failUnhandled(kind, error) {
+    console.error(`${kind}:`, error && error.stack ? error.stack : error);
+    process.exit(1);
+}
+
+process.on("uncaughtException", error => failUnhandled("Uncaught exception", error));
+process.on("unhandledRejection", reason => failUnhandled("Unhandled rejection", reason));
+
 const parseArgs = () => {
     const args = {};
     process.argv.slice(2).forEach(arg => {

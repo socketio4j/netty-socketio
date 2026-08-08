@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import org.junit.jupiter.params.ParameterizedTest;
@@ -72,6 +73,7 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
         Process process = pb.start();
 
         StringBuilder output = new StringBuilder();
+        AtomicReference<Throwable> outputFailure = new AtomicReference<>();
 
         Thread t = new Thread(() -> {
             try (BufferedReader r = new BufferedReader(
@@ -85,7 +87,8 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
                     }
                 }
 
-            } catch (Exception ignored) {
+            } catch (Throwable error) {
+                outputFailure.set(error);
             }
         });
 
@@ -99,6 +102,13 @@ public class JsNamespaceInteropTest extends AbstractSocketIOIntegrationTest {
 
             if (!completed) {
                 fail(getOutput(output));
+            }
+            t.join(TimeUnit.SECONDS.toMillis(1));
+            if (t.isAlive()) {
+                fail("JS client output reader did not terminate\n" + getOutput(output));
+            }
+            if (outputFailure.get() != null) {
+                throw new AssertionError("Unable to read JS client output", outputFailure.get());
             }
 
             assertEquals(0,

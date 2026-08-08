@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.interop;
+
+import com.socketio4j.socketio.TestResourceCleanup;
 import com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport;
 import static com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport.*;
 
@@ -101,10 +103,11 @@ public class DistributedRedisStreamJsClientInteropTest extends AbstractDistribut
     @AfterAll
     @Override
     public void teardownCluster() {
-        try { if (node1 != null) node1.stop(); } catch (Throwable ignored) {}
-        try { if (node2 != null) node2.stop(); } catch (Throwable ignored) {}
-        try { if (redisson1 != null) redisson1.shutdown(); } catch (Throwable ignored) {}
-        try { if (redisson2 != null) redisson2.shutdown(); } catch (Throwable ignored) {}
-        try { if (REDIS != null) REDIS.stop(); } catch (Throwable ignored) {}
+        TestResourceCleanup.runAll("Redis stream distributed interop cleanup",
+                () -> { if (node1 != null) node1.stop(); },
+                () -> { if (node2 != null) node2.stop(); },
+                () -> { if (redisson1 != null) redisson1.shutdown(); },
+                () -> { if (redisson2 != null) redisson2.shutdown(); },
+                () -> { if (REDIS != null) REDIS.stop(); });
     }
 }
