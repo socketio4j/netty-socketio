@@ -66,8 +66,8 @@ public abstract class AbstractDistributedJsClientInteropTest {
             JsClientInteropMatrix.VERSIONS.size() * JsClientInteropMatrix.TRANSPORTS.size();
     protected static final int FULL_MATRIX_CLIENTS = CLIENTS_PER_NODE * 2;
     private static final long DEFAULT_JS_CLIENT_TIMEOUT_SECONDS = 35;
-    private static final long P2P_CONFIRM_TIMEOUT_SECONDS = 30;
-    private static final long P2P_JS_CLIENT_TIMEOUT_SECONDS = 60;
+    private static final long CLIENT_CONFIRM_TIMEOUT_SECONDS = 30;
+    private static final long CLIENT_CONFIRM_JS_CLIENT_TIMEOUT_SECONDS = 60;
 
     private static final java.util.Set<JsClientProcess> ALL_ACTIVE_PROCESSES = ConcurrentHashMap.newKeySet();
 
@@ -493,6 +493,20 @@ public abstract class AbstractDistributedJsClientInteropTest {
         Map<String, String> blueArgs = new HashMap<>();
         blueArgs.put("expectedNonce", blueNonce);
 
+        CountDownLatch confirmationLatch = new CountDownLatch(FULL_MATRIX_CLIENTS);
+        Set<String> expectedClientNames = ConcurrentHashMap.newKeySet();
+        Set<String> confirmedClientNames = ConcurrentHashMap.newKeySet();
+        ConcurrentLinkedQueue<String> unexpectedConfirmations = new ConcurrentLinkedQueue<>();
+        DataListener<String> confirmationListener = (client, clientName, ackRequest) -> {
+            if (!expectedClientNames.contains(clientName)) {
+                unexpectedConfirmations.add(String.valueOf(clientName));
+            } else if (confirmedClientNames.add(clientName)) {
+                confirmationLatch.countDown();
+            }
+        };
+        node1.addEventListener("room-isolation-confirmed", String.class, confirmationListener);
+        node2.addEventListener("room-isolation-confirmed", String.class, confirmationListener);
+
         try {
             for (String v : versions) {
                 for (String t : transports) {
@@ -500,6 +514,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
                     processes.add(launchJsClient("n2_blue_v" + v + "_" + t, v, port2, t, "dist_room_isolation_negative", roomBlue, blueArgs));
                 }
             }
+            processes.forEach(process -> expectedClientNames.add(process.getName()));
 
             awaitRoomSync(roomRed, CLIENTS_PER_NODE, processes);
             awaitRoomSync(roomBlue, CLIENTS_PER_NODE, processes);
@@ -507,10 +522,16 @@ public abstract class AbstractDistributedJsClientInteropTest {
             node1.getRoomOperations(roomRed).sendEvent("dist-event", redNonce);
             node2.getRoomOperations(roomBlue).sendEvent("dist-event", blueNonce);
 
+            assertTrue(confirmationLatch.await(CLIENT_CONFIRM_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+                    clientConfirmationTimeoutMessage("room-isolation delivery", expectedClientNames,
+                            confirmedClientNames, unexpectedConfirmations, processes));
+
             node1.getBroadcastOperations().sendEvent("dist-test-done", "isolation_check");
 
             verifyAndCleanUpProcesses(processes, 25);
         } finally {
+            node1.removeAllListeners("room-isolation-confirmed");
+            node2.removeAllListeners("room-isolation-confirmed");
             processes.forEach(JsClientProcess::destroyForcibly);
         }
     }
@@ -857,16 +878,16 @@ public abstract class AbstractDistributedJsClientInteropTest {
         node2.addEventListener("client-p2p-confirmed", String.class, confirmListener);
 
         List<JsClientProcess> processes = launchFullClientMatrix(
-                "dist_client_to_client", room, extraArgs, P2P_JS_CLIENT_TIMEOUT_SECONDS);
+                "dist_client_to_client", room, extraArgs, CLIENT_CONFIRM_JS_CLIENT_TIMEOUT_SECONDS);
         processes.forEach(process -> expectedClientNames.add(process.getName()));
         try {
             awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
             node1.getBroadcastOperations().sendEvent("trigger-p2p-send", senderClient);
 
-            assertTrue(p2pLatch.await(P2P_CONFIRM_TIMEOUT_SECONDS, TimeUnit.SECONDS),
-                    p2pRelayTimeoutMessage(expectedClientNames, confirmedClientNames,
-                            unexpectedConfirmations, processes));
+            assertTrue(p2pLatch.await(CLIENT_CONFIRM_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+                    clientConfirmationTimeoutMessage("P2P relay", expectedClientNames,
+                            confirmedClientNames, unexpectedConfirmations, processes));
 
             node1.getBroadcastOperations().sendEvent("dist-test-done", "p2p_relay_check");
 
@@ -964,7 +985,16 @@ public abstract class AbstractDistributedJsClientInteropTest {
         final String room = "ClusterClientAckRoom_" + System.currentTimeMillis();
 
         CountDownLatch ackLatch = new CountDownLatch(FULL_MATRIX_CLIENTS);
-        DataListener<String> confirmListener = (client, data, ackRequest) -> ackLatch.countDown();
+        Set<String> expectedClientNames = ConcurrentHashMap.newKeySet();
+        Set<String> confirmedClientNames = ConcurrentHashMap.newKeySet();
+        ConcurrentLinkedQueue<String> unexpectedConfirmations = new ConcurrentLinkedQueue<>();
+        DataListener<String> confirmListener = (client, clientName, ackRequest) -> {
+            if (!expectedClientNames.contains(clientName)) {
+                unexpectedConfirmations.add(String.valueOf(clientName));
+            } else if (confirmedClientNames.add(clientName)) {
+                ackLatch.countDown();
+            }
+        };
 
         DataListener<String> reqListener = (client, challenge, ackRequest) -> {
             if (ackRequest.isAckRequested()) {
@@ -977,15 +1007,17 @@ public abstract class AbstractDistributedJsClientInteropTest {
         node1.addEventListener("client-ack-confirmed", String.class, confirmListener);
         node2.addEventListener("client-ack-confirmed", String.class, confirmListener);
 
-        List<JsClientProcess> processes = launchFullClientMatrix("dist_client_ack", room, new HashMap<>());
+        List<JsClientProcess> processes = launchFullClientMatrix(
+                "dist_client_ack", room, new HashMap<>(), CLIENT_CONFIRM_JS_CLIENT_TIMEOUT_SECONDS);
+        processes.forEach(process -> expectedClientNames.add(process.getName()));
         try {
             awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
             node1.getBroadcastOperations().sendEvent("trigger-client-ack");
 
-            assertTrue(ackLatch.await(15, TimeUnit.SECONDS),
-                    String.format("Timed out waiting for client-initiated ACKs! Received %d of %d confirmations.",
-                            FULL_MATRIX_CLIENTS - ackLatch.getCount(), FULL_MATRIX_CLIENTS));
+            assertTrue(ackLatch.await(CLIENT_CONFIRM_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+                    clientConfirmationTimeoutMessage("client-initiated ACKs", expectedClientNames,
+                            confirmedClientNames, unexpectedConfirmations, processes));
 
             node1.getBroadcastOperations().sendEvent("dist-test-done", "client_ack_check");
             verifyAndCleanUpProcesses(processes, 25);
@@ -1164,17 +1196,18 @@ public abstract class AbstractDistributedJsClientInteropTest {
         return wrapper;
     }
 
-    private String p2pRelayTimeoutMessage(Set<String> expectedClientNames,
-                                          Set<String> confirmedClientNames,
-                                          ConcurrentLinkedQueue<String> unexpectedConfirmations,
-                                          List<JsClientProcess> processes) {
+    private String clientConfirmationTimeoutMessage(String operation,
+                                                    Set<String> expectedClientNames,
+                                                    Set<String> confirmedClientNames,
+                                                    ConcurrentLinkedQueue<String> unexpectedConfirmations,
+                                                    List<JsClientProcess> processes) {
         List<String> missingClientNames = new ArrayList<String>(expectedClientNames);
         missingClientNames.removeAll(confirmedClientNames);
         java.util.Collections.sort(missingClientNames);
 
         StringBuilder message = new StringBuilder();
-        message.append(String.format("Timed out waiting for P2P relay! Received %d of %d unique client confirmations.",
-                confirmedClientNames.size(), expectedClientNames.size()));
+        message.append(String.format("Timed out waiting for %s! Received %d of %d unique client confirmations.",
+                operation, confirmedClientNames.size(), expectedClientNames.size()));
         message.append(" Missing clients: ").append(missingClientNames).append('.');
         if (!unexpectedConfirmations.isEmpty()) {
             message.append(" Unexpected confirmations: ").append(unexpectedConfirmations).append('.');

@@ -84,21 +84,22 @@ let leftRoomOk = false;
 // full scheduling turn for their final POST/poll exchange before process exit;
 // the Java suite still proves server-side removal rather than trusting this.
 const DISCONNECT_FLUSH_DELAY_MS = 1000;
+let closing = false;
 
 const exitGracefully = (code = 0, delayMs = 300) => {
     clearTimeout(timeout);
     setTimeout(() => {
-        socket.disconnect();
-        // A legacy Engine.IO v3 client connected directly to a non-root
-        // namespace can leave the server's implicit root namespace alive after
-        // its namespace DISCONNECT. Close the shared Manager as well so the
-        // transport close reaches the server and removes every namespace for
-        // this client head.
+        closing = true;
+        // Close the shared Manager once. Calling socket.disconnect() first
+        // removes the server session, then manager.close() can race with a
+        // final polling request and receive a spurious 400 for that SID.
         if (socket.io && typeof socket.io.close === "function") {
             socket.io.close();
         } else if (socket.io && socket.io.engine
                 && typeof socket.io.engine.close === "function") {
             socket.io.engine.close();
+        } else {
+            socket.disconnect();
         }
         setTimeout(() => process.exit(code), DISCONNECT_FLUSH_DELAY_MS);
     }, delayMs);
@@ -106,9 +107,13 @@ const exitGracefully = (code = 0, delayMs = 300) => {
 
 // --- LIFECYCLE & TRANSPORT ERROR HANDLERS ---
 socket.on('connect_error', (err) => failFast('Connection Error', err.message || err));
-socket.on('error', (err) => failFast('Socket Error', err));
+socket.on('error', (err) => {
+    if (!closing) {
+        failFast('Socket Error', err);
+    }
+});
 socket.on('disconnect', (reason) => {
-    if ((reason === 'io server disconnect' || reason === 'transport close') && !process.exitCode) {
+    if (!closing && (reason === 'io server disconnect' || reason === 'transport close') && !process.exitCode) {
         failFast('Unexpected Disconnect', reason);
     }
 });
@@ -241,6 +246,7 @@ socket.on('dist-event', (...eventArgs) => {
         if (data !== expectedNonce) {
             failFast(`ROOM ISOLATION BREACH! Expected '${expectedNonce}', received:`, data);
         }
+        socket.emit('room-isolation-confirmed', clientName);
     }
 
     if (scenario === 'dist_client_exclusion') {

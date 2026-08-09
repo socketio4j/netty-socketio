@@ -623,7 +623,7 @@ public class SocketIOServer implements ClientListeners {
                         installShutdownHookOnce();
                         fireAfterStart();
                         startPromise.setSuccess(null);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         serverStatus.set(ServerStatus.INIT);
                         cleanUpResources(false);
                         log.error("Server start error on port {}", configCopy.getPort(), e);
