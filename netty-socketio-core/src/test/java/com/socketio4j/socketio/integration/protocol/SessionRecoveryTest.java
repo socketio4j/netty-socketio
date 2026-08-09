@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 
 @DisplayName("Session Recovery Tests - SocketIO Protocol Session Recovery & Reconnection")
-public class SessionRecoveryTest extends AbstractSocketIOIntegrationTest {
+public class SessionRecoveryTest extends AbstractSharedSocketIOIntegrationTest {
 
     @Test
     @DisplayName("Should recover session after client disconnection")

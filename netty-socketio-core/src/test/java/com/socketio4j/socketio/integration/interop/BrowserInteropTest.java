@@ -17,8 +17,12 @@
 package com.socketio4j.socketio.integration.interop;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
@@ -36,6 +40,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
@@ -68,6 +73,8 @@ public class BrowserInteropTest {
     // Individual browser cases retain their 30-second page timeout. This
     // larger process deadline accommodates cold browser launch overhead.
     private static final long BROWSER_RUNNER_TIMEOUT_SECONDS = 240;
+    private static final long PROCESS_OUTPUT_DRAIN_TIMEOUT_SECONDS = 5;
+    private static final int MAX_CAPTURED_PROCESS_OUTPUT_CHARS = 1_000_000;
 
     private static final byte[] EXPECTED_BINARY = {
             0, 1, 2, 3, 4, 5, 10, 20, 30, 40,
@@ -96,6 +103,14 @@ public class BrowserInteropTest {
      */
     private static final Queue<ReceivedEvent> EVENTS =
             new ConcurrentLinkedQueue<ReceivedEvent>();
+
+    /**
+     * Netty invokes Socket.IO listeners asynchronously. An assertion thrown
+     * there is otherwise only reported to the exception listener and cannot
+     * fail the JUnit method that started the browser matrix.
+     */
+    private static final Queue<Throwable> CALLBACK_FAILURES =
+            new ConcurrentLinkedQueue<Throwable>();
 
     /**
      * Used to detect duplicate deliveries.
@@ -183,6 +198,7 @@ public class BrowserInteropTest {
     private static void resetRecorder() {
 
         EVENTS.clear();
+        CALLBACK_FAILURES.clear();
         UNIQUE_EVENTS.clear();
         EVENT_ORDER.clear();
         CONNECTS.set(0);
@@ -302,10 +318,79 @@ public class BrowserInteropTest {
         }
     }
 
+    private static final class CapturedProcess {
+
+        private final Process process;
+        private final StringBuilder output = new StringBuilder();
+        private final AtomicReference<IOException> outputFailure = new AtomicReference<>();
+        private final Thread outputDrainer;
+
+        CapturedProcess(Process process, String description) {
+            this.process = process;
+            this.outputDrainer = new Thread(() -> drainOutput(),
+                    "browser-interop-output-" + description);
+            outputDrainer.setDaemon(true);
+            outputDrainer.start();
+        }
+
+        private void drainOutput() {
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                char[] buffer = new char[4096];
+                int read;
+                while ((read = reader.read(buffer)) != -1) {
+                    synchronized (output) {
+                        int remaining = MAX_CAPTURED_PROCESS_OUTPUT_CHARS - output.length();
+                        if (remaining > 0) {
+                            output.append(buffer, 0, Math.min(read, remaining));
+                        }
+                    }
+                }
+            } catch (IOException error) {
+                outputFailure.compareAndSet(null, error);
+            }
+        }
+
+        boolean waitFor(long timeout, TimeUnit unit) throws InterruptedException {
+            return process.waitFor(timeout, unit);
+        }
+
+        int exitValue() {
+            return process.exitValue();
+        }
+
+        void stop() throws InterruptedException {
+            process.destroy();
+            if (!process.waitFor(PROCESS_OUTPUT_DRAIN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                process.waitFor(PROCESS_OUTPUT_DRAIN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            }
+            awaitOutput();
+        }
+
+        void awaitOutput() throws InterruptedException {
+            outputDrainer.join(TimeUnit.SECONDS.toMillis(PROCESS_OUTPUT_DRAIN_TIMEOUT_SECONDS));
+            if (outputDrainer.isAlive()) {
+                throw new IllegalStateException("Timed out draining browser process output");
+            }
+            IOException failure = outputFailure.get();
+            if (failure != null) {
+                throw new IllegalStateException("Unable to read browser process output", failure);
+            }
+        }
+
+        String output() {
+            synchronized (output) {
+                return output.toString();
+            }
+        }
+    }
+
     /**
-     * Helper for starting external processes with optional environment variables.
+     * Start an external process and capture its combined output without
+     * bypassing Surefire's fork communication channel.
      */
-    private static Process startProcess(
+    private static CapturedProcess startProcess(
             File directory,
             Map<String, String> env,
             String... command)
@@ -313,11 +398,11 @@ public class BrowserInteropTest {
 
         ProcessBuilder pb = new ProcessBuilder(command)
                 .directory(directory)
-                .inheritIO();
+                .redirectErrorStream(true);
         if (env != null) {
             pb.environment().putAll(env);
         }
-        return pb.start();
+        return new CapturedProcess(pb.start(), command[0]);
     }
 
     @BeforeAll
@@ -371,81 +456,80 @@ public class BrowserInteropTest {
                 "text",
                 String.class,
                 (client, text, ack) -> {
-
-                    recordEvent(namespace, "text", client);
-
-                    assertText(text);
-
-                    client.sendEvent("textReply", text);
+                    verifyCallback(() -> {
+                        recordEvent(namespace, "text", client);
+                        assertText(text);
+                        client.sendEvent("textReply", text);
+                    });
                 });
 
         nsp.addEventListener(
                 "textAck",
                 String.class,
                 (client, text, ack) -> {
-
-                    recordEvent(namespace, "textAck", client);
-
-                    assertText(text);
-
-                    ack.sendAckData(text);
+                    verifyCallback(() -> {
+                        recordEvent(namespace, "textAck", client);
+                        assertText(text);
+                        ack.sendAckData(text);
+                    });
                 });
 
         nsp.addEventListener(
                 "binary",
                 byte[].class,
                 (client, bytes, ack) -> {
-
-                    recordEvent(namespace, "binary", client);
-
-                    assertBinary(bytes);
-
-                    client.sendEvent("binaryReply", bytes);
+                    verifyCallback(() -> {
+                        recordEvent(namespace, "binary", client);
+                        assertBinary(bytes);
+                        client.sendEvent("binaryReply", bytes);
+                    });
                 });
 
         nsp.addEventListener(
                 "binaryAck",
                 byte[].class,
                 (client, bytes, ack) -> {
-
-                    recordEvent(namespace, "binaryAck", client);
-
-                    assertBinary(bytes);
-
-                    ack.sendAckData(bytes);
+                    verifyCallback(() -> {
+                        recordEvent(namespace, "binaryAck", client);
+                        assertBinary(bytes);
+                        ack.sendAckData(bytes);
+                    });
                 });
 
         nsp.addEventListener(
                 "mixed",
                 JsonData.class,
                 (client, data, ack) -> {
-
-                    recordEvent(namespace, "mixed", client);
-
-                    assertText(data.getText());
-
-                    assertBinary(data.getBinary());
-
-                    assertNumber(data.getNumber());
-
-                    client.sendEvent("mixedReply", data);
+                    verifyCallback(() -> {
+                        recordEvent(namespace, "mixed", client);
+                        assertText(data.getText());
+                        assertBinary(data.getBinary());
+                        assertNumber(data.getNumber());
+                        client.sendEvent("mixedReply", data);
+                    });
                 });
 
         nsp.addEventListener(
                 "mixedAck",
                 JsonData.class,
                 (client, data, ack) -> {
-
-                    recordEvent(namespace, "mixedAck", client);
-
-                    assertText(data.getText());
-
-                    assertBinary(data.getBinary());
-
-                    assertNumber(data.getNumber());
-
-                    ack.sendAckData(data);
+                    verifyCallback(() -> {
+                        recordEvent(namespace, "mixedAck", client);
+                        assertText(data.getText());
+                        assertBinary(data.getBinary());
+                        assertNumber(data.getNumber());
+                        ack.sendAckData(data);
+                    });
                 });
+    }
+
+    private static void verifyCallback(Runnable callback) {
+        try {
+            callback.run();
+        } catch (RuntimeException | Error error) {
+            CALLBACK_FAILURES.add(error);
+            throw error;
+        }
     }
 
     private static void assertText(String value) {
@@ -482,8 +566,8 @@ public class BrowserInteropTest {
         resetRecorder();
 
         File dir = new File("src/test/resources/js-interop");
-        Process python = null;
-        Process node = null;
+        CapturedProcess python = null;
+        CapturedProcess node = null;
         Map<String, String> env = new java.util.HashMap<>();
         env.put("HTTP_PORT", String.valueOf(httpPort));
         env.put("SOCKETIO_PORT", String.valueOf(serverPort));
@@ -505,33 +589,29 @@ public class BrowserInteropTest {
                     "node",
                     "browser-runner.js");
             assertTrue(node.waitFor(BROWSER_RUNNER_TIMEOUT_SECONDS, TimeUnit.SECONDS),
-                    "Browser interop runner timed out after " + BROWSER_RUNNER_TIMEOUT_SECONDS + " seconds");
+                    "Browser interop runner timed out after " + BROWSER_RUNNER_TIMEOUT_SECONDS
+                            + " seconds\n" + node.output());
+            node.awaitOutput();
             int exit = node.exitValue();
 
-            assertEquals(0, exit);
+            assertEquals(0, exit, node.output());
 
         } finally {
 
             if (node != null) {
-                node.destroy();
-                if (!node.waitFor(5, TimeUnit.SECONDS)) {
-                    node.destroyForcibly();
-                    node.waitFor(5, TimeUnit.SECONDS);
-                }
+                node.stop();
             }
 
             if (python != null) {
-                python.destroy();
-                if (!python.waitFor(5, TimeUnit.SECONDS)) {
-                    python.destroyForcibly();
-                    python.waitFor(5, TimeUnit.SECONDS);
-                }
+                python.stop();
             }
         }
 
         verifyEvents();
     }
     private static void verifyEvents() {
+
+        assertNoCallbackFailures();
 
         final int expectedEvents =
                 BROWSER_COUNT *
@@ -574,6 +654,19 @@ public class BrowserInteropTest {
             NamespaceTestReuseAssertions.assertEmpty(namespace,
                     "after browser interop run");
         }
+    }
+
+    private static void assertNoCallbackFailures() {
+        if (CALLBACK_FAILURES.isEmpty()) {
+            return;
+        }
+
+        AssertionError failure = new AssertionError(
+                "Server event callback assertion failure(s): " + CALLBACK_FAILURES.size());
+        for (Throwable callbackFailure : CALLBACK_FAILURES) {
+            failure.addSuppressed(callbackFailure);
+        }
+        throw failure;
     }
     private static void verifyNamespaceDistribution() {
 

@@ -15,8 +15,6 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.protocol;
-import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -47,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 
 @DisplayName("Authentication Payload Tests - SocketIO Protocol CONNECT with Auth")
-public class AuthPayloadTest extends AbstractSocketIOIntegrationTest {
+public class AuthPayloadTest extends AbstractSharedSocketIOIntegrationTest {
     private static final String authUserIdKey = "userId";
     private static final String authUserId = "itest-auth-user";
     private static final String authUserPasswordKey = "password";

@@ -46,6 +46,7 @@ public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
         CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
 
         ClientConfig config = new ClientConfig();
+        config.setClusterName(hz.getClusterName());
         config.getNetworkConfig()
                 .setSmartRouting(false)                   // never try unreachable members inside container
                 .setRedoOperation(true)
@@ -58,9 +59,12 @@ public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
     }
 
     @Override
-    public void tearDown() throws Exception {
-        if (hazelcastPub != null) hazelcastPub.shutdown();
-        if (hazelcastSub != null) hazelcastSub.shutdown();
-        if (container != null && container.isRunning()) container.stop();
+    protected void closeClients() {
+        if (hazelcastPub != null) {
+            hazelcastPub.shutdown();
+        }
+        if (hazelcastSub != null) {
+            hazelcastSub.shutdown();
+        }
     }
 }

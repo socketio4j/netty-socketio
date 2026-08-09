@@ -23,6 +23,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 
 import java.time.Duration;
+import java.util.UUID;
 
 /**
  * Optimized Hazelcast container for testing.
@@ -38,6 +39,13 @@ public class CustomizedHazelcastContainer extends GenericContainer<CustomizedHaz
 
     public static final int HAZELCAST_PORT = 5701;
 
+    /**
+     * Every test container must use an isolated Hazelcast cluster. Without a
+     * unique name, a running container from another test process can accept a
+     * client connection and silently contaminate this test's state.
+     */
+    private final String clusterName = "socketio4j-test-" + UUID.randomUUID();
+
     public CustomizedHazelcastContainer() {
         super("hazelcast/hazelcast:5.7.0-slim-jdk25");
     }
@@ -49,6 +57,7 @@ public class CustomizedHazelcastContainer extends GenericContainer<CustomizedHaz
 
         // Map custom test config file
         withEnv("JVM_OPTS", "-Dhazelcast.config=/opt/hazelcast/config_ext/hazelcast.xml");
+        withEnv("HZ_CLUSTERNAME", clusterName);
         withClasspathResourceMapping(
                 "hazelcast-test-config.xml",
                 "/opt/hazelcast/config_ext/hazelcast.xml",
@@ -63,6 +72,10 @@ public class CustomizedHazelcastContainer extends GenericContainer<CustomizedHaz
     }
     public String getHazelcastAddress() {
         return getHost() + ":" + getMappedPort(HAZELCAST_PORT);
+    }
+
+    public String getClusterName() {
+        return clusterName;
     }
 
     @Override

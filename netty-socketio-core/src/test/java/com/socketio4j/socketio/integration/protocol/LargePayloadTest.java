@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 
 @DisplayName("Large Payload Integration Tests")
-public class LargePayloadTest extends AbstractSocketIOIntegrationTest {
+public class LargePayloadTest extends AbstractSharedSocketIOIntegrationTest {
 
     @Test
     @DisplayName("Should handle large string payload transmission")

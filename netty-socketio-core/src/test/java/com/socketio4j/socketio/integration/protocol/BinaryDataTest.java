@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 
 @DisplayName("Binary Data Tests - SocketIO Protocol BINARY_EVENT & BINARY_ACK")
-public class BinaryDataTest extends AbstractSocketIOIntegrationTest {
+public class BinaryDataTest extends AbstractSharedSocketIOIntegrationTest {
     private static final Field SOCKET_IO_SEND_BUFFER;
     private static final Method EMIT_BUFFERED;
 

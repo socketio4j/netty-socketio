@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
  */
 
 @DisplayName("Acknowledgment Callbacks Tests - SocketIO Protocol ACK")
-public class AckCallbacksTest extends AbstractSocketIOIntegrationTest {
+public class AckCallbacksTest extends AbstractSharedSocketIOIntegrationTest {
 
     @Test
     @DisplayName("Should handle event acknowledgment callbacks between client and server")

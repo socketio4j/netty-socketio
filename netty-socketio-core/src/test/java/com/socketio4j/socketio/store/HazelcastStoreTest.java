@@ -49,6 +49,7 @@ public class HazelcastStoreTest extends AbstractStoreTest {
         CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
 
         ClientConfig config = new ClientConfig();
+        config.setClusterName(hz.getClusterName());
         config.getNetworkConfig()
                 .setSmartRouting(false)                   // never try unreachable members inside container
                 .setRedoOperation(true)

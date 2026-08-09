@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 
 @DisplayName("Basic Connection Tests - SocketIO Protocol CONNECT/DISCONNECT")
-public class BasicConnectionTest extends AbstractSocketIOIntegrationTest {
+public class BasicConnectionTest extends AbstractSharedSocketIOIntegrationTest {
 
     @Test
     @DisplayName("Should establish basic client connection and trigger server connect listener")

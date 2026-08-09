@@ -14,17 +14,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.integration.suite;
+package com.socketio4j.testsuites;
 
 import org.junit.platform.suite.api.SelectPackages;
 import org.junit.platform.suite.api.Suite;
 import org.junit.platform.suite.api.SuiteDisplayName;
 
 /**
- * Test Suite aggregating all Distributed Multi-Node Cluster integration tests (Hazelcast, Redisson, NATS, Kafka).
+ * Test Suite aggregating all Core Protocol Feature Integration tests.
  */
 @Suite
-@SuiteDisplayName("Distributed Cluster Integration Test Suite")
-@SelectPackages("com.socketio4j.socketio.integration.cluster")
-public class DistributedClusterTestSuite {
+@SuiteDisplayName("Core Protocol Feature Integration Test Suite")
+@SelectPackages("com.socketio4j.socketio.integration.protocol")
+public class ProtocolIntegrationTestSuite {
 }

@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 @DisplayName("Engine.IO v3 Generic Features Integration Tests")
-public class EIOv3FeaturesTest extends AbstractSocketIOIntegrationTest {
+public class EIOv3FeaturesTest extends AbstractSharedSocketIOIntegrationTest {
 
     @Test
     @DisplayName("Should successfully handle connection, disconnection, text messaging, room join, room leave, and broadcasting for EIOv3 clients")

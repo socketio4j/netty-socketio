@@ -45,8 +45,6 @@ import io.nats.client.Connection;
 import io.nats.client.Nats;
 import io.nats.client.Options;
 
-import static com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport.findAvailablePort;
-
 /**
  * Runs {@link DistributedCommonTest} against all NATS-backed cluster variants while sharing
  * one NATS Testcontainer for maximum execution speed and zero container setup overhead.
@@ -96,7 +94,7 @@ public class DistributedNATSClusterTest {
             Configuration cfg1 = new Configuration();
             DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg1);
             cfg1.setHostname("127.0.0.1");
-            cfg1.setPort(findAvailablePort());
+            cfg1.setPort(0);
             Options options = new Options.Builder()
                     .server(bootstrap)
                     .connectionTimeout(Duration.ofSeconds(2))
@@ -116,7 +114,7 @@ public class DistributedNATSClusterTest {
             Configuration cfg2 = new Configuration();
             DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg2);
             cfg2.setHostname("127.0.0.1");
-            cfg2.setPort(findAvailablePort());
+            cfg2.setPort(0);
             Options options1 = new Options.Builder()
                     .server(bootstrap)
                     .connectionTimeout(Duration.ofSeconds(2))
@@ -157,7 +155,7 @@ public class DistributedNATSClusterTest {
             Configuration cfg1 = new Configuration();
             DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg1);
             cfg1.setHostname("127.0.0.1");
-            cfg1.setPort(findAvailablePort());
+            cfg1.setPort(0);
             Options options = new Options.Builder()
                     .server(bootstrap)
                     .connectionTimeout(Duration.ofSeconds(2))
@@ -177,7 +175,7 @@ public class DistributedNATSClusterTest {
             Configuration cfg2 = new Configuration();
             DistributedClusterIntegrationSupport.applyReuseListenAddress(cfg2);
             cfg2.setHostname("127.0.0.1");
-            cfg2.setPort(findAvailablePort());
+            cfg2.setPort(0);
             Options options1 = new Options.Builder()
                     .server(bootstrap)
                     .connectionTimeout(Duration.ofSeconds(2))

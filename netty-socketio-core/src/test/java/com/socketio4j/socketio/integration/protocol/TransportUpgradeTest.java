@@ -42,7 +42,7 @@ import io.socket.client.Socket;
  */
 
 @DisplayName("Transport Upgrade Tests - Engine.IO Protocol Transport Upgrade")
-public class TransportUpgradeTest extends AbstractSocketIOIntegrationTest {
+public class TransportUpgradeTest extends AbstractSharedSocketIOIntegrationTest {
 
     @Test
     @DisplayName("Should upgrade from HTTP polling to WebSocket transport")

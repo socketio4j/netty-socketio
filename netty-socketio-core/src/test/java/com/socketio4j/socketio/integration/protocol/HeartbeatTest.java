@@ -15,8 +15,6 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.protocol;
-import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
-
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -24,7 +22,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 
-import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.listener.PingListener;
 import com.socketio4j.socketio.listener.PongListener;
@@ -43,13 +40,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 
 @DisplayName("Heartbeat Tests - Engine.IO Protocol PING/PONG & Connection Timeouts")
-public class HeartbeatTest extends AbstractSocketIOIntegrationTest {
+public class HeartbeatTest extends AbstractSharedSocketIOIntegrationTest {
     @Override
-    protected void configureServer(Configuration config) {
-        super.configureServer(config);
-        // 2s ping interval, 6s timeout
-        config.setPingInterval(2000);
-        config.setPingTimeout(6000);
+    protected SharedServerFixtureProfile sharedServerFixtureProfile() {
+        return SharedServerFixtureProfile.HEARTBEAT_NIO;
     }
 
     @Test

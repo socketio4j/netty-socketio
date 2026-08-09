@@ -85,6 +85,7 @@ public class DistributedHazelcastClusterTest {
 
     private static ClientConfig hazelcastClientConfig() {
         ClientConfig config = new ClientConfig();
+        config.setClusterName(HAZELCAST_CONTAINER.getClusterName());
         config.getNetworkConfig()
                 .setSmartRouting(false)
                 .setRedoOperation(true)

@@ -98,5 +98,5 @@ jobs:
                              -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN \
                              -Dcom.socketio4j.socketio.level=WARN \
                              -Dio.netty.leakDetection.level=PARANOID"
-          mvn --batch-mode --errors --fail-at-end -DforkCount=1C \
+          mvn --batch-mode --errors --fail-at-end -Dsocketio.test.forkCount=1C \
             -Dsocketio.interop.versions=${{ inputs.interopVersions }} verify

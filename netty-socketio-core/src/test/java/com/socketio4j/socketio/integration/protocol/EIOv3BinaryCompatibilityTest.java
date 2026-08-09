@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 
 @DisplayName("Engine.IO v3 Binary Compatibility Tests")
-public class EIOv3BinaryCompatibilityTest extends AbstractSocketIOIntegrationTest {
+public class EIOv3BinaryCompatibilityTest extends AbstractSharedSocketIOIntegrationTest {
 
     @Test
     @DisplayName("Should successfully decode binary event attachment from EIOv3 WebSocket client")

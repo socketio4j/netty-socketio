@@ -15,7 +15,8 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.resilience;
-import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
+import com.socketio4j.socketio.integration.protocol.AbstractSharedSocketIOIntegrationTest;
+import com.socketio4j.socketio.integration.protocol.SharedServerFixtureProfile;
 
 import java.io.OutputStream;
 import java.net.Socket;
@@ -30,9 +31,14 @@ import org.slf4j.LoggerFactory;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class AbruptDisconnectBinaryUploadIntegrationTest extends AbstractSocketIOIntegrationTest {
+public class AbruptDisconnectBinaryUploadIntegrationTest extends AbstractSharedSocketIOIntegrationTest {
 
     private static final Logger log = LoggerFactory.getLogger(AbruptDisconnectBinaryUploadIntegrationTest.class);
+
+    @Override
+    protected SharedServerFixtureProfile sharedServerFixtureProfile() {
+        return SharedServerFixtureProfile.FAST_DISCONNECT_NIO;
+    }
 
     @Test
     void testAbruptDisconnectDuringBinaryAttachmentUploadHandledCleanly() throws Exception {
@@ -52,7 +58,11 @@ public class AbruptDisconnectBinaryUploadIntegrationTest extends AbstractSocketI
 
         // 1. Establish initial polling client connection
         io.socket.client.Socket client = createClient(new String[]{"polling"});
+        CountDownLatch clientConnectLatch = new CountDownLatch(1);
+        client.on(io.socket.client.Socket.EVENT_CONNECT, args -> clientConnectLatch.countDown());
         client.connect();
+        assertTrue(clientConnectLatch.await(5, TimeUnit.SECONDS),
+                "Client failed to complete the Socket.IO handshake");
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Client failed to connect");
 
         int port = getServerPort();

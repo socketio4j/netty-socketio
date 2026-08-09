@@ -21,6 +21,8 @@ import com.socketio4j.socketio.integration.cluster.DistributedCommonTest;
 import com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport;
 import static com.socketio4j.socketio.integration.cluster.DistributedClusterIntegrationSupport.*;
 
+import java.util.UUID;
+
 import com.hazelcast.config.Config;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
@@ -37,6 +39,8 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class DistributedInProcessHazelcastTest extends DistributedCommonTest {
 
+    private static final String CLUSTER_NAME = "socketio4j-in-process-" + UUID.randomUUID();
+
     private HazelcastInstance hz1;
     private HazelcastInstance hz2;
 
@@ -44,8 +48,10 @@ public class DistributedInProcessHazelcastTest extends DistributedCommonTest {
     public void setup() throws Exception {
         // Configure Hazelcast to form a cluster in-process using loopback/local discovery
         Config config = new Config();
+        config.setClusterName(CLUSTER_NAME);
         config.getNetworkConfig().getJoin().getMulticastConfig().setEnabled(false);
         config.getNetworkConfig().getJoin().getTcpIpConfig().setEnabled(true).addMember("127.0.0.1");
+        config.getNetworkConfig().getJoin().getAutoDetectionConfig().setEnabled(false);
 
         hz1 = Hazelcast.newHazelcastInstance(config);
         hz2 = Hazelcast.newHazelcastInstance(config);

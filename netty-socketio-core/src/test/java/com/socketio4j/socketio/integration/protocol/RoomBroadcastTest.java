@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 
 @DisplayName("Room Broadcasting Tests - SocketIO Protocol ROOMS & EVENT")
-public class RoomBroadcastTest extends AbstractSocketIOIntegrationTest {
+public class RoomBroadcastTest extends AbstractSharedSocketIOIntegrationTest {
     private final String testEvent = faker.app().name();
     private final String testData = faker.address().fullAddress();
 

@@ -77,6 +77,25 @@ public abstract class AbstractSocketIOIntegrationTest {
     }
 
     /**
+     * Attaches a server owned by a higher-level test fixture. The fixture, not
+     * this test instance, is responsible for stopping the server.
+     */
+    protected final void useServerFromTestFixture(SocketIOServer fixtureServer, int fixtureServerPort) {
+        if (fixtureServer == null || !fixtureServer.isStarted()) {
+            throw new IllegalArgumentException("Test fixture server must be running");
+        }
+        if (fixtureServerPort <= 0 || fixtureServerPort > 65535) {
+            throw new IllegalArgumentException("Test fixture server port is invalid: " + fixtureServerPort);
+        }
+        if (server != null && server != fixtureServer) {
+            throw new IllegalStateException("A different test server is already attached");
+        }
+
+        server = fixtureServer;
+        serverPort = fixtureServerPort;
+    }
+
+    /**
      * Allows an isolated test suite to reuse the same server for all of its
      * test methods. The default remains one server per test invocation.
      */
@@ -149,8 +168,14 @@ public abstract class AbstractSocketIOIntegrationTest {
      */
     @BeforeEach
     public void setUp() throws Exception {
+        if (server == null && reuseServerForTestClass()) {
+            initializeReusableServerFixture();
+        }
+
         if (server != null) {
             if (reuseServerForTestClass()) {
+                beforeReusedServerTestCase();
+                additionalSetup();
                 return;
             }
             throw new IllegalStateException("Previous test server was not stopped before setup");
@@ -229,7 +254,17 @@ public abstract class AbstractSocketIOIntegrationTest {
             failure = e;
         }
 
-        if (!reuseServerForTestClass() && server != null) {
+        if (reuseServerForTestClass() && server != null) {
+            try {
+                afterReusedServerTestCase();
+            } catch (Exception e) {
+                if (failure != null) {
+                    failure.addSuppressed(e);
+                } else {
+                    failure = e;
+                }
+            }
+        } else if (server != null) {
             try {
                 stopServer();
             } catch (Exception e) {
@@ -247,9 +282,8 @@ public abstract class AbstractSocketIOIntegrationTest {
     }
 
     /**
-     * Stops the current server. Reusable integration suites call this once in
-     * their {@code @AfterAll} lifecycle callback after verifying test-state
-     * isolation between individual cases.
+     * Stops the current server. Test fixtures that are shared beyond one test
+     * class own their lifecycle and are stopped by their root fixture instead.
      */
     protected final void stopServer() {
         if (server == null) {
@@ -287,6 +321,33 @@ public abstract class AbstractSocketIOIntegrationTest {
     protected void additionalTeardown() throws Exception {
         // Default implementation does nothing
         // Subclasses can override to add custom teardown
+    }
+
+    /**
+     * Invoked immediately before {@link #additionalSetup()} when a test class
+     * reuses a fixture-owned server. Subclasses use this to prove that the
+     * prior case left no observable state before adding this case's listeners.
+     */
+    protected void beforeReusedServerTestCase() throws Exception {
+        // Default implementation does nothing.
+    }
+
+    /**
+     * Gives a reusable test base a chance to attach its fixture before this
+     * method decides whether a new server must be started. The default keeps
+     * the ordinary per-test server lifecycle unchanged.
+     */
+    protected void initializeReusableServerFixture() throws Exception {
+        // Default implementation does nothing.
+    }
+
+    /**
+     * Invoked after {@link #additionalTeardown()} when a test class reuses a
+     * fixture-owned server. Subclasses use this to reset and verify all
+     * mutable state before another case can acquire the fixture.
+     */
+    protected void afterReusedServerTestCase() throws Exception {
+        // Default implementation does nothing.
     }
 
     /**

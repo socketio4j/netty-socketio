@@ -52,15 +52,12 @@ public class RedisPubSubEventStoreTest extends AbstractEventStoreTest {
     }
 
     @Override
-    public void tearDown() throws Exception {
+    protected void closeClients() {
         if (redissonPub != null) {
             redissonPub.shutdown();
         }
         if (redissonSub != null) {
             redissonSub.shutdown();
-        }
-        if (container != null && container.isRunning()) {
-            container.stop();
         }
     }
 }

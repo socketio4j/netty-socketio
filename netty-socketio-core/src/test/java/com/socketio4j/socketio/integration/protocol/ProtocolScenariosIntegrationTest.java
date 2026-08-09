@@ -44,7 +44,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 @DisplayName("Comprehensive Protocol Integration Scenarios Test")
-public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegrationTest {
+public class ProtocolScenariosIntegrationTest extends AbstractSharedSocketIOIntegrationTest {
+
+    @Override
+    protected SharedServerFixtureProfile sharedServerFixtureProfile() {
+        return SharedServerFixtureProfile.FAST_DISCONNECT_NIO;
+    }
 
     @ParameterizedTest(name = "Scenario 1 [{0}]")
     @ValueSource(strings = {"polling", "websocket"})
@@ -70,15 +75,13 @@ public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegratio
         });
 
         Socket client = createClient(new String[]{transport});
-        client.connect();
+        connectAndAwait(client, transport);
 
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Client should connect to default namespace over " + transport);
         assertNotNull(connectedClientRef.get());
 
-        Thread.sleep(200);
         client.disconnect();
-        client.close();
-        assertTrue(disconnectLatch.await(10, TimeUnit.SECONDS), "Client should disconnect cleanly over " + transport);
+        assertTrue(disconnectLatch.await(5, TimeUnit.SECONDS), "Client should disconnect cleanly over " + transport);
     }
 
     @ParameterizedTest(name = "Scenario 2 [{0}]")
@@ -99,7 +102,7 @@ public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegratio
         });
 
         Socket client = createClient(nsName, new String[]{transport});
-        client.connect();
+        connectAndAwait(client, transport);
 
         assertTrue(nsConnectLatch.await(5, TimeUnit.SECONDS), "Client should connect to custom namespace over " + transport);
 
@@ -128,7 +131,7 @@ public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegratio
         });
 
         Socket client = createClient(new String[]{transport});
-        client.connect();
+        connectAndAwait(client, transport);
 
         // 1. Event without Ack
         client.emit("noAckEvent_" + transport, "payload_no_ack");
@@ -174,7 +177,7 @@ public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegratio
             }
         });
 
-        client.connect();
+        connectAndAwait(client, transport);
         assertTrue(connectLatch.await(5, TimeUnit.SECONDS), "Client must connect over " + transport);
 
         serverClientRef.get().sendEvent("serverReq_" + transport, new com.socketio4j.socketio.AckCallback<String>(String.class) {
@@ -209,7 +212,7 @@ public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegratio
         });
 
         Socket client = createClient(new String[]{transport});
-        client.connect();
+        connectAndAwait(client, transport);
 
         byte[] payload = new byte[]{1, 2, 3, 4, 5};
         CountDownLatch binaryAckLatch = new CountDownLatch(1);
@@ -229,5 +232,22 @@ public class ProtocolScenariosIntegrationTest extends AbstractSocketIOIntegratio
         assertArrayEquals(new byte[]{100, 101, 102}, (byte[]) clientBinaryAck.get()[0]);
 
         client.disconnect();
+    }
+
+    private void connectAndAwait(Socket client, String transport) throws InterruptedException {
+        CountDownLatch clientConnectLatch = new CountDownLatch(1);
+        AtomicReference<Object> connectError = new AtomicReference<Object>();
+        client.on(Socket.EVENT_CONNECT, args -> clientConnectLatch.countDown());
+        client.on(Socket.EVENT_CONNECT_ERROR, args -> {
+            if (args.length > 0) {
+                connectError.set(args[0]);
+            }
+        });
+        client.connect();
+
+        assertTrue(clientConnectLatch.await(5, TimeUnit.SECONDS),
+                "Client must complete the Socket.IO handshake over " + transport
+                        + (connectError.get() == null ? "" : ": " + connectError.get()));
+        assertTrue(client.connected(), "Client must be connected over " + transport);
     }
 }

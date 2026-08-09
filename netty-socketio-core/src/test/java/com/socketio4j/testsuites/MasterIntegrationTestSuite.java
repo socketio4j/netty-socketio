@@ -14,17 +14,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.socketio4j.socketio.integration.suite;
+package com.socketio4j.testsuites;
 
 import org.junit.platform.suite.api.SelectPackages;
 import org.junit.platform.suite.api.Suite;
 import org.junit.platform.suite.api.SuiteDisplayName;
 
 /**
- * Test Suite aggregating all Core Protocol Feature Integration tests.
+ * Master Test Suite aggregating all Integration, Resilience, Cluster, and Interop test packages.
  */
 @Suite
-@SuiteDisplayName("Core Protocol Feature Integration Test Suite")
-@SelectPackages("com.socketio4j.socketio.integration.protocol")
-public class ProtocolIntegrationTestSuite {
+@SuiteDisplayName("Master Socketio4j Integration Test Suite")
+@SelectPackages({
+    "com.socketio4j.socketio.integration.resilience",
+    "com.socketio4j.socketio.integration.cluster",
+    "com.socketio4j.socketio.integration.interop",
+    "com.socketio4j.socketio.integration.protocol"
+})
+public class MasterIntegrationTestSuite {
 }

@@ -40,7 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 
 @DisplayName("Client Disconnection Tests - SocketIO Protocol DISCONNECT")
-public class ClientDisconnectionTest extends AbstractSocketIOIntegrationTest {
+public class ClientDisconnectionTest extends AbstractSharedSocketIOIntegrationTest {
 
     @Test
     @DisplayName("Should handle client disconnection and trigger server disconnect listener")

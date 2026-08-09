@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 
 @DisplayName("Room Management Tests - SocketIO Protocol ROOMS")
-public class RoomManagementTest extends AbstractSocketIOIntegrationTest {
+public class RoomManagementTest extends AbstractSharedSocketIOIntegrationTest {
 
     @Test
     @DisplayName("Should allow client to join and leave rooms successfully")
