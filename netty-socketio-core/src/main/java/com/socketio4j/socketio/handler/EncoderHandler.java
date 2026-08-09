@@ -110,8 +110,9 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                     version = name + "/" + attrs.getValue("Bundle-Version");
                     break;
                 }
-            } catch (IOException E) {
-                // skip it
+            } catch (IOException e) {
+                // A single unreadable manifest must not prevent reading the others
+                log.debug("Skipping unreadable MANIFEST.MF while resolving version header", e);
             }
         }
     }
