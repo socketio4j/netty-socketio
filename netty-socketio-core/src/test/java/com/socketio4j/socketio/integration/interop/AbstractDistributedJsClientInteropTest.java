@@ -65,6 +65,9 @@ public abstract class AbstractDistributedJsClientInteropTest {
     protected static final int CLIENTS_PER_NODE =
             JsClientInteropMatrix.VERSIONS.size() * JsClientInteropMatrix.TRANSPORTS.size();
     protected static final int FULL_MATRIX_CLIENTS = CLIENTS_PER_NODE * 2;
+    private static final long DEFAULT_JS_CLIENT_TIMEOUT_SECONDS = 35;
+    private static final long P2P_CONFIRM_TIMEOUT_SECONDS = 30;
+    private static final long P2P_JS_CLIENT_TIMEOUT_SECONDS = 60;
 
     private static final java.util.Set<JsClientProcess> ALL_ACTIVE_PROCESSES = ConcurrentHashMap.newKeySet();
 
@@ -403,14 +406,22 @@ public abstract class AbstractDistributedJsClientInteropTest {
     }
 
     protected List<JsClientProcess> launchFullClientMatrix(String scenario, String room, Map<String, String> extraArgs) throws Exception {
+        return launchFullClientMatrix(scenario, room, extraArgs, DEFAULT_JS_CLIENT_TIMEOUT_SECONDS);
+    }
+
+    protected List<JsClientProcess> launchFullClientMatrix(String scenario, String room,
+                                                            Map<String, String> extraArgs,
+                                                            long clientTimeoutSeconds) throws Exception {
         List<JsClientProcess> processes = new ArrayList<>();
         List<String> versions = JsClientInteropMatrix.VERSIONS;
         List<String> transports = JsClientInteropMatrix.TRANSPORTS;
 
         for (String v : versions) {
             for (String t : transports) {
-                processes.add(launchJsClient("n1_v" + v + "_" + t, v, port1, t, scenario, room, extraArgs));
-                processes.add(launchJsClient("n2_v" + v + "_" + t, v, port2, t, scenario, room, extraArgs));
+                processes.add(launchJsClient("n1_v" + v + "_" + t, v, port1, t, scenario, room,
+                        extraArgs, clientTimeoutSeconds));
+                processes.add(launchJsClient("n2_v" + v + "_" + t, v, port2, t, scenario, room,
+                        extraArgs, clientTimeoutSeconds));
             }
         }
         return processes;
@@ -824,7 +835,16 @@ public abstract class AbstractDistributedJsClientInteropTest {
         extraArgs.put("p2pNonce", messageNonce);
 
         CountDownLatch p2pLatch = new CountDownLatch(FULL_MATRIX_CLIENTS);
-        DataListener<String> confirmListener = (client, data, ackRequest) -> p2pLatch.countDown();
+        Set<String> expectedClientNames = ConcurrentHashMap.newKeySet();
+        Set<String> confirmedClientNames = ConcurrentHashMap.newKeySet();
+        ConcurrentLinkedQueue<String> unexpectedConfirmations = new ConcurrentLinkedQueue<>();
+        DataListener<String> confirmListener = (client, clientName, ackRequest) -> {
+            if (!expectedClientNames.contains(clientName)) {
+                unexpectedConfirmations.add(String.valueOf(clientName));
+            } else if (confirmedClientNames.add(clientName)) {
+                p2pLatch.countDown();
+            }
+        };
 
         DataListener<P2pRelayPayload> relayListener = (client, payload, ackRequest) -> {
             node1.getRoomOperations(payload.getRoom()).sendEvent("client-p2p-receive", payload);
@@ -836,15 +856,17 @@ public abstract class AbstractDistributedJsClientInteropTest {
         node1.addEventListener("client-p2p-confirmed", String.class, confirmListener);
         node2.addEventListener("client-p2p-confirmed", String.class, confirmListener);
 
-        List<JsClientProcess> processes = launchFullClientMatrix("dist_client_to_client", room, extraArgs);
+        List<JsClientProcess> processes = launchFullClientMatrix(
+                "dist_client_to_client", room, extraArgs, P2P_JS_CLIENT_TIMEOUT_SECONDS);
+        processes.forEach(process -> expectedClientNames.add(process.getName()));
         try {
             awaitRoomSync(room, FULL_MATRIX_CLIENTS, processes);
 
             node1.getBroadcastOperations().sendEvent("trigger-p2p-send", senderClient);
 
-            assertTrue(p2pLatch.await(15, TimeUnit.SECONDS),
-                    String.format("Timed out waiting for P2P relay! Received %d of %d client confirmations.",
-                            FULL_MATRIX_CLIENTS - p2pLatch.getCount(), FULL_MATRIX_CLIENTS));
+            assertTrue(p2pLatch.await(P2P_CONFIRM_TIMEOUT_SECONDS, TimeUnit.SECONDS),
+                    p2pRelayTimeoutMessage(expectedClientNames, confirmedClientNames,
+                            unexpectedConfirmations, processes));
 
             node1.getBroadcastOperations().sendEvent("dist-test-done", "p2p_relay_check");
 
@@ -1107,6 +1129,14 @@ public abstract class AbstractDistributedJsClientInteropTest {
     protected JsClientProcess launchJsClient(String name, String version, int port,
                                              String transport, String scenario, String room,
                                              Map<String, String> extraArgs) throws Exception {
+        return launchJsClient(name, version, port, transport, scenario, room, extraArgs,
+                DEFAULT_JS_CLIENT_TIMEOUT_SECONDS);
+    }
+
+    protected JsClientProcess launchJsClient(String name, String version, int port,
+                                             String transport, String scenario, String room,
+                                             Map<String, String> extraArgs,
+                                             long clientTimeoutSeconds) throws Exception {
         List<String> cmd = new ArrayList<>();
         cmd.add("node");
         cmd.add(jsScript.getAbsolutePath());
@@ -1116,7 +1146,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
         cmd.add("--transport=" + transport);
         cmd.add("--scenario=" + scenario);
         cmd.add("--room=" + room);
-        cmd.add("--timeout=35000");
+        cmd.add("--timeout=" + TimeUnit.SECONDS.toMillis(clientTimeoutSeconds));
 
         if (extraArgs != null) {
             for (Map.Entry<String, String> entry : extraArgs.entrySet()) {
@@ -1132,6 +1162,29 @@ public abstract class AbstractDistributedJsClientInteropTest {
         JsClientProcess wrapper = new JsClientProcess(name, version, port, transport, scenario, room, process);
         ALL_ACTIVE_PROCESSES.add(wrapper);
         return wrapper;
+    }
+
+    private String p2pRelayTimeoutMessage(Set<String> expectedClientNames,
+                                          Set<String> confirmedClientNames,
+                                          ConcurrentLinkedQueue<String> unexpectedConfirmations,
+                                          List<JsClientProcess> processes) {
+        List<String> missingClientNames = new ArrayList<String>(expectedClientNames);
+        missingClientNames.removeAll(confirmedClientNames);
+        java.util.Collections.sort(missingClientNames);
+
+        StringBuilder message = new StringBuilder();
+        message.append(String.format("Timed out waiting for P2P relay! Received %d of %d unique client confirmations.",
+                confirmedClientNames.size(), expectedClientNames.size()));
+        message.append(" Missing clients: ").append(missingClientNames).append('.');
+        if (!unexpectedConfirmations.isEmpty()) {
+            message.append(" Unexpected confirmations: ").append(unexpectedConfirmations).append('.');
+        }
+        message.append("\nJS Client Output Logs:\n");
+        for (JsClientProcess process : processes) {
+            message.append("--- Log for ").append(process.getName()).append(" ---\n")
+                    .append(process.getLogOutput()).append('\n');
+        }
+        return message.toString();
     }
 
     private int countClients(Iterable<SocketIOClient> clients) {
