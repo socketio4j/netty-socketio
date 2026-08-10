@@ -242,9 +242,10 @@ public class ClientHead {
 
     public void removeNamespaceClient(NamespaceClient client) {
         namespaceClients.remove(client.getNamespace());
-        if (namespaceClients.isEmpty()) {
-            disconnectableHub.onDisconnect(this);
-        }
+        // A Socket.IO namespace disconnect does not necessarily close the
+        // underlying Engine.IO session. Keep its SID registered until the
+        // transport closes so a polling client can finish its final request
+        // without receiving a spurious "Session ID unknown" response.
     }
 
     public NamespaceClient getChildClient(Namespace namespace) {
@@ -326,17 +327,13 @@ public class ClientHead {
         cancelPingTimeout();
         clearPendingBinaryPacket();
 
-        boolean hasNamespaceClients = !namespaceClients.isEmpty();
         for (NamespaceClient client : namespaceClients.values()) {
             client.onDisconnect();
         }
-        // EIO4 does not connect a Socket.IO namespace until the client sends
-        // "40". A failed or abandoned handshake therefore still needs to
-        // remove its ClientHead and destroy its store even though there is no
-        // NamespaceClient whose disconnect callback could do that work.
-        if (!hasNamespaceClients) {
-            disconnectableHub.onDisconnect(this);
-        }
+        // Namespace teardown and Engine.IO teardown are separate. Once the
+        // transport closes, remove the head whether or not it had namespaces
+        // when disconnect processing began.
+        disconnectableHub.onDisconnect(this);
         for (Transport transport : Transport.values()) {
             TransportState state = channels.get(transport);
             Channel channel = state.getChannel();

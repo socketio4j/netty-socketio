@@ -16,7 +16,6 @@
  */
 package com.socketio4j.socketio.handler;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.UUID;
 
@@ -28,10 +27,12 @@ import com.socketio4j.socketio.DisconnectableHub;
 import com.socketio4j.socketio.HandshakeData;
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.ack.AckManager;
+import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketType;
 import com.socketio4j.socketio.scheduler.CancelableScheduler;
 import com.socketio4j.socketio.store.StoreFactory;
+import com.socketio4j.socketio.transport.NamespaceClient;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -42,8 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ClientHeadTest {
@@ -161,5 +163,22 @@ public class ClientHeadTest {
         assertTrue(clientHead.getPacketsQueue(Transport.WEBSOCKET).contains(message));
         assertFalse(clientHead.getPacketsQueue(Transport.WEBSOCKET).contains(noop));
         websocketChannel.finishAndReleaseAll();
+    }
+
+    @Test
+    void testLastNamespaceDisconnectKeepsEngineIoSessionUntilTransportCloses() {
+        Namespace namespace = mock(Namespace.class);
+        NamespaceClient namespaceClient = mock(NamespaceClient.class);
+        when(namespaceClient.getNamespace()).thenReturn(namespace);
+
+        clientHead.addNamespaceClient(namespaceClient);
+        clientHead.removeNamespaceClient(namespaceClient);
+
+        assertTrue(clientHead.getNamespaces().isEmpty());
+        verify(disconnectableHub, never()).onDisconnect(clientHead);
+
+        clientHead.onChannelDisconnect();
+
+        verify(disconnectableHub).onDisconnect(clientHead);
     }
 }
