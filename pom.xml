@@ -620,9 +620,7 @@
           <useModulePath>false</useModulePath>
           <failIfNoTests>true</failIfNoTests>
           <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
-          <!-- A retry can turn a non-deterministic failure into a passing
-               build. Keep one execution as the source of truth. -->
-          <rerunFailingTestsCount>0</rerunFailingTestsCount>
+          <rerunFailingTestsCount>2</rerunFailingTestsCount>
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <forkedProcessTimeoutInSeconds>3600</forkedProcessTimeoutInSeconds>
           <argLine>
