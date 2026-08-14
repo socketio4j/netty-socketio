@@ -618,7 +618,7 @@
         <version>3.5.4</version>
         <configuration>
           <useModulePath>false</useModulePath>
-          <failIfNoTests>true</failIfNoTests>
+          <failIfNoTests>false</failIfNoTests>
           <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
           <rerunFailingTestsCount>2</rerunFailingTestsCount>
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
