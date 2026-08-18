@@ -41,8 +41,13 @@ import com.socketio4j.socketio.protocol.EngineIOVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.UUID;
 
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
@@ -87,6 +92,25 @@ public class WebSocketTransportTest {
     assertTrue(channel.isOpen(), "Channel should stay open after receiving binary WebSocket frame");
     frame.release();
     assertEquals(0, buf.refCnt(), "ByteBuf reference count should be 0 after releasing frame");
+  }
+
+  @Test
+  public void shouldCloseOnlyTheSecondWebSocketForASession() {
+    UUID sessionId = UUID.randomUUID();
+    ClientsBox clientsBox = mock(ClientsBox.class);
+    ClientHead clientHead = mock(ClientHead.class);
+    EmbeddedChannel secondChannel = new EmbeddedChannel();
+
+    when(clientsBox.get(sessionId)).thenReturn(clientHead);
+    when(clientHead.tryBindWebSocketChannel(secondChannel)).thenReturn(false);
+
+    WebSocketTransport transport = new WebSocketTransport(false, null, null, null, clientsBox);
+
+    transport.connectClient(secondChannel, sessionId);
+
+    assertTrue(!secondChannel.isOpen(), "The newly opened duplicate WebSocket must be closed");
+    verify(clientHead, never()).disconnect();
+    verify(clientsBox, never()).removeClient(eq(sessionId));
   }
 
   private EmbeddedChannel createChannel() {

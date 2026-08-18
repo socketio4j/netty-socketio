@@ -18,9 +18,11 @@ package com.socketio4j.socketio.handler;
 
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.DisconnectableHub;
@@ -31,6 +33,7 @@ import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketType;
 import com.socketio4j.socketio.scheduler.CancelableScheduler;
+import com.socketio4j.socketio.scheduler.SchedulerKey;
 import com.socketio4j.socketio.store.StoreFactory;
 import com.socketio4j.socketio.transport.NamespaceClient;
 
@@ -41,10 +44,13 @@ import io.netty.util.CharsetUtil;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -163,6 +169,46 @@ public class ClientHeadTest {
         assertTrue(clientHead.getPacketsQueue(Transport.WEBSOCKET).contains(message));
         assertFalse(clientHead.getPacketsQueue(Transport.WEBSOCKET).contains(noop));
         websocketChannel.finishAndReleaseAll();
+    }
+
+    @Test
+    void shouldScheduleIndependentTimeoutsForPollFlushListeners() {
+        Runnable firstListener = mock(Runnable.class);
+        Runnable secondListener = mock(Runnable.class);
+
+        clientHead.onPollFlushed(firstListener, 5000);
+        clientHead.onPollFlushed(secondListener, 5000);
+
+        ArgumentCaptor<SchedulerKey> keyCaptor = ArgumentCaptor.forClass(SchedulerKey.class);
+        ArgumentCaptor<Runnable> timeoutCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(scheduler, times(2)).schedule(keyCaptor.capture(), timeoutCaptor.capture(), eq(5000L), eq(TimeUnit.MILLISECONDS));
+        assertNotEquals(keyCaptor.getAllValues().get(0), keyCaptor.getAllValues().get(1));
+
+        timeoutCaptor.getAllValues().get(0).run();
+        timeoutCaptor.getAllValues().get(1).run();
+
+        verify(firstListener).run();
+        verify(secondListener).run();
+    }
+
+    @Test
+    void shouldCancelEachPollFlushTimeoutWhenPollingFlushes() {
+        Runnable firstListener = mock(Runnable.class);
+        Runnable secondListener = mock(Runnable.class);
+
+        clientHead.onPollFlushed(firstListener, 5000);
+        clientHead.onPollFlushed(secondListener, 5000);
+
+        ArgumentCaptor<SchedulerKey> keyCaptor = ArgumentCaptor.forClass(SchedulerKey.class);
+        verify(scheduler, times(2)).schedule(keyCaptor.capture(), org.mockito.ArgumentMatchers.any(Runnable.class),
+                eq(5000L), eq(TimeUnit.MILLISECONDS));
+
+        clientHead.notifyPollFlushed();
+
+        verify(scheduler).cancel(keyCaptor.getAllValues().get(0));
+        verify(scheduler).cancel(keyCaptor.getAllValues().get(1));
+        verify(firstListener).run();
+        verify(secondListener).run();
     }
 
     @Test

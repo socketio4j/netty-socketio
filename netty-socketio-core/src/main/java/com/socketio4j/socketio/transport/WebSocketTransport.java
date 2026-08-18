@@ -267,7 +267,7 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
         log.info("Client with sessionId: {} was disconnected", sessionId);
     }
 
-    private void connectClient(final Channel channel, final UUID sessionId) {
+    void connectClient(final Channel channel, final UUID sessionId) {
         ClientHead client = clientsBox.get(sessionId);
         if (client == null) {
             log.warn("Unauthorized client with sessionId: {} with ip: {}. Channel closed!",
@@ -278,7 +278,9 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
 
         if (!client.tryBindWebSocketChannel(channel)) {
             log.debug("Rejecting a second WebSocket for session {}", sessionId);
-            closeClient(sessionId, channel);
+            // Engine.IO requires the new WebSocket to be closed. It must not
+            // tear down the session or the WebSocket that is already bound to it.
+            channel.close();
             return;
         }
 

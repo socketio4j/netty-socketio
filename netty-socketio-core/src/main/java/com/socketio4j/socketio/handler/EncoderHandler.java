@@ -61,7 +61,6 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.ContinuationWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.util.Attribute;
@@ -275,9 +274,6 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
     }
 
 
-    private static final int FRAME_BUFFER_SIZE = 8192;
-
-
     private void handleWebsocket(final OutPacketMessage msg, ChannelHandlerContext ctx, ChannelPromise promise) throws IOException {
         if (log.isDebugEnabled()) {
             log.debug("Starting WebSocket message processing, sessionId: {}", msg.getSessionId());
@@ -308,39 +304,14 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                 log.trace("Out message: {} sessionId: {}", out.toString(CharsetUtil.UTF_8), msg.getSessionId());
             }
             
-            if (out.isReadable() && out.readableBytes() > configuration.getMaxFramePayloadLength()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Message exceeds max frame payload length ({} > {}), fragmenting into {} frames, sessionId: {}", 
-                        out.readableBytes(), configuration.getMaxFramePayloadLength(), 
-                        (out.readableBytes() + FRAME_BUFFER_SIZE - 1) / FRAME_BUFFER_SIZE, msg.getSessionId());
-                }
-                
-                ByteBuf dstStart = out.readSlice(FRAME_BUFFER_SIZE);
-                dstStart.retain();
-                WebSocketFrame start = new TextWebSocketFrame(false, 0, dstStart);
-                ctx.channel().write(start);
-                
-                int fragmentCount = 1;
-                while (out.isReadable()) {
-                    int re = Math.min(out.readableBytes(), FRAME_BUFFER_SIZE);
-                    ByteBuf dst = out.readSlice(re);
-                    dst.retain();
-                    WebSocketFrame res = new ContinuationWebSocketFrame(!out.isReadable(), 0, dst);
-                    ctx.channel().write(res);
-                    fragmentCount++;
-                }
-                
-                if (log.isDebugEnabled()) {
-                    log.debug("Message fragmented into {} frames, sessionId: {}", fragmentCount, msg.getSessionId());
-                }
-                
-                out.release();
-                ctx.channel().flush();
-            } else if (out.isReadable()){
+            if (out.isReadable()) {
                 if (log.isDebugEnabled()) {
                     log.debug("Sending single WebSocket frame, size: {} bytes, sessionId: {}", 
                         out.readableBytes(), msg.getSessionId());
                 }
+                // Engine.IO requires every packet to occupy exactly one
+                // WebSocket frame. The configured max frame payload applies to
+                // inbound validation; splitting here would alter packet framing.
                 WebSocketFrame res = new TextWebSocketFrame(out);
                 ctx.channel().writeAndFlush(res);
             } else {
@@ -392,10 +363,13 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         }
 
         Boolean b64 = ctx.channel().attr(EncoderHandler.B64).get();
-        // b64=1 / JSONP encoding is only valid for EIOv3 (Socket.IO v1/v2).
-        // Socket.IO v3/v4 also sends b64=1 but they use EIOv4 and expect text/plain framing.
-        if (!EngineIOVersion.V4.equals(engineIOVersion) && Boolean.TRUE.equals(b64)) {
-            Integer jsonpIndex = ctx.channel().attr(EncoderHandler.JSONP_INDEX).get();
+        Integer jsonpIndex = ctx.channel().attr(EncoderHandler.JSONP_INDEX).get();
+        // Engine.IO v3 selects JSONP with j=<index>; b64=1 is a separate
+        // capability flag for base64 polling. Both use the legacy payload
+        // encoder, while only JSONP must be returned as JavaScript.
+        // Socket.IO v3/v4 also sends b64=1 but uses EIOv4 text framing.
+        if (!EngineIOVersion.V4.equals(engineIOVersion)
+                && (Boolean.TRUE.equals(b64) || jsonpIndex != null)) {
             if (log.isDebugEnabled()) {
                 log.debug("Using JSONP encoding, index: {}, sessionId: {}", jsonpIndex, msg.getSessionId());
             }

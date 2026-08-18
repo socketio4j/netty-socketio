@@ -55,7 +55,6 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.ContinuationWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 
@@ -256,8 +255,8 @@ public class EncoderHandlerTest {
         assertThat(frame.content().readableBytes()).isGreaterThan(0);
     }
     @Test
-    @DisplayName("Should handle WebSocket transport with large message fragmentation")
-    void shouldHandleWebSocketTransportWithLargeMessageFragmentation() throws Exception {
+    @DisplayName("Should keep a large Engine.IO packet in one WebSocket frame")
+    void shouldKeepLargeEngineIOPacketInOneWebSocketFrame() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.WEBSOCKET);
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
@@ -289,24 +288,11 @@ public class EncoderHandlerTest {
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
 
         // Then
-        assertThat(channel.outboundMessages()).hasSizeGreaterThan(1);
-
-        WebSocketFrame firstFrame = channel.readOutbound();
-        assertThat(firstFrame).isInstanceOf(TextWebSocketFrame.class);
-        assertThat(firstFrame.isFinalFragment()).isFalse();
-
-        while (!channel.outboundMessages().isEmpty()) {
-            WebSocketFrame frame = channel.readOutbound();
-            assertThat(frame).isInstanceOf(ContinuationWebSocketFrame.class);
-
-            ContinuationWebSocketFrame continuationFrame = (ContinuationWebSocketFrame) frame;
-
-            if (channel.outboundMessages().isEmpty()) {
-                assertThat(continuationFrame.isFinalFragment()).isTrue();
-            } else {
-                assertThat(continuationFrame.isFinalFragment()).isFalse();
-            }
-        }
+        assertThat(channel.outboundMessages()).hasSize(1);
+        WebSocketFrame frame = channel.readOutbound();
+        assertThat(frame).isInstanceOf(TextWebSocketFrame.class);
+        assertThat(frame.isFinalFragment()).isTrue();
+        assertThat(frame.content().readableBytes()).isEqualTo(MAX_FRAME_PAYLOAD_LENGTH + 10000);
 
         verify(mockEncoder).encodePacket(
                 eq(EngineIOVersion.V4),
@@ -456,6 +442,48 @@ public class EncoderHandlerTest {
         assertThat(response.headers().get("Set-Cookie"))
                 .contains("io=" + sessionId);
     }
+
+    @Test
+    @DisplayName("Should select Engine.IO v3 JSONP from the j parameter without b64")
+    void shouldSelectEngineIOV3JsonpWithoutB64() throws Exception {
+        // Given
+        ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+
+        OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
+        ChannelPromise promise = channel.newPromise();
+
+        channel.attr(EncoderHandler.B64).set(false);
+        channel.attr(EncoderHandler.JSONP_INDEX).set(1);
+
+        clientHead.getPacketsQueue(Transport.POLLING).add(new Packet(PacketType.MESSAGE));
+
+        doAnswer(invocation -> {
+            ByteBuf buffer = invocation.getArgument(3);
+            buffer.writeCharSequence("___eio[1]('2:40');", StandardCharsets.UTF_8);
+            return null;
+        }).when(mockEncoder).encodeJsonP(
+                eq(EngineIOVersion.V3),
+                eq(1),
+                any(),
+                any(),
+                any(),
+                anyInt());
+
+        // When
+        encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
+
+        // Then
+        HttpResponse response = channel.readOutbound();
+        assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
+        assertThat(response.headers().get("Content-Type"))
+                .isEqualTo("application/javascript");
+        verify(mockEncoder).encodeJsonP(
+                eq(EngineIOVersion.V3), eq(1), any(), any(), any(), anyInt());
+        verify(mockEncoder, never()).encodePackets(
+                eq(EngineIOVersion.V3), any(), any(), any(), anyInt());
+    }
+
     @Test
     @DisplayName("Should ignore JSONP flags for Engine.IO v4")
     void shouldIgnoreJSONPForEngineIOV4() throws Exception {

@@ -56,9 +56,19 @@ public class PacketListener {
     public void onTransportPacket(Packet packet, ClientHead client, Transport transport) {
         switch (packet.getType()) {
         case PING: {
+            boolean upgrading = "probe".equals(packet.getData())
+                    && transport == Transport.WEBSOCKET
+                    && client.getCurrentTransport() == Transport.POLLING;
+            // EIO v3 is client-ping/server-pong. EIO v4 reverses this
+            // direction, except for the PING "probe" sent on the temporary
+            // WebSocket while upgrading from polling.
+            if (EngineIOVersion.V4.equals(client.getEngineIOVersion()) && !upgrading) {
+                client.onChannelDisconnect();
+                return;
+            }
             Packet outPacket = new Packet(PacketType.PONG);
             outPacket.setData(packet.getData());
-            if ("probe".equals(packet.getData())) {
+            if (upgrading) {
                 ChannelFuture pongFuture = client.send(outPacket, transport);
                 if (pongFuture != null) {
                     pongFuture.addListener(future -> {
@@ -76,11 +86,22 @@ public class PacketListener {
             break;
         }
         case PONG:
+            // EIO v4 is server-ping/client-pong. A PONG from an EIO v3
+            // client is therefore a protocol error.
+            if (!EngineIOVersion.V4.equals(client.getEngineIOVersion())) {
+                client.onChannelDisconnect();
+                return;
+            }
             client.schedulePingTimeout();
             notifyPing(client, packet, false);
             break;
 
         case UPGRADE:
+            // An upgrade is valid only after the WebSocket probe succeeded.
+            if (transport != Transport.WEBSOCKET || !client.isUpgradeInProgress()) {
+                client.onChannelDisconnect();
+                return;
+            }
             client.schedulePingTimeout();
             scheduler.cancel(new SchedulerKey(SchedulerKey.Type.UPGRADE_TIMEOUT, client.getSessionId()));
             client.upgradeCurrentTransport(transport);

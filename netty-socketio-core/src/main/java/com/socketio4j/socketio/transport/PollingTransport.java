@@ -35,6 +35,7 @@ import com.socketio4j.socketio.messages.HttpErrorMessage;
 import com.socketio4j.socketio.messages.PacketsMessage;
 import com.socketio4j.socketio.messages.XHROptionsMessage;
 import com.socketio4j.socketio.messages.XHRPostMessage;
+import com.socketio4j.socketio.protocol.EngineIOVersion;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketDecoder;
 import com.socketio4j.socketio.protocol.PacketType;
@@ -88,6 +89,11 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
                 String userAgent = req.headers().get(HttpHeaderNames.USER_AGENT);
                 ctx.channel().attr(EncoderHandler.USER_AGENT).set(userAgent);
 
+                // Query parameters apply to a single polling request. Reset
+                // them on keep-alive channels before reading the current URI.
+                ctx.channel().attr(EncoderHandler.JSONP_INDEX).set(null);
+                ctx.channel().attr(EncoderHandler.B64).set(false);
+
                 try {
                     if (j != null && j.size() == 1 && j.get(0) != null) {
                         Integer index = Integer.valueOf(j.get(0));
@@ -133,12 +139,19 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
     private void handleMessage(FullHttpRequest req, UUID sessionId, QueryStringDecoder queryDecoder, ChannelHandlerContext ctx)
                                                                                 throws IOException {
             String origin = req.headers().get(HttpHeaderNames.ORIGIN);
+            ClientHead client = clientsBox.get(sessionId);
+            if (client == null) {
+                sendUnknownSessionError(ctx);
+                return;
+            }
+            // A request with a sid must use the session's current transport.
+            // In particular, polling must not resume after a WebSocket upgrade.
+            if (client.getCurrentTransport() != Transport.POLLING) {
+                log.debug("Rejecting polling request for session {} on {} transport", sessionId, client.getCurrentTransport());
+                sendError(ctx);
+                return;
+            }
             if (queryDecoder.parameters().containsKey("disconnect")) {
-                ClientHead client = clientsBox.get(sessionId);
-                if (client == null) {
-                    sendUnknownSessionError(ctx);
-                    return;
-                }
                 client.onChannelDisconnect();
                 ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId));
             } else if (HttpMethod.POST.equals(req.method())) {
@@ -200,9 +213,11 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId))
                 .addListener(future -> client.releasePollingPost());
 
-        Boolean b64 = ctx.channel().attr(EncoderHandler.B64).get();
-        if (b64 != null && b64) {
-            Integer jsonIndex = ctx.channel().attr(EncoderHandler.JSONP_INDEX).get();
+        Integer jsonIndex = ctx.channel().attr(EncoderHandler.JSONP_INDEX).get();
+        // JSONP POSTs use the d=<escaped payload> form and must be unwrapped.
+        // Do not URL-decode a b64=1 payload: '+' is valid Base64 and must stay
+        // intact. JSONP is a legacy (EIO v2/v3) transport only.
+        if (!EngineIOVersion.V4.equals(client.getEngineIOVersion()) && jsonIndex != null) {
             content = decoder.preprocessJson(jsonIndex, content);
         }
 

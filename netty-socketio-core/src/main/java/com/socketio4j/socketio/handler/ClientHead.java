@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -279,7 +280,8 @@ public class ClientHead {
         return !disconnected.get();
     }
 
-    private final List<Runnable> pollFlushedListeners = new CopyOnWriteArrayList<>();
+    private final List<PollFlushedListener> pollFlushedListeners = new CopyOnWriteArrayList<>();
+    private final AtomicLong pollFlushTimeoutSequence = new AtomicLong();
 
     public boolean hasPollFlushedListeners() {
         return !pollFlushedListeners.isEmpty();
@@ -291,12 +293,17 @@ public class ClientHead {
             return;
         }
 
-        pollFlushedListeners.add(listener);
-
+        SchedulerKey timeoutKey = null;
         if (gracePeriodMs > 0 && scheduler != null) {
-            SchedulerKey key = new SchedulerKey(SchedulerKey.Type.POLL_FLUSH_TIMEOUT, sessionId);
-            scheduler.schedule(key, () -> {
-                if (pollFlushedListeners.remove(listener)) {
+            timeoutKey = new SchedulerKey(SchedulerKey.Type.POLL_FLUSH_TIMEOUT,
+                    sessionId.toString() + ":" + pollFlushTimeoutSequence.incrementAndGet());
+        }
+        PollFlushedListener pollFlushedListener = new PollFlushedListener(listener, timeoutKey);
+        pollFlushedListeners.add(pollFlushedListener);
+
+        if (timeoutKey != null) {
+            scheduler.schedule(timeoutKey, () -> {
+                if (pollFlushedListeners.remove(pollFlushedListener)) {
                     log.debug("Polling disconnect grace period expired for session {}, executing deferred cleanup", sessionId);
                     listener.run();
                 }
@@ -306,15 +313,30 @@ public class ClientHead {
 
     public void notifyPollFlushed() {
         if (!pollFlushedListeners.isEmpty()) {
-            List<Runnable> listeners = new ArrayList<>(pollFlushedListeners);
-            pollFlushedListeners.clear();
-            for (Runnable listener : listeners) {
+            List<PollFlushedListener> listeners = new ArrayList<>(pollFlushedListeners);
+            for (PollFlushedListener pollFlushedListener : listeners) {
+                if (!pollFlushedListeners.remove(pollFlushedListener)) {
+                    continue;
+                }
+                if (pollFlushedListener.timeoutKey != null && scheduler != null) {
+                    scheduler.cancel(pollFlushedListener.timeoutKey);
+                }
                 try {
-                    listener.run();
+                    pollFlushedListener.listener.run();
                 } catch (Exception e) {
                     log.error("Error executing poll flushed listener for session {}", sessionId, e);
                 }
             }
+        }
+    }
+
+    private static final class PollFlushedListener {
+        private final Runnable listener;
+        private final SchedulerKey timeoutKey;
+
+        private PollFlushedListener(Runnable listener, SchedulerKey timeoutKey) {
+            this.listener = listener;
+            this.timeoutKey = timeoutKey;
         }
     }
 

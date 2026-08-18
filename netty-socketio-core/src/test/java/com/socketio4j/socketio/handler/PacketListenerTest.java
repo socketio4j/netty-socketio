@@ -144,6 +144,8 @@ public class PacketListenerTest {
         when(namespaceClient.getBaseClient()).thenReturn(baseClient);
         when(namespaceClient.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
         when(namespaceClient.getNamespace()).thenReturn(namespace);
+        when(baseClient.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+        when(baseClient.getCurrentTransport()).thenReturn(Transport.POLLING);
 
         when(namespacesHub.get(NAMESPACE_NAME)).thenReturn(namespace);
 
@@ -284,6 +286,7 @@ public class PacketListenerTest {
         void shouldReleasePollingOnlyAfterProbePongIsWritten() {
             EmbeddedChannel channel = new EmbeddedChannel();
             DefaultChannelPromise pongWrite = new DefaultChannelPromise(channel);
+            when(baseClient.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
             when(baseClient.send(any(Packet.class), eq(Transport.WEBSOCKET))).thenReturn(pongWrite);
 
             Packet packet = createPacket(PacketType.PING);
@@ -332,6 +335,30 @@ public class PacketListenerTest {
     class PongPacketHandlingTests {
 
         @Test
+        @DisplayName("Should disconnect an Engine.IO v3 client that sends PONG")
+        void shouldDisconnectEngineIOV3ClientThatSendsPong() {
+            Packet packet = createPacket(PacketType.PONG);
+
+            packetListener.onTransportPacket(packet, baseClient, Transport.WEBSOCKET);
+
+            verify(baseClient).onChannelDisconnect();
+            verify(baseClient, never()).schedulePingTimeout();
+        }
+
+        @Test
+        @DisplayName("Should accept PONG from an Engine.IO v4 client")
+        void shouldAcceptPongFromEngineIOV4Client() {
+            when(baseClient.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+            Packet packet = createPacket(PacketType.PONG);
+
+            packetListener.onTransportPacket(packet, baseClient, Transport.WEBSOCKET);
+
+            verify(baseClient).schedulePingTimeout();
+            verify(baseClient, never()).onChannelDisconnect();
+        }
+
+
+        @Test
         @DisplayName("Should handle PONG packet correctly")
         void shouldHandlePongPacketCorrectly() {
             // Given
@@ -358,10 +385,24 @@ public class PacketListenerTest {
     class UpgradePacketHandlingTests {
 
         @Test
+        @DisplayName("Should disconnect when UPGRADE arrives before the WebSocket probe")
+        void shouldDisconnectWhenUpgradeArrivesBeforeProbe() {
+            Packet packet = createPacket(PacketType.UPGRADE);
+            when(baseClient.isUpgradeInProgress()).thenReturn(false);
+
+            packetListener.onTransportPacket(packet, baseClient, Transport.WEBSOCKET);
+
+            verify(baseClient).onChannelDisconnect();
+            verify(baseClient, never()).upgradeCurrentTransport(any());
+        }
+
+
+        @Test
         @DisplayName("Should handle UPGRADE packet correctly")
         void shouldHandleUpgradePacketCorrectly() {
             // Given
             Packet packet = createPacket(PacketType.UPGRADE);
+            when(baseClient.isUpgradeInProgress()).thenReturn(true);
 
             // When
             packetListener.onPacket(packet, namespaceClient, Transport.WEBSOCKET);
@@ -637,6 +678,20 @@ public class PacketListenerTest {
     @Nested
     @DisplayName("Edge Cases and Error Scenarios")
     class EdgeCasesAndErrorScenariosTests {
+
+        @Test
+        @DisplayName("Should disconnect an Engine.IO v4 client that sends PING")
+        void shouldDisconnectEngineIOV4ClientThatSendsPing() {
+            when(baseClient.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+            Packet packet = createPacket(PacketType.PING);
+
+            packetListener.onTransportPacket(packet, baseClient, Transport.WEBSOCKET);
+
+            verify(baseClient).onChannelDisconnect();
+            verify(baseClient, never()).send(any(Packet.class), any(Transport.class));
+            verify(baseClient, never()).schedulePingTimeout();
+        }
+
 
         @Test
         @DisplayName("Should handle unknown packet type gracefully")
