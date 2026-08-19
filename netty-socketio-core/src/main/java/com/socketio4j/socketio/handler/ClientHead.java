@@ -114,6 +114,9 @@ public class ClientHead {
     }
 
     public void bindChannel(Channel channel, Transport transport) {
+        if (!isConnected()) {
+            return;
+        }
         log.debug("binding channel: {} to transport: {}", channel, transport);
 
         TransportState state = channels.get(transport);
@@ -122,7 +125,11 @@ public class ClientHead {
             clientsBox.remove(prevChannel);
         }
         clientsBox.add(channel, this);
-
+        if (!isConnected()) {
+            clientsBox.remove(channel);
+            state.compareAndSet(channel, null);
+            return;
+        }
         sendPackets(transport, channel);
     }
 
@@ -130,25 +137,43 @@ public class ClientHead {
      * Binds the outstanding long-poll response, rejecting a second concurrent
      * GET instead of replacing the first response channel.
      */
-    public synchronized boolean tryBindPollingChannel(Channel channel) {
-        TransportState state = channels.get(Transport.POLLING);
-        Channel current = state.getChannel();
-        if (current != null && current != channel && current.isActive()) {
-            return false;
-        }
-        bindChannel(channel, Transport.POLLING);
-        return true;
+    public boolean tryBindPollingChannel(Channel channel) {
+        return tryBindChannel(channel, Transport.POLLING);
     }
 
     /** Engine.IO permits only one WebSocket connection for a session. */
-    public synchronized boolean tryBindWebSocketChannel(Channel channel) {
-        TransportState state = channels.get(Transport.WEBSOCKET);
-        Channel current = state.getChannel();
-        if (current != null && current != channel && current.isActive()) {
+    public boolean tryBindWebSocketChannel(Channel channel) {
+        return tryBindChannel(channel, Transport.WEBSOCKET);
+    }
+
+    private boolean tryBindChannel(Channel channel, Transport transport) {
+        if (!isConnected()) {
             return false;
         }
-        bindChannel(channel, Transport.WEBSOCKET);
-        return true;
+
+        TransportState state = channels.get(transport);
+        for (;;) {
+            Channel current = state.getChannel();
+            if (current != null && current != channel && current.isActive()) {
+                return false;
+            }
+            if (!state.compareAndSet(current, channel)) {
+                continue;
+            }
+
+            log.debug("binding channel: {} to transport: {}", channel, transport);
+            if (current != null) {
+                clientsBox.remove(current);
+            }
+            clientsBox.add(channel, this);
+            if (!isConnected()) {
+                clientsBox.remove(channel);
+                state.compareAndSet(channel, null);
+                return false;
+            }
+            sendPackets(transport, channel);
+            return true;
+        }
     }
 
     /** Engine.IO permits only one polling POST to be active for a session. */
@@ -162,10 +187,8 @@ public class ClientHead {
 
     public void releasePollingChannel(Channel channel) {
         try {
-            TransportState state = channels.get(Transport.POLLING);
-            if (channel.equals(state.getChannel())) {
+            if (channels.get(Transport.POLLING).compareAndSet(channel, null)) {
                 clientsBox.remove(channel);
-                state.update(null);
             }
         } catch (Exception e) {
             log.error("Failed to release polling channel for session: {}", sessionId, e);
@@ -260,8 +283,9 @@ public class ClientHead {
 
     /**
      * Registers a namespace client after protocol-level validation has succeeded.
-     * A Socket.IO v5 CONNECT carrying authentication data must not become visible to
-     * namespace listeners before that authentication has been accepted.
+     * A Socket.IO v3/v4 CONNECT (wire protocol v5) carrying authentication
+     * data must not become visible to namespace listeners before that
+     * authentication has been accepted.
      */
     public NamespaceClient addNamespaceClient(NamespaceClient client) {
         NamespaceClient existing = namespaceClients.putIfAbsent(client.getNamespace(), client);
@@ -344,39 +368,67 @@ public class ClientHead {
         if (!disconnected.compareAndSet(false, true)) {
             return;
         }
+        cleanupDisconnectedSession();
+    }
+
+    private void cleanupDisconnectedSession() {
+        for (Transport transport : Transport.values()) {
+            TransportState state = channels.get(transport);
+            Channel channel = state.getChannel();
+            if (channel != null && state.compareAndSet(channel, null)) {
+                clientsBox.remove(channel);
+            }
+        }
+
         notifyPollFlushed();
         cancelPing();
         cancelPingTimeout();
         clearPendingBinaryPacket();
 
-        for (NamespaceClient client : namespaceClients.values()) {
+        for (NamespaceClient client : new ArrayList<>(namespaceClients.values())) {
             client.onDisconnect();
         }
         // Namespace teardown and Engine.IO teardown are separate. Once the
         // transport closes, remove the head whether or not it had namespaces
         // when disconnect processing began.
         disconnectableHub.onDisconnect(this);
-        for (Transport transport : Transport.values()) {
-            TransportState state = channels.get(transport);
-            Channel channel = state.getChannel();
-            if (channel != null) {
-                releaseTransport(transport, channel);
-            }
-        }
     }
-    public void releaseTransport(Transport transport, Channel channel) {
-        TransportState state = channels.get(transport);
 
-        if (state == null) {
+    /**
+     * Terminates an Engine.IO session because a Socket.IO protocol violation
+     * occurred. A polling GET can bind in parallel with the POST that carried
+     * the invalid packet, so queue a transport CLOSE before unregistering the
+     * session. This guarantees that such a poll is completed rather than
+     * remaining open after the session has been removed.
+     */
+    public void disconnectWithProtocolClose() {
+        if (!disconnected.compareAndSet(false, true)) {
             return;
         }
 
-        Channel current = state.getChannel();
-        if (current != null && current.equals(channel)) {
-            clientsBox.remove(current);
-            state.update(null);
+        Transport closeTransport = currentTransport;
+        TransportState state = channels.get(closeTransport);
+        state.getPacketsQueue().add(new Packet(PacketType.CLOSE));
+        Channel closeChannel = state.getChannel();
+        ChannelFuture future = null;
+        if (closeChannel != null
+                && (closeTransport != Transport.POLLING
+                        || closeChannel.attr(EncoderHandler.WRITE_ONCE).get() == null)) {
+            future = sendPackets(closeTransport, closeChannel);
+        }
+        cleanupDisconnectedSession();
+
+        if (future != null) {
+            future.addListener(ChannelFutureListener.CLOSE);
         }
     }
+
+    public void releaseTransport(Transport transport, Channel channel) {
+        if (channels.get(transport).compareAndSet(channel, null)) {
+            clientsBox.remove(channel);
+        }
+    }
+
     public HandshakeData getHandshakeData() {
         return handshakeData;
     }
@@ -394,6 +446,9 @@ public class ClientHead {
     }
 
     public void disconnect() {
+        if (!disconnected.compareAndSet(false, true)) {
+            return;
+        }
         Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.DISCONNECT);
         ChannelFuture future = send(packet);
@@ -401,13 +456,13 @@ public class ClientHead {
             future.addListener(ChannelFutureListener.CLOSE);
         }
 
-        onChannelDisconnect();
+        cleanupDisconnectedSession();
     }
 
     public boolean isChannelOpen() {
         for (TransportState state : channels.values()) {
-            if (state.getChannel() != null
-                    && state.getChannel().isActive()) {
+            Channel channel = state.getChannel();
+            if (channel != null && channel.isActive()) {
                 return true;
             }
         }
@@ -419,11 +474,8 @@ public class ClientHead {
     }
 
     public boolean isTransportChannel(Channel channel, Transport transport) {
-        TransportState state = channels.get(transport);
-        if (state.getChannel() == null) {
-            return false;
-        }
-        return state.getChannel().equals(channel);
+        Channel current = channels.get(transport).getChannel();
+        return current != null && current.equals(channel);
     }
 
     public void beginUpgrade() {
@@ -437,21 +489,21 @@ public class ClientHead {
     public void upgradeCurrentTransport(Transport currentTransport) {
         upgradeInProgress.set(false);
         TransportState state = channels.get(currentTransport);
-
         for (Entry<Transport, TransportState> entry : channels.entrySet()) {
             if (!entry.getKey().equals(currentTransport)) {
-
                 Queue<Packet> queue = entry.getValue().getPacketsQueue();
                 // NOOP only releases the old polling transport. Once the client
                 // has selected the new transport it must not be replayed over it.
                 queue.removeIf(packet -> packet.getType() == PacketType.NOOP);
                 state.setPacketsQueue(queue);
-
-                sendPackets(currentTransport, state.getChannel());
                 this.currentTransport = currentTransport;
                 log.debug("Transport upgraded to: {} for: {}", currentTransport, sessionId);
                 break;
             }
+        }
+        Channel channel = state.getChannel();
+        if (channel != null) {
+            sendPackets(currentTransport, channel);
         }
     }
 
@@ -501,6 +553,4 @@ public class ClientHead {
         Channel channel = state.getChannel();
         return channel != null && channel.isWritable();
     }
-
-
 }

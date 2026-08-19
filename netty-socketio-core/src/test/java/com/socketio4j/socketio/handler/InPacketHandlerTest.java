@@ -527,6 +527,34 @@ public class InPacketHandlerTest {
             Packet responsePacket = packetQueue.peek();
             assertThat(responsePacket.getType()).isEqualTo(PacketType.MESSAGE);
         }
+
+        @Test
+        @DisplayName("Should reject an EIO v4 event before the namespace CONNECT packet")
+        public void testEngineIOV4EventBeforeConnectIsRejected() throws Exception {
+            UUID sessionId = UUID.randomUUID();
+            ClientHead client = createTestClient(sessionId, EngineIOVersion.V4);
+            Namespace namespace = namespacesHub.get(VALID_NAMESPACE);
+            PacketListener rejectingPacketListener = mock(PacketListener.class);
+            EmbeddedChannel rejectingChannel = new EmbeddedChannel(new InPacketHandler(
+                    rejectingPacketListener, packetDecoder, namespacesHub, exceptionListener));
+
+            Packet eventPacket = new Packet(PacketType.MESSAGE);
+            eventPacket.setSubType(PacketType.EVENT);
+            eventPacket.setNsp(VALID_NAMESPACE);
+            eventPacket.setName("must-not-be-delivered");
+            eventPacket.setData(Arrays.asList("payload"));
+
+            rejectingChannel.writeInbound(new PacketsMessage(client,
+                    encodePacket(EngineIOVersion.V4, eventPacket), Transport.POLLING));
+            rejectingChannel.runPendingTasks();
+
+            verify(rejectingPacketListener, times(0)).onPacket(any(), any(), any());
+            assertThat(client.isConnected()).isFalse();
+            assertThat(client.getNamespaces()).isEmpty();
+            assertThat(client.getChildClient(namespace)).isNull();
+            assertThat(rejectingChannel.isOpen()).isFalse();
+            verify(disconnectableHub).onDisconnect(client);
+        }
     }
 
     

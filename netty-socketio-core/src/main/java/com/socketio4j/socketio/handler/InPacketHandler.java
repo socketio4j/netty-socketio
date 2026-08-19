@@ -129,10 +129,10 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                 NamespaceClient nClient = client.getChildClient(ns);
                 if (nClient == null) {
                     if (EngineIOVersion.V4.equals(client.getEngineIOVersion())) {
-                        // Socket.IO protocol v5 requires CONNECT before any other
-                        // Socket.IO packet on a namespace. Do not let an unconnected
-                        // client emit events or ACKs into application code.
-                        client.onChannelDisconnect();
+                        // The Socket.IO v3/v4 wire protocol (protocol v5) requires
+                        // CONNECT before any other packet on a namespace. Do not let
+                        // an unconnected client emit events or ACKs into application code.
+                        client.disconnectWithProtocolClose();
                         ctx.close();
                     }
                     log.debug("Can't find namespace client in namespace: {}, sessionId: {} probably it was disconnected.", ns.getName(), client.getSessionId());

@@ -23,6 +23,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.ServerSocket;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLConnection;
@@ -30,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -229,7 +231,7 @@ public class HttpTransportTest {
     server.addEventListener("hello", String.class, (client, data, ackSender) ->
         ackSender.sendAckData(data));
     final String sessionId = connectForSessionId(null);
-    // Socket.IO v5 requires an explicit CONNECT before events are accepted.
+    // Socket.IO v3/v4 wire protocol v5 requires an explicit CONNECT before events are accepted.
     postMessage(sessionId, "40");
     assertTrue(pollForListOfResponses(sessionId)[0].startsWith("40"));
     final ArrayList<String> events = new ArrayList<>();
@@ -239,6 +241,47 @@ public class HttpTransportTest {
     postMessage(sessionId, String.join(packetSeparator, events));
     final String[] responses = pollForListOfResponses(sessionId);
     assertEquals(3, responses.length);
+  }
+
+  @Test
+  public void testV4EventBeforeConnectIsNotDeliveredAndClosesSession()
+      throws URISyntaxException, IOException, InterruptedException {
+    final AtomicInteger namespaceConnections = new AtomicInteger();
+    final AtomicInteger deliveredEvents = new AtomicInteger();
+    server.addConnectListener(client -> namespaceConnections.incrementAndGet());
+    server.addEventListener("hello", String.class,
+        (client, data, ackSender) -> deliveredEvents.incrementAndGet());
+
+    final String sessionId = connectForSessionId(null);
+
+    // Socket.IO v3/v4 wire protocol v5 requires a namespace CONNECT ("40") before an EVENT.
+    postMessage(sessionId, "42[\"hello\",\"must-not-be-delivered\"]");
+
+    assertEquals(0, namespaceConnections.get(),
+        "An EIO4 handshake alone must not connect the default namespace");
+    assertEquals(0, deliveredEvents.get(),
+        "Events sent before the namespace CONNECT packet must not reach application listeners");
+    assertTrue(server.getAllClients().isEmpty(),
+        "The unconnected session must not be visible as a default-namespace client");
+
+    HttpURLConnection subsequentPoll = (HttpURLConnection) createTestServerUri(
+        "EIO=4&transport=polling&sid=" + sessionId).toURL().openConnection();
+    subsequentPoll.setReadTimeout(2_000);
+    try {
+      int responseCode = subsequentPoll.getResponseCode();
+      if (responseCode == 200) {
+        try (BufferedReader reader = new BufferedReader(
+            new InputStreamReader(subsequentPoll.getInputStream(), StandardCharsets.UTF_8))) {
+          assertEquals("1", reader.lines().collect(Collectors.joining("\n")),
+              "A poll that raced with the invalid event must receive Engine.IO CLOSE");
+        }
+      } else {
+        assertEquals(400, responseCode,
+            "A poll that starts after teardown must reject the closed EIO4 session");
+      }
+    } catch (SocketTimeoutException timeout) {
+      throw new AssertionError("An EIO4 session that sends an event before CONNECT must close immediately", timeout);
+    }
   }
 
   @Test

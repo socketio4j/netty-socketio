@@ -18,7 +18,9 @@ package com.socketio4j.socketio.handler;
 
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -226,5 +229,49 @@ public class ClientHeadTest {
         clientHead.onChannelDisconnect();
 
         verify(disconnectableHub).onDisconnect(clientHead);
+    }
+
+    @Test
+    void shouldAtomicallyDetachTransportAndRejectLatePollingBindOnDisconnect() {
+        EmbeddedChannel boundChannel = new EmbeddedChannel();
+        EmbeddedChannel lateChannel = new EmbeddedChannel();
+        assertTrue(clientHead.tryBindPollingChannel(boundChannel));
+
+        clientHead.onChannelDisconnect();
+
+        assertFalse(clientHead.tryBindPollingChannel(lateChannel));
+        verify(clientsBox).remove(boundChannel);
+        verify(clientsBox, never()).add(lateChannel, clientHead);
+        boundChannel.finishAndReleaseAll();
+        lateChannel.finishAndReleaseAll();
+    }
+
+    @Test
+    void shouldNotBlockCompetingEventLoopWhileInvokingNamespaceDisconnectListener() throws Exception {
+        Namespace namespace = mock(Namespace.class);
+        NamespaceClient namespaceClient = mock(NamespaceClient.class);
+        when(namespaceClient.getNamespace()).thenReturn(namespace);
+        clientHead.addNamespaceClient(namespaceClient);
+
+        EmbeddedChannel lateChannel = new EmbeddedChannel();
+        CountDownLatch bindReturned = new CountDownLatch(1);
+        AtomicBoolean bindRejected = new AtomicBoolean();
+        doAnswer(invocation -> {
+            Thread competingEventLoop = new Thread(() -> {
+                bindRejected.set(!clientHead.tryBindPollingChannel(lateChannel));
+                bindReturned.countDown();
+            });
+            competingEventLoop.start();
+
+            assertTrue(bindReturned.await(1, TimeUnit.SECONDS),
+                    "a second EventLoop must not block behind namespace listener execution");
+            competingEventLoop.join();
+            return null;
+        }).when(namespaceClient).onDisconnect();
+
+        clientHead.onChannelDisconnect();
+
+        assertTrue(bindRejected.get());
+        lateChannel.finishAndReleaseAll();
     }
 }
