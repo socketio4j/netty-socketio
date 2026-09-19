@@ -143,6 +143,11 @@
         </exclusion>
       </exclusions>
     </dependency>
+    <dependency>
+      <groupId>org.mongodb</groupId>
+      <artifactId>mongodb-driver-reactivestreams</artifactId>
+      <scope>provided</scope>
+    </dependency>
 
 
     <!-- Test dependencies -->
@@ -285,6 +290,7 @@
             <exclude>**/store/RedissonStoreTest.java</exclude>
             <exclude>**/store/event/HazelcastRingBufferEventStoreTest.java</exclude>
             <exclude>**/store/event/RedisPubSubEventStoreTest.java</exclude>
+            <exclude>**/store/event/MongoPubSubEventStoreTest.java</exclude>
           </excludes>
         </configuration>
         <executions>
@@ -311,6 +317,7 @@
                 <include>**/store/RedissonStoreTest.java</include>
                 <include>**/store/event/HazelcastRingBufferEventStoreTest.java</include>
                 <include>**/store/event/RedisPubSubEventStoreTest.java</include>
+                <include>**/store/event/MongoPubSubEventStoreTest.java</include>
               </includes>
               <excludes combine.self="override" />
             </configuration>
