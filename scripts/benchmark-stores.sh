@@ -17,15 +17,19 @@ THREADS=1
 ITERATIONS=3
 STORES="all"
 MODE="both"
+SCENARIO="cluster"
 
 usage() {
     cat << 'EOF'
 Usage: ./scripts/benchmark-stores.sh [OPTIONS]
 
 Options:
+  -c, --scenario <type>   Benchmark scenario: cluster, throughput, all (default: cluster)
+                          cluster: Multi-server, multi-event selective subscription & storm test
+                          throughput: 1-to-1 continuous throughput & latency benchmark
   -s, --stores <list>     Comma-separated store list or 'all' (default: all)
-                          Available: all, memory, mongo, redis, redis_stream,
-                                     redis_reliable, nats, kafka, hazelcast
+                          Available: all, memory, redis, redis_stream,
+                                     nats, kafka
   -M, --mode <mode>       Store channel mode: both, single, multi (default: both)
   -m, --messages <count>  Number of messages per store benchmark (default: 2000)
   -t, --threads <count>   Number of concurrent publishing threads (default: 1)
@@ -34,17 +38,11 @@ Options:
   -h, --help              Show this help message
 
 Examples:
-  # Benchmark in-memory baseline and MongoDB with 1,000 messages (both modes)
-  ./scripts/benchmark-stores.sh --stores memory,mongo -m 1000
+  # Run multi-server cluster benchmark showing where multi-channel shines
+  ./scripts/benchmark-stores.sh --scenario cluster --stores memory,redis,redis_stream
 
-  # Benchmark Redis Stream in single-channel mode only
-  ./scripts/benchmark-stores.sh --stores redis_stream --mode single
-
-  # Benchmark Redis and NATS with 5,000 messages across 4 threads, 5 iterations
-  ./scripts/benchmark-stores.sh --stores redis,nats -m 5000 -t 4 -i 5
-
-  # Run full benchmark across all backends (single iteration for quick results)
-  ./scripts/benchmark-stores.sh --stores all -m 2000 -i 1
+  # Run standard 1-to-1 throughput benchmark
+  ./scripts/benchmark-stores.sh --scenario throughput --stores all -m 2000
 EOF
     exit 0
 }
@@ -52,6 +50,10 @@ EOF
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        -c|--scenario)
+            SCENARIO="$2"
+            shift 2
+            ;;
         -s|--stores)
             STORES="$2"
             shift 2
@@ -97,11 +99,22 @@ fi
 echo "Compiling benchmark test suite..."
 mvn -q test-compile -pl netty-socketio-core -DskipTests
 
-EXEC_ARGS="--stores ${STORES} --mode ${MODE} --messages ${MESSAGES} --threads ${THREADS} --warmup ${WARMUP} --iterations ${ITERATIONS}"
+if [[ "${SCENARIO}" == "cluster" || "${SCENARIO}" == "all" ]]; then
+    CLUSTER_ARGS="--stores ${STORES} --messages ${MESSAGES}"
+    echo "Starting Multi-Server Cluster Benchmark with: ${CLUSTER_ARGS}"
+    mvn -q org.codehaus.mojo:exec-maven-plugin:3.1.0:exec \
+        -pl netty-socketio-core \
+        -Dexec.classpathScope=test \
+        -Dexec.executable="java" \
+        -Dexec.args="-cp %classpath com.socketio4j.socketio.benchmark.ClusterTopologyPubSubBenchmark ${CLUSTER_ARGS}"
+fi
 
-echo "Starting benchmark with: ${EXEC_ARGS}"
-mvn -q org.codehaus.mojo:exec-maven-plugin:3.1.0:exec \
-    -pl netty-socketio-core \
-    -Dexec.classpathScope=test \
-    -Dexec.executable="java" \
-    -Dexec.args="-cp %classpath com.socketio4j.socketio.benchmark.PubSubStoreThroughputBenchmark ${EXEC_ARGS}"
+if [[ "${SCENARIO}" == "throughput" || "${SCENARIO}" == "all" ]]; then
+    EXEC_ARGS="--stores ${STORES} --mode ${MODE} --messages ${MESSAGES} --threads ${THREADS} --warmup ${WARMUP} --iterations ${ITERATIONS}"
+    echo "Starting 1-to-1 Throughput Benchmark with: ${EXEC_ARGS}"
+    mvn -q org.codehaus.mojo:exec-maven-plugin:3.1.0:exec \
+        -pl netty-socketio-core \
+        -Dexec.classpathScope=test \
+        -Dexec.executable="java" \
+        -Dexec.args="-cp %classpath com.socketio4j.socketio.benchmark.PubSubStoreThroughputBenchmark ${EXEC_ARGS}"
+fi

@@ -50,12 +50,10 @@ import org.slf4j.LoggerFactory;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.HazelcastInstance;
-import com.mongodb.reactivestreams.client.MongoClient;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketType;
 import com.socketio4j.socketio.store.container.CustomizedHazelcastContainer;
 import com.socketio4j.socketio.store.container.CustomizedKafkaContainer;
-import com.socketio4j.socketio.store.container.CustomizedMongoContainer;
 import com.socketio4j.socketio.store.container.CustomizedNatsContainer;
 import com.socketio4j.socketio.store.container.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.event.DispatchMessage;
@@ -69,7 +67,6 @@ import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastPubSubRingBuf
 import com.socketio4j.socketio.store.kafka.KafkaEventStore;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageDeserializer;
 import com.socketio4j.socketio.store.kafka.serialization.EventMessageSerializer;
-import com.socketio4j.socketio.store.mongo.MongoEventStore;
 import com.socketio4j.socketio.store.nats_pubsub.NatsEventStore;
 import com.socketio4j.socketio.store.redis_pubsub.RedisPubSubEventStore;
 import com.socketio4j.socketio.store.redis_reliable.RedisPubSubReliableEventStore;
@@ -556,66 +553,6 @@ public class PubSubStoreThroughputBenchmark {
         };
     }
 
-    public static StoreFixture createMongoFixture(CustomizedMongoContainer container, EventStoreMode mode) throws Exception {
-        if (!container.isRunning()) {
-            container.start();
-        }
-        MongoClient mc1 = container.createClient();
-        MongoClient mc2 = container.createClient();
-
-        String dbName = "bench_mongo_" + UUID.randomUUID().toString().replace("-", "");
-        MongoEventStore storePub = new MongoEventStore.Builder(mc1, dbName)
-                .eventStoreMode(mode)
-                .nodeId(1L)
-                .collectionPrefix("bench_")
-                .build();
-        MongoEventStore storeSub = new MongoEventStore.Builder(mc2, dbName)
-                .eventStoreMode(mode)
-                .nodeId(2L)
-                .collectionPrefix("bench_")
-                .build();
-
-        String modeName = EventStoreMode.SINGLE_CHANNEL.equals(mode) ? "Single Channel" : "Multi Channel";
-        final String fixtureName = "MongoDB (" + modeName + ")";
-
-        return new StoreFixture() {
-            @Override
-            public String getName() {
-                return fixtureName;
-            }
-
-            @Override
-            public EventStore getPublisher() {
-                return storePub;
-            }
-
-            @Override
-            public EventStore getSubscriber() {
-                return storeSub;
-            }
-
-            @Override
-            public void close() {
-                try {
-                    storePub.shutdown();
-                } catch (Exception ignored) {
-                }
-                try {
-                    storeSub.shutdown();
-                } catch (Exception ignored) {
-                }
-                try {
-                    mc1.close();
-                } catch (Exception ignored) {
-                }
-                try {
-                    mc2.close();
-                } catch (Exception ignored) {
-                }
-            }
-        };
-    }
-
     public static StoreFixture createRedisPubSubFixture(CustomizedRedisContainer container, EventStoreMode mode) throws Exception {
         if (!container.isRunning()) {
             container.start();
@@ -1080,7 +1017,6 @@ public class PubSubStoreThroughputBenchmark {
         List<BenchmarkResult> results = new ArrayList<BenchmarkResult>();
 
         // Shared containers
-        CustomizedMongoContainer mongoContainer = null;
         CustomizedRedisContainer redisContainer = null;
         CustomizedNatsContainer natsContainer = null;
         CustomizedKafkaContainer kafkaContainer = null;
@@ -1093,16 +1029,6 @@ public class PubSubStoreThroughputBenchmark {
                 for (EventStoreMode mode : modes) {
                     System.out.println("\nBenchmarking Memory (" + mode + ")...");
                     try (StoreFixture f = createMemoryFixture(mode)) {
-                        results.add(runBenchmark(f, messages, warmup, threads, iterations));
-                    }
-                }
-            }
-
-            if (runAll || targetStores.contains("mongo") || targetStores.contains("mongodb")) {
-                mongoContainer = new CustomizedMongoContainer();
-                for (EventStoreMode mode : modes) {
-                    System.out.println("\nBenchmarking MongoDB (" + mode + ")...");
-                    try (StoreFixture f = createMongoFixture(mongoContainer, mode)) {
                         results.add(runBenchmark(f, messages, warmup, threads, iterations));
                     }
                 }
@@ -1191,9 +1117,6 @@ public class PubSubStoreThroughputBenchmark {
         } catch (Exception e) {
             log.error("Benchmark execution failed", e);
         } finally {
-            if (mongoContainer != null && mongoContainer.isRunning()) {
-                mongoContainer.stop();
-            }
             if (redisContainer != null && redisContainer.isRunning()) {
                 redisContainer.stop();
             }
