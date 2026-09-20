@@ -17,6 +17,9 @@
 package com.socketio4j.socketio.store.event;
 
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.slf4j.Logger;
@@ -26,6 +29,11 @@ public interface EventStore {
 
     Logger log = LoggerFactory.getLogger(EventStore.class);
 
+    int DEFAULT_PARTITION_COUNT = 16;
+
+    default int getPartitionCount() {
+        return DEFAULT_PARTITION_COUNT;
+    }
 
     default EventStoreMode getEventStoreMode() {
         return EventStoreMode.MULTI_CHANNEL;
@@ -41,6 +49,51 @@ public interface EventStore {
 
     default Long getNodeId() {
         return ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
+    }
+
+    /**
+     * Resolves the channel/topic/stream name for publishing an event message based on
+     * the store prefix, event type, message partition key, partition count, and store mode.
+     */
+    default String resolveChannelName(String prefix, EventType type, EventMessage msg, int partitionCount, EventStoreMode mode) {
+        if (prefix == null) {
+            prefix = "";
+        }
+        if (mode == EventStoreMode.SINGLE_CHANNEL) {
+            return prefix + EventType.ALL_SINGLE_CHANNEL.name();
+        }
+        if (mode == EventStoreMode.PARTITIONED_CHANNEL) {
+            String partitionKey = msg != null ? msg.getPartitionKey() : null;
+            if (partitionKey != null && !partitionKey.isEmpty()) {
+                int p = (partitionKey.hashCode() & 0x7FFFFFFF) % Math.max(1, partitionCount);
+                return prefix + "room_" + p;
+            }
+            return prefix + "lifecycle";
+        }
+        return prefix + type.name();
+    }
+
+    /**
+     * Resolves all channel/topic/stream names that must be subscribed to for a given event type
+     * based on the store prefix, partition count, and store mode.
+     */
+    default List<String> resolveSubscriptionChannels(String prefix, EventType type, int partitionCount, EventStoreMode mode) {
+        if (prefix == null) {
+            prefix = "";
+        }
+        if (mode == EventStoreMode.SINGLE_CHANNEL) {
+            return Collections.singletonList(prefix + EventType.ALL_SINGLE_CHANNEL.name());
+        }
+        if (mode == EventStoreMode.PARTITIONED_CHANNEL) {
+            int count = Math.max(1, partitionCount);
+            List<String> channels = new ArrayList<>(count + 1);
+            for (int i = 0; i < count; i++) {
+                channels.add(prefix + "room_" + i);
+            }
+            channels.add(prefix + "lifecycle");
+            return channels;
+        }
+        return Collections.singletonList(prefix + type.name());
     }
 
     default void publish(EventType type, EventMessage msg) {

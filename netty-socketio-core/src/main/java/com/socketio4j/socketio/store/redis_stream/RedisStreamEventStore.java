@@ -18,6 +18,7 @@ package com.socketio4j.socketio.store.redis_stream;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,8 +26,10 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -46,7 +49,12 @@ import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
 import com.socketio4j.socketio.store.event.ListenerRegistration;
 
-
+/**
+ * Production-grade Redis Stream-based {@link EventStore}.
+ * <p>
+ * Implements durable, bounded, zero-loss pub/sub event broadcasting across cluster nodes
+ * using Redis Streams with standalone fan-out {@code XREAD}.
+ */
 public class RedisStreamEventStore implements EventStore {
 
     private static final Logger log =
@@ -57,7 +65,7 @@ public class RedisStreamEventStore implements EventStore {
     // ---------------------------------------------------------------------
 
     private static final String DEFAULT_PREFIX = "SOCKETIO4J:";
-    private static final int DEFAULT_MAX_LEN = Integer.MAX_VALUE;
+    private static final int DEFAULT_MAX_LEN = 100_000;
 
     // ---------------------------------------------------------------------
     // Config
@@ -74,21 +82,23 @@ public class RedisStreamEventStore implements EventStore {
     // Runtime
     // ---------------------------------------------------------------------
 
-    private final AtomicBoolean running = new AtomicBoolean(true);
-
-    private final ConcurrentMap<EventType, RStream<String, EventMessage>> pubStreams =
+    private final AtomicBoolean storeRunning = new AtomicBoolean(true);
+    private final ConcurrentMap<String, AtomicBoolean> activePollers =
             new ConcurrentHashMap<>();
-    private final ConcurrentMap<EventType, RStream<String, EventMessage>> subStreams =
+
+    private final ConcurrentMap<String, RStream<String, EventMessage>> pubStreams =
+            new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, RStream<String, EventMessage>> subStreams =
             new ConcurrentHashMap<>();
 
     private final ConcurrentMap<EventType, Queue<ListenerRegistration<? extends EventMessage>>> listeners =
             new ConcurrentHashMap<>();
 
-    private final ConcurrentMap<EventType, StreamMessageId> offsets =
+    private final ConcurrentMap<String, StreamMessageId> offsets =
             new ConcurrentHashMap<>();
 
-    private final ConcurrentMap<EventType, ScheduledExecutorService> pollers =
-            new ConcurrentHashMap<>();
+    private final ScheduledExecutorService executor;
+    private final int partitionCount;
 
     // ---------------------------------------------------------------------
     // Constructor
@@ -101,6 +111,18 @@ public class RedisStreamEventStore implements EventStore {
             @Nullable EventStoreMode eventStoreMode,
             @Nullable String streamNamePrefix,
             @Nullable Integer streamMaxLength
+    ) {
+        this(redissonPub, redissonSub, nodeId, eventStoreMode, streamNamePrefix, streamMaxLength, DEFAULT_PARTITION_COUNT);
+    }
+
+    private RedisStreamEventStore(
+            @NotNull RedissonClient redissonPub,
+            @NotNull RedissonClient redissonSub,
+            @Nullable Long nodeId,
+            @Nullable EventStoreMode eventStoreMode,
+            @Nullable String streamNamePrefix,
+            @Nullable Integer streamMaxLength,
+            int partitionCount
     ) {
 
         this.redissonPub = Objects.requireNonNull(redissonPub, "redissonPub");
@@ -118,6 +140,8 @@ public class RedisStreamEventStore implements EventStore {
         }
         this.eventStoreMode = eventStoreMode;
 
+        this.partitionCount = partitionCount > 0 ? partitionCount : DEFAULT_PARTITION_COUNT;
+
         if (streamNamePrefix == null || streamNamePrefix.isEmpty()) {
             streamNamePrefix = DEFAULT_PREFIX;
             log.warn("prefix is null/empty, loaded default : {}", DEFAULT_PREFIX);
@@ -133,6 +157,16 @@ public class RedisStreamEventStore implements EventStore {
         }
         this.streamMaxLength = streamMaxLength;
 
+        final AtomicInteger threadSeq = new AtomicInteger(1);
+        this.executor = Executors.newScheduledThreadPool(
+                Math.max(4, Runtime.getRuntime().availableProcessors() * 2),
+                r -> {
+                    Thread th = new Thread(r);
+                    th.setName("socketio4j-redis-stream-worker-" + threadSeq.getAndIncrement());
+                    th.setDaemon(true);
+                    return th;
+                }
+        );
 
         initStreams();
     }
@@ -144,18 +178,22 @@ public class RedisStreamEventStore implements EventStore {
     private void initStreams() {
 
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            initStream(EventType.ALL_SINGLE_CHANNEL);
+            initStream(streamNamePrefix + EventType.ALL_SINGLE_CHANNEL.name());
+        } else if (EventStoreMode.PARTITIONED_CHANNEL.equals(eventStoreMode)) {
+            for (int i = 0; i < partitionCount; i++) {
+                initStream(streamNamePrefix + "room_" + i);
+            }
+            initStream(streamNamePrefix + "lifecycle");
         } else {
             Arrays.stream(EventType.values())
                     .filter(t -> t != EventType.ALL_SINGLE_CHANNEL)
-                    .forEach(this::initStream);
+                    .forEach(t -> initStream(streamNamePrefix + t.name()));
         }
     }
 
-    private void initStream(EventType type) {
-        subStreams.put(type, redissonSub.getStream(streamName(type)));
-        pubStreams.put(type, redissonPub.getStream(streamName(type)));
-        offsets.put(type, StreamMessageId.NEWEST);
+    private void initStream(String streamName) {
+        subStreams.put(streamName, redissonSub.getStream(streamName));
+        pubStreams.put(streamName, redissonPub.getStream(streamName));
     }
 
     // ---------------------------------------------------------------------
@@ -165,6 +203,11 @@ public class RedisStreamEventStore implements EventStore {
     @Override
     public EventStoreMode getEventStoreMode() {
         return eventStoreMode;
+    }
+
+    @Override
+    public int getPartitionCount() {
+        return partitionCount;
     }
 
     @Override
@@ -180,9 +223,10 @@ public class RedisStreamEventStore implements EventStore {
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
 
+        String streamName = resolveChannelName(streamNamePrefix, type, msg, partitionCount, eventStoreMode);
         pubStreams.computeIfAbsent(
-                resolve(type),
-                t -> redissonPub.getStream(streamName(t))
+                streamName,
+                redissonPub::getStream
         ).add(StreamAddArgs.entry(type.name(), msg).trimNonStrict().maxLen(streamMaxLength).noLimit());
 
     }
@@ -197,9 +241,12 @@ public class RedisStreamEventStore implements EventStore {
             EventListener<T> listener,
             Class<T> clazz
     ) {
+        if (!storeRunning.get()) {
+            throw new IllegalStateException("RedisStreamEventStore has been shutdown");
+        }
 
-        Objects.requireNonNull(listener);
-        Objects.requireNonNull(clazz);
+        Objects.requireNonNull(listener, "listener cannot be null");
+        Objects.requireNonNull(clazz, "clazz cannot be null");
 
         validateSubscribe(type);
 
@@ -207,79 +254,110 @@ public class RedisStreamEventStore implements EventStore {
                 .computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
                 .add(new ListenerRegistration<>(listener, clazz));
 
-        ensurePoller(type);
+        List<String> streamNames = resolveSubscriptionChannels(streamNamePrefix, type, partitionCount, eventStoreMode);
+        for (String streamName : streamNames) {
+            offsets.computeIfAbsent(streamName, this::resolveInitialOffset);
+            ensurePoller(streamName, type);
+        }
     }
 
-    private void ensurePoller(EventType type) {
-
-        pollers.compute(type, (t, exec) -> {
-            if (exec == null || exec.isShutdown()) {
-
-                ScheduledExecutorService newExec =
-                        Executors.newSingleThreadScheduledExecutor(r -> {
-                            Thread th = new Thread(r);
-                            th.setName("socketio4j-redis-stream-" + t.name());
-                            th.setDaemon(true);
-                            return th;
-                        });
-
-                RStream<String, EventMessage> stream =
-                        subStreams.computeIfAbsent(
-                                t,
-                                k -> redissonSub.getStream(streamName(k))
-                        );
-                newExec.execute(() -> pollLoop(stream, t));
-                return newExec;
-
+    /**
+     * Resolves the initial read offset for a given stream name.
+     * Queries the existing stream info if present; falls back safely to {@link StreamMessageId#ALL}
+     * for brand-new or empty streams to prevent message drops on cold start.
+     */
+    private StreamMessageId resolveInitialOffset(String streamName) {
+        try {
+            RStream<String, EventMessage> stream =
+                    subStreams.computeIfAbsent(
+                            streamName,
+                            redissonSub::getStream
+                    );
+            if (stream.isExists()) {
+                StreamMessageId lastId = stream.getInfo().getLastGeneratedId();
+                if (lastId != null) {
+                    return lastId;
+                }
             }
-            return exec;
-        });
+        } catch (Exception e) {
+            log.debug("Could not query existing stream offset for {}, defaulting to ALL (0-0): {}",
+                    streamName, e.getMessage());
+        }
+        return StreamMessageId.ALL;
     }
 
-    private void pollLoop(RStream<String, EventMessage> stream, EventType type) {
+    private void ensurePoller(String streamName, EventType type) {
+        AtomicBoolean pollerActive = activePollers.computeIfAbsent(streamName, k -> new AtomicBoolean(false));
+        if (pollerActive.compareAndSet(false, true)) {
+            RStream<String, EventMessage> stream =
+                    subStreams.computeIfAbsent(
+                            streamName,
+                            redissonSub::getStream
+                    );
+            executor.execute(() -> pollLoop(stream, streamName, type, pollerActive, 0));
+        }
+    }
 
-        if (!running.get() || Thread.currentThread().isInterrupted()) {
+    private void pollLoop(
+            RStream<String, EventMessage> stream,
+            String streamName,
+            EventType type,
+            AtomicBoolean pollerActive,
+            int retryAttempt
+    ) {
+
+        if (!storeRunning.get() || !pollerActive.get() || Thread.currentThread().isInterrupted()) {
             return;
+        }
+
+        StreamMessageId offset = offsets.get(streamName);
+        if (offset == null) {
+            offset = StreamMessageId.ALL;
         }
 
         stream.readAsync(
                 StreamReadArgs
-                        .greaterThan(offsets.get(type))
-                        .timeout(Duration.ofSeconds(10))
+                        .greaterThan(offset)
+                        .timeout(Duration.ofSeconds(2))
                         .count(100)
         ).whenComplete((records, err) -> {
 
             if (err != null) {
-                if (!running.get() || isRedissonShutdown(err)) {
-                    log.debug("XREAD cancelled during store shutdown for {}", type);
+                if (!storeRunning.get() || !pollerActive.get() || isRedissonShutdown(err)) {
+                    log.debug("XREAD cancelled during store shutdown for {}", streamName);
                     return;
                 }
-                log.error("XREAD failed {}", type, err);
-                scheduleRetry(stream, type);
+                log.error("XREAD failed for stream {}: {}", streamName, err.getMessage());
+                scheduleRetry(stream, streamName, type, pollerActive, retryAttempt + 1);
                 return;
             }
 
             if (records != null && !records.isEmpty()) {
                 records.forEach((id, map) -> {
-                    if (map.isEmpty()) {
-                        offsets.put(type, id);
+                    if (map == null || map.isEmpty()) {
+                        offsets.put(streamName, id);
                         return;
                     }
 
-                    EventMessage msg = map.values().iterator().next();
-                    try {
-                        if (!nodeId.equals(msg.getNodeId())) {
-                            dispatch(type, msg, id);
+                    for (EventMessage msg : map.values()) {
+                        if (msg == null) {
+                            continue;
                         }
-                    } finally {
-                        offsets.put(type, id);
+                        try {
+                            if (!nodeId.equals(msg.getNodeId())) {
+                                dispatch(type, msg, id);
+                            }
+                        } catch (Throwable t) {
+                            log.error("Unexpected error handling event {} with id {} on node {}: {}",
+                                    type, id, nodeId, t.getMessage(), t);
+                        }
                     }
+                    offsets.put(streamName, id);
                 });
             }
 
-            ScheduledExecutorService exec = pollers.get(type);
-            if (exec != null && running.get()) {
-                exec.execute(() -> pollLoop(stream, type));
+            if (storeRunning.get() && pollerActive.get()) {
+                executor.execute(() -> pollLoop(stream, streamName, type, pollerActive, 0));
             }
         });
     }
@@ -293,7 +371,7 @@ public class RedisStreamEventStore implements EventStore {
         Queue<ListenerRegistration<? extends EventMessage>> regs =
                 listeners.get(type);
 
-        if (regs == null) {
+        if (regs == null || regs.isEmpty()) {
             return;
         }
 
@@ -301,18 +379,39 @@ public class RedisStreamEventStore implements EventStore {
 
         for (ListenerRegistration<? extends EventMessage> reg : regs) {
             if (reg.getClazz().isInstance(msg)) {
-                ((ListenerRegistration<T>) reg)
-                        .getListener()
-                        .onMessage((T) msg);
+                try {
+                    ((ListenerRegistration<T>) reg)
+                            .getListener()
+                            .onMessage((T) msg);
+                } catch (Throwable t) {
+                    log.error("Listener {} threw exception processing event {} on node {}: {}",
+                            reg.getListener(), type, nodeId, t.getMessage(), t);
+                }
             }
         }
     }
 
-    private void scheduleRetry(RStream<String, EventMessage> stream, EventType type) {
-        ScheduledExecutorService exec = pollers.get(type);
-        if (exec != null && running.get()) {
-            exec.schedule(() -> pollLoop(stream, type), 1, TimeUnit.SECONDS);
+    private void scheduleRetry(
+            RStream<String, EventMessage> stream,
+            String streamName,
+            EventType type,
+            AtomicBoolean pollerActive,
+            int retryAttempt
+    ) {
+        if (!storeRunning.get() || !pollerActive.get()) {
+            return;
         }
+
+        // Exponential backoff with jitter: 50ms, 100ms, 200ms, ... capped at 2000ms
+        long baseDelay = Math.min(2000L, 50L * (1L << Math.min(retryAttempt, 5)));
+        long jitter = ThreadLocalRandom.current().nextLong(25);
+        long delay = baseDelay + jitter;
+
+        executor.schedule(
+                () -> pollLoop(stream, streamName, type, pollerActive, retryAttempt),
+                delay,
+                TimeUnit.MILLISECONDS
+        );
     }
 
     // ---------------------------------------------------------------------
@@ -324,25 +423,39 @@ public class RedisStreamEventStore implements EventStore {
 
         listeners.remove(type);
 
-        ScheduledExecutorService exec = pollers.remove(type);
-        if (exec != null) {
-            exec.shutdownNow();
-        }
-
-        if (listeners.isEmpty()) {
-            running.set(false);
+        List<String> streamNames = resolveSubscriptionChannels(streamNamePrefix, type, partitionCount, eventStoreMode);
+        for (String streamName : streamNames) {
+            offsets.remove(streamName);
+            AtomicBoolean pollerActive = activePollers.remove(streamName);
+            if (pollerActive != null) {
+                pollerActive.set(false);
+            }
         }
     }
 
     @Override
     public void shutdown0() {
-        running.set(false);
-        pollers.values().forEach(ScheduledExecutorService::shutdownNow);
-        pollers.clear();
+        if (!storeRunning.compareAndSet(true, false)) {
+            return;
+        }
+
+        activePollers.values().forEach(b -> b.set(false));
+        activePollers.clear();
+
         listeners.clear();
         offsets.clear();
         pubStreams.clear();
         subStreams.clear();
+
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(3, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     private boolean isRedissonShutdown(Throwable t) {
@@ -366,24 +479,27 @@ public class RedisStreamEventStore implements EventStore {
     }
 
     private String streamName(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
+        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)
+                || EventStoreMode.PARTITIONED_CHANNEL.equals(eventStoreMode)) {
             return streamNamePrefix + EventType.ALL_SINGLE_CHANNEL.name();
         }
         return streamNamePrefix + type.name();
     }
 
     private EventType resolve(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
+        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)
+                || EventStoreMode.PARTITIONED_CHANNEL.equals(eventStoreMode)) {
             return EventType.ALL_SINGLE_CHANNEL;
         }
         return type;
     }
 
     private void validateSubscribe(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)
+        if ((EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)
+                || EventStoreMode.PARTITIONED_CHANNEL.equals(eventStoreMode))
                 && type != EventType.ALL_SINGLE_CHANNEL) {
             throw new UnsupportedOperationException(
-                    "Only ALL_SINGLE_CHANNEL allowed in SINGLE_CHANNEL mode");
+                    "Only ALL_SINGLE_CHANNEL allowed in " + eventStoreMode + " mode");
         }
         if (EventStoreMode.MULTI_CHANNEL.equals(eventStoreMode)
                 && type == EventType.ALL_SINGLE_CHANNEL) {
@@ -391,6 +507,7 @@ public class RedisStreamEventStore implements EventStore {
                     "ALL_SINGLE_CHANNEL not allowed in MULTI_CHANNEL mode");
         }
     }
+
     public static final class Builder {
 
         // -------------------------
@@ -407,6 +524,7 @@ public class RedisStreamEventStore implements EventStore {
         private String prefix;
         private Integer streamMaxLen;
         private Duration trimEvery;
+        private int partitionCount = DEFAULT_PARTITION_COUNT;
 
         // -------------------------
         // Constructors
@@ -452,6 +570,14 @@ public class RedisStreamEventStore implements EventStore {
             return this;
         }
 
+        public Builder partitionCount(int partitionCount) {
+            if (partitionCount <= 0) {
+                throw new IllegalArgumentException("partitionCount must be > 0");
+            }
+            this.partitionCount = partitionCount;
+            return this;
+        }
+
         // -------------------------
         // Build
         // -------------------------
@@ -463,7 +589,8 @@ public class RedisStreamEventStore implements EventStore {
                     nodeId,
                     mode,
                     prefix,
-                    streamMaxLen
+                    streamMaxLen,
+                    partitionCount
             );
         }
     }

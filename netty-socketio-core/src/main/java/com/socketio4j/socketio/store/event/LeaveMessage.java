@@ -49,8 +49,12 @@ public class LeaveMessage extends EventMessage {
     }
 
     @Override
+    public String getPartitionKey() {
+        return room;
+    }
+
+    @Override
     public String getType() {
         return EventType.LEAVE.name();
     }
-
 }

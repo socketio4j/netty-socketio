@@ -18,6 +18,7 @@ package com.socketio4j.socketio.store.event;
 
 import java.io.Serializable;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -63,4 +64,22 @@ public abstract class EventMessage implements Serializable {
 
     @JsonProperty("type")
     public abstract String getType();
+
+    /**
+     * Returns the partition routing key for this event message when the event store
+     * operates in {@link EventStoreMode#PARTITIONED_CHANNEL}.
+     * <p>
+     * For room-scoped events (e.g. {@link JoinMessage}, {@link LeaveMessage},
+     * {@link DispatchMessage}), this returns the target room name so all events for
+     * the same room land on the same partition in strict FIFO order.
+     * <p>
+     * For non-room events (e.g. {@link ConnectMessage}, {@link DisconnectMessage}),
+     * this returns {@code null}, directing the message to a dedicated control / lifecycle partition.
+     *
+     * @return the partition routing key, or {@code null} if not partitioned by room
+     */
+    @JsonIgnore
+    public String getPartitionKey() {
+        return null;
+    }
 }

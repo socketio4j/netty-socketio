@@ -48,9 +48,14 @@ public class BulkLeaveMessage extends EventMessage {
     public Set<String> getRooms() {
         return rooms;
     }
+
+    @Override
+    public String getPartitionKey() {
+        return (rooms != null && !rooms.isEmpty()) ? rooms.iterator().next() : null;
+    }
+
     @Override
     public String getType() {
         return EventType.BULK_LEAVE.name();
     }
-
 }

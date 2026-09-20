@@ -169,8 +169,11 @@ public final class KafkaEventStore implements EventStore {
         msg.setNodeId(nodeId);
 
         String topic = topic(resolve(type));
+        String key = (mode == EventStoreMode.PARTITIONED_CHANNEL && msg.getPartitionKey() != null)
+                ? msg.getPartitionKey()
+                : type.name();
         ProducerRecord<String, EventMessage> record =
-                new ProducerRecord<>(topic, type.name(), msg);
+                new ProducerRecord<>(topic, key, msg);
 
         producer.send(record, (metadata, ex) -> {
             if (ex != null) {
@@ -589,7 +592,7 @@ public final class KafkaEventStore implements EventStore {
      * @return the resolved event type (may be ALL_SINGLE_CHANNEL in single channel mode)
      */
     private EventType resolve(EventType type) {
-        if (mode == EventStoreMode.SINGLE_CHANNEL) {
+        if (mode == EventStoreMode.SINGLE_CHANNEL || mode == EventStoreMode.PARTITIONED_CHANNEL) {
                 return EventType.ALL_SINGLE_CHANNEL;
         }
         return type;
@@ -603,9 +606,10 @@ public final class KafkaEventStore implements EventStore {
      */
     private void validateSubscribe(EventType type) {
 
-        if (mode == EventStoreMode.SINGLE_CHANNEL && type != EventType.ALL_SINGLE_CHANNEL) {
+        if ((mode == EventStoreMode.SINGLE_CHANNEL || mode == EventStoreMode.PARTITIONED_CHANNEL)
+                && type != EventType.ALL_SINGLE_CHANNEL) {
             throw new UnsupportedOperationException(
-                    "Only ALL_SINGLE_CHANNEL allowed in SINGLE_CHANNEL mode");
+                    "Only ALL_SINGLE_CHANNEL allowed in " + mode + " mode");
         }
 
         if (mode == EventStoreMode.MULTI_CHANNEL && type == EventType.ALL_SINGLE_CHANNEL) {

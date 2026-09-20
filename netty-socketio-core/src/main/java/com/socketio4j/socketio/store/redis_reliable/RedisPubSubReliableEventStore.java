@@ -18,6 +18,7 @@ package com.socketio4j.socketio.store.redis_reliable;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -50,6 +51,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
     private final RedissonClient redissonSub;
     private final Long nodeId;
     private final EventStoreMode eventStoreMode;
+    private final int partitionCount;
     private final String streamNamePrefix;
     private final Integer streamMaxLength;
     private final Duration trimEvery;
@@ -58,8 +60,8 @@ public class RedisPubSubReliableEventStore implements EventStore {
     private static final int DEFAULT_STREAM_MAX_LENGTH = Integer.MAX_VALUE;
     private final ConcurrentMap<EventType, Queue<String>> map = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, RReliableTopic> activeSubTopics = new ConcurrentHashMap<>();
-    private final ConcurrentMap<EventType, RReliableTopic> activePubTopics = new ConcurrentHashMap<>();
-    private final ConcurrentMap<EventType, RStream<String, EventMessage>> trimTopics = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, RReliableTopic> activePubTopics = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, RStream<String, EventMessage>> trimTopics = new ConcurrentHashMap<>();
     private static final Logger log = LoggerFactory.getLogger(RedisPubSubReliableEventStore.class);
 
 
@@ -74,11 +76,22 @@ public class RedisPubSubReliableEventStore implements EventStore {
                                       @Nullable String streamNamePrefix,
                                       @Nullable Integer streamMaxLength,
                                       @Nullable Duration trimEvery) {
+        this(redissonPub, redissonSub, nodeId, eventStoreMode, streamNamePrefix, streamMaxLength, trimEvery, DEFAULT_PARTITION_COUNT);
+    }
+
+    private RedisPubSubReliableEventStore(@NotNull RedissonClient redissonPub,
+                                      @NotNull RedissonClient redissonSub,
+                                      @Nullable Long nodeId, EventStoreMode eventStoreMode,
+                                      @Nullable String streamNamePrefix,
+                                      @Nullable Integer streamMaxLength,
+                                      @Nullable Duration trimEvery,
+                                      int partitionCount) {
 
         if (eventStoreMode == null) {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         }
         this.eventStoreMode = eventStoreMode;
+        this.partitionCount = partitionCount > 0 ? partitionCount : DEFAULT_PARTITION_COUNT;
 
         Objects.requireNonNull(redissonPub, "redissonPub client can not be null");
         Objects.requireNonNull(redissonSub, "redissonSub client can not be null");
@@ -133,26 +146,25 @@ public class RedisPubSubReliableEventStore implements EventStore {
      * 
      * <p>This method is called periodically by the scheduled executor to prevent streams
      * from growing unbounded. The trimming is done asynchronously to avoid blocking.
-     * 
-     * <p>In SINGLE_CHANNEL mode, only the ALL_SINGLE_CHANNEL stream is trimmed.
-     * In MULTI_CHANNEL mode, all event type streams are trimmed.
      */
     private void trimAllReliableStreams() {
 
         try {
             if (EventStoreMode.SINGLE_CHANNEL.equals(getEventStoreMode())) {
-                trimStream(EventType.ALL_SINGLE_CHANNEL);
+                trimStream(streamNamePrefix + EventType.ALL_SINGLE_CHANNEL.name());
+            } else if (EventStoreMode.PARTITIONED_CHANNEL.equals(getEventStoreMode())) {
+                trimStream(streamNamePrefix + "lifecycle");
+                for (int i = 0; i < partitionCount; i++) {
+                    trimStream(streamNamePrefix + "room_" + i);
+                }
             } else {
                 for (EventType type : EventType.values()) {
-                    trimStream(type);
+                    trimStream(streamNamePrefix + type.name());
                 }
             }
         } catch (Exception t) {
             log.warn("Redis stream trim cycle failed", t);
         }
-    }
-    private RStream<String, EventMessage> createStream(EventType type) {
-        return redissonPub.getStream(getStreamName(type));
     }
 
     /**
@@ -166,18 +178,18 @@ public class RedisPubSubReliableEventStore implements EventStore {
      * <p>After trimming, the stream size is checked and logged for monitoring purposes.
      * Failures are logged but don't throw exceptions to prevent interrupting the trim cycle.
      * 
-     * @param type the event type whose stream should be trimmed
+     * @param streamName the stream name to trim
      */
-    private void trimStream(EventType type) {
+    private void trimStream(String streamName) {
         try {
             RStream<String, EventMessage> stream =
-                    trimTopics.computeIfAbsent(type, this::createStream);
+                    trimTopics.computeIfAbsent(streamName, redissonPub::getStream);
 
             stream.trimNonStrictAsync(
                     StreamTrimArgs.maxLen(streamMaxLength).noLimit()
             ).whenComplete((trimmed, err) -> {
                 if (err != null) {
-                    log.warn("Trim failed for {}", getStreamName(type), err);
+                    log.warn("Trim failed for {}", streamName, err);
                     return;
                 }
 
@@ -185,16 +197,16 @@ public class RedisPubSubReliableEventStore implements EventStore {
                 stream.sizeAsync()
                         .whenComplete((length, sizeErr) -> {
                             if (sizeErr != null) {
-                                log.warn("Failed to read stream size {}", getStreamName(type), sizeErr);
+                                log.warn("Failed to read stream size {}", streamName, sizeErr);
                                 return;
                             }
-                            log.debug("Stream {} length={}", getStreamName(type), length);
+                            log.debug("Stream {} length={}", streamName, length);
                         });
 
             });
 
         } catch (Exception e) {
-            log.warn("Failed to trim Redis stream {}", getStreamName(type), e);
+            log.warn("Failed to trim Redis stream {}", streamName, e);
         }
     }
 
@@ -202,6 +214,11 @@ public class RedisPubSubReliableEventStore implements EventStore {
     @Override
     public EventStoreMode getEventStoreMode(){
         return eventStoreMode;
+    }
+
+    @Override
+    public int getPartitionCount() {
+        return partitionCount;
     }
 
     @Override
@@ -213,20 +230,20 @@ public class RedisPubSubReliableEventStore implements EventStore {
     public PublishMode getPublishMode(){
         return PublishMode.RELIABLE;
     }
+
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        RReliableTopic topic = activePubTopics.computeIfAbsent(type, k -> {
-            String topicName = getStreamName(k);
-            return redissonPub.getReliableTopic(topicName);
-        });
+        String channelName = resolveChannelName(streamNamePrefix, type, msg, partitionCount, eventStoreMode);
+        RReliableTopic topic = activePubTopics.computeIfAbsent(channelName, redissonPub::getReliableTopic);
         topic.publish(msg);
     }
 
     @Override
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
-
-            RReliableTopic reliableTopic = redissonSub.getReliableTopic(getStreamName(type));
+        List<String> channelNames = resolveSubscriptionChannels(streamNamePrefix, type, partitionCount, eventStoreMode);
+        for (String channelName : channelNames) {
+            RReliableTopic reliableTopic = redissonSub.getReliableTopic(channelName);
             Objects.requireNonNull(reliableTopic, "reliableTopic can not be null");
             String id = reliableTopic.addListener(clazz, (channel, msg) -> {
                 if (!nodeId.equals(msg.getNodeId())) {
@@ -236,13 +253,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
             activeSubTopics.put(id, reliableTopic);
             map.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
                     .add(id);
-    }
-
-    private String getStreamName(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(getEventStoreMode())) {
-            return streamNamePrefix + EventType.ALL_SINGLE_CHANNEL.name();
         }
-        return streamNamePrefix + type.name();
     }
 
     @Override
@@ -260,7 +271,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
             try {
                 topic.removeListener(id);
             } catch (Exception ex) {
-                log.warn("Failed to remove listener {} from topic {}", id, getStreamName(type), ex);
+                log.warn("Failed to remove listener {} from topic", id, ex);
             }
         }
 
@@ -299,6 +310,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
         private String streamNamePrefix = DEFAULT_STREAM_NAME_PREFIX;
         private Integer streamMaxLength = DEFAULT_STREAM_MAX_LENGTH;
         private Duration trimEvery;
+        private int partitionCount = DEFAULT_PARTITION_COUNT;
 
         // -------------------------
         // Constructors
@@ -349,6 +361,14 @@ public class RedisPubSubReliableEventStore implements EventStore {
             return this;
         }
 
+        public Builder partitionCount(int partitionCount) {
+            if (partitionCount <= 0) {
+                throw new IllegalArgumentException("partitionCount must be > 0");
+            }
+            this.partitionCount = partitionCount;
+            return this;
+        }
+
         // -------------------------
         // Build
         // -------------------------
@@ -361,7 +381,8 @@ public class RedisPubSubReliableEventStore implements EventStore {
                     eventStoreMode,
                     streamNamePrefix,
                     streamMaxLength,
-                    trimEvery
+                    trimEvery,
+                    partitionCount
             );
         }
     }

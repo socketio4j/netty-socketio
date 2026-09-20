@@ -17,6 +17,7 @@
 package com.socketio4j.socketio.store.hazelcast;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.UUID;
@@ -45,10 +46,11 @@ public class HazelcastPubSubEventStore implements EventStore {
     private final Long nodeId;
     private final EventStoreMode eventStoreMode;
     private final String topicPrefix;
+    private final int partitionCount;
     private static final String DEFAULT_TOPIC_NAME_PREFIX = "SOCKETIO4J:";
 
     private final ConcurrentMap<EventType, Queue<UUID>> listenerMap = new ConcurrentHashMap<>();
-    private final ConcurrentMap<EventType, ITopic<EventMessage>> activePubTopics = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ITopic<EventMessage>> activePubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<UUID, ITopic<?>> activeSubTopics = new ConcurrentHashMap<>();
 
     private static final Logger log = LoggerFactory.getLogger(HazelcastPubSubEventStore.class);
@@ -59,6 +61,17 @@ public class HazelcastPubSubEventStore implements EventStore {
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
             @Nullable String topicPrefix
+    ) {
+        this(hazelcastPub, hazelcastSub, nodeId, eventStoreMode, topicPrefix, DEFAULT_PARTITION_COUNT);
+    }
+
+    private HazelcastPubSubEventStore(
+            @NotNull HazelcastInstance hazelcastPub,
+            @NotNull HazelcastInstance hazelcastSub,
+            @Nullable Long nodeId,
+            @Nullable EventStoreMode eventStoreMode,
+            @Nullable String topicPrefix,
+            int partitionCount
     ) {
         Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
         Objects.requireNonNull(hazelcastSub, "hazelcastSub cannot be null");
@@ -72,6 +85,7 @@ public class HazelcastPubSubEventStore implements EventStore {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         }
         this.eventStoreMode = eventStoreMode;
+        this.partitionCount = partitionCount > 0 ? partitionCount : DEFAULT_PARTITION_COUNT;
 
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
@@ -79,47 +93,46 @@ public class HazelcastPubSubEventStore implements EventStore {
             nodeId = getNodeId();
         }
         this.nodeId = nodeId;
-
     }
 
-    @Override
-    public void publish0(EventType type, EventMessage msg) {
-        msg.setNodeId(nodeId);
-
-        ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> {
-            String topicName = getTopicName(k);
-            return hazelcastPub.getTopic(topicName);
-        });
-
-        topic.publish(msg);
-    }
-    private String getTopicName(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            return topicPrefix + EventType.ALL_SINGLE_CHANNEL.name();
-        }
-        return topicPrefix + type.name();
-    }
     @Override
     public EventStoreMode getEventStoreMode(){
         return eventStoreMode;
     }
 
     @Override
+    public int getPartitionCount() {
+        return partitionCount;
+    }
+
+    @Override
+    public void publish0(EventType type, EventMessage msg) {
+        msg.setNodeId(nodeId);
+
+        String topicName = resolveChannelName(topicPrefix, type, msg, partitionCount, eventStoreMode);
+        ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(topicName, hazelcastPub::getTopic);
+        topic.publish(msg);
+    }
+
+    @Override
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
 
-        ITopic<T> topic = hazelcastSub.getTopic(getTopicName(type));
+        List<String> topicNames = resolveSubscriptionChannels(topicPrefix, type, partitionCount, eventStoreMode);
+        for (String topicName : topicNames) {
+            ITopic<T> topic = hazelcastSub.getTopic(topicName);
 
-        UUID regId = topic.addMessageListener(msg -> {
-            T eventMsg = msg.getMessageObject();
-            if (eventMsg != null && !nodeId.equals(eventMsg.getNodeId())) {
-                log.debug("[HZ-PUBSUB] Received event type {} from node {} (my nodeId={})", type, eventMsg.getNodeId(), nodeId);
-                listener.onMessage(eventMsg);
-            }
-        });
-        activeSubTopics.put(regId, topic);
+            UUID regId = topic.addMessageListener(msg -> {
+                T eventMsg = msg.getMessageObject();
+                if (eventMsg != null && !nodeId.equals(eventMsg.getNodeId())) {
+                    log.debug("[HZ-PUBSUB] Received event type {} from node {} (my nodeId={})", type, eventMsg.getNodeId(), nodeId);
+                    listener.onMessage(eventMsg);
+                }
+            });
+            activeSubTopics.put(regId, topic);
 
-        listenerMap.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
-                .add(regId);
+            listenerMap.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
+                    .add(regId);
+        }
     }
 
     @Override
@@ -137,7 +150,7 @@ public class HazelcastPubSubEventStore implements EventStore {
             try {
                 topic.removeMessageListener(id);
             } catch (Exception ex) {
-                log.warn("Failed to remove listener {} from topic {}", id, getTopicName(type), ex);
+                log.warn("Failed to remove listener {} from topic", id, ex);
             }
         }
     }
@@ -161,6 +174,7 @@ public class HazelcastPubSubEventStore implements EventStore {
         private Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         private String topicNamePrefix = DEFAULT_TOPIC_NAME_PREFIX;
+        private int partitionCount = DEFAULT_PARTITION_COUNT;
 
         // --------------------------------------------------
         // Constructors
@@ -198,6 +212,14 @@ public class HazelcastPubSubEventStore implements EventStore {
             return this;
         }
 
+        public HazelcastPubSubEventStore.Builder partitionCount(int partitionCount) {
+            if (partitionCount <= 0) {
+                throw new IllegalArgumentException("partitionCount must be > 0");
+            }
+            this.partitionCount = partitionCount;
+            return this;
+        }
+
         // --------------------------------------------------
         // Build
         // --------------------------------------------------
@@ -208,7 +230,8 @@ public class HazelcastPubSubEventStore implements EventStore {
                     hazelcastSub,
                     nodeId,
                     eventStoreMode,
-                    topicNamePrefix
+                    topicNamePrefix,
+                    partitionCount
             );
         }
     }

@@ -17,6 +17,7 @@
 package com.socketio4j.socketio.store.nats_pubsub;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -53,6 +54,8 @@ public class NatsEventStore implements EventStore {
     private final Connection nats;
     private final Long nodeId;
     private final EventStoreMode eventStoreMode;
+    private final String subjectPrefix;
+    private final int partitionCount;
 
     /**
      * EventType -> subscriptions
@@ -80,6 +83,14 @@ public class NatsEventStore implements EventStore {
     public NatsEventStore(@NotNull Connection natsConnection,
                           @Nullable EventStoreMode eventStoreMode,
                           @Nullable Long nodeId) {
+        this(natsConnection, eventStoreMode, nodeId, null, DEFAULT_PARTITION_COUNT);
+    }
+
+    private NatsEventStore(@NotNull Connection natsConnection,
+                          @Nullable EventStoreMode eventStoreMode,
+                          @Nullable Long nodeId,
+                          @Nullable String subjectPrefix,
+                          int partitionCount) {
 
         this.nats = Objects.requireNonNull(natsConnection, "natsConnection");
 
@@ -92,6 +103,8 @@ public class NatsEventStore implements EventStore {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         }
         this.eventStoreMode = eventStoreMode;
+        this.subjectPrefix = (subjectPrefix != null) ? subjectPrefix : "";
+        this.partitionCount = partitionCount > 0 ? partitionCount : DEFAULT_PARTITION_COUNT;
     }
 
     // ----------------------------------------------------------------------
@@ -104,12 +117,18 @@ public class NatsEventStore implements EventStore {
     }
 
     @Override
+    public int getPartitionCount() {
+        return partitionCount;
+    }
+
+    @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
 
         try {
             byte[] data = EventMessageCodec.serialize(msg);
-            nats.publish(getSubjectName(type), data);
+            String subject = resolveChannelName(subjectPrefix, type, msg, partitionCount, eventStoreMode);
+            nats.publish(subject, data);
         } catch (Exception e) {
             log.warn("Failed to publish event {}", type, e);
         }
@@ -121,24 +140,26 @@ public class NatsEventStore implements EventStore {
             final EventListener<T> listener,
             Class<T> clazz) {
 
-        final String subject = getSubjectName(type);
-        final Dispatcher dispatcher = nats.createDispatcher();
+        List<String> subjects = resolveSubscriptionChannels(subjectPrefix, type, partitionCount, eventStoreMode);
+        for (String subject : subjects) {
+            final Dispatcher dispatcher = nats.createDispatcher();
 
-        Subscription subscription = dispatcher.subscribe(subject, (Message msg) -> {
-            try {
-                T event = EventMessageCodec.deserialize(msg.getData(), clazz);
-                if (!nodeId.equals(event.getNodeId())) {
-                    listener.onMessage(event);
+            Subscription subscription = dispatcher.subscribe(subject, (Message msg) -> {
+                try {
+                    T event = EventMessageCodec.deserialize(msg.getData(), clazz);
+                    if (!nodeId.equals(event.getNodeId())) {
+                        listener.onMessage(event);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to process event on subject {}", subject, e);
                 }
-            } catch (Exception e) {
-                log.warn("Failed to process event on subject {}", subject, e);
-            }
-        });
+            });
 
-        activeDispatchers.put(subscription, dispatcher);
-        subscriptions
-                .computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
-                .add(subscription);
+            activeDispatchers.put(subscription, dispatcher);
+            subscriptions
+                    .computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
+                    .add(subscription);
+        }
     }
 
     @Override
@@ -153,7 +174,6 @@ public class NatsEventStore implements EventStore {
                 Dispatcher dispatcher = activeDispatchers.remove(sub);
                 if (dispatcher != null) {
                     dispatcher.unsubscribe(sub);
-                    //sub.unsubscribe();
                     nats.closeDispatcher(dispatcher);
                 }
             } catch (Exception e) {
@@ -170,17 +190,6 @@ public class NatsEventStore implements EventStore {
     }
 
     // ----------------------------------------------------------------------
-    // Helpers
-    // ----------------------------------------------------------------------
-
-    private String getSubjectName(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            return EventType.ALL_SINGLE_CHANNEL.name();
-        }
-        return type.name();
-    }
-
-    // ----------------------------------------------------------------------
     // Builder (matches RedissonEventStore style)
     // ----------------------------------------------------------------------
 
@@ -192,6 +201,8 @@ public class NatsEventStore implements EventStore {
         // Optional
         private Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        private String subjectPrefix = "";
+        private int partitionCount = DEFAULT_PARTITION_COUNT;
 
         public Builder(@NotNull Connection nats) {
             this.nats = Objects.requireNonNull(nats, "nats");
@@ -207,11 +218,26 @@ public class NatsEventStore implements EventStore {
             return this;
         }
 
+        public Builder subjectPrefix(String prefix) {
+            this.subjectPrefix = prefix;
+            return this;
+        }
+
+        public Builder partitionCount(int partitionCount) {
+            if (partitionCount <= 0) {
+                throw new IllegalArgumentException("partitionCount must be > 0");
+            }
+            this.partitionCount = partitionCount;
+            return this;
+        }
+
         public NatsEventStore build() {
             return new NatsEventStore(
                     nats,
                     eventStoreMode,
-                    nodeId
+                    nodeId,
+                    subjectPrefix,
+                    partitionCount
             );
         }
     }

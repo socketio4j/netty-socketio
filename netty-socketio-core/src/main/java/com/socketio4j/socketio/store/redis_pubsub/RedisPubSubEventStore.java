@@ -17,6 +17,7 @@
 package com.socketio4j.socketio.store.redis_pubsub;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,10 +47,12 @@ public class RedisPubSubEventStore implements EventStore {
     private final RedissonClient redissonSub;
     private final Long nodeId;
     private final EventStoreMode eventStoreMode;
+    private final String topicPrefix;
+    private final int partitionCount;
 
     private final ConcurrentMap<EventType, Queue<Integer>> map = new ConcurrentHashMap<>();
     private final ConcurrentMap<Integer, RTopic> activeSubTopics = new ConcurrentHashMap<>();
-    private final ConcurrentMap<EventType, RTopic> activePubTopics = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, RTopic> pubTopicCache = new ConcurrentHashMap<>();
 
     private static final Logger log = LoggerFactory.getLogger(RedisPubSubEventStore.class);
 
@@ -67,6 +70,15 @@ public class RedisPubSubEventStore implements EventStore {
                               @NotNull RedissonClient redissonSub,
                               @Nullable EventStoreMode eventStoreMode,
                               @Nullable Long nodeId) {
+        this(redissonPub, redissonSub, eventStoreMode, nodeId, null, DEFAULT_PARTITION_COUNT);
+    }
+
+    private RedisPubSubEventStore(@NotNull RedissonClient redissonPub,
+                              @NotNull RedissonClient redissonSub,
+                              @Nullable EventStoreMode eventStoreMode,
+                              @Nullable Long nodeId,
+                              @Nullable String topicPrefix,
+                              int partitionCount) {
         Objects.requireNonNull(redissonPub, "redissonPub is null");
         Objects.requireNonNull(redissonSub, "redissonSub is null");
 
@@ -80,39 +92,43 @@ public class RedisPubSubEventStore implements EventStore {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         }
         this.eventStoreMode = eventStoreMode;
+        this.topicPrefix = (topicPrefix != null) ? topicPrefix : "";
+        this.partitionCount = partitionCount > 0 ? partitionCount : DEFAULT_PARTITION_COUNT;
     }
 
     @Override
     public EventStoreMode getEventStoreMode(){
         return this.eventStoreMode;
     }
+
+    @Override
+    public int getPartitionCount() {
+        return this.partitionCount;
+    }
+
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        RTopic topic = activePubTopics.computeIfAbsent(type, k -> {
-            String topicName = getStreamName(k);
-            return redissonPub.getTopic(topicName);
-        });
+        String topicName = resolveChannelName(topicPrefix, type, msg, partitionCount, eventStoreMode);
+        RTopic topic = pubTopicCache.computeIfAbsent(topicName, redissonPub::getTopic);
         topic.publish(msg);
     }
 
     @Override
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
-        RTopic topic = redissonSub.getTopic(getStreamName(type));
-        int regId = topic.addListener(clazz, (channel, msg) -> {
-            if (!nodeId.equals(msg.getNodeId())) {
-                listener.onMessage(msg);
-            }
-        });
-        activeSubTopics.put(regId, topic);
-        map.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>()).add(regId);
-    }
-    private String getStreamName(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            return  EventType.ALL_SINGLE_CHANNEL.name();
+        List<String> topicNames = resolveSubscriptionChannels(topicPrefix, type, partitionCount, eventStoreMode);
+        for (String topicName : topicNames) {
+            RTopic topic = redissonSub.getTopic(topicName);
+            int regId = topic.addListener(clazz, (channel, msg) -> {
+                if (!nodeId.equals(msg.getNodeId())) {
+                    listener.onMessage(msg);
+                }
+            });
+            activeSubTopics.put(regId, topic);
+            map.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>()).add(regId);
         }
-        return type.name();
     }
+
     @Override
     public void unsubscribe0(EventType type) {
 
@@ -128,7 +144,7 @@ public class RedisPubSubEventStore implements EventStore {
             try {
                 topic.removeListener(id);
             } catch (Exception ex) {
-                log.warn("Failed to remove listener {} from topic {}", id, getStreamName(type), ex);
+                log.warn("Failed to remove listener {} from topic", id, ex);
             }
         }
     }
@@ -137,7 +153,7 @@ public class RedisPubSubEventStore implements EventStore {
     public void shutdown0() {
         Arrays.stream(EventType.values()).forEach(this::unsubscribe);
         map.clear();
-        activePubTopics.clear();
+        pubTopicCache.clear();
         activeSubTopics.clear();
     }
 
@@ -154,6 +170,8 @@ public class RedisPubSubEventStore implements EventStore {
         // -------------------------
         private Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        private String topicPrefix = "";
+        private int partitionCount = DEFAULT_PARTITION_COUNT;
 
         // -------------------------
         // Constructors
@@ -183,6 +201,19 @@ public class RedisPubSubEventStore implements EventStore {
             return this;
         }
 
+        public Builder topicPrefix(String topicPrefix) {
+            this.topicPrefix = topicPrefix;
+            return this;
+        }
+
+        public Builder partitionCount(int partitionCount) {
+            if (partitionCount <= 0) {
+                throw new IllegalArgumentException("partitionCount must be > 0");
+            }
+            this.partitionCount = partitionCount;
+            return this;
+        }
+
         // -------------------------
         // Build
         // -------------------------
@@ -192,7 +223,9 @@ public class RedisPubSubEventStore implements EventStore {
                     redissonPub,
                     redissonSub,
                     eventStoreMode,
-                    nodeId
+                    nodeId,
+                    topicPrefix,
+                    partitionCount
             );
         }
     }

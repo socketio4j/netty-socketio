@@ -48,6 +48,11 @@ public class DispatchMessage extends EventMessage {
     }
 
     @Override
+    public String getPartitionKey() {
+        return room;
+    }
+
+    @Override
     public String getType() {
         return EventType.DISPATCH.name();
     }

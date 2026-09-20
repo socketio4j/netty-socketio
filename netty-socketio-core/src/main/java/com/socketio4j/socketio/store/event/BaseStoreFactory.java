@@ -51,7 +51,8 @@ public abstract class BaseStoreFactory implements StoreFactory {
 
         if (eventStore().getEventStoreMode().equals(EventStoreMode.MULTI_CHANNEL)) {
            handleMultiChannelSubscribe(namespacesHub, authorizeHandler);
-        } else if (eventStore().getEventStoreMode().equals(EventStoreMode.SINGLE_CHANNEL)) {
+        } else if (eventStore().getEventStoreMode().equals(EventStoreMode.SINGLE_CHANNEL)
+                || eventStore().getEventStoreMode().equals(EventStoreMode.PARTITIONED_CHANNEL)) {
            handleSingleChannelSubscribe(namespacesHub, authorizeHandler);
         }
 

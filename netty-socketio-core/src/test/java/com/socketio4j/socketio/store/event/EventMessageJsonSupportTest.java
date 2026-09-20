@@ -191,4 +191,37 @@ public class EventMessageJsonSupportTest {
         assertNotNull(decoded.getData());
         assertArrayEquals(new byte[] {1, 2, 3}, decoded.getData());
     }
+
+    @Test
+    void shouldNotSerializePartitionKeyPropertyIntoJson() throws Exception {
+        ObjectMapper mapper = EventMessageJsonSupport.createObjectMapper();
+        java.util.UUID uid = java.util.UUID.randomUUID();
+
+        JoinMessage join = new JoinMessage(uid, "chat-room-101", "/chat");
+        String joinJson = mapper.writeValueAsString(join);
+        assertTrue(!joinJson.contains("partitionKey"), "partitionKey must not be serialized into JSON for JoinMessage");
+        assertEquals("chat-room-101", join.getPartitionKey());
+
+        LeaveMessage leave = new LeaveMessage(uid, "chat-room-101", "/chat");
+        String leaveJson = mapper.writeValueAsString(leave);
+        assertTrue(!leaveJson.contains("partitionKey"), "partitionKey must not be serialized into JSON for LeaveMessage");
+        assertEquals("chat-room-101", leave.getPartitionKey());
+
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setData("hello");
+        DispatchMessage dispatch = new DispatchMessage("chat-room-101", packet, "/chat");
+        String dispatchJson = mapper.writeValueAsString(dispatch);
+        assertTrue(!dispatchJson.contains("partitionKey"), "partitionKey must not be serialized into JSON for DispatchMessage");
+        assertEquals("chat-room-101", dispatch.getPartitionKey());
+
+        BulkJoinMessage bulkJoin = new BulkJoinMessage(uid, new java.util.HashSet<>(java.util.Arrays.asList("roomA", "roomB")), "/chat");
+        String bulkJoinJson = mapper.writeValueAsString(bulkJoin);
+        assertTrue(!bulkJoinJson.contains("partitionKey"), "partitionKey must not be serialized into JSON for BulkJoinMessage");
+        assertEquals("roomA", bulkJoin.getPartitionKey());
+
+        BulkLeaveMessage bulkLeave = new BulkLeaveMessage(uid, new java.util.HashSet<>(java.util.Arrays.asList("roomA", "roomB")), "/chat");
+        String bulkLeaveJson = mapper.writeValueAsString(bulkLeave);
+        assertTrue(!bulkLeaveJson.contains("partitionKey"), "partitionKey must not be serialized into JSON for BulkLeaveMessage");
+        assertEquals("roomA", bulkLeave.getPartitionKey());
+    }
 }

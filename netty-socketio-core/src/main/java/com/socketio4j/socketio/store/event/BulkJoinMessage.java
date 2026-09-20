@@ -50,6 +50,11 @@ public class BulkJoinMessage extends EventMessage {
     }
 
     @Override
+    public String getPartitionKey() {
+        return (rooms != null && !rooms.isEmpty()) ? rooms.iterator().next() : null;
+    }
+
+    @Override
     public String getType() {
         return EventType.BULK_JOIN.name();
     }
