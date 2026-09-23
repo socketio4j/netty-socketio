@@ -30,6 +30,8 @@ public class Packet implements Serializable {
     private static final long serialVersionUID = 4560159536486711426L;
 
     private PacketType type;
+    @Deprecated
+    private EngineIOVersion engineIOVersion = EngineIOVersion.V4;
 
     private PacketType subType;
     private Long ackId;
@@ -38,6 +40,8 @@ public class Packet implements Serializable {
 
     private Object data;
 
+    @Deprecated
+    private transient ByteBuf dataSource;
     private int attachmentsCount;
     private List<ByteBuf> attachments = Collections.emptyList();
 
@@ -56,6 +60,7 @@ public class Packet implements Serializable {
     @Deprecated
     public Packet(PacketType type, EngineIOVersion engineIOVersion) {
         this(type);
+        this.engineIOVersion = engineIOVersion;
     }
 
     public PacketType getSubType() {
@@ -103,9 +108,11 @@ public class Packet implements Serializable {
             Packet newPacket = new Packet(this.type);
             newPacket.setAckId(this.ackId);
             newPacket.setData(this.data);
+            newPacket.setDataSource(this.dataSource);
             newPacket.setName(this.name);
             newPacket.setSubType(this.subType);
             newPacket.setNsp(namespace);
+            newPacket.setEngineIOVersion(this.engineIOVersion);
             newPacket.attachments = this.attachments;
             newPacket.attachmentsCount = this.attachmentsCount;
             return newPacket;
@@ -122,7 +129,20 @@ public class Packet implements Serializable {
      */
     @Deprecated
     public Packet withNsp(String namespace, EngineIOVersion engineIOVersion) {
-        return withNsp(namespace);
+        if (this.nsp.equalsIgnoreCase(namespace)) {
+            return this;
+        } else {
+            Packet newPacket = new Packet(this.type, engineIOVersion);
+            newPacket.setAckId(this.ackId);
+            newPacket.setData(this.data);
+            newPacket.setDataSource(this.dataSource);
+            newPacket.setName(this.name);
+            newPacket.setSubType(this.subType);
+            newPacket.setNsp(namespace);
+            newPacket.attachments = this.attachments;
+            newPacket.attachmentsCount = this.attachmentsCount;
+            return newPacket;
+        }
     }
     public void setNsp(String endpoint) {
         //patch for #903
@@ -179,7 +199,7 @@ public class Packet implements Serializable {
      */
     @Deprecated
     public EngineIOVersion getEngineIOVersion() {
-        return EngineIOVersion.V4;
+        return engineIOVersion;
     }
 
     /**
@@ -187,7 +207,7 @@ public class Packet implements Serializable {
      */
     @Deprecated
     public void setEngineIOVersion(EngineIOVersion engineIOVersion) {
-        // no-op: version is now negotiated per-connection
+        this.engineIOVersion = engineIOVersion;
     }
 
     /**
@@ -195,7 +215,7 @@ public class Packet implements Serializable {
      */
     @Deprecated
     public ByteBuf getDataSource() {
-        return null;
+        return dataSource;
     }
 
     /**
@@ -203,7 +223,7 @@ public class Packet implements Serializable {
      */
     @Deprecated
     public void setDataSource(ByteBuf dataSource) {
-        // no-op: data source is handled via attachments/decoders
+        this.dataSource = dataSource;
     }
 
     @Override

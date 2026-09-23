@@ -71,9 +71,16 @@ public class PacketTest extends BaseProtocolTest {
 
     @Test
     public void testPacketConstructorWithTypeAndEngineIOVersion() {
-        Packet packet = new Packet(PacketType.EVENT);
-        assertEquals(PacketType.EVENT, packet.getType());
-        // assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
+        Packet packetDefault = new Packet(PacketType.EVENT);
+        assertEquals(PacketType.EVENT, packetDefault.getType());
+        assertEquals(EngineIOVersion.V4, packetDefault.getEngineIOVersion());
+
+        Packet packetV3 = new Packet(PacketType.EVENT, EngineIOVersion.V3);
+        assertEquals(PacketType.EVENT, packetV3.getType());
+        assertEquals(EngineIOVersion.V3, packetV3.getEngineIOVersion());
+
+        packetV3.setEngineIOVersion(EngineIOVersion.V4);
+        assertEquals(EngineIOVersion.V4, packetV3.getEngineIOVersion());
     }
 
     @Test
@@ -191,18 +198,18 @@ public class PacketTest extends BaseProtocolTest {
         packet.setData("testData");
         packet.setAckId(456L);
         packet.setNsp("/test");
-        // packet.setDataSource(Unpooled.wrappedBuffer("source".getBytes()));
+        packet.setDataSource(Unpooled.wrappedBuffer("source".getBytes()));
         packet.initAttachments(1);
         packet.addAttachment(Unpooled.wrappedBuffer("attachment".getBytes()));
         
         assertEquals(PacketType.MESSAGE, packet.getType());
-        // assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
+        assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
         assertEquals(PacketType.EVENT, packet.getSubType());
         assertEquals("testEvent", packet.getName());
         assertEquals("testData", packet.getData());
         assertEquals(Long.valueOf(456), packet.getAckId());
         assertEquals("/test", packet.getNsp());
-        // assertNotNull(packet.getDataSource());
+        assertNotNull(packet.getDataSource());
         assertTrue(packet.hasAttachments());
         assertTrue(packet.isAttachmentsLoaded());
         assertEquals(1, packet.getAttachments().size());
@@ -226,7 +233,8 @@ public class PacketTest extends BaseProtocolTest {
         Object copiedData = copiedPacket.getData();
         assertEquals(originalData, copiedData);
         assertSame(originalPacket.getAttachments(), copiedPacket.getAttachments());
-        // assertSame(originalPacket.getDataSource(), copiedPacket.getDataSource());
+        assertSame(originalPacket.getDataSource(), copiedPacket.getDataSource());
+        assertEquals(originalPacket.getEngineIOVersion(), copiedPacket.getEngineIOVersion());
     }
 
     @Test
@@ -251,7 +259,8 @@ public class PacketTest extends BaseProtocolTest {
         Object oldData = oldPacket.getData();
         Object newData = newPacket.getData();
         assertEquals(oldData, newData);
-        // assertSame(oldPacket.getDataSource(), newPacket.getDataSource());
+        assertSame(oldPacket.getDataSource(), newPacket.getDataSource());
+        assertEquals(oldPacket.getEngineIOVersion(), newPacket.getEngineIOVersion());
     }
 
     private Packet createPacket() {
@@ -261,9 +270,22 @@ public class PacketTest extends BaseProtocolTest {
         packet.setData("data");
         packet.setAckId(1L);
         packet.setNsp("old");
-        // packet.setDataSource(Unpooled.wrappedBuffer(new byte[]{10}));
+        packet.setDataSource(Unpooled.wrappedBuffer(new byte[]{10}));
         packet.initAttachments(1);
         packet.addAttachment(Unpooled.wrappedBuffer(new byte[]{20}));
         return packet;
+    }
+
+    @Test
+    public void testPacketCopyWithDifferentNamespaceAndEngineIOVersion() {
+        Packet originalPacket = createPacket();
+        String newNamespace = "/newNamespace";
+
+        Packet copiedPacket = originalPacket.withNsp(newNamespace, EngineIOVersion.V3);
+
+        assertEquals(newNamespace, copiedPacket.getNsp());
+        assertNotSame(originalPacket, copiedPacket);
+        assertEquals(EngineIOVersion.V3, copiedPacket.getEngineIOVersion());
+        assertSame(originalPacket.getDataSource(), copiedPacket.getDataSource());
     }
 }
