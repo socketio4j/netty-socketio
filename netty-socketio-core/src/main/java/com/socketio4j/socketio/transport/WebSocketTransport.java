@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOChannelInitializer;
 import com.socketio4j.socketio.Transport;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.handler.AuthorizeHandler;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.handler.ClientsBox;
@@ -64,6 +65,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
+@Internal
 @Sharable
 public class WebSocketTransport extends ChannelInboundHandlerAdapter {
 

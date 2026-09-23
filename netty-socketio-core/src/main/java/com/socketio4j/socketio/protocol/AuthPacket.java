@@ -18,7 +18,9 @@ package com.socketio4j.socketio.protocol;
 
 import java.util.UUID;
 
+import com.socketio4j.socketio.annotation.Internal;
 
+@Internal
 public class AuthPacket {
 
     private final UUID sid;

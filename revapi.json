@@ -1,0 +1,91 @@
+[
+  {
+    "extension": "revapi.java",
+    "configuration": {
+      "missing-classes": {
+        "behavior": "ignore"
+      }
+    }
+  },
+  {
+    "extension": "revapi.filter",
+    "configuration": {
+      "elements": {
+        "exclude": [
+          {
+            "matcher": "java",
+            "match": "@com.socketio4j.socketio.annotation.Internal ^*;"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "extension": "revapi.differences",
+    "configuration": {
+      "ignore": true,
+      "differences": [
+        {
+          "code": "java.class.removed",
+          "regex": true,
+          "old": ".*com\\.socketio4j\\.socketio\\.(ack|handler|transport|messages|protocol|scheduler|misc|namespace|metrics|store\\.event)\\..*",
+          "justification": "Marked internal implementation classes with @Internal to define clean API boundaries"
+        },
+        {
+          "code": "java.annotation.added",
+          "annotation": "@org.jetbrains.annotations.Nullable",
+          "justification": "Added nullability annotations for enhanced type safety and Kotlin interop"
+        },
+        {
+          "code": "java.method.exception.checkedRemoved",
+          "justification": "Removing checked Exception makes listener methods easier to implement without boilerplate throws clause"
+        },
+        {
+          "code": "java.method.removed",
+          "old": "method void com.socketio4j.socketio.handler.ClientHead::setLastBinaryPacket(com.socketio4j.socketio.protocol.Packet)",
+          "justification": "Internal binary packet handling moved to dedicated pipeline handler"
+        },
+        {
+          "code": "java.method.addedToInterface",
+          "new": "method void com.socketio4j.socketio.listener.ClientListeners::removeConnectListener(com.socketio4j.socketio.listener.ConnectListener)",
+          "justification": "Added default method to allow dynamic unregistering of connect listeners"
+        },
+        {
+          "code": "java.method.addedToInterface",
+          "new": "method void com.socketio4j.socketio.listener.ClientListeners::removeDisconnectListener(com.socketio4j.socketio.listener.DisconnectListener)",
+          "justification": "Added default method to allow dynamic unregistering of disconnect listeners"
+        },
+        {
+          "code": "java.field.removed",
+          "old": "field com.socketio4j.socketio.protocol.EngineIOVersion.UNKNOWN",
+          "justification": "Removed UNKNOWN enum value; handshakes must validate protocol revisions via EngineIOVersion.isSupported() and fall back to V4"
+        },
+        {
+          "code": "java.field.serialVersionUIDUnchanged",
+          "old": "field com.socketio4j.socketio.protocol.Packet.serialVersionUID",
+          "justification": "Packet serialization schema evolved; serialVersionUID maintained for backwards compatibility"
+        },
+        {
+          "code": "java.method.removed",
+          "old": "method io.netty.buffer.ByteBuf com.socketio4j.socketio.protocol.Packet::getDataSource()",
+          "justification": "Internal Netty buffer data source handling moved to pipeline decoders and attachments"
+        },
+        {
+          "code": "java.method.removed",
+          "old": "method void com.socketio4j.socketio.protocol.Packet::setDataSource(io.netty.buffer.ByteBuf)",
+          "justification": "Internal Netty buffer data source handling moved to pipeline decoders and attachments"
+        },
+        {
+          "code": "java.method.removed",
+          "old": "method com.socketio4j.socketio.protocol.EngineIOVersion com.socketio4j.socketio.protocol.Packet::getEngineIOVersion()",
+          "justification": "Engine.IO versioning is negotiated per-connection on ClientHead/SocketIOClient rather than per-packet"
+        },
+        {
+          "code": "java.method.removed",
+          "old": "method void com.socketio4j.socketio.protocol.Packet::setEngineIOVersion(com.socketio4j.socketio.protocol.EngineIOVersion)",
+          "justification": "Engine.IO versioning is negotiated per-connection on ClientHead/SocketIOClient rather than per-packet"
+        }
+      ]
+    }
+  }
+]

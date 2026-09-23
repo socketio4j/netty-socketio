@@ -25,8 +25,10 @@ import java.util.concurrent.ConcurrentMap;
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIONamespace;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.misc.CompositeIterable;
 
+@Internal
 public class NamespacesHub {
 
     private final ConcurrentMap<String, SocketIONamespace> namespaces = new ConcurrentHashMap<>();

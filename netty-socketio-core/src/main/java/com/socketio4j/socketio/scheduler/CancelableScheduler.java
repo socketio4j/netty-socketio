@@ -18,8 +18,11 @@ package com.socketio4j.socketio.scheduler;
 
 import java.util.concurrent.TimeUnit;
 
+import com.socketio4j.socketio.annotation.Internal;
+
 import io.netty.channel.ChannelHandlerContext;
 
+@Internal
 public interface CancelableScheduler {
 
     void update(ChannelHandlerContext ctx);

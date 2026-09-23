@@ -18,6 +18,9 @@ package com.socketio4j.socketio.messages;
 
 import java.util.UUID;
 
+import com.socketio4j.socketio.annotation.Internal;
+
+@Internal
 public class XHRPostMessage extends HttpMessage {
 
     public XHRPostMessage(String origin, UUID sessionId) {

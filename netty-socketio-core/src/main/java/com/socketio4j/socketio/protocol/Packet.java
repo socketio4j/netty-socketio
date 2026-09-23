@@ -21,12 +21,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.namespace.Namespace;
 
 import io.netty.buffer.ByteBuf;
 
-@Internal
 public class Packet implements Serializable {
 
     private static final long serialVersionUID = 4560159536486711426L;
@@ -50,6 +48,14 @@ public class Packet implements Serializable {
     public Packet(PacketType type) {
         super();
         this.type = type;
+    }
+
+    /**
+     * @deprecated Engine.IO version is now negotiated per-connection. Use {@link #Packet(PacketType)} instead.
+     */
+    @Deprecated
+    public Packet(PacketType type, EngineIOVersion engineIOVersion) {
+        this(type);
     }
 
     public PacketType getSubType() {
@@ -88,7 +94,6 @@ public class Packet implements Serializable {
      * Otherwise, returns original object unchanged
      *
      * @param namespace
-     * @param engineIOVersion
      * @return packet
      */
     public Packet withNsp(String namespace) {
@@ -105,6 +110,19 @@ public class Packet implements Serializable {
             newPacket.attachmentsCount = this.attachmentsCount;
             return newPacket;
         }
+    }
+
+    /**
+     * Creates a copy of #{@link Packet} with new namespace set.
+     *
+     * @deprecated Engine.IO version is now negotiated per-connection. Use {@link #withNsp(String)} instead.
+     * @param namespace
+     * @param engineIOVersion
+     * @return packet
+     */
+    @Deprecated
+    public Packet withNsp(String namespace, EngineIOVersion engineIOVersion) {
+        return withNsp(namespace);
     }
     public void setNsp(String endpoint) {
         //patch for #903

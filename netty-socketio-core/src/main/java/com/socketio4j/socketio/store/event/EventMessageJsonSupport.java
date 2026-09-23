@@ -39,12 +39,14 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.deser.std.UntypedObjectDeserializer;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.socketio4j.socketio.annotation.Internal;
 
 /**
  * Shared JSON ObjectMapper builder for JSON-based EventStores (NATS, Kafka, Redis Streams, etc.).
  * Guarantees lossless JSON serialization and deserialization of binary byte arrays (byte[])
  * embedded inside EventMessages and Packets.
  */
+@Internal
 public final class EventMessageJsonSupport {
     private static final String BYTES_FIELD = "$bytes";
     private EventMessageJsonSupport() {

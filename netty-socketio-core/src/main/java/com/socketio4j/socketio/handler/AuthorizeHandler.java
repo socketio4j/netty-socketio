@@ -37,6 +37,7 @@ import com.socketio4j.socketio.HandshakeData;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.ack.AckManager;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.messages.HttpErrorMessage;
 import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.namespace.NamespacesHub;
@@ -70,6 +71,7 @@ import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
+@Internal
 @Sharable
 public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Disconnectable {
 
