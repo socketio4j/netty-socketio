@@ -174,6 +174,37 @@ public class Packet implements Serializable {
     public boolean isAttachmentsLoaded() {
         return this.attachments.size() == attachmentsCount;
     }
+    /**
+     * @deprecated Engine.IO version is now negotiated per-connection.
+     */
+    @Deprecated
+    public EngineIOVersion getEngineIOVersion() {
+        return EngineIOVersion.V4;
+    }
+
+    /**
+     * @deprecated Engine.IO version is now negotiated per-connection.
+     */
+    @Deprecated
+    public void setEngineIOVersion(EngineIOVersion engineIOVersion) {
+        // no-op: version is now negotiated per-connection
+    }
+
+    /**
+     * @deprecated Binary attachments are handled via {@link #getAttachments()}.
+     */
+    @Deprecated
+    public ByteBuf getDataSource() {
+        return null;
+    }
+
+    /**
+     * @deprecated Binary attachments are handled via {@link #addAttachment(ByteBuf)}.
+     */
+    @Deprecated
+    public void setDataSource(ByteBuf dataSource) {
+        // no-op: data source is handled via attachments/decoders
+    }
 
     @Override
     public String toString() {

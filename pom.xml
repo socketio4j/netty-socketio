@@ -770,34 +770,9 @@
                       "justification": "Added default method to allow dynamic unregistering of disconnect listeners"
                     },
                     {
-                      "code": "java.field.removed",
-                      "old": "field com.socketio4j.socketio.protocol.EngineIOVersion.UNKNOWN",
-                      "justification": "Removed UNKNOWN enum value; handshakes must validate protocol revisions via EngineIOVersion.isSupported() and fall back to V4"
-                    },
-                    {
                       "code": "java.field.serialVersionUIDUnchanged",
                       "old": "field com.socketio4j.socketio.protocol.Packet.serialVersionUID",
                       "justification": "Packet serialization schema evolved; serialVersionUID maintained for backwards compatibility"
-                    },
-                    {
-                      "code": "java.method.removed",
-                      "old": "method io.netty.buffer.ByteBuf com.socketio4j.socketio.protocol.Packet::getDataSource()",
-                      "justification": "Internal Netty buffer data source handling moved to pipeline decoders and attachments"
-                    },
-                    {
-                      "code": "java.method.removed",
-                      "old": "method void com.socketio4j.socketio.protocol.Packet::setDataSource(io.netty.buffer.ByteBuf)",
-                      "justification": "Internal Netty buffer data source handling moved to pipeline decoders and attachments"
-                    },
-                    {
-                      "code": "java.method.removed",
-                      "old": "method com.socketio4j.socketio.protocol.EngineIOVersion com.socketio4j.socketio.protocol.Packet::getEngineIOVersion()",
-                      "justification": "Engine.IO versioning is negotiated per-connection on ClientHead/SocketIOClient rather than per-packet"
-                    },
-                    {
-                      "code": "java.method.removed",
-                      "old": "method void com.socketio4j.socketio.protocol.Packet::setEngineIOVersion(com.socketio4j.socketio.protocol.EngineIOVersion)",
-                      "justification": "Engine.IO versioning is negotiated per-connection on ClientHead/SocketIOClient rather than per-packet"
                     }
                   ]
                 }
