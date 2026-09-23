@@ -17,11 +17,13 @@
 package com.socketio4j.socketio.messages;
 
 import com.socketio4j.socketio.Transport;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.handler.ClientHead;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCounted;
 
+@Internal
 public class PacketsMessage implements ReferenceCounted {
 
     private final ClientHead client;

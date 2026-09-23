@@ -21,9 +21,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.socketio4j.socketio.HandshakeData;
+import com.socketio4j.socketio.annotation.Internal;
 
 import io.netty.channel.Channel;
 
+@Internal
 public class ClientsBox {
 
     private final Map<UUID, ClientHead> uuid2clients = new ConcurrentHashMap<>();

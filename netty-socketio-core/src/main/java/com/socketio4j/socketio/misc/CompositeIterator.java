@@ -18,6 +18,9 @@ package com.socketio4j.socketio.misc;
 
 import java.util.Iterator;
 
+import com.socketio4j.socketio.annotation.Internal;
+
+@Internal
 public class CompositeIterator<T> implements Iterator<T> {
 
     private final Iterator<Iterator<T>> listIterator;

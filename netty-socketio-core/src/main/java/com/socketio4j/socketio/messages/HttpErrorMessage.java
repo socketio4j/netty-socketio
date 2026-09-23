@@ -18,6 +18,9 @@ package com.socketio4j.socketio.messages;
 
 import java.util.Map;
 
+import com.socketio4j.socketio.annotation.Internal;
+
+@Internal
 public class HttpErrorMessage extends HttpMessage {
 
     private final Map<String, Object> data;

@@ -20,6 +20,9 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import com.socketio4j.socketio.annotation.Internal;
+
+@Internal
 public class CompositeIterable<T> implements Iterable<T> {
 
     private List<Iterable<T>> iterablesList;

@@ -91,7 +91,12 @@
     <lz4.version>1.10.3</lz4.version>
     <okhttp.version>3.12.13</okhttp.version>
     <socketio.test.forkCount>1</socketio.test.forkCount>
-
+    <revapi-maven-plugin.version>0.15.1</revapi-maven-plugin.version>
+    <revapi-java.version>0.28.4</revapi-java.version>
+    <revapi.oldVersion>4.0.1</revapi.oldVersion>
+    <revapi.skip>false</revapi.skip>
+    <revapi.failOnUnresolvedArtifacts>false</revapi.failOnUnresolvedArtifacts>
+    <revapi.failCriticality>error</revapi.failCriticality>
   </properties>
 
   <profiles>
@@ -686,6 +691,102 @@
         </configuration>
         <executions>
           <execution>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.revapi</groupId>
+        <artifactId>revapi-maven-plugin</artifactId>
+        <version>${revapi-maven-plugin.version}</version>
+        <dependencies>
+          <dependency>
+            <groupId>org.revapi</groupId>
+            <artifactId>revapi-java</artifactId>
+            <version>${revapi-java.version}</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <oldVersion>${revapi.oldVersion}</oldVersion>
+          <skip>${revapi.skip}</skip>
+          <checkDependencies>false</checkDependencies>
+          <failCriticality>${revapi.failCriticality}</failCriticality>
+          <failOnUnresolvedArtifacts>${revapi.failOnUnresolvedArtifacts}</failOnUnresolvedArtifacts>
+          <analysisConfiguration>
+            [
+              {
+                "extension": "revapi.java",
+                "configuration": {
+                  "missing-classes": {
+                    "behavior": "ignore"
+                  }
+                }
+              },
+              {
+                "extension": "revapi.filter",
+                "configuration": {
+                  "elements": {
+                    "exclude": [
+                      {
+                        "matcher": "java",
+                        "match": "@com.socketio4j.socketio.annotation.Internal ^*;"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "extension": "revapi.differences",
+                "configuration": {
+                  "ignore": true,
+                  "differences": [
+                    {
+                      "code": "java.class.removed",
+                      "regex": true,
+                      "old": "(class|interface) com\\.socketio4j\\.socketio\\.(ack\\.(AckManager|AckSchedulerKey)|handler\\.(AuthorizeHandler|ClientHead|ClientsBox|EncoderHandler|InPacketHandler|PacketListener|TransportState|WrongUrlHandler)|messages\\.(HttpErrorMessage|HttpMessage|OutPacketMessage|PacketsMessage|XHROptionsMessage|XHRPostMessage)|metrics\\.NamespaceMeters|misc\\.(CompositeIterable.*|CompositeIterator.*|IterableCollection.*)|namespace\\.(EventEntry.*|Namespace|NamespacesHub)|protocol\\.(AuthPacket|ConnPacket|Event|PacketDecoder|PacketEncoder|UTF8CharsScanner)|scheduler\\.(CancelableScheduler|HashedWheelScheduler|HashedWheelTimeoutScheduler|SchedulerKey)|store\\.event\\.EventMessageJsonSupport|transport\\.(PollingTransport|WebSocketTransport))",
+                      "justification": "Transitioned specific internal implementation classes to @Internal to establish API boundaries"
+                    },
+                    {
+                      "code": "java.annotation.added",
+                      "annotation": "@org.jetbrains.annotations.Nullable",
+                      "justification": "Added nullability annotations for enhanced type safety and Kotlin interop"
+                    },
+                    {
+                      "code": "java.method.exception.checkedRemoved",
+                      "justification": "Removing checked Exception makes listener methods easier to implement without boilerplate throws clause"
+                    },
+                    {
+                      "code": "java.method.removed",
+                      "old": "method void com.socketio4j.socketio.handler.ClientHead::setLastBinaryPacket(com.socketio4j.socketio.protocol.Packet)",
+                      "justification": "Internal binary packet handling moved to dedicated pipeline handler"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method void com.socketio4j.socketio.listener.ClientListeners::removeConnectListener(com.socketio4j.socketio.listener.ConnectListener)",
+                      "justification": "Added default method to allow dynamic unregistering of connect listeners"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method void com.socketio4j.socketio.listener.ClientListeners::removeDisconnectListener(com.socketio4j.socketio.listener.DisconnectListener)",
+                      "justification": "Added default method to allow dynamic unregistering of disconnect listeners"
+                    },
+                    {
+                      "code": "java.field.serialVersionUIDUnchanged",
+                      "old": "field com.socketio4j.socketio.protocol.Packet.serialVersionUID",
+                      "justification": "Packet serialization schema evolved; serialVersionUID maintained for backwards compatibility"
+                    }
+                  ]
+                }
+              }
+            ]
+          </analysisConfiguration>
+        </configuration>
+        <executions>
+          <execution>
+            <id>check-api</id>
             <goals>
               <goal>check</goal>
             </goals>

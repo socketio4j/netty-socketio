@@ -20,10 +20,12 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.protocol.Packet;
 
 import io.netty.channel.Channel;
 
+@Internal
 public class TransportState {
 
     private Queue<Packet> packetsQueue = new ConcurrentLinkedQueue<>();

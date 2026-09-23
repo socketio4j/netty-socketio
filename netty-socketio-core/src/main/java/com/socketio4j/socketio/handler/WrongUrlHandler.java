@@ -19,6 +19,8 @@ package com.socketio4j.socketio.handler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.annotation.Internal;
+
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -33,6 +35,7 @@ import io.netty.handler.codec.http.QueryStringDecoder;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
+@Internal
 @Sharable
 public class WrongUrlHandler extends ChannelInboundHandlerAdapter {
 

@@ -21,10 +21,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import com.socketio4j.socketio.annotation.Internal;
+
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
 
+@Internal
 public class HashedWheelScheduler implements CancelableScheduler {
 
     private final Map<SchedulerKey, Timeout> scheduledFutures = new ConcurrentHashMap<>();

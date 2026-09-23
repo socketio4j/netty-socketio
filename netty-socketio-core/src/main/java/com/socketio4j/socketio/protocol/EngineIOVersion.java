@@ -19,12 +19,9 @@ package com.socketio4j.socketio.protocol;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.socketio4j.socketio.annotation.Internal;
-
 /**
  * Engine.IO protocol version
  */
-@Internal
 public enum EngineIOVersion {
     /**
      * @link <a href="https://github.com/socketio/engine.io-protocol/tree/v2">Engine.IO version 2</a>
@@ -38,7 +35,13 @@ public enum EngineIOVersion {
      * current version
      * @link <a href="https://github.com/socketio/engine.io-protocol/tree/main">Engine.IO version 4</a>
      */
-    V4("4");
+    V4("4"),
+
+    /**
+     * @deprecated Unknown revisions are rejected in handshake; use {@link #isSupported(String)}
+     */
+    @Deprecated
+    UNKNOWN("");
 
     public static final String EIO = "EIO";
 
@@ -46,7 +49,9 @@ public enum EngineIOVersion {
 
     static {
         for (EngineIOVersion value : values()) {
-            VERSIONS.put(value.getValue(), value);
+            if (value != UNKNOWN) {
+                VERSIONS.put(value.getValue(), value);
+            }
         }
     }
 
