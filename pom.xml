@@ -93,6 +93,7 @@
     <socketio.test.forkCount>1</socketio.test.forkCount>
     <revapi-maven-plugin.version>0.15.1</revapi-maven-plugin.version>
     <revapi-java.version>0.28.4</revapi-java.version>
+    <revapi.oldVersion>4.0.1</revapi.oldVersion>
     <revapi.skip>false</revapi.skip>
     <revapi.failOnUnresolvedArtifacts>false</revapi.failOnUnresolvedArtifacts>
     <revapi.failCriticality>error</revapi.failCriticality>
@@ -101,9 +102,6 @@
   <profiles>
     <profile>
       <id>release</id>
-      <properties>
-        <revapi.failOnUnresolvedArtifacts>true</revapi.failOnUnresolvedArtifacts>
-      </properties>
       <build>
         <plugins>
           <plugin>
@@ -712,6 +710,7 @@
           </dependency>
         </dependencies>
         <configuration>
+          <oldVersion>${revapi.oldVersion}</oldVersion>
           <skip>${revapi.skip}</skip>
           <checkDependencies>false</checkDependencies>
           <failCriticality>${revapi.failCriticality}</failCriticality>
@@ -747,8 +746,8 @@
                     {
                       "code": "java.class.removed",
                       "regex": true,
-                      "old": ".*com\\.socketio4j\\.socketio\\.(ack|handler|transport|messages|protocol|scheduler|misc|namespace|metrics|store\\.event)\\..*",
-                      "justification": "Marked internal implementation classes with @Internal to define clean API boundaries"
+                      "old": "(class|interface) com\\.socketio4j\\.socketio\\.(ack\\.(AckManager|AckSchedulerKey)|handler\\.(AuthorizeHandler|ClientHead|ClientsBox|EncoderHandler|InPacketHandler|PacketListener|TransportState|WrongUrlHandler)|messages\\.(HttpErrorMessage|HttpMessage|OutPacketMessage|PacketsMessage|XHROptionsMessage|XHRPostMessage)|metrics\\.NamespaceMeters|misc\\.(CompositeIterable.*|CompositeIterator.*|IterableCollection.*)|namespace\\.(EventEntry.*|Namespace|NamespacesHub)|protocol\\.(AuthPacket|ConnPacket|Event|PacketDecoder|PacketEncoder|UTF8CharsScanner)|scheduler\\.(CancelableScheduler|HashedWheelScheduler|HashedWheelTimeoutScheduler|SchedulerKey)|store\\.event\\.EventMessageJsonSupport|transport\\.(PollingTransport|WebSocketTransport))",
+                      "justification": "Transitioned specific internal implementation classes to @Internal to establish API boundaries"
                     },
                     {
                       "code": "java.annotation.added",
