@@ -94,11 +94,16 @@
     <revapi-maven-plugin.version>0.15.1</revapi-maven-plugin.version>
     <revapi-java.version>0.28.4</revapi-java.version>
     <revapi.skip>false</revapi.skip>
+    <revapi.failOnUnresolvedArtifacts>false</revapi.failOnUnresolvedArtifacts>
+    <revapi.failCriticality>error</revapi.failCriticality>
   </properties>
 
   <profiles>
     <profile>
       <id>release</id>
+      <properties>
+        <revapi.failOnUnresolvedArtifacts>true</revapi.failOnUnresolvedArtifacts>
+      </properties>
       <build>
         <plugins>
           <plugin>
@@ -709,8 +714,8 @@
         <configuration>
           <skip>${revapi.skip}</skip>
           <checkDependencies>false</checkDependencies>
-          <failCriticality>error</failCriticality>
-          <failOnUnresolvedArtifacts>false</failOnUnresolvedArtifacts>
+          <failCriticality>${revapi.failCriticality}</failCriticality>
+          <failOnUnresolvedArtifacts>${revapi.failOnUnresolvedArtifacts}</failOnUnresolvedArtifacts>
           <analysisConfiguration>
             [
               {
