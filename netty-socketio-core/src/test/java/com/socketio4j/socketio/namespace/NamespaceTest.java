@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 
 import org.junit.jupiter.api.AfterEach;
@@ -50,7 +51,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class NamespaceTest extends BaseNamespaceTest {
+public class NamespaceTest extends AbstractNamespaceTestSupport {
 
     private Namespace namespace;
 
@@ -153,24 +154,20 @@ class NamespaceTest extends BaseNamespaceTest {
                 executeConcurrentOperationsWithIndex(
                         taskCount,
                         index -> {
-                            try {
-                                SocketIOClient client = mock(SocketIOClient.class);
-                                UUID sessionId = UUID.randomUUID();
-                                when(client.getSessionId()).thenReturn(sessionId);
-                                when(client.getAllRooms()).thenReturn(Collections.emptySet());
+                            SocketIOClient client = mock(SocketIOClient.class);
+                            UUID sessionId = UUID.randomUUID();
+                            when(client.getSessionId()).thenReturn(sessionId);
+                            when(client.getAllRooms()).thenReturn(Collections.emptySet());
 
-                                namespace.addClient(client);
-                                addedSessionIds.add(sessionId);
-                            } catch (Exception e) {
-                                // Log exception but continue
-                            }
+                            namespace.addClient(client);
+                            addedSessionIds.add(sessionId);
                         });
 
         waitForCompletion(latch);
 
         // Verify all clients were added safely
         assertEquals(taskCount + 1, namespace.getAllClients().size());
-        assertTrue(namespace.getAllClients().size() > taskCount);
+        assertEquals(taskCount, addedSessionIds.size());
 
         // Verify each added client can be retrieved
         for (UUID sessionId : addedSessionIds) {
@@ -221,17 +218,13 @@ class NamespaceTest extends BaseNamespaceTest {
                 executeConcurrentOperationsWithIndex(
                         taskCount,
                         index -> {
-                            try {
-                                String concurrentEventName = "concurrentEvent" + index;
-                                DataListener<String> concurrentListener = (client, data, ackRequest) -> {
-                                };
-                                assertNotNull(concurrentListener);
+                            String concurrentEventName = "concurrentEvent" + index;
+                            DataListener<String> concurrentListener = (client, data, ackRequest) -> {
+                            };
+                            assertNotNull(concurrentListener);
 
-                                namespace.addEventListener(concurrentEventName, String.class, concurrentListener);
-                                addedEventNames.add(concurrentEventName);
-                            } catch (Exception e) {
-                                // Log exception but continue
-                            }
+                            namespace.addEventListener(concurrentEventName, String.class, concurrentListener);
+                            addedEventNames.add(concurrentEventName);
                         });
 
         waitForCompletion(latch);
@@ -239,6 +232,7 @@ class NamespaceTest extends BaseNamespaceTest {
         // Verify all listeners were added safely
         verify(jsonSupport, times(taskCount + 1))
                 .addEventMapping(eq(NAMESPACE_NAME), anyString(), eq(String.class));
+        assertEquals(taskCount, addedEventNames.size());
 
         // Verify specific event names were processed
         for (String addedEventName : addedEventNames) {
@@ -256,4 +250,31 @@ class NamespaceTest extends BaseNamespaceTest {
         // Verify specific event mapping was removed
         verify(jsonSupport, times(1)).removeEventMapping(eq(NAMESPACE_NAME), eq(eventName));
     }
+
+    @Test
+    void testConcurrentRoomJoiningThreadSafety() throws InterruptedException {
+        int clientCount = 20;
+        String roomName = "concurrentRoom";
+        Set<UUID> joinedClientIds = ConcurrentHashMap.newKeySet();
+
+        CountDownLatch latch = executeConcurrentOperationsWithIndex(clientCount, index -> {
+            UUID id = UUID.randomUUID();
+            joinedClientIds.add(id);
+            SocketIOClient client = mock(SocketIOClient.class);
+            when(client.getSessionId()).thenReturn(id);
+            namespace.addClient(client);
+            namespace.joinRoom(roomName, id);
+        });
+
+        waitForCompletion(latch);
+
+        assertTrue(namespace.getRooms().contains(roomName), "Room should exist in namespace rooms set");
+        Set<UUID> roomClientIds = new HashSet<>();
+        for (SocketIOClient client : namespace.getRoomClients(roomName)) {
+            roomClientIds.add(client.getSessionId());
+        }
+        assertEquals(joinedClientIds, roomClientIds,
+                "Room should retain every client ID joined concurrently");
+    }
+
 }

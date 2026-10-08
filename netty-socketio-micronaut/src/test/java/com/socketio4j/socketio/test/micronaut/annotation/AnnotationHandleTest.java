@@ -28,11 +28,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.SocketIOClient;
+import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.annotation.OnConnect;
 import com.socketio4j.socketio.annotation.OnDisconnect;
 import com.socketio4j.socketio.annotation.OnEvent;
@@ -52,11 +54,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
+
 @DisplayName("Test for Annotation-based Event Handling")
 @Property(name = "netty-socket-io.port", value = AnnotationHandleTest.PORT + "")
 public class AnnotationHandleTest extends BaseMicronautApplicationTest {
     private static final Logger log = LoggerFactory.getLogger(AnnotationHandleTest.class);
-    public static final int PORT = 9094;
+    public static final int PORT = 0;
 
     @Singleton
     public static class TestConnectController {
@@ -217,6 +220,9 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
         }
     }
 
+    @Inject
+    private SocketIOServer socketIOServer;
+
     private Socket socket;
 
     @BeforeEach
@@ -224,8 +230,11 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
         testConnectController.reset();
         testDisconnectController.reset();
         testOnEventController.reset();
+        int boundPort = socketIOServer != null && socketIOServer.getConfiguration().getPort() > 0
+                ? socketIOServer.getConfiguration().getPort()
+                : PORT;
         socket = IO.socket(
-                String.format("http://localhost:%d", PORT),
+                String.format("http://localhost:%d", boundPort),
                 IO.Options.builder().setForceNew(true).build()
         );
         socket.connect();

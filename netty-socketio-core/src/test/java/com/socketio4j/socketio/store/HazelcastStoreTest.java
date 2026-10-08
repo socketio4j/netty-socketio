@@ -15,10 +15,12 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.store;
+import com.socketio4j.socketio.store.container.CustomizedHazelcastContainer;
 
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.testcontainers.containers.GenericContainer;
 
 import com.hazelcast.client.HazelcastClient;
@@ -32,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 /**
  * Test class for HazelcastStore using testcontainers
  */
+@ResourceLock("EMBEDDED_HAZELCAST")
 public class HazelcastStoreTest extends AbstractStoreTest {
 
     private HazelcastInstance hazelcastInstance;
@@ -46,6 +49,7 @@ public class HazelcastStoreTest extends AbstractStoreTest {
         CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
 
         ClientConfig config = new ClientConfig();
+        config.setClusterName(hz.getClusterName());
         config.getNetworkConfig()
                 .setSmartRouting(false)                   // never try unreachable members inside container
                 .setRedoOperation(true)

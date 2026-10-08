@@ -33,6 +33,7 @@ import org.json.JSONObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.SocketSslConfig;
@@ -51,6 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * End-to-end tests using the official Java {@code socket.io-client} (OkHttp/WebSocket).
  */
+
 public class SocketIoJavaClientSslTest {
 
     private SocketIOServer server;

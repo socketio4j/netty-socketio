@@ -16,6 +16,8 @@
  */
 package com.socketio4j.socketio.store;
 
+import com.socketio4j.socketio.TestResourceCleanup;
+
 import java.util.Map;
 import java.util.UUID;
 
@@ -39,7 +41,7 @@ import static org.mockito.Mockito.when;
 /**
  * Test class for MemoryStoreFactory - no container needed as it's in-memory
  */
-public class MemoryStoreFactoryTest extends StoreFactoryTest {
+public class MemoryStoreFactoryTest extends AbstractStoreFactoryTestSupport {
 
     @Override
     protected StoreFactory createStoreFactory() throws Exception {
@@ -139,11 +141,7 @@ public class MemoryStoreFactoryTest extends StoreFactoryTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-            try {
-                closeableMocks.close();
-            } catch (Exception e) {
-                // Ignore
-            }
+            TestResourceCleanup.runAll("Memory store mock cleanup", closeableMocks::close);
         }
     }
 }

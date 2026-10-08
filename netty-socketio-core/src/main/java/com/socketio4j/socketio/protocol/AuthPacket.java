@@ -25,13 +25,19 @@ public class AuthPacket {
     private final String[] upgrades;
     private final int pingInterval;
     private final int pingTimeout;
+    private final int maxPayload;
 
     public AuthPacket(UUID sid, String[] upgrades, int pingInterval, int pingTimeout) {
+        this(sid, upgrades, pingInterval, pingTimeout, 0);
+    }
+
+    public AuthPacket(UUID sid, String[] upgrades, int pingInterval, int pingTimeout, int maxPayload) {
         super();
         this.sid = sid;
         this.upgrades = upgrades;
         this.pingInterval = pingInterval;
         this.pingTimeout = pingTimeout;
+        this.maxPayload = maxPayload;
     }
 
     public int getPingInterval() {
@@ -40,6 +46,16 @@ public class AuthPacket {
 
     public int getPingTimeout() {
         return pingTimeout;
+    }
+
+    /**
+     * Maximum size, in bytes, of an Engine.IO polling payload.
+     *
+     * <p>Engine.IO v4 clients use this handshake value to decide how many packets
+     * to aggregate in a single polling POST.</p>
+     */
+    public int getMaxPayload() {
+        return maxPayload;
     }
 
     public UUID getSid() {

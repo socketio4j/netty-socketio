@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +38,7 @@ import org.springframework.test.context.DynamicPropertySource;
 
 import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.SocketIOClient;
+import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.annotation.OnConnect;
 import com.socketio4j.socketio.annotation.OnDisconnect;
 import com.socketio4j.socketio.annotation.OnEvent;
@@ -52,10 +54,11 @@ import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+
 @Import(AnnotationHandleTest.TestConfig.class)
 public class AnnotationHandleTest extends BaseSpringApplicationTest {
     private static final Logger log = LoggerFactory.getLogger(AnnotationHandleTest.class);
-    private static final int PORT = 9091;
+    private static final int PORT = 0;
 
     @DynamicPropertySource
     public static void setProperties(DynamicPropertyRegistry registry) {
@@ -235,6 +238,9 @@ public class AnnotationHandleTest extends BaseSpringApplicationTest {
         }
     }
 
+    @Autowired
+    private SocketIOServer socketIOServer;
+
     private Socket socket;
 
     @BeforeEach
@@ -242,8 +248,11 @@ public class AnnotationHandleTest extends BaseSpringApplicationTest {
         testConnectController.reset();
         testDisconnectController.reset();
         testOnEventController.reset();
+        int boundPort = socketIOServer != null && socketIOServer.getConfiguration().getPort() > 0
+                ? socketIOServer.getConfiguration().getPort()
+                : PORT;
         socket = IO.socket(
-                String.format("http://localhost:%d", PORT),
+                String.format("http://localhost:%d", boundPort),
                 IO.Options.builder().setForceNew(true).build()
         );
         socket.connect();

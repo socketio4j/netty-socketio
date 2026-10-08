@@ -35,6 +35,8 @@ import com.socketio4j.socketio.protocol.EngineIOVersion;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketType;
 
+import io.netty.channel.ChannelFuture;
+
 public class NamespaceClient implements SocketIOClient {
 
     private static final Logger log = LoggerFactory.getLogger(NamespaceClient.class);
@@ -46,7 +48,6 @@ public class NamespaceClient implements SocketIOClient {
     public NamespaceClient(ClientHead baseClient, Namespace namespace) {
         this.baseClient = baseClient;
         this.namespace = namespace;
-        namespace.addClient(this);
     }
 
     public ClientHead getBaseClient() {
@@ -75,7 +76,7 @@ public class NamespaceClient implements SocketIOClient {
 
     @Override
     public void sendEvent(String name, Object... data) {
-        Packet packet = new Packet(PacketType.MESSAGE, getEngineIOVersion());
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.EVENT);
         packet.setName(name);
         packet.setData(Arrays.asList(data));
@@ -84,7 +85,7 @@ public class NamespaceClient implements SocketIOClient {
 
     @Override
     public void sendEvent(String name, AckCallback<?> ackCallback, Object... data) {
-        Packet packet = new Packet(PacketType.MESSAGE, getEngineIOVersion());
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.EVENT);
         packet.setName(name);
         packet.setData(Arrays.asList(data));
@@ -117,7 +118,7 @@ public class NamespaceClient implements SocketIOClient {
             return;
         }
 
-        baseClient.send(packet.withNsp(namespace.getName(), baseClient.getEngineIOVersion()));
+        baseClient.send(packet.withNsp(namespace.getName()));
     }
 
     public void onDisconnect() {
@@ -131,10 +132,29 @@ public class NamespaceClient implements SocketIOClient {
 
     @Override
     public void disconnect() {
-        Packet packet = new Packet(PacketType.MESSAGE, getEngineIOVersion());
+        if (!isConnected()) {
+            return;
+        }
+
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.DISCONNECT);
-        send(packet);
-//        onDisconnect();
+
+        ChannelFuture future = baseClient.send(packet.withNsp(namespace.getName()));
+
+        if (future != null) {
+            future.addListener(f -> {
+                if (!f.isSuccess()) {
+                    log.warn("Failed to send namespace disconnect for client {} in namespace {}",
+                            getSessionId(), namespace.getName(), f.cause());
+                }
+
+                onDisconnect();
+            });
+        } else if (baseClient.isConnected() && baseClient.getCurrentTransport() == Transport.POLLING) {
+            baseClient.onPollFlushed(this::onDisconnect, 5000);
+        } else {
+            onDisconnect();
+        }
     }
 
     @Override

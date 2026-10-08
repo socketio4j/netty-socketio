@@ -15,13 +15,18 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.store;
+import com.socketio4j.socketio.TestResourceCleanup;
+import com.socketio4j.socketio.store.container.CustomizedHazelcastContainer;
 
 import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
+
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.testcontainers.containers.GenericContainer;
@@ -46,19 +51,25 @@ import static org.mockito.Mockito.when;
 /**
  * Test class for HazelcastRingBufferStoreFactory using testcontainers
  */
-public class HazelcastStoreFactoryTest extends StoreFactoryTest {
+@ResourceLock("EMBEDDED_HAZELCAST")
+public class HazelcastStoreFactoryTest extends AbstractStoreFactoryTestSupport {
 
     private static GenericContainer<?> container;
     private HazelcastInstance hazelcastInstance;
     private AutoCloseable closeableMocks;
 
-    @Override
-    protected StoreFactory createStoreFactory() throws Exception {
+    @BeforeAll
+    public static void startContainer() {
         container = new CustomizedHazelcastContainer().withReuse(false);
         container.start();
+    }
+
+    @Override
+    protected StoreFactory createStoreFactory() throws Exception {
         CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
 
         ClientConfig config = new ClientConfig();
+        config.setClusterName(hz.getClusterName());
         config.getNetworkConfig()
                 .setSmartRouting(false)                   // never try unreachable members inside container
                 .setRedoOperation(true)
@@ -73,23 +84,16 @@ public class HazelcastStoreFactoryTest extends StoreFactoryTest {
 
     @AfterEach
     public void tearDown() throws Exception {
-        if (closeableMocks != null) {
-            closeableMocks.close();
-        }
-        if (storeFactory != null) {
-            storeFactory.shutdown();
-        }
-        if (hazelcastInstance != null) {
-            hazelcastInstance.shutdown();
-        }
-
+        TestResourceCleanup.runAll("Hazelcast store test cleanup",
+                () -> { if (closeableMocks != null) closeableMocks.close(); },
+                () -> { if (storeFactory != null) storeFactory.shutdown(); },
+                () -> { if (hazelcastInstance != null) hazelcastInstance.shutdown(); });
     }
 
     @AfterAll
     public static void afterAll() throws Exception {
-        if (container != null && container.isRunning()) {
-            container.stop();
-        }
+        TestResourceCleanup.runAll("Hazelcast test container cleanup",
+                () -> { if (container != null && container.isRunning()) container.stop(); });
     }
 
     @Test

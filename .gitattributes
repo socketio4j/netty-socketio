@@ -1,0 +1,9 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Declare explicit line endings for java files
+*.java text eol=lf
+*.xml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf

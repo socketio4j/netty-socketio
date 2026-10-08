@@ -16,10 +16,12 @@
  */
 package com.socketio4j.socketio.test.spring.boot.starter;
 
+
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
+
 
 @SpringBootTest(
         webEnvironment = RANDOM_PORT,

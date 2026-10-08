@@ -17,6 +17,9 @@
 package com.socketio4j.socketio.protocol;
 
 
+import com.socketio4j.socketio.annotation.Internal;
+
+@Internal
 public enum PacketType {
 
     OPEN(0), CLOSE(1), PING(2), PONG(3), MESSAGE(4), UPGRADE(5), NOOP(6),

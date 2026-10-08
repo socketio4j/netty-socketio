@@ -33,16 +33,33 @@ package com.socketio4j.socketio.transport;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.socketio4j.socketio.handler.ClientHead;
+import com.socketio4j.socketio.handler.ClientsBox;
+import com.socketio4j.socketio.protocol.EngineIOVersion;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.UUID;
+
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
 
 /**
  * @author hangsu.cho@navercorp.com
  *
  */
+
 public class WebSocketTransportTest {
 
   /**
@@ -61,14 +78,48 @@ public class WebSocketTransportTest {
     assertTrue(msg instanceof CloseWebSocketFrame);
   }
 
+  @Test
+  public void testBinaryWebSocketFrameHandling() {
+    EmbeddedChannel channel = createChannel();
+    byte[] largePayload = new byte[65536]; // 64KB binary attachment
+    largePayload[0] = 4; // MESSAGE
+    largePayload[1] = 5; // BINARY_EVENT
+
+    io.netty.buffer.ByteBuf buf = Unpooled.copiedBuffer(largePayload);
+    BinaryWebSocketFrame frame = new BinaryWebSocketFrame(buf);
+
+    channel.writeInbound(frame);
+    assertTrue(channel.isOpen(), "Channel should stay open after receiving binary WebSocket frame");
+    frame.release();
+    assertEquals(0, buf.refCnt(), "ByteBuf reference count should be 0 after releasing frame");
+  }
+
+  @Test
+  public void shouldCloseOnlyTheSecondWebSocketForASession() {
+    UUID sessionId = UUID.randomUUID();
+    ClientsBox clientsBox = mock(ClientsBox.class);
+    ClientHead clientHead = mock(ClientHead.class);
+    EmbeddedChannel secondChannel = new EmbeddedChannel();
+
+    when(clientsBox.get(sessionId)).thenReturn(clientHead);
+    when(clientHead.tryBindWebSocketChannel(secondChannel)).thenReturn(false);
+
+    WebSocketTransport transport = new WebSocketTransport(false, null, null, null, clientsBox);
+
+    transport.connectClient(secondChannel, sessionId);
+
+    assertTrue(!secondChannel.isOpen(), "The newly opened duplicate WebSocket must be closed");
+    verify(clientHead, never()).disconnect();
+    verify(clientsBox, never()).removeClient(eq(sessionId));
+  }
+
   private EmbeddedChannel createChannel() {
-    return new EmbeddedChannel(new WebSocketTransport(false, null, null, null, null) {
-      /*
-       * (non-Javadoc)
-       * 
-       * @see com.socketio4j.socketio.transport.WebSocketTransport#channelInactive(io.netty.channel.
-       * ChannelHandlerContext)
-       */
+    ClientsBox clientsBox = mock(ClientsBox.class);
+    ClientHead clientHead = mock(ClientHead.class);
+    when(clientsBox.get(any(io.netty.channel.Channel.class))).thenReturn(clientHead);
+    when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+    return new EmbeddedChannel(new WebSocketTransport(false, null, null, null, clientsBox) {
       @Override
       public void channelInactive(ChannelHandlerContext ctx) throws Exception {}
     });

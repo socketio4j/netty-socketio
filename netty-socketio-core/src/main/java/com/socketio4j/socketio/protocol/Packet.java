@@ -21,23 +21,25 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.namespace.Namespace;
 
 import io.netty.buffer.ByteBuf;
 
+@Internal
 public class Packet implements Serializable {
 
     private static final long serialVersionUID = 4560159536486711426L;
 
     private PacketType type;
-    private EngineIOVersion engineIOVersion;
+
     private PacketType subType;
     private Long ackId;
     private String name;
     private String nsp = Namespace.DEFAULT_NAME;
+
     private Object data;
 
-    private ByteBuf dataSource;
     private int attachmentsCount;
     private List<ByteBuf> attachments = Collections.emptyList();
 
@@ -48,10 +50,6 @@ public class Packet implements Serializable {
     public Packet(PacketType type) {
         super();
         this.type = type;
-    }
-    public Packet(PacketType type, EngineIOVersion engineIOVersion) {
-        this(type);
-        this.engineIOVersion = engineIOVersion;
     }
 
     public PacketType getSubType() {
@@ -93,14 +91,13 @@ public class Packet implements Serializable {
      * @param engineIOVersion
      * @return packet
      */
-    public Packet withNsp(String namespace, EngineIOVersion engineIOVersion) {
+    public Packet withNsp(String namespace) {
         if (this.nsp.equalsIgnoreCase(namespace)) {
             return this;
         } else {
-            Packet newPacket = new Packet(this.type, engineIOVersion);
+            Packet newPacket = new Packet(this.type);
             newPacket.setAckId(this.ackId);
             newPacket.setData(this.data);
-            newPacket.setDataSource(this.dataSource);
             newPacket.setName(this.name);
             newPacket.setSubType(this.subType);
             newPacket.setNsp(namespace);
@@ -109,7 +106,6 @@ public class Packet implements Serializable {
             return newPacket;
         }
     }
-
     public void setNsp(String endpoint) {
         //patch for #903
         if ("{}".equals(endpoint)){
@@ -159,21 +155,6 @@ public class Packet implements Serializable {
     }
     public boolean isAttachmentsLoaded() {
         return this.attachments.size() == attachmentsCount;
-    }
-
-    public ByteBuf getDataSource() {
-        return dataSource;
-    }
-    public void setDataSource(ByteBuf dataSource) {
-        this.dataSource = dataSource;
-    }
-
-    public EngineIOVersion getEngineIOVersion() {
-        return engineIOVersion;
-    }
-
-    public void setEngineIOVersion(EngineIOVersion engineIOVersion) {
-        this.engineIOVersion = engineIOVersion;
     }
 
     @Override

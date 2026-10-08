@@ -60,8 +60,11 @@ import io.netty.channel.ServerChannel;
 import io.netty.channel.WriteBufferWaterMark;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.concurrent.DefaultPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.FutureListener;
+import io.netty.util.concurrent.GlobalEventExecutor;
+import io.netty.util.concurrent.Promise;
 import io.netty.util.concurrent.SucceededFuture;
 
 /**
@@ -507,6 +510,7 @@ public class SocketIOServer implements ClientListeners {
         }
 
         try {
+            configCopy.setPort(configuration.getPort());
             fireBeforeStart();
             log.info("Session store / event store factory: {}", configCopy.getStoreFactory());
             initGroups();
@@ -598,30 +602,41 @@ public class SocketIOServer implements ClientListeners {
                 address = new InetSocketAddress(configCopy.getHostname(), configCopy.getPort());
             }
 
-            return bootstrap.bind(address).addListener((FutureListener<Void>) future -> {
+            Promise<Void> startPromise = new DefaultPromise<>(GlobalEventExecutor.INSTANCE);
+            bootstrap.bind(address).addListener((FutureListener<Void>) future -> {
                 if (future.isSuccess()) {
-                    ChannelFuture cf = (ChannelFuture) future;
-                    serverChannel.set(cf.channel());
-                    if (configCopy.getPort() == 0) {
-                        try {
-                            InetSocketAddress local = (InetSocketAddress) cf.channel().localAddress();
-                            int actualPort = local.getPort();
-                            configCopy.setPort(actualPort);
-                            configuration.setPort(actualPort);
-                        } catch (Exception ignore) {
-                            // keep configured port if localAddress is not InetSocketAddress
+                    try {
+                        ChannelFuture cf = (ChannelFuture) future;
+                        serverChannel.set(cf.channel());
+                        if (configCopy.getPort() == 0) {
+                            try {
+                                InetSocketAddress local = (InetSocketAddress) cf.channel().localAddress();
+                                int actualPort = local.getPort();
+                                configCopy.setPort(actualPort);
+                                configuration.setPort(actualPort);
+                            } catch (Exception ignore) {
+                                // keep configured port if localAddress is not InetSocketAddress
+                            }
                         }
+                        serverStatus.set(ServerStatus.STARTED);
+                        log.info("SocketIO server started on port {}", configCopy.getPort());
+                        installShutdownHookOnce();
+                        fireAfterStart();
+                        startPromise.setSuccess(null);
+                    } catch (Exception e) {
+                        serverStatus.set(ServerStatus.INIT);
+                        cleanUpResources(false);
+                        log.error("Server start error on port {}", configCopy.getPort(), e);
+                        startPromise.setFailure(e);
                     }
-                    serverStatus.set(ServerStatus.STARTED);
-                    log.info("SocketIO server started on port {}", configCopy.getPort());
-                    installShutdownHookOnce();
-                    fireAfterStart();
                 } else {
                     serverStatus.set(ServerStatus.INIT);
                     log.error("Failed to start server on port {}", configCopy.getPort());
                     cleanUpResources(false);
+                    startPromise.setFailure(future.cause());
                 }
             });
+            return startPromise;
 
         } catch (Exception e) {
             serverStatus.set(ServerStatus.INIT);
@@ -1066,6 +1081,16 @@ public class SocketIOServer implements ClientListeners {
     @Override
     public void addConnectListener(ConnectListener listener) {
         mainNamespace.addConnectListener(listener);
+    }
+
+    @Override
+    public void removeConnectListener(ConnectListener listener) {
+        mainNamespace.removeConnectListener(listener);
+    }
+
+    @Override
+    public void removeDisconnectListener(DisconnectListener listener) {
+        mainNamespace.removeDisconnectListener(listener);
     }
 
     /**

@@ -44,6 +44,7 @@ import io.netty.util.CharsetUtil;
 public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage> {
 
     private static final Logger log = LoggerFactory.getLogger(InPacketHandler.class);
+    private static final int MAX_LOG_PREVIEW = 64;
 
     private final PacketListener packetListener;
     private final PacketDecoder decoder;
@@ -59,7 +60,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
     }
 
     @Override
-    protected void channelRead0(io.netty.channel.ChannelHandlerContext ctx, PacketsMessage message)
+    protected void channelRead0(ChannelHandlerContext ctx, PacketsMessage message)
                 throws Exception {
         ByteBuf content = message.getContent();
         ClientHead client = message.getClient();
@@ -71,13 +72,26 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         int packetsProcessed = 0;
         while (content.isReadable()) {
             try {
-                Packet packet = decoder.decodePackets(content, client);
+                Packet packet = decoder.decodePackets(content, client, message.getTransport());
+                if (packet == null) {
+                    continue;
+                }
                 packetsProcessed++;
 
                 if (log.isDebugEnabled()) {
                     log.debug("Decoded packet: type={}, subType={}, namespace={}, client={}, hasAttachments={}", 
                              packet.getType(), packet.getSubType(), packet.getNsp(), 
                              client.getSessionId(), packet.hasAttachments());
+                }
+
+                // Engine.IO control packets are connection-level packets: they are not
+                // scoped to a Socket.IO namespace. In particular, an Engine.IO v4 client
+                // is required to reply to the server PING before it sends its Socket.IO
+                // CONNECT packet, so routing them through NamespaceClient would silently
+                // drop a perfectly valid PONG from a newly opened connection.
+                if (packet.getType() != PacketType.MESSAGE) {
+                    packetListener.onTransportPacket(packet, client, message.getTransport());
+                    continue;
                 }
 
                 Namespace ns = namespacesHub.get(packet.getNsp());
@@ -87,10 +101,10 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                             log.debug("Sending error response for invalid namespace: {} to client: {}", 
                                      packet.getNsp(), client.getSessionId());
                         }
-                        Packet p = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+                        Packet p = new Packet(PacketType.MESSAGE);
                         p.setSubType(PacketType.ERROR);
                         p.setNsp(packet.getNsp());
-                        p.setData("Invalid namespace");
+                        p.setData(toConnectErrorPayload(client, "Invalid namespace"));
                         client.send(p);
                         return;
                     }
@@ -103,18 +117,24 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                         log.debug("Processing CONNECT packet for namespace: {} from client: {}, Engine.IO version: {}", 
                                  ns.getName(), client.getSessionId(), client.getEngineIOVersion());
                     }
-                    
-                    client.addNamespaceClient(ns);
-                    NamespaceClient nClient = client.getChildClient(ns);
-                    //:TODO lyjnew client namespace send connect packet 0+namespace  socket io v4
-                    // https://socket.io/docs/v4/socket-io-protocol/#connection-to-a-namespace
+                    NamespaceClient nClient = new NamespaceClient(client, ns);
                     if (EngineIOVersion.V4.equals(client.getEngineIOVersion())) {
-                        handleV4Connect(packet, client, ns, nClient);
+                        if (!handleV4Connect(packet, client, ns, nClient)) {
+                            return;
+                        }
                     }
+                    client.addNamespaceClient(nClient);
                 }
 
                 NamespaceClient nClient = client.getChildClient(ns);
                 if (nClient == null) {
+                    if (EngineIOVersion.V4.equals(client.getEngineIOVersion())) {
+                        // The Socket.IO v3/v4 wire protocol (protocol v5) requires
+                        // CONNECT before any other packet on a namespace. Do not let
+                        // an unconnected client emit events or ACKs into application code.
+                        client.disconnectWithProtocolClose();
+                        ctx.close();
+                    }
                     log.debug("Can't find namespace client in namespace: {}, sessionId: {} probably it was disconnected.", ns.getName(), client.getSessionId());
                     return;
                 }
@@ -122,8 +142,14 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                     if (log.isDebugEnabled()) {
                         log.debug("Packet has unloaded attachments, deferring processing for client: {}, namespace: {}", 
                                  client.getSessionId(), ns.getName());
+                        log.debug("Waiting for binary attachment...");
                     }
-                    return;
+                    // Continue decoding remaining packets in the current POST body.
+                    // A polling request may contain:
+                    //   attachment(A), header(B), attachment(B)
+                    // Returning here would abandon unread bytes and leave later
+                    // binary attachments unprocessed.
+                    continue;
                 }
                 packetListener.onPacket(packet, nClient, message.getTransport());
                 if (log.isDebugEnabled()) {
@@ -131,13 +157,17 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                              client.getSessionId(), ns.getName());
                 }
             } catch (Exception ex) {
-                String c;
-                if (content.refCnt() > 0) {
-                    c = content.toString(CharsetUtil.UTF_8);
-                } else {
-                    c = "<released>";
+                final int payloadSize;
+                if (content.refCnt() > 0) payloadSize = content.readableBytes();
+                else payloadSize = -1;
+                log.error("Error during data processing. Client sessionId: {}, payloadSize={} bytes",
+                        client.getSessionId(), payloadSize, ex);
+                if (log.isTraceEnabled() && content.refCnt() > 0) {
+                    int length = Math.min(payloadSize, MAX_LOG_PREVIEW);
+                    log.trace("Error payload hex preview for sessionId {}: {}",
+                            client.getSessionId(),
+                            io.netty.buffer.ByteBufUtil.hexDump(content, content.readerIndex(), length));
                 }
-                log.error("Error during data processing. Client sessionId: {}, data: {}", client.getSessionId(), c, ex);
                 throw ex;
             }
         }
@@ -145,6 +175,28 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         if (log.isDebugEnabled()) {
             log.debug("Completed processing {} packets for client: {}", packetsProcessed, client.getSessionId());
         }
+    }
+    private static Object toConnectErrorPayload(ClientHead client, Object errorData) {
+
+        if (client.getEngineIOVersion() == EngineIOVersion.V4) {
+            if (errorData instanceof Map) {
+                return errorData;
+            }
+
+            if (errorData != null) {
+                return Collections.singletonMap(
+                        "message",
+                        String.valueOf(errorData));
+            }
+            return Collections.singletonMap(
+                    "message",
+                    "Authentication failed");
+        }
+
+        if (errorData != null) {
+            return String.valueOf(errorData);
+        }
+        return "Authentication failed";
     }
 
     @Override
@@ -169,7 +221,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         }
     }
 
-    private void handleV4Connect(Packet packet, ClientHead client, Namespace ns, NamespaceClient nClient) {
+    private boolean handleV4Connect(Packet packet, ClientHead client, Namespace ns, NamespaceClient nClient) {
         if (log.isDebugEnabled()) {
             log.debug("Starting Engine.IO v4 connect handling for client: {}, namespace: {}, hasAuthData: {}", 
                      client.getSessionId(), ns.getName(), packet.getData() != null);
@@ -194,12 +246,12 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                              client.getSessionId(), ns.getName());
                 }
                 
-                Packet p = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+                Packet p = new Packet(PacketType.MESSAGE);
                 p.setSubType(PacketType.ERROR);
                 p.setNsp(packet.getNsp());
                 p.setData(toConnectErrorPayload(allowAuth.getErrorData()));
                 client.send(p);
-                return;
+                return false;
             }
         } else {
             if (log.isDebugEnabled()) {
@@ -207,7 +259,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                          client.getSessionId(), ns.getName());
             }
         }
-        Packet p = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+        Packet p = new Packet(PacketType.MESSAGE);
         p.setSubType(PacketType.CONNECT);
         p.setNsp(packet.getNsp());
         p.setData(new ConnPacket(client.getSessionId()));
@@ -216,6 +268,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
             log.debug("Completed Engine.IO v4 connect handling for client: {}, namespace: {}", 
                      client.getSessionId(), ns.getName());
         }
+        return true;
     }
 
     /**
