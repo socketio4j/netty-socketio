@@ -9,10 +9,22 @@ on:
       javaVersion:
         required: true
         type: string
+      os:
+        required: false
+        type: string
+        default: "ubuntu-latest"
+      delay:
+        required: false
+        type: string
+        default: "0"
+      interopVersions:
+        required: false
+        type: string
+        default: "smoke"
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.os }}
 
     env:
       # Allow Testcontainers to control Docker
@@ -20,37 +32,71 @@ jobs:
       TESTCONTAINERS_RYUK_DISABLED: false
 
     steps:
+      # --- Staggered delay ---
+      - name: Stagger job start
+        env:
+          DELAY: ${{ inputs.delay }}
+        run: sleep "$DELAY"
+
       # --- Checkout ---
       - name: Checkout
-        uses: actions/checkout@v4
-
-      # --- Enable Docker (already preinstalled on runners) ---
-      - name: Start Docker daemon
-        run: |
-          sudo systemctl start docker
-          sudo systemctl status docker --no-pager
-
-      # --- Validate Docker works ---
-      - name: Docker Info
-        run: docker info
+        uses: actions/checkout@v7
 
       # --- Java / Maven Setup ---
       - name: Set up Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v5
         with:
           java-version: ${{ inputs.javaVersion }}
           distribution: temurin
           cache: maven
 
+      # --- Node.js 22 Setup with Package Caching ---
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: 'netty-socketio-core/src/test/resources/js-interop/package-lock.json'
+
+      # --- Install JS Client Interop Dependencies ---
+      - name: Install JS Interop Dependencies
+        working-directory: netty-socketio-core/src/test/resources/js-interop
+        run: npm ci
+
+      # --- Cache Playwright Browsers ---
+      - name: Cache Playwright Browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('netty-socketio-core/src/test/resources/js-interop/package-lock.json', 'netty-socketio-core/src/test/resources/js-interop/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      # --- Install Playwright Browsers & OS Deps (On Cache Miss) ---
+      - name: Install Playwright Browsers & OS Deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: netty-socketio-core/src/test/resources/js-interop
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      # --- Install OS Deps Only (On Cache Hit) ---
+      - name: Install Playwright OS Dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: netty-socketio-core/src/test/resources/js-interop
+        run: npx playwright install-deps chromium firefox webkit
+
       # --- Testcontainers configuration for CI ---
       - name: Disable Testcontainers reuse
         run: |
           echo "testcontainers.reuse.enable=false" > ~/.testcontainers.properties
-          cat ~/.testcontainers.properties
 
       # --- Build + Tests ---
       - name: Build Project
-        timeout-minutes: 90
+        timeout-minutes: 120
         run: |
-          export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN"
-          mvn --batch-mode --errors --fail-at-end -DforkCount=1 verify
+          export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN \
+                             -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN \
+                             -Dcom.socketio4j.socketio.level=WARN \
+                             -Dio.netty.leakDetection.level=PARANOID"
+          mvn --batch-mode --errors --fail-at-end -Dsocketio.test.forkCount=1C \
+            -Dsocketio.interop.versions=${{ inputs.interopVersions }} verify

@@ -153,11 +153,6 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.jmockit</groupId>
-      <artifactId>jmockit</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>net.bytebuddy</groupId>
       <artifactId>byte-buddy-agent</artifactId>
       <scope>test</scope>
@@ -175,6 +170,16 @@
     <dependency>
       <groupId>org.junit.platform</groupId>
       <artifactId>junit-platform-launcher</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-suite-api</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-suite-engine</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -205,6 +210,12 @@
     <dependency>
       <groupId>io.socket</groupId>
       <artifactId>socket.io-client</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- OkHttp for raw HTTP/WS integration tests (EIOv3, SSL, etc.) -->
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>okhttp</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -241,5 +252,95 @@
           <version>26.0.2-1</version>
       </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <!-- Suites are manual aggregation entry points. Running them during
+               normal discovery duplicates the classes they select. -->
+          <excludes>
+            <exclude>**/*Suite.java</exclude>
+            <!-- These four classes run together in the execution below so
+                 they can share one rigorously-reset single-node fixture. -->
+            <exclude>**/JsClientInteropTest.java</exclude>
+            <exclude>**/JsMultiClientInteropTest.java</exclude>
+            <exclude>**/JsNamespaceInteropTest.java</exclude>
+            <exclude>**/JsTransportInteropTest.java</exclude>
+            <!-- The common single-node protocol profile runs in the same
+                 isolated fixture execution as the compatible JS clients. -->
+            <exclude>**/integration/protocol/*Test.java</exclude>
+            <exclude>**/AbruptDisconnectBinaryUploadIntegrationTest.java</exclude>
+            <!-- Container-backed and distributed tests consume Docker and
+                 shared local compute resources. JUnit resource locks do not
+                 cross Surefire JVMs, so run these through the isolated
+                 execution below rather than the 1C worker pool. -->
+            <exclude>**/integration/cluster/**/*Test.java</exclude>
+            <exclude>**/integration/interop/Distributed*InteropTest.java</exclude>
+            <exclude>**/store/HazelcastStoreFactoryTest.java</exclude>
+            <exclude>**/store/HazelcastStoreTest.java</exclude>
+            <exclude>**/store/RedissonReliableStoreFactoryTest.java</exclude>
+            <exclude>**/store/RedissonStoreTest.java</exclude>
+            <exclude>**/store/event/HazelcastRingBufferEventStoreTest.java</exclude>
+            <exclude>**/store/event/RedisPubSubEventStoreTest.java</exclude>
+          </excludes>
+        </configuration>
+        <executions>
+          <execution>
+            <id>external-service-integration</id>
+            <phase>test</phase>
+            <goals>
+              <goal>test</goal>
+            </goals>
+            <configuration>
+              <!-- A dedicated serial worker prevents Docker resource
+                   contention while retaining a complete Surefire report for
+                   nested test classes. Each top-level test class owns and
+                   stops its container in its class lifecycle; its backend
+                   state therefore cannot flow into the next class. -->
+              <forkCount>1</forkCount>
+              <reuseForks>true</reuseForks>
+              <includes combine.self="override">
+                <include>**/integration/cluster/**/*Test.java</include>
+                <include>**/integration/interop/Distributed*InteropTest.java</include>
+                <include>**/store/HazelcastStoreFactoryTest.java</include>
+                <include>**/store/HazelcastStoreTest.java</include>
+                <include>**/store/RedissonReliableStoreFactoryTest.java</include>
+                <include>**/store/RedissonStoreTest.java</include>
+                <include>**/store/event/HazelcastRingBufferEventStoreTest.java</include>
+                <include>**/store/event/RedisPubSubEventStoreTest.java</include>
+              </includes>
+              <excludes combine.self="override" />
+            </configuration>
+          </execution>
+          <execution>
+            <id>shared-single-node-js-interop</id>
+            <phase>test</phase>
+            <goals>
+              <goal>test</goal>
+            </goals>
+            <configuration>
+              <!-- This worker deliberately remains single-process. The
+                   ordinary execution stays parallel through
+                   socketio.test.forkCount. -->
+              <forkCount>1</forkCount>
+              <reuseForks>true</reuseForks>
+              <includes combine.self="override">
+                <include>**/JsClientInteropTest.java</include>
+                <include>**/JsMultiClientInteropTest.java</include>
+                <include>**/JsNamespaceInteropTest.java</include>
+                <include>**/JsTransportInteropTest.java</include>
+                <include>**/integration/protocol/*Test.java</include>
+                <include>**/AbruptDisconnectBinaryUploadIntegrationTest.java</include>
+              </includes>
+              <excludes combine.self="override" />
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 
 </project>

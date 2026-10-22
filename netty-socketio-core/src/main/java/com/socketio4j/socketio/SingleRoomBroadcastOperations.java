@@ -21,8 +21,10 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.socketio4j.socketio.misc.IterableCollection;
-import com.socketio4j.socketio.protocol.EngineIOVersion;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketType;
 import com.socketio4j.socketio.store.StoreFactory;
@@ -34,6 +36,7 @@ import com.socketio4j.socketio.store.event.EventType;
  * Date: 2020/8/8 6:08 PM
  */
 public class SingleRoomBroadcastOperations implements BroadcastOperations {
+    private static final Logger log = LoggerFactory.getLogger(SingleRoomBroadcastOperations.class);
     private final String namespace;
     private final String room;
     private final Iterable<SocketIOClient> clients;
@@ -61,7 +64,6 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
     @Override
     public void send(Packet packet) {
         for (SocketIOClient client : clients) {
-            packet.setEngineIOVersion(client.getEngineIOVersion());
             client.send(packet);
         }
         dispatch(packet);
@@ -92,13 +94,12 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public void sendEvent(String name, Predicate<SocketIOClient> excludePredicate, Object... data) {
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.UNKNOWN);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.EVENT);
         packet.setName(name);
         packet.setData(Arrays.asList(data));
 
         for (SocketIOClient client : clients) {
-            packet.setEngineIOVersion(client.getEngineIOVersion());
             if (excludePredicate.test(client)) {
                 continue;
             }
@@ -109,7 +110,7 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public void sendEvent(String name, Object... data) {
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.UNKNOWN);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.EVENT);
         packet.setName(name);
         packet.setData(Arrays.asList(data));

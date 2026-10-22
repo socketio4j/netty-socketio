@@ -19,6 +19,7 @@ package com.socketio4j.socketio.test.micronaut.config;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.HttpRequestDecoderConfiguration;
 import com.socketio4j.socketio.SocketConfig;
@@ -35,6 +36,7 @@ import jakarta.inject.Inject;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+
 @DisplayName("Test for Socket.IO configuration properties")
 @Property(name = "netty-socket-io.port", value = SocketIOOriginConfigurationTest.PORT + "")
 @Property(name = "netty-socket-io.http-request-decoder.max-header-size", value = SocketIOOriginConfigurationTest.MAX_HEADER_SIZE + "")
@@ -42,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @Property(name = "netty-socket-io.ssl.key-store", value = "classpath:keystore.jks")
 @Property(name = "netty-socket-io.ssl.key-store-password", value = "test123456")
 public class SocketIOOriginConfigurationTest extends BaseMicronautApplicationTest {
-    public static final int PORT = 9092;
+    public static final int PORT = 0;
     public static final int MAX_HEADER_SIZE = 1024;
     public static final boolean TCP_KEEP_ALIVE = true;
 

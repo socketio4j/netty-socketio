@@ -17,6 +17,9 @@
 package com.socketio4j.socketio.handler;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -26,6 +29,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -35,6 +39,8 @@ import com.socketio4j.socketio.messages.HttpErrorMessage;
 import com.socketio4j.socketio.messages.OutPacketMessage;
 import com.socketio4j.socketio.messages.XHROptionsMessage;
 import com.socketio4j.socketio.messages.XHRPostMessage;
+import com.socketio4j.socketio.protocol.EncodePacketsResult;
+import com.socketio4j.socketio.protocol.EncodeResult;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.protocol.Packet;
@@ -48,7 +54,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.websocketx.ContinuationWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 
@@ -56,8 +62,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -99,6 +108,7 @@ import static org.mockito.Mockito.when;
  * @see EmbeddedChannel
  * @see Socket.IO Protocol Specification
  */
+
 public class EncoderHandlerTest {
 
     private static final String TEST_ORIGIN = "http://localhost:3000";
@@ -206,6 +216,8 @@ public class EncoderHandlerTest {
         HttpResponse response = channel.readOutbound();
         assertThat(response.status()).isEqualTo(HttpResponseStatus.BAD_REQUEST);
         assertThat(response.headers().get("Content-Type")).isEqualTo("application/json");
+        assertThat(response.headers().get("Access-Control-Allow-Origin")).isEqualTo(TEST_ORIGIN);
+        assertThat(response.headers().get("Access-Control-Allow-Credentials")).isEqualTo("true");
     }
 
     @Test
@@ -213,18 +225,25 @@ public class EncoderHandlerTest {
     void shouldHandleWebSocketTransportWithSmallMessage() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.WEBSOCKET);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.WEBSOCKET);
         ChannelPromise promise = channel.newPromise();
 
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setData("Hello World");
         clientHead.getPacketsQueue(Transport.WEBSOCKET).add(packet);
 
         doAnswer(invocation -> {
-            ByteBuf buffer = invocation.getArgument(1);
-            buffer.writeBytes("42[\"Hello World\"]".getBytes());
-            return null;
-        }).when(mockEncoder).encodePacket(any(), any(), any(), eq(true));
+            ByteBuf buffer = invocation.getArgument(2);
+            buffer.writeBytes("42[\"Hello World\"]".getBytes(StandardCharsets.UTF_8));
+            return new EncodeResult(buffer, Collections.emptyList());
+        }).when(mockEncoder).encodePacket(
+                eq(EngineIOVersion.V4),
+                any(),
+                any(),
+                any(),
+                eq(true));
 
         // When
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
@@ -235,53 +254,52 @@ public class EncoderHandlerTest {
         assertThat(frame).isInstanceOf(TextWebSocketFrame.class);
         assertThat(frame.content().readableBytes()).isGreaterThan(0);
     }
-
     @Test
-    @DisplayName("Should handle WebSocket transport with large message fragmentation")
-    void shouldHandleWebSocketTransportWithLargeMessageFragmentation() throws Exception {
+    @DisplayName("Should keep a large Engine.IO packet in one WebSocket frame")
+    void shouldKeepLargeEngineIOPacketInOneWebSocketFrame() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.WEBSOCKET);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.WEBSOCKET);
         ChannelPromise promise = channel.newPromise();
 
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setData("Large message content");
         clientHead.getPacketsQueue(Transport.WEBSOCKET).add(packet);
 
         doAnswer(invocation -> {
-            ByteBuf buffer = invocation.getArgument(1);
-            // Create a buffer larger than MAX_FRAME_PAYLOAD_LENGTH to trigger fragmentation
-            // Need enough data to support multiple FRAME_BUFFER_SIZE reads (8192 bytes each)
+            ByteBuf buffer = invocation.getArgument(2);
+
+            // Create a payload larger than MAX_FRAME_PAYLOAD_LENGTH
             byte[] largeData = new byte[MAX_FRAME_PAYLOAD_LENGTH + 10000];
             buffer.writeBytes(largeData);
-            // Ensure buffer is readable
             buffer.readerIndex(0);
-            return null;
-        }).when(mockEncoder).encodePacket(any(), any(), any(), eq(true));
+
+            return new EncodeResult(buffer, Collections.emptyList());
+        }).when(mockEncoder).encodePacket(
+                eq(EngineIOVersion.V4),
+                any(),
+                any(),
+                any(),
+                eq(true));
 
         // When
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
 
         // Then
-        assertThat(channel.outboundMessages()).hasSizeGreaterThan(1);
-        // First frame should be TextWebSocketFrame
-        WebSocketFrame firstFrame = channel.readOutbound();
-        assertThat(firstFrame).isInstanceOf(TextWebSocketFrame.class);
-        assertThat(firstFrame.isFinalFragment()).isFalse();
+        assertThat(channel.outboundMessages()).hasSize(1);
+        WebSocketFrame frame = channel.readOutbound();
+        assertThat(frame).isInstanceOf(TextWebSocketFrame.class);
+        assertThat(frame.isFinalFragment()).isTrue();
+        assertThat(frame.content().readableBytes()).isEqualTo(MAX_FRAME_PAYLOAD_LENGTH + 10000);
 
-        // Subsequent frames should be ContinuationWebSocketFrame
-        while (channel.outboundMessages().size() > 0) {
-            WebSocketFrame frame = channel.readOutbound();
-            if (frame instanceof ContinuationWebSocketFrame) {
-                ContinuationWebSocketFrame continuationFrame = (ContinuationWebSocketFrame) frame;
-                // Last frame should be final
-                if (channel.outboundMessages().isEmpty()) {
-                    assertThat(continuationFrame.isFinalFragment()).isTrue();
-                } else {
-                    assertThat(continuationFrame.isFinalFragment()).isFalse();
-                }
-            }
-        }
+        verify(mockEncoder).encodePacket(
+                eq(EngineIOVersion.V4),
+                any(),
+                any(),
+                any(),
+                eq(true));
     }
 
     @Test
@@ -289,149 +307,339 @@ public class EncoderHandlerTest {
     void shouldHandleWebSocketTransportWithBinaryAttachments() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.WEBSOCKET);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.WEBSOCKET);
         ChannelPromise promise = channel.newPromise();
 
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
-        packet.setData("Message with attachment");
-        ByteBuf attachment = Unpooled.wrappedBuffer("attachment data".getBytes());
-        packet.addAttachment(attachment);
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setSubType(PacketType.EVENT);
+        packet.setName("upload");
+        packet.setData(Arrays.asList(
+                "Message with attachment",
+                "attachment data".getBytes(StandardCharsets.UTF_8)
+        ));
         clientHead.getPacketsQueue(Transport.WEBSOCKET).add(packet);
 
         doAnswer(invocation -> {
-            ByteBuf buffer = invocation.getArgument(1);
-            buffer.writeBytes("42[\"Message with attachment\"]".getBytes());
-            return null;
-        }).when(mockEncoder).encodePacket(any(), any(), any(), eq(true));
+            ByteBuf buffer = invocation.getArgument(2);
+            buffer.writeBytes(
+                    "451-[\"upload\",\"Message with attachment\",{\"_placeholder\":true,\"num\":0}]"
+                            .getBytes(StandardCharsets.UTF_8));
+
+            return new EncodeResult(
+                    buffer,
+                    Collections.singletonList(
+                            Unpooled.wrappedBuffer(
+                                    "attachment data".getBytes(StandardCharsets.UTF_8))));
+        }).when(mockEncoder).encodePacket(
+                eq(EngineIOVersion.V4),
+                any(),
+                any(),
+                any(),
+                eq(true));
 
         // When
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
 
         // Then
-        assertThat(channel.outboundMessages()).hasSize(1); // Only text frame since no attachments
+        assertThat(channel.outboundMessages()).hasSize(2);
+
         WebSocketFrame textFrame = channel.readOutbound();
         assertThat(textFrame).isInstanceOf(TextWebSocketFrame.class);
         assertThat(textFrame.content().readableBytes()).isGreaterThan(0);
-    }
 
+        WebSocketFrame binaryFrame = channel.readOutbound();
+        assertThat(binaryFrame).isInstanceOf(BinaryWebSocketFrame.class);
+        assertThat(binaryFrame.content().toString(StandardCharsets.UTF_8))
+                .isEqualTo("attachment data");
+
+        verify(mockEncoder).encodePacket(
+                eq(EngineIOVersion.V4),
+                any(),
+                any(),
+                any(),
+                eq(true));
+    }
     @Test
-    @DisplayName("Should handle HTTP polling transport with binary encoding")
-    void shouldHandleHTTPPollingTransportWithBinaryEncoding() throws Exception {
+    @DisplayName("Should handle Engine.IO v4 HTTP polling transport")
+    void shouldHandleEngineIOV4HTTPPollingTransport() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
         ChannelPromise promise = channel.newPromise();
 
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setData("Polling message");
         clientHead.getPacketsQueue(Transport.POLLING).add(packet);
 
         doAnswer(invocation -> {
-            ByteBuf buffer = invocation.getArgument(1);
-            buffer.writeBytes("42[\"Polling message\"]".getBytes());
-            return null;
-        }).when(mockEncoder).encodePackets(any(), any(), any(), anyInt());
+            ByteBuf buffer = invocation.getArgument(2);
+            buffer.writeBytes("42[\"Polling message\"]".getBytes(StandardCharsets.UTF_8));
+            return new EncodePacketsResult(false);
+        }).when(mockEncoder).encodePackets(
+                eq(EngineIOVersion.V4),
+                any(),
+                any(),
+                any(),
+                anyInt());
 
         // When
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
 
         // Then
         assertThat(channel.outboundMessages()).hasSize(3);
+
         HttpResponse response = channel.readOutbound();
         assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
-        assertThat(response.headers().get("Content-Type")).isEqualTo("application/octet-stream");
+        assertThat(response.headers().get("Content-Type")).isEqualTo("text/plain");
         assertThat(response.headers().get("Set-Cookie")).contains("io=" + sessionId);
     }
 
     @Test
-    @DisplayName("Should handle HTTP polling transport with JSONP encoding")
-    void shouldHandleHTTPPollingTransportWithJSONPEncoding() throws Exception {
+    @DisplayName("Should handle Engine.IO v3 HTTP polling with JSONP encoding")
+    void shouldHandleEngineIOV3HTTPPollingWithJSONPEncoding() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
         ChannelPromise promise = channel.newPromise();
 
         channel.attr(EncoderHandler.B64).set(true);
         channel.attr(EncoderHandler.JSONP_INDEX).set(1);
 
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setData("JSONP message");
         clientHead.getPacketsQueue(Transport.POLLING).add(packet);
 
         doAnswer(invocation -> {
-            ByteBuf buffer = invocation.getArgument(2);
-            buffer.writeBytes("io[1](\"42[\"JSONP message\"]\")".getBytes());
+            ByteBuf buffer = invocation.getArgument(3); // out is argument #3
+            buffer.writeBytes(
+                    "io.j[1](\"42[\\\"JSONP message\\\"]\");"
+                            .getBytes(StandardCharsets.UTF_8));
             return null;
-        }).when(mockEncoder).encodeJsonP(anyInt(), any(), any(), any(), anyInt());
+        }).when(mockEncoder).encodeJsonP(
+                eq(EngineIOVersion.V3),
+                eq(1),
+                any(),
+                any(),
+                any(),
+                anyInt());
 
         // When
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
 
         // Then
         assertThat(channel.outboundMessages()).hasSize(3);
+
         HttpResponse response = channel.readOutbound();
         assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
-        assertThat(response.headers().get("Content-Type")).isEqualTo("application/javascript");
+        assertThat(response.headers().get("Content-Type"))
+                .isEqualTo("application/javascript");
+        assertThat(response.headers().get("Set-Cookie"))
+                .contains("io=" + sessionId);
     }
 
+    @Test
+    @DisplayName("Should select Engine.IO v3 JSONP from the j parameter without b64")
+    void shouldSelectEngineIOV3JsonpWithoutB64() throws Exception {
+        // Given
+        ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+
+        OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
+        ChannelPromise promise = channel.newPromise();
+
+        channel.attr(EncoderHandler.B64).set(false);
+        channel.attr(EncoderHandler.JSONP_INDEX).set(1);
+
+        clientHead.getPacketsQueue(Transport.POLLING).add(new Packet(PacketType.MESSAGE));
+
+        doAnswer(invocation -> {
+            ByteBuf buffer = invocation.getArgument(3);
+            buffer.writeCharSequence("___eio[1]('2:40');", StandardCharsets.UTF_8);
+            return null;
+        }).when(mockEncoder).encodeJsonP(
+                eq(EngineIOVersion.V3),
+                eq(1),
+                any(),
+                any(),
+                any(),
+                anyInt());
+
+        // When
+        encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
+
+        // Then
+        HttpResponse response = channel.readOutbound();
+        assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
+        assertThat(response.headers().get("Content-Type"))
+                .isEqualTo("application/javascript");
+        verify(mockEncoder).encodeJsonP(
+                eq(EngineIOVersion.V3), eq(1), any(), any(), any(), anyInt());
+        verify(mockEncoder, never()).encodePackets(
+                eq(EngineIOVersion.V3), any(), any(), any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("Should ignore JSONP flags for Engine.IO v4")
+    void shouldIgnoreJSONPForEngineIOV4() throws Exception {
+        // Given
+        ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
+        OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
+        ChannelPromise promise = channel.newPromise();
+
+        channel.attr(EncoderHandler.B64).set(true);
+        channel.attr(EncoderHandler.JSONP_INDEX).set(1);
+
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setData("message");
+        clientHead.getPacketsQueue(Transport.POLLING).add(packet);
+
+        when(mockEncoder.encodePackets(
+                eq(EngineIOVersion.V4),
+                any(),
+                any(),
+                any(),
+                anyInt()))
+                .thenAnswer(invocation -> {
+                    ByteBuf buffer = invocation.getArgument(2);
+                    buffer.writeCharSequence("42[\"message\"]", StandardCharsets.UTF_8);
+                    return new EncodePacketsResult(false);
+                });
+
+        // When
+        encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
+
+        // Then
+        assertThat(channel.outboundMessages()).hasSize(3);
+
+        HttpResponse response = channel.readOutbound();
+        assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
+        assertThat(response.headers().get("Content-Type"))
+                .isEqualTo("text/plain");
+
+        verify(mockEncoder)
+                .encodePackets(eq(EngineIOVersion.V4), any(), any(), any(), anyInt());
+
+        verify(mockEncoder,
+                        never())
+                .encodeJsonP(eq(EngineIOVersion.V4), anyInt(), any(), any(), any(), anyInt());
+    }
     @Test
     @DisplayName("Should handle HTTP polling transport with JSONP encoding without index")
     void shouldHandleHTTPPollingTransportWithJSONPEncodingWithoutIndex() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
         ChannelPromise promise = channel.newPromise();
 
         channel.attr(EncoderHandler.B64).set(true);
         channel.attr(EncoderHandler.JSONP_INDEX).set(null);
 
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setData("JSONP message without index");
         clientHead.getPacketsQueue(Transport.POLLING).add(packet);
 
         doAnswer(invocation -> {
-            ByteBuf buffer = invocation.getArgument(2);
-            buffer.writeBytes("42[\"JSONP message without index\"]".getBytes());
+            ByteBuf out = invocation.getArgument(3);
+            out.writeBytes(
+                    "42[\"JSONP message without index\"]"
+                            .getBytes(StandardCharsets.UTF_8));
             return null;
-        }).when(mockEncoder).encodeJsonP(any(), any(), any(), any(), anyInt());
+        }).when(mockEncoder).encodeJsonP(
+                eq(EngineIOVersion.V3),
+                isNull(),
+                any(),
+                any(),
+                any(),
+                anyInt());
 
         // When
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
 
         // Then
         assertThat(channel.outboundMessages()).hasSize(3);
+
         HttpResponse response = channel.readOutbound();
         assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
-        assertThat(response.headers().get("Content-Type")).isEqualTo("text/plain");
+        assertThat(response.headers().get("Content-Type"))
+                .isEqualTo("text/plain");
+
+        verify(mockEncoder).encodeJsonP(
+                eq(EngineIOVersion.V3),
+                isNull(),
+                any(),
+                any(),
+                any(),
+                anyInt());
+
+        verify(mockEncoder, never()).encodePackets(
+                any(),
+                any(),
+                any(),
+                any(),
+                anyInt());
     }
 
     @Test
-    @DisplayName("Should handle HTTP polling transport with active channel")
-    void shouldHandleHTTPPollingTransportWithActiveChannel() throws Exception {
+    @DisplayName("Should handle Engine.IO v3 HTTP polling with JSONP encoding without index")
+    void shouldHandleEngineIOV3HTTPPollingWithJSONPEncodingWithoutIndex() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
         ChannelPromise promise = channel.newPromise();
 
-        // Add a packet to the queue so it gets processed
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
-        packet.setData("Test message");
+        channel.attr(EncoderHandler.B64).set(true);
+        channel.attr(EncoderHandler.JSONP_INDEX).set(null);
+
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setData("JSONP message without index");
         clientHead.getPacketsQueue(Transport.POLLING).add(packet);
 
         doAnswer(invocation -> {
-            ByteBuf buffer = invocation.getArgument(1);
-            buffer.writeBytes("42[\"Test message\"]".getBytes());
+            ByteBuf buffer = invocation.getArgument(3);
+            buffer.writeBytes(
+                    "42[\"JSONP message without index\"]"
+                            .getBytes(StandardCharsets.UTF_8));
             return null;
-        }).when(mockEncoder).encodePackets(any(), any(), any(), anyInt());
+        }).when(mockEncoder).encodeJsonP(
+                eq(EngineIOVersion.V3),
+                isNull(),
+                any(),
+                any(),
+                any(),
+                anyInt());
 
         // When
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
 
         // Then
-        // Message should be processed since queue has content
         assertThat(channel.outboundMessages()).hasSize(3);
+
         HttpResponse response = channel.readOutbound();
         assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
+        assertThat(response.headers().get("Content-Type"))
+                .isEqualTo("text/plain");
+        assertThat(response.headers().get("Set-Cookie"))
+                .contains("io=" + sessionId);
+
+        verify(mockEncoder).encodeJsonP(
+                eq(EngineIOVersion.V3),
+                isNull(),
+                any(),
+                any(),
+                any(),
+                anyInt());
     }
 
     @Test
@@ -462,7 +670,7 @@ public class EncoderHandlerTest {
 
         channel.attr(EncoderHandler.WRITE_ONCE).set(true);
 
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setData("Message");
         clientHead.getPacketsQueue(Transport.POLLING).add(packet);
 
@@ -569,32 +777,43 @@ public class EncoderHandlerTest {
     void shouldHandleWebSocketTransportWithMultiplePackets() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.WEBSOCKET);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.WEBSOCKET);
         ChannelPromise promise = channel.newPromise();
 
-        Packet packet1 = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet1 = new Packet(PacketType.MESSAGE);
         packet1.setData("First message");
-        Packet packet2 = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet2 = new Packet(PacketType.MESSAGE);
         packet2.setData("Second message");
+
         clientHead.getPacketsQueue(Transport.WEBSOCKET).add(packet1);
         clientHead.getPacketsQueue(Transport.WEBSOCKET).add(packet2);
 
         doAnswer(invocation -> {
-            Packet packet = invocation.getArgument(0);
-            ByteBuf buffer = invocation.getArgument(1);
-            if (packet.getData().equals("First message")) {
-                buffer.writeBytes("42[\"First message\"]".getBytes());
+            Packet packet = invocation.getArgument(1);
+            ByteBuf buffer = invocation.getArgument(2);
+
+            if ("First message".equals(packet.getData())) {
+                buffer.writeBytes("42[\"First message\"]".getBytes(StandardCharsets.UTF_8));
             } else {
-                buffer.writeBytes("42[\"Second message\"]".getBytes());
+                buffer.writeBytes("42[\"Second message\"]".getBytes(StandardCharsets.UTF_8));
             }
-            return null;
-        }).when(mockEncoder).encodePacket(any(), any(), any(), eq(true));
+
+            return new EncodeResult(buffer, Collections.emptyList());
+        }).when(mockEncoder).encodePacket(
+                eq(EngineIOVersion.V4),
+                any(),
+                any(),
+                any(),
+                eq(true));
 
         // When
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
 
         // Then
         assertThat(channel.outboundMessages()).hasSize(2);
+
         WebSocketFrame frame1 = channel.readOutbound();
         assertThat(frame1).isInstanceOf(TextWebSocketFrame.class);
         assertThat(frame1.content().readableBytes()).isGreaterThan(0);
@@ -630,17 +849,21 @@ public class EncoderHandlerTest {
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.WEBSOCKET);
         ChannelPromise promise = channel.newPromise();
 
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setData("Message");
         clientHead.getPacketsQueue(Transport.WEBSOCKET).add(packet);
 
         doAnswer(invocation -> {
-            // Create a buffer that is not readable
-            ByteBuf buffer = invocation.getArgument(1);
-            buffer.writeBytes("42[\"Message\"]".getBytes());
+            ByteBuf buffer = invocation.getArgument(2);
+            buffer.writeBytes("42[\"Message\"]".getBytes(StandardCharsets.UTF_8));
             buffer.readerIndex(buffer.writerIndex()); // Make it non-readable
-            return null;
-        }).when(mockEncoder).encodePacket(any(), any(), any(), eq(true));
+            return new EncodeResult(buffer, Collections.emptyList());
+        }).when(mockEncoder).encodePacket(
+                eq(EngineIOVersion.V4),
+                any(),
+                any(),
+                any(),
+                eq(true));
 
         // When
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
@@ -655,10 +878,12 @@ public class EncoderHandlerTest {
     void shouldHandleHTTPPollingTransportWithWriteOnceAttributeRaceCondition() throws Exception {
         // Given
         ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+
         OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
         ChannelPromise promise = channel.newPromise();
 
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setData("Message");
         clientHead.getPacketsQueue(Transport.POLLING).add(packet);
 
@@ -666,18 +891,23 @@ public class EncoderHandlerTest {
         channel.attr(EncoderHandler.WRITE_ONCE).set(false);
 
         doAnswer(invocation -> {
-            // Set write-once during encoding to simulate race condition
             channel.attr(EncoderHandler.WRITE_ONCE).set(true);
-            ByteBuf buffer = invocation.getArgument(1);
-            buffer.writeBytes("42[\"Message\"]".getBytes());
-            return null;
-        }).when(mockEncoder).encodePackets(any(), any(), any(), anyInt());
+
+            ByteBuf buffer = invocation.getArgument(2);
+            buffer.writeBytes("42[\"Message\"]".getBytes(StandardCharsets.UTF_8));
+
+            return new EncodePacketsResult(false);
+        }).when(mockEncoder).encodePackets(
+                eq(EngineIOVersion.V4),
+                any(),
+                any(),
+                any(),
+                anyInt());
 
         // When
         encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
 
         // Then
-        // Message should not be processed due to write-once attribute being set during processing
         assertThat(promise.isSuccess()).isTrue();
         assertThat(channel.outboundMessages()).isEmpty();
     }
@@ -688,6 +918,7 @@ public class EncoderHandlerTest {
         when(clientHead.getPacketsQueue(transport)).thenReturn(queue);
         when(clientHead.getSessionId()).thenReturn(sessionId);
         when(clientHead.getOrigin()).thenReturn(TEST_ORIGIN);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
         return clientHead;
     }
 }

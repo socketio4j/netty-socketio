@@ -18,16 +18,20 @@ package com.socketio4j.socketio.transport;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.ServerSocket;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -36,6 +40,7 @@ import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +61,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 
+
 public class HttpTransportTest {
+
+  private static final String TEST_ORIGIN = "http://localhost:3000";
 
   private SocketIOServer server;
 
@@ -77,6 +85,7 @@ public class HttpTransportTest {
     config.setRandomSession(true);
     config.setTransports(Transport.POLLING);
     config.setPort(port);
+    config.setOrigin(TEST_ORIGIN);
     config.setExceptionListener(new ExceptionListener() {
       @Override
       public void onEventException(Exception e, List<Object> args, SocketIOClient client) {
@@ -222,6 +231,9 @@ public class HttpTransportTest {
     server.addEventListener("hello", String.class, (client, data, ackSender) ->
         ackSender.sendAckData(data));
     final String sessionId = connectForSessionId(null);
+    // Socket.IO v3/v4 wire protocol v5 requires an explicit CONNECT before events are accepted.
+    postMessage(sessionId, "40");
+    assertTrue(pollForListOfResponses(sessionId)[0].startsWith("40"));
     final ArrayList<String> events = new ArrayList<>();
     events.add("420[\"hello\", \"world\"]");
     events.add("421[\"hello\", \"socketio\"]");
@@ -229,6 +241,192 @@ public class HttpTransportTest {
     postMessage(sessionId, String.join(packetSeparator, events));
     final String[] responses = pollForListOfResponses(sessionId);
     assertEquals(3, responses.length);
+  }
+
+  @Test
+  public void testV4EventBeforeConnectIsNotDeliveredAndClosesSession()
+      throws URISyntaxException, IOException, InterruptedException {
+    final AtomicInteger namespaceConnections = new AtomicInteger();
+    final AtomicInteger deliveredEvents = new AtomicInteger();
+    server.addConnectListener(client -> namespaceConnections.incrementAndGet());
+    server.addEventListener("hello", String.class,
+        (client, data, ackSender) -> deliveredEvents.incrementAndGet());
+
+    final String sessionId = connectForSessionId(null);
+
+    // Socket.IO v3/v4 wire protocol v5 requires a namespace CONNECT ("40") before an EVENT.
+    postMessage(sessionId, "42[\"hello\",\"must-not-be-delivered\"]");
+
+    assertEquals(0, namespaceConnections.get(),
+        "An EIO4 handshake alone must not connect the default namespace");
+    assertEquals(0, deliveredEvents.get(),
+        "Events sent before the namespace CONNECT packet must not reach application listeners");
+    assertTrue(server.getAllClients().isEmpty(),
+        "The unconnected session must not be visible as a default-namespace client");
+
+    HttpURLConnection subsequentPoll = (HttpURLConnection) createTestServerUri(
+        "EIO=4&transport=polling&sid=" + sessionId).toURL().openConnection();
+    subsequentPoll.setReadTimeout(2_000);
+    try {
+      int responseCode = subsequentPoll.getResponseCode();
+      if (responseCode == 200) {
+        try (BufferedReader reader = new BufferedReader(
+            new InputStreamReader(subsequentPoll.getInputStream(), StandardCharsets.UTF_8))) {
+          assertEquals("1", reader.lines().collect(Collectors.joining("\n")),
+              "A poll that raced with the invalid event must receive Engine.IO CLOSE");
+        }
+      } else {
+        assertEquals(400, responseCode,
+            "A poll that starts after teardown must reject the closed EIO4 session");
+      }
+    } catch (SocketTimeoutException timeout) {
+      throw new AssertionError("An EIO4 session that sends an event before CONNECT must close immediately", timeout);
+    }
+  }
+
+  @Test
+  public void testHttpPollingResponseHeaders() throws URISyntaxException, IOException, InterruptedException {
+    final URI uri = createTestServerUri("EIO=4&transport=polling&t=Oqd9eWh");
+    HttpURLConnection http = (HttpURLConnection) uri.toURL().openConnection();
+    http.connect();
+
+    assertEquals(200, http.getResponseCode(), "HTTP Status code should be 200 OK");
+    String contentType = http.getHeaderField("Content-Type");
+    assertNotNull(contentType, "Content-Type header must be set");
+    assertTrue(contentType.contains("text/plain"), "Content-Type should contain text/plain");
+
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(http.getInputStream(), StandardCharsets.UTF_8))) {
+      String response = reader.lines().collect(Collectors.joining("\n"));
+      assertNotNull(response);
+      assertTrue(response.startsWith("0{"), "Handshake response should start with Engine.IO OPEN packet '0{'");
+    }
+  }
+
+  @Test
+  public void testUnknownPollingSessionErrorIncludesCorsHeaders() throws URISyntaxException, IOException {
+    final URI uri = createTestServerUri("EIO=4&transport=polling&sid=" + UUID.randomUUID());
+    HttpURLConnection http = (HttpURLConnection) uri.toURL().openConnection();
+    http.setRequestProperty("Origin", TEST_ORIGIN);
+    http.connect();
+
+    assertEquals(400, http.getResponseCode(), "Unknown polling session must be rejected");
+    assertEquals(TEST_ORIGIN, http.getHeaderField("Access-Control-Allow-Origin"),
+        "Polling errors must retain configured CORS behavior");
+    assertEquals("true", http.getHeaderField("Access-Control-Allow-Credentials"));
+
+    InputStream errorStream = http.getErrorStream();
+    assertNotNull(errorStream, "HTTP error response must contain a body");
+    try (BufferedReader reader = new BufferedReader(
+        new InputStreamReader(errorStream, StandardCharsets.UTF_8))) {
+      JsonNode error = mapper.readTree(reader.lines().collect(Collectors.joining("\n")));
+      assertEquals(1, error.get("code").asInt(), "Unknown sessions must use Engine.IO error code 1");
+      assertEquals("Session ID unknown", error.get("message").asText());
+    }
+  }
+
+  @Test
+  public void testV4HandshakeAdvertisesRequiredMaxPayload() throws URISyntaxException, IOException {
+    final URI uri = createTestServerUri("EIO=4&transport=polling");
+    HttpURLConnection http = (HttpURLConnection) uri.toURL().openConnection();
+    http.connect();
+
+    assertEquals(200, http.getResponseCode());
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(http.getInputStream(), StandardCharsets.UTF_8))) {
+      JsonNode handshake = mapper.readTree(reader.lines().collect(Collectors.joining("\n")).substring(1));
+      assertEquals(server.getConfiguration().getMaxHttpContentLength(), handshake.get("maxPayload").asInt());
+      assertNotNull(handshake.get("sid"));
+      assertNotNull(handshake.get("upgrades"));
+      assertNotNull(handshake.get("pingInterval"));
+      assertNotNull(handshake.get("pingTimeout"));
+    }
+  }
+
+  @Test
+  public void testInvalidEngineIOVersionAndUnknownSessionAreBadRequest() throws IOException, URISyntaxException {
+    HttpURLConnection missingVersion = (HttpURLConnection) createTestServerUri("transport=polling").toURL().openConnection();
+    missingVersion.connect();
+    assertEquals(400, missingVersion.getResponseCode());
+
+    HttpURLConnection unsupportedVersion = (HttpURLConnection) createTestServerUri("EIO=5&transport=polling").toURL().openConnection();
+    unsupportedVersion.connect();
+    assertEquals(400, unsupportedVersion.getResponseCode());
+
+    HttpURLConnection invalidTransportCase = (HttpURLConnection) createTestServerUri("EIO=4&transport=POLLING").toURL().openConnection();
+    invalidTransportCase.connect();
+    assertEquals(400, invalidTransportCase.getResponseCode());
+
+    HttpURLConnection unknownSession = (HttpURLConnection) createTestServerUri(
+        "EIO=4&transport=polling&sid=00000000-0000-0000-0000-000000000000").toURL().openConnection();
+    unknownSession.connect();
+    assertEquals(400, unknownSession.getResponseCode());
+  }
+
+  @Test
+  public void testInitialPollingHandshakeRequiresGet() throws Exception {
+    for (String method : new String[] { "POST", "PUT" }) {
+      HttpURLConnection request = (HttpURLConnection) createTestServerUri("EIO=4&transport=polling").toURL().openConnection();
+      request.setRequestMethod(method);
+      request.setDoOutput(true);
+      try (OutputStream output = request.getOutputStream()) {
+        output.write(new byte[0]);
+      }
+      assertEquals(400, request.getResponseCode(), method + " must not create an Engine.IO session");
+    }
+  }
+
+  @Test
+  public void testV4PreflightIsStatelessAndBinaryPollingResponsesAreText() throws Exception {
+    HttpURLConnection options = (HttpURLConnection) createTestServerUri("EIO=4&transport=polling").toURL().openConnection();
+    options.setRequestMethod("OPTIONS");
+    options.connect();
+    assertEquals(200, options.getResponseCode());
+    assertEquals(null, options.getHeaderField("Set-Cookie"));
+
+    server.addConnectListener(client -> client.sendEvent("blob", new byte[] { 1, 2, 3 }));
+    String sessionId = connectForSessionId(null);
+    postMessage(sessionId, "40");
+
+    HttpURLConnection poll = (HttpURLConnection) createTestServerUri(
+        "EIO=4&transport=polling&sid=" + sessionId).toURL().openConnection();
+    poll.connect();
+    assertEquals(200, poll.getResponseCode());
+    assertTrue(poll.getHeaderField("Content-Type").contains("text/plain"));
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(poll.getInputStream(), StandardCharsets.UTF_8))) {
+      assertTrue(reader.lines().collect(Collectors.joining("\n")).contains("bAQID"));
+    }
+  }
+
+  @Test
+  public void testV4RejectsRawBinaryPollingPost() throws Exception {
+    String sessionId = connectForSessionId(null);
+    HttpURLConnection post = (HttpURLConnection) createTestServerUri(
+        "EIO=4&transport=polling&sid=" + sessionId).toURL().openConnection();
+    post.setRequestMethod("POST");
+    post.setDoOutput(true);
+    post.setRequestProperty("Content-Type", "application/octet-stream");
+    try (OutputStream output = post.getOutputStream()) {
+      output.write(new byte[] { 4, 1, 2, 3 });
+    }
+
+    assertEquals(400, post.getResponseCode());
+  }
+
+  @Test
+  public void testV4RejectsMalformedPollingPayloadAndClosesSession() throws Exception {
+    String sessionId = connectForSessionId(null);
+    HttpURLConnection malformedPost = (HttpURLConnection) createTestServerUri(
+        "EIO=4&transport=polling&sid=" + sessionId).toURL().openConnection();
+    malformedPost.setRequestMethod("POST");
+    malformedPost.setDoOutput(true);
+    try (OutputStream output = malformedPost.getOutputStream()) {
+      output.write("abc".getBytes(StandardCharsets.UTF_8));
+    }
+    assertEquals(400, malformedPost.getResponseCode());
+
+    HttpURLConnection subsequentPoll = (HttpURLConnection) createTestServerUri(
+        "EIO=4&transport=polling&sid=" + sessionId).toURL().openConnection();
+    subsequentPoll.connect();
+    assertEquals(400, subsequentPoll.getResponseCode());
   }
 
   /**
@@ -244,9 +442,9 @@ public class HttpTransportTest {
       try (ServerSocket socket = new ServerSocket(0)) {
           socket.setReuseAddress(true);
           return socket.getLocalPort();
-      } catch (IOException ignored) {
+      } catch (IOException error) {
+          throw new IllegalStateException("Could not allocate a free TCP/IP port", error);
       }
-    throw new IllegalStateException("Could not find a free TCP/IP port to start embedded SocketIO Server on");
   }
 
 }
