@@ -89,7 +89,11 @@ class PollingTransportTest {
             assertThat((Object) channel.readInbound()).isNull();
             verify(client).tryAcquirePollingPost();
             verify(client, never()).releasePollingPost();
-            verify(client, never()).onChannelDisconnect();
+            if (version == EngineIOVersion.V4) {
+                verify(client).onChannelDisconnect();
+            } else {
+                verify(client, never()).onChannelDisconnect();
+            }
         } finally {
             channel.finishAndReleaseAll();
         }

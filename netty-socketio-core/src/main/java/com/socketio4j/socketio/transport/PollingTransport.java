@@ -201,6 +201,9 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
 
         if (!client.tryAcquirePollingPost()) {
             log.debug("Rejecting overlapping polling POST for session {}", sessionId);
+            if (isV4) {
+                client.onChannelDisconnect();
+            }
             sendError(ctx);
             return;
         }
