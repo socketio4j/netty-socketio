@@ -199,7 +199,7 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        if (isV4 && !client.tryAcquirePollingPost()) {
+        if (!client.tryAcquirePollingPost()) {
             log.debug("Rejecting overlapping polling POST for session {}", sessionId);
             sendError(ctx);
             return;
@@ -210,12 +210,8 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         ByteBuf content = req.content().retain();
 
         // release POST response before message processing
-        if (isV4) {
-            ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId))
-                    .addListener(future -> client.releasePollingPost());
-        } else {
-            ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId));
-        }
+        ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId))
+                .addListener(future -> client.releasePollingPost());
 
         Integer jsonIndex = ctx.channel().attr(EncoderHandler.JSONP_INDEX).get();
         // JSONP POSTs use the d=<escaped payload> form and must be unwrapped.
@@ -274,6 +270,11 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         if (!client.tryBindPollingChannel(ctx.channel())) {
             log.debug("Rejecting overlapping polling GET for session {}", sessionId);
             sendError(ctx);
+            // Binding can also fail because the session already disconnected.
+            // Only a live v4 session has an outstanding poll to terminate.
+            if (EngineIOVersion.V4.equals(client.getEngineIOVersion()) && client.isConnected()) {
+                client.disconnectWithProtocolClose();
+            }
             return;
         }
 
