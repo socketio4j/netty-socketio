@@ -649,6 +649,7 @@
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <forkedProcessTimeoutInSeconds>3600</forkedProcessTimeoutInSeconds>
           <argLine>
+            -Dfile.encoding=UTF-8
             <!--For Java 25 support of byte-buddy. Byte-buddy is currently only used in mockito on unit tests within this project, so mitigate this problem by enabling this property-->
             -Dnet.bytebuddy.experimental=true
             -javaagent:"${settings.localRepository}"/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
