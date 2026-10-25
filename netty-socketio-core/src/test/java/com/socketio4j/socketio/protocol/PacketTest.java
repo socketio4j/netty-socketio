@@ -18,6 +18,7 @@ package com.socketio4j.socketio.protocol;
 
 import org.junit.jupiter.api.Test;
 
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -39,7 +40,7 @@ public class PacketTest extends BaseProtocolTest {
         Packet oldPacket = createPacket();
 
         String newNs = "new";
-        Packet newPacket = oldPacket.withNsp(newNs, EngineIOVersion.UNKNOWN);
+        Packet newPacket = oldPacket.withNsp(newNs);
         assertEquals(newNs, newPacket.getNsp());
         assertPacketCopied(oldPacket, newPacket);
     }
@@ -47,14 +48,14 @@ public class PacketTest extends BaseProtocolTest {
     @Test
     public void packetCopyIsCreatedWhenNewNamespaceDiffersAndIsNull() {
         Packet packet = createPacket();
-        Packet newPacket = packet.withNsp(null, EngineIOVersion.UNKNOWN);
+        Packet newPacket = packet.withNsp(null);
         assertNull(newPacket.getNsp());
     }
 
     @Test
     public void originalPacketReturnedIfNamespaceIsTheSame() {
         Packet packet = new Packet(PacketType.MESSAGE);
-        assertSame(packet, packet.withNsp("", EngineIOVersion.UNKNOWN));
+        assertSame(packet, packet.withNsp(""));
     }
 
     @Test
@@ -70,9 +71,9 @@ public class PacketTest extends BaseProtocolTest {
 
     @Test
     public void testPacketConstructorWithTypeAndEngineIOVersion() {
-        Packet packet = new Packet(PacketType.EVENT, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.EVENT);
         assertEquals(PacketType.EVENT, packet.getType());
-        assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
+        // assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
     }
 
     @Test
@@ -169,21 +170,7 @@ public class PacketTest extends BaseProtocolTest {
         assertEquals(2, packet.getAttachments().size()); // Should not exceed limit
     }
 
-    @Test
-    public void testSetAndGetDataSource() {
-        Packet packet = new Packet(PacketType.MESSAGE);
-        io.netty.buffer.ByteBuf dataSource = Unpooled.wrappedBuffer("source".getBytes());
-        
-        packet.setDataSource(dataSource);
-        assertEquals(dataSource, packet.getDataSource());
-    }
 
-    @Test
-    public void testSetAndGetEngineIOVersion() {
-        Packet packet = new Packet(PacketType.MESSAGE);
-        packet.setEngineIOVersion(EngineIOVersion.V4);
-        assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
-    }
 
     @Test
     public void testToString() {
@@ -198,24 +185,24 @@ public class PacketTest extends BaseProtocolTest {
 
     @Test
     public void testPacketWithAllFields() {
-        Packet packet = new Packet(PacketType.MESSAGE, EngineIOVersion.V4);
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.EVENT);
         packet.setName("testEvent");
         packet.setData("testData");
         packet.setAckId(456L);
         packet.setNsp("/test");
-        packet.setDataSource(Unpooled.wrappedBuffer("source".getBytes()));
+        // packet.setDataSource(Unpooled.wrappedBuffer("source".getBytes()));
         packet.initAttachments(1);
         packet.addAttachment(Unpooled.wrappedBuffer("attachment".getBytes()));
         
         assertEquals(PacketType.MESSAGE, packet.getType());
-        assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
+        // assertEquals(EngineIOVersion.V4, packet.getEngineIOVersion());
         assertEquals(PacketType.EVENT, packet.getSubType());
         assertEquals("testEvent", packet.getName());
         assertEquals("testData", packet.getData());
         assertEquals(Long.valueOf(456), packet.getAckId());
         assertEquals("/test", packet.getNsp());
-        assertNotNull(packet.getDataSource());
+        // assertNotNull(packet.getDataSource());
         assertTrue(packet.hasAttachments());
         assertTrue(packet.isAttachmentsLoaded());
         assertEquals(1, packet.getAttachments().size());
@@ -226,7 +213,7 @@ public class PacketTest extends BaseProtocolTest {
         Packet originalPacket = createPacket();
         String newNamespace = "/newNamespace";
         
-        Packet copiedPacket = originalPacket.withNsp(newNamespace, EngineIOVersion.V4);
+        Packet copiedPacket = originalPacket.withNsp(newNamespace);
         
         assertEquals(newNamespace, copiedPacket.getNsp());
         assertNotSame(originalPacket, copiedPacket);
@@ -239,7 +226,7 @@ public class PacketTest extends BaseProtocolTest {
         Object copiedData = copiedPacket.getData();
         assertEquals(originalData, copiedData);
         assertSame(originalPacket.getAttachments(), copiedPacket.getAttachments());
-        assertSame(originalPacket.getDataSource(), copiedPacket.getDataSource());
+        // assertSame(originalPacket.getDataSource(), copiedPacket.getDataSource());
     }
 
     @Test
@@ -247,7 +234,7 @@ public class PacketTest extends BaseProtocolTest {
         Packet originalPacket = createPacket();
         String sameNamespace = originalPacket.getNsp();
         
-        Packet copiedPacket = originalPacket.withNsp(sameNamespace, EngineIOVersion.V4);
+        Packet copiedPacket = originalPacket.withNsp(sameNamespace);
         
         assertSame(originalPacket, copiedPacket);
     }
@@ -264,7 +251,7 @@ public class PacketTest extends BaseProtocolTest {
         Object oldData = oldPacket.getData();
         Object newData = newPacket.getData();
         assertEquals(oldData, newData);
-        assertSame(oldPacket.getDataSource(), newPacket.getDataSource());
+        // assertSame(oldPacket.getDataSource(), newPacket.getDataSource());
     }
 
     private Packet createPacket() {
@@ -274,7 +261,7 @@ public class PacketTest extends BaseProtocolTest {
         packet.setData("data");
         packet.setAckId(1L);
         packet.setNsp("old");
-        packet.setDataSource(Unpooled.wrappedBuffer(new byte[]{10}));
+        // packet.setDataSource(Unpooled.wrappedBuffer(new byte[]{10}));
         packet.initAttachments(1);
         packet.addAttachment(Unpooled.wrappedBuffer(new byte[]{20}));
         return packet;

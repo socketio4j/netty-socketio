@@ -19,9 +19,12 @@ package com.socketio4j.socketio.protocol;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.socketio4j.socketio.annotation.Internal;
+
 /**
  * Engine.IO protocol version
  */
+@Internal
 public enum EngineIOVersion {
     /**
      * @link <a href="https://github.com/socketio/engine.io-protocol/tree/v2">Engine.IO version 2</a>
@@ -35,9 +38,7 @@ public enum EngineIOVersion {
      * current version
      * @link <a href="https://github.com/socketio/engine.io-protocol/tree/main">Engine.IO version 4</a>
      */
-    V4("4"),
-
-    UNKNOWN("");
+    V4("4");
 
     public static final String EIO = "EIO";
 
@@ -64,6 +65,16 @@ public enum EngineIOVersion {
         if (engineIOVersion != null) {
             return engineIOVersion;
         }
-       return UNKNOWN;
+        return V4;
+    }
+
+    /**
+     * Whether a query-string EIO value names a protocol revision this server
+     * actually implements. {@link #fromValue(String)} deliberately retains its
+     * historic v4 fallback for internal callers; HTTP handshakes must reject
+     * missing and unknown revisions instead of silently negotiating v4.
+     */
+    public static boolean isSupported(String value) {
+        return VERSIONS.containsKey(value);
     }
 }
