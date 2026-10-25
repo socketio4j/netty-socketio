@@ -177,8 +177,9 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             return;
         }
 
+        boolean isV4 = EngineIOVersion.V4.equals(client.getEngineIOVersion());
         String contentType = req.headers().get(HttpHeaderNames.CONTENT_TYPE);
-        if (client.getEngineIOVersion().getValue().equals("4")
+        if (isV4
                 && contentType != null
                 && contentType.toLowerCase(Locale.ROOT).startsWith("application/octet-stream")) {
             log.debug("Rejecting raw binary Engine.IO v4 polling POST for session {}", sessionId);
@@ -190,7 +191,7 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         // Engine.IO v4 polling is a record-separated text payload. Reject an
         // invalid Engine.IO frame before acknowledging the POST so the client
         // receives the protocol-mandated 400 and the session cannot be reused.
-        if (client.getEngineIOVersion().getValue().equals("4")
+        if (isV4
                 && !isValidV4PollingPayload(req.content())) {
             log.debug("Rejecting malformed Engine.IO v4 polling payload for session {}", sessionId);
             client.onChannelDisconnect();
@@ -198,7 +199,6 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        boolean isV4 = EngineIOVersion.V4.equals(client.getEngineIOVersion());
         if (isV4 && !client.tryAcquirePollingPost()) {
             log.debug("Rejecting overlapping polling POST for session {}", sessionId);
             sendError(ctx);
