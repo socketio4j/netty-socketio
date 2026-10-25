@@ -167,10 +167,12 @@ async function runBrowser(browserInfo) {
 
 (async () => {
 
-    // Browser families are independent. Run them concurrently to keep this
-    // exact matrix fast, while runBrowser keeps each family's cases ordered.
-    const failures = (await Promise.all(browsers.map(runBrowser)))
-        .reduce((total, browserFailures) => total + browserFailures, 0);
+    // Run browser families sequentially to avoid socket and CPU contention
+    // on resource-constrained CI runners.
+    let failures = 0;
+    for (const browser of browsers) {
+        failures += await runBrowser(browser);
+    }
 
     console.log();
     console.log("=======================");

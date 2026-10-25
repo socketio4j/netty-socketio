@@ -124,7 +124,8 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         if (msg.getSessionId() != null) {
             res.headers().add(HttpHeaderNames.SET_COOKIE, "io=" + msg.getSessionId());
         }
-        res.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE)
+        res.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE)
+                .add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, "GET, POST, OPTIONS")
                 .add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, HttpHeaderNames.CONTENT_TYPE);
 
         String origin = ctx.channel().attr(ORIGIN).get();
@@ -144,7 +145,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         HttpResponse res = new DefaultHttpResponse(HTTP_1_1, status);
 
         res.headers().add(HttpHeaderNames.CONTENT_TYPE, type)
-                .add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+                .add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
         if (msg.getSessionId() != null) {
             res.headers().add(HttpHeaderNames.SET_COOKIE, "io=" + msg.getSessionId());
         }

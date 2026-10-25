@@ -614,7 +614,8 @@
                 <mkdir dir="${project.build.outputDirectory}/META-INF/versions/11" />
                 <move file="${project.build.outputDirectory}/module-info.class"
                       todir="${project.build.outputDirectory}/META-INF/versions/11"
-                      failonerror="false" />
+                      failonerror="false"
+                      quiet="true" />
               </target>
             </configuration>
           </execution>

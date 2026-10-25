@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -276,8 +277,8 @@ public class BrowserInteropTest {
 
         while (System.currentTimeMillis() < deadline) {
 
-            try (Socket ignored =
-                         new Socket("127.0.0.1", port)) {
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress("127.0.0.1", port), 250);
                 return;
             } catch (Exception error) {
                 lastConnectionFailure = error;

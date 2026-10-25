@@ -166,7 +166,8 @@ public class EncoderHandlerTest {
         HttpResponse response = channel.readOutbound();
         assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
         assertThat(response.headers().get("Set-Cookie")).contains("io=" + sessionId);
-        assertThat(response.headers().get("Connection")).isEqualTo("keep-alive");
+        assertThat(response.headers().get("Connection")).isEqualTo("close");
+        assertThat(response.headers().get("Access-Control-Allow-Methods")).isEqualTo("GET, POST, OPTIONS");
         assertThat(response.headers().get("Access-Control-Allow-Headers")).isEqualTo("content-type");
         assertThat(response.headers().get("Access-Control-Allow-Origin")).isEqualTo(TEST_ORIGIN);
         assertThat(response.headers().get("Access-Control-Allow-Credentials")).isNull();
