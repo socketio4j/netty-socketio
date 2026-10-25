@@ -425,6 +425,7 @@ public class BrowserInteropTest {
         Configuration config = new Configuration();
         config.setPort(serverPort);
         config.setOrigin("http://127.0.0.1:" + httpPort);
+        config.setWebsocketCompression(false);
 
         server = new SocketIOServer(config);
 
