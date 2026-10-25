@@ -295,6 +295,7 @@
               <goal>test</goal>
             </goals>
             <configuration>
+              <skip>${socketio.skip.docker}</skip>
               <!-- A dedicated serial worker prevents Docker resource
                    contention while retaining a complete Surefire report for
                    nested test classes. Each top-level test class owns and
