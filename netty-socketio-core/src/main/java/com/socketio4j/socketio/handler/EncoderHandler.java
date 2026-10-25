@@ -184,6 +184,9 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
         if (msg instanceof OutPacketMessage) {
             OutPacketMessage outMsg = (OutPacketMessage) msg;
+            if (outMsg.getTransport() == Transport.POLLING) {
+                outMsg.getClientHead().releasePollingChannel(channel);
+            }
             if (outMsg.getClientHead().hasPollFlushedListeners()) {
                 promise.addListener(f -> {
                     outMsg.getClientHead().notifyPollFlushed();

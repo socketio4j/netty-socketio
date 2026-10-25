@@ -268,7 +268,7 @@ public class BrowserInteropTest {
      * Wait until the embedded HTTP server is reachable.
      * Avoids Thread.sleep().
      */
-    private static void waitForHttpServer(int port)
+    private static void waitForHttpServer(CapturedProcess process, int port)
             throws Exception {
 
         long deadline =
@@ -276,6 +276,12 @@ public class BrowserInteropTest {
         Exception lastConnectionFailure = null;
 
         while (System.currentTimeMillis() < deadline) {
+
+            if (!process.isAlive()) {
+                throw new IllegalStateException(
+                        "HTTP server process exited unexpectedly with code " + process.exitValue()
+                                + ":\n" + process.output());
+            }
 
             try (Socket socket = new Socket()) {
                 socket.connect(new InetSocketAddress("127.0.0.1", port), 250);
@@ -287,7 +293,7 @@ public class BrowserInteropTest {
         }
 
         throw new IllegalStateException(
-                "HTTP server did not start on port " + port,
+                "HTTP server did not start on port " + port + "\nProcess output:\n" + process.output(),
                 lastConnectionFailure);
     }
 
@@ -354,6 +360,10 @@ public class BrowserInteropTest {
 
         boolean waitFor(long timeout, TimeUnit unit) throws InterruptedException {
             return process.waitFor(timeout, unit);
+        }
+
+        boolean isAlive() {
+            return process.isAlive();
         }
 
         int exitValue() {
@@ -580,9 +590,11 @@ public class BrowserInteropTest {
                     "python3",
                     "-m",
                     "http.server",
+                    "--bind",
+                    "127.0.0.1",
                     String.valueOf(httpPort));
 
-            waitForHttpServer(httpPort);
+            waitForHttpServer(python, httpPort);
 
             node = startProcess(
                     dir,

@@ -273,7 +273,6 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
 
         if (!client.tryBindPollingChannel(ctx.channel())) {
             log.debug("Rejecting overlapping polling GET for session {}", sessionId);
-            client.onChannelDisconnect();
             sendError(ctx);
             return;
         }
