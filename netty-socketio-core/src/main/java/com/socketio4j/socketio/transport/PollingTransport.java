@@ -198,9 +198,9 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        if (!client.tryAcquirePollingPost()) {
+        boolean isV4 = EngineIOVersion.V4.equals(client.getEngineIOVersion());
+        if (isV4 && !client.tryAcquirePollingPost()) {
             log.debug("Rejecting overlapping polling POST for session {}", sessionId);
-            client.onChannelDisconnect();
             sendError(ctx);
             return;
         }
@@ -210,8 +210,12 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         ByteBuf content = req.content().retain();
 
         // release POST response before message processing
-        ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId))
-                .addListener(future -> client.releasePollingPost());
+        if (isV4) {
+            ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId))
+                    .addListener(future -> client.releasePollingPost());
+        } else {
+            ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId));
+        }
 
         Integer jsonIndex = ctx.channel().attr(EncoderHandler.JSONP_INDEX).get();
         // JSONP POSTs use the d=<escaped payload> form and must be unwrapped.
