@@ -612,10 +612,9 @@
             <configuration>
               <target>
                 <mkdir dir="${project.build.outputDirectory}/META-INF/versions/11" />
-                <move file="${project.build.outputDirectory}/module-info.class"
-                      todir="${project.build.outputDirectory}/META-INF/versions/11"
-                      failonerror="false"
-                      quiet="true" />
+                <move todir="${project.build.outputDirectory}/META-INF/versions/11">
+                  <fileset dir="${project.build.outputDirectory}" includes="module-info.class" />
+                </move>
               </target>
             </configuration>
           </execution>

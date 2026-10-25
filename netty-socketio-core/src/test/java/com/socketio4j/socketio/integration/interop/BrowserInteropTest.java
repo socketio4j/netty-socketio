@@ -72,8 +72,11 @@ public class BrowserInteropTest {
     private static final int NAMESPACE_COUNT = 2;
     private static final int EVENT_TYPE_COUNT = 6;
     // Individual browser cases retain their 30-second page timeout. This
-    // larger process deadline accommodates cold browser launch overhead.
-    private static final long BROWSER_RUNNER_TIMEOUT_SECONDS = 240;
+    // process deadline scales with the number of test cases run sequentially
+    // across browser families to accommodate cold launches and full-matrix runs.
+    private static final long BROWSER_RUNNER_TIMEOUT_SECONDS = Math.max(
+            240,
+            (long) BROWSER_COUNT * CLIENT_VERSION_COUNT * TRANSPORT_COUNT * 10);
     private static final long PROCESS_OUTPUT_DRAIN_TIMEOUT_SECONDS = 5;
     private static final int MAX_CAPTURED_PROCESS_OUTPUT_CHARS = 1_000_000;
 
