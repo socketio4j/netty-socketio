@@ -18,6 +18,8 @@ package com.socketio4j.socketio.test.spring.boot.starter.config;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -36,9 +38,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+
 @DisplayName("Test for Socket.IO configuration properties")
 public class SocketIOOriginConfigurationTest extends BaseSpringApplicationTest {
-    private static final int PORT = 19090;
+    private static final int PORT = 0;
     private static final int MAX_HEADER_SIZE = 1024;
     private static final boolean TCP_KEEP_ALIVE = true;
 

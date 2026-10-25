@@ -61,7 +61,7 @@ public class HazelcastPubSubEventStore extends AbstractEventStore {
 
         ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> hazelcastPub.getTopic(channelName(k)));
 
-        topic.publish(msg);
+        topic.publishAsync(msg);
     }
 
     @Override
@@ -70,8 +70,10 @@ public class HazelcastPubSubEventStore extends AbstractEventStore {
         ITopic<T> topic = hazelcastSub.getTopic(channelName(type));
 
         UUID regId = topic.addMessageListener(msg -> {
-            if (isRemote(msg.getMessageObject())) {
-                listener.onMessage(msg.getMessageObject());
+            T eventMsg = msg.getMessageObject();
+            if (eventMsg != null && !nodeId.equals(eventMsg.getNodeId())) {
+                log.debug("[HZ-PUBSUB] Received event type {} from node {} (my nodeId={})", type, eventMsg.getNodeId(), nodeId);
+                listener.onMessage(eventMsg);
             }
         });
 

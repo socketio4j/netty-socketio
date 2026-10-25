@@ -25,6 +25,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.testcontainers.containers.GenericContainer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Abstract base class for store tests providing common test methods and utilities
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class AbstractStoreTest {
 
     protected Store store;
@@ -60,6 +62,19 @@ public abstract class AbstractStoreTest {
         if (store != null) {
             // Clean up store data
             cleanupStore();
+        }
+    }
+
+    /**
+     * A test class owns one external store. Reusing it across methods avoids
+     * repeatedly starting containers while the per-test cleanup above keeps
+     * the logical store state isolated. Stopping it here ensures a completed
+     * class cannot leak a backend into another test class.
+     */
+    @AfterAll
+    public void stopContainer() {
+        if (container != null && container.isRunning()) {
+            container.stop();
         }
     }
     /**
