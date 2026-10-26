@@ -21,6 +21,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.socketio4j.socketio.annotation.Internal;
+
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -38,6 +40,7 @@ import net.agkn.hll.HLL;
  * @author https://github.com/sanjomo
  * @date 05/01/26 3:10 pm
  */
+@Internal
 public final class NamespaceMeters {
 
     /* ===================== Event Counters ===================== */

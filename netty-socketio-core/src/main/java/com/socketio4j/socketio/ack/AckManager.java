@@ -33,12 +33,14 @@ import com.socketio4j.socketio.Disconnectable;
 import com.socketio4j.socketio.MultiTypeAckCallback;
 import com.socketio4j.socketio.MultiTypeArgs;
 import com.socketio4j.socketio.SocketIOClient;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.scheduler.CancelableScheduler;
 import com.socketio4j.socketio.scheduler.SchedulerKey;
 import com.socketio4j.socketio.scheduler.SchedulerKey.Type;
 
+@Internal
 public class AckManager implements Disconnectable {
 
     static class AckEntry {

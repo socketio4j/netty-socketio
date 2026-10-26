@@ -41,6 +41,7 @@ import com.socketio4j.socketio.DisconnectableHub;
 import com.socketio4j.socketio.HandshakeData;
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.ack.AckManager;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.messages.OutPacketMessage;
 import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
@@ -60,6 +61,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.util.AttributeKey;
 
+@Internal
 public class ClientHead {
 
     private static final Logger log = LoggerFactory.getLogger(ClientHead.class);
