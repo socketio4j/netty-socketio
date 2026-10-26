@@ -269,6 +269,79 @@ class PollingTransportTest {
     }
 
     @Test
+    void shouldAcceptValidV4PollingPayloadsWithTrailingOrMultipleSeparators() {
+        String[] validPayloads = new String[] {
+            "42[\"test\"]",
+            "42[\"test\"]\u001e",
+            "\u001e42[\"test\"]",
+            "42[\"test1\"]\u001e42[\"test2\"]\u001e",
+            "b4AQID\u001e"
+        };
+
+        for (String payload : validPayloads) {
+            UUID sessionId = UUID.randomUUID();
+            ClientsBox clientsBox = mock(ClientsBox.class);
+            ClientHead clientHead = mock(ClientHead.class);
+            when(clientsBox.get(sessionId)).thenReturn(clientHead);
+            when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+            when(clientHead.getCurrentTransport()).thenReturn(Transport.POLLING);
+            when(clientHead.tryAcquirePollingPost()).thenReturn(true);
+
+            EmbeddedChannel channel = new EmbeddedChannel(new PollingTransport(null, null, clientsBox));
+            try {
+                FullHttpRequest request = new DefaultFullHttpRequest(
+                        HttpVersion.HTTP_1_1,
+                        HttpMethod.POST,
+                        "/socket.io/?EIO=4&transport=polling&sid=" + sessionId,
+                        Unpooled.copiedBuffer(payload, StandardCharsets.UTF_8));
+
+                channel.writeInbound(request);
+                PacketsMessage packets = channel.readInbound();
+                assertThat(packets).isNotNull();
+                assertThat(packets.getTransport()).isEqualTo(Transport.POLLING);
+                packets.getContent().release();
+                verify(clientHead, never()).onChannelDisconnect();
+            } finally {
+                channel.finishAndReleaseAll();
+            }
+        }
+    }
+
+    @Test
+    void shouldRejectMalformedV4PollingPayloads() {
+        String[] malformedPayloads = new String[] {
+            "",
+            "\u001e\u001e",
+            "9invalid",
+            "xinvalid\u001e"
+        };
+
+        for (String payload : malformedPayloads) {
+            UUID sessionId = UUID.randomUUID();
+            ClientsBox clientsBox = mock(ClientsBox.class);
+            ClientHead clientHead = mock(ClientHead.class);
+            when(clientsBox.get(sessionId)).thenReturn(clientHead);
+            when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+            when(clientHead.getCurrentTransport()).thenReturn(Transport.POLLING);
+
+            EmbeddedChannel channel = new EmbeddedChannel(new PollingTransport(null, null, clientsBox));
+            try {
+                FullHttpRequest request = new DefaultFullHttpRequest(
+                        HttpVersion.HTTP_1_1,
+                        HttpMethod.POST,
+                        "/socket.io/?EIO=4&transport=polling&sid=" + sessionId,
+                        Unpooled.copiedBuffer(payload, StandardCharsets.UTF_8));
+
+                channel.writeInbound(request);
+                assertThat((Object) channel.readOutbound()).isInstanceOf(HttpErrorMessage.class);
+                verify(clientHead).onChannelDisconnect();
+            } finally {
+                channel.finishAndReleaseAll();
+            }
+        }
+    }
+
+    @Test
     void shouldRejectPollingRequestAfterWebSocketUpgrade() {
         UUID sessionId = UUID.randomUUID();
         PacketDecoder decoder = mock(PacketDecoder.class);

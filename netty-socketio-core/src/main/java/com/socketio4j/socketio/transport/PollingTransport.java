@@ -247,21 +247,22 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         }
         int frameStart = content.readerIndex();
         int end = content.writerIndex();
+        int validFrames = 0;
         for (int i = frameStart; i <= end; i++) {
             if (i == end || content.getByte(i) == 0x1E) {
-                if (i == frameStart) {
-                    return false;
-                }
-                byte type = content.getByte(frameStart);
-                // "b" is the v4 polling binary frame marker. Other frames
-                // begin with the ASCII Engine.IO packet type (0 through 6).
-                if (type != 'b' && (type < '0' || type > '6')) {
-                    return false;
+                if (i > frameStart) {
+                    byte type = content.getByte(frameStart);
+                    // "b" is the v4 polling binary frame marker. Other frames
+                    // begin with the ASCII Engine.IO packet type (0 through 6).
+                    if (type != 'b' && (type < '0' || type > '6')) {
+                        return false;
+                    }
+                    validFrames++;
                 }
                 frameStart = i + 1;
             }
         }
-        return true;
+        return validFrames > 0;
     }
 
     protected void onGet(UUID sessionId, ChannelHandlerContext ctx, String origin) {

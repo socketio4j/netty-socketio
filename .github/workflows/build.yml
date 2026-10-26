@@ -84,16 +84,60 @@ jobs:
         working-directory: netty-socketio-core/src/test/resources/js-interop
         run: npx playwright install --with-deps chromium firefox webkit
 
-      # --- Install OS Deps Only (On Cache Hit on Linux) ---
+      # --- Install Playwright OS Deps Only (On Cache Hit on Linux) ---
       - name: Install Playwright OS Dependencies
         if: runner.os == 'Linux' && steps.playwright-cache.outputs.cache-hit == 'true'
         working-directory: netty-socketio-core/src/test/resources/js-interop
         run: npx playwright install-deps chromium firefox webkit
 
-      # --- Testcontainers configuration for CI ---
-      - name: Disable Testcontainers reuse
+      # --- Set up Docker on macOS via Colima ---
+      - name: Set up Docker on macOS
+        if: runner.os == 'macOS'
+        continue-on-error: true
         run: |
-          echo "testcontainers.reuse.enable=false" > ~/.testcontainers.properties
+          brew install colima docker
+          colima start --cpu 2 --memory 4 --runtime docker
+          docker context use colima || true
+          sudo mkdir -p /var/run
+          sudo ln -sf "$HOME/.colima/default/docker.sock" /var/run/docker.sock
+          echo "DOCKER_HOST=unix://$HOME/.colima/default/docker.sock" >> $GITHUB_ENV
+          echo "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock" >> $GITHUB_ENV
+          echo "TESTCONTAINERS_RYUK_DISABLED=true" >> $GITHUB_ENV
+
+      # --- Set up Docker on Windows via WSL2 (Experimental) ---
+      - name: Set up WSL on Windows
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        uses: Vampire/setup-wsl@v7
+        with:
+          distribution: Ubuntu-22.04
+          additional-packages: docker.io
+
+      - name: Start Docker daemon in WSL
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: wsl-bash {0}
+        run: |
+          sudo dockerd -H tcp://0.0.0.0:2375 -H unix:///var/run/docker.sock > /dev/null 2>&1 &
+          sleep 5
+
+      - name: Configure Docker Host for Windows
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        run: |
+          echo "DOCKER_HOST=tcp://127.0.0.1:2375" >> $GITHUB_ENV
+          echo "DOCKER_TLS_VERIFY=0" >> $GITHUB_ENV
+          echo "TESTCONTAINERS_RYUK_DISABLED=true" >> $GITHUB_ENV
+
+      # --- Testcontainers configuration for CI ---
+      - name: Configure Testcontainers
+        run: |
+          mkdir -p "$HOME"
+          echo "testcontainers.reuse.enable=false" > "$HOME/.testcontainers.properties"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            echo "docker.client.strategy=org.testcontainers.dockerclient.EnvironmentAndSystemPropertyClientProviderStrategy" >> "$HOME/.testcontainers.properties"
+            echo "docker.host=tcp://127.0.0.1:2375" >> "$HOME/.testcontainers.properties"
+          fi
 
       # --- Build + Tests ---
       - name: Build Project
@@ -104,8 +148,11 @@ jobs:
                              -Dcom.socketio4j.socketio.level=WARN \
                              -Dio.netty.leakDetection.level=PARANOID"
           DOCKER_FLAG=""
-          if [ "${{ runner.os }}" != "Linux" ]; then
+          if ! docker info >/dev/null 2>&1; then
+            echo "WARNING: Docker daemon is not reachable on this runner. Setting -Dsocketio.skip.docker=true"
             DOCKER_FLAG="-Dsocketio.skip.docker=true"
+          else
+            echo "Docker daemon is active and reachable. Running full test suite including Testcontainers."
           fi
           mvn --batch-mode --errors --fail-at-end -Dsocketio.test.forkCount=1C \
             -Dsocketio.interop.versions=${{ inputs.interopVersions }} $DOCKER_FLAG verify
