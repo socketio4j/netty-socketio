@@ -95,7 +95,7 @@
     <revapi-java.version>0.28.4</revapi-java.version>
     <revapi.oldVersion>4.0.1</revapi.oldVersion>
     <revapi.skip>false</revapi.skip>
-    <revapi.failOnUnresolvedArtifacts>false</revapi.failOnUnresolvedArtifacts>
+    <revapi.failOnUnresolvedArtifacts>true</revapi.failOnUnresolvedArtifacts>
     <revapi.failCriticality>error</revapi.failCriticality>
     <socketio.skip.docker>false</socketio.skip.docker>
 
@@ -781,8 +781,16 @@
                       "justification": "Added nullability annotations for enhanced type safety and Kotlin interop"
                     },
                     {
+                      "code": "java.annotation.added",
+                      "new": "method io.netty.buffer.ByteBuf com.socketio4j.socketio.protocol.Packet::getDataSource()",
+                      "annotation": "@com.fasterxml.jackson.annotation.JsonIgnore",
+                      "justification": "Exclude legacy dataSource from event-store JSON while preserving the runtime getter"
+                    },
+                    {
                       "code": "java.method.exception.checkedRemoved",
-                      "justification": "Removing checked Exception makes listener methods easier to implement without boilerplate throws clause"
+                      "old": "method boolean com.socketio4j.socketio.listener.DefaultExceptionListener::exceptionCaught(io.netty.channel.ChannelHandlerContext, java.lang.Throwable) throws java.lang.Exception",
+                      "exception": "java.lang.Exception",
+                      "justification": "DefaultExceptionListener.exceptionCaught no longer declares Exception compared to 4.0.1"
                     },
                     {
                       "code": "java.method.removed",

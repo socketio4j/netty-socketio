@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.socketio4j.socketio.namespace.Namespace;
 
 import io.netty.buffer.ByteBuf;
@@ -214,6 +215,7 @@ public class Packet implements Serializable {
      * @deprecated Binary attachments are handled via {@link #getAttachments()}.
      */
     @Deprecated
+    @JsonIgnore
     public ByteBuf getDataSource() {
         return dataSource;
     }
