@@ -98,6 +98,7 @@ public class BrowserInteropTest {
     private static SocketIOServer server;
     private static int serverPort;
     private static int httpPort;
+    private static CapturedProcess pythonServer;
 
     /**
      * Every received event is recorded.
@@ -440,10 +441,27 @@ public class BrowserInteropTest {
         }
 
         server.start();
+
+        File dir = new File("src/test/resources/js-interop");
+        pythonServer = startProcess(
+                dir,
+                null,
+                "python3",
+                "-m",
+                "http.server",
+                "--bind",
+                "127.0.0.1",
+                String.valueOf(httpPort));
+
+        waitForHttpServer(pythonServer, httpPort);
     }
 
     @AfterAll
-    static void afterAll() {
+    static void afterAll() throws InterruptedException {
+
+        if (pythonServer != null) {
+            pythonServer.stop();
+        }
 
         if (server != null) {
             server.stop();
@@ -579,25 +597,12 @@ public class BrowserInteropTest {
         resetRecorder();
 
         File dir = new File("src/test/resources/js-interop");
-        CapturedProcess python = null;
         CapturedProcess node = null;
         Map<String, String> env = new java.util.HashMap<>();
         env.put("HTTP_PORT", String.valueOf(httpPort));
         env.put("SOCKETIO_PORT", String.valueOf(serverPort));
         env.put("SOCKETIO_INTEROP_VERSIONS", JsClientInteropMatrix.configuredVersionsCsv());
         try {
-             python = startProcess(
-                    dir,
-                    null,
-                    "python3",
-                    "-m",
-                    "http.server",
-                    "--bind",
-                    "127.0.0.1",
-                    String.valueOf(httpPort));
-
-            waitForHttpServer(python, httpPort);
-
             node = startProcess(
                     dir,
                     env,
@@ -615,10 +620,6 @@ public class BrowserInteropTest {
 
             if (node != null) {
                 node.stop();
-            }
-
-            if (python != null) {
-                python.stop();
             }
         }
 
