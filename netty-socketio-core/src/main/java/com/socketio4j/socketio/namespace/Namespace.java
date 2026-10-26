@@ -45,6 +45,7 @@ import com.socketio4j.socketio.MultiTypeArgs;
 import com.socketio4j.socketio.SingleRoomBroadcastOperations;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIONamespace;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.annotation.ScannerEngine;
 import com.socketio4j.socketio.listener.CatchAllEventListener;
 import com.socketio4j.socketio.listener.ConnectListener;
@@ -66,13 +67,13 @@ import com.socketio4j.socketio.store.event.JoinMessage;
 import com.socketio4j.socketio.store.event.LeaveMessage;
 import com.socketio4j.socketio.transport.NamespaceClient;
 
-
 /**
  * Hub object for all clients in one namespace.
  * Namespace shares by different namespace-clients.
  *
  * @see com.socketio4j.socketio.transport.NamespaceClient
  */
+@Internal
 public class Namespace implements SocketIONamespace {
 
     private static final Logger log = LoggerFactory.getLogger(Namespace.class);

@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.Transport;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.messages.HttpErrorMessage;
 import com.socketio4j.socketio.messages.HttpMessage;
 import com.socketio4j.socketio.messages.OutPacketMessage;
@@ -71,6 +72,7 @@ import io.netty.util.concurrent.GenericFutureListener;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
+@Internal
 @Sharable
 public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
