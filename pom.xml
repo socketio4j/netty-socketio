@@ -97,6 +97,8 @@
     <revapi.skip>false</revapi.skip>
     <revapi.failOnUnresolvedArtifacts>false</revapi.failOnUnresolvedArtifacts>
     <revapi.failCriticality>error</revapi.failCriticality>
+    <socketio.skip.docker>false</socketio.skip.docker>
+
   </properties>
 
   <profiles>
@@ -604,6 +606,29 @@
 
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>move-module-info-to-mrjar</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <mkdir dir="${project.build.outputDirectory}/META-INF/versions/11" />
+                <move todir="${project.build.outputDirectory}/META-INF/versions/11">
+                  <fileset dir="${project.build.outputDirectory}" includes="module-info.class" />
+                </move>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-source-plugin</artifactId>
         <version>3.4.0</version>
         <executions>
@@ -629,6 +654,7 @@
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <forkedProcessTimeoutInSeconds>3600</forkedProcessTimeoutInSeconds>
           <argLine>
+            -Dfile.encoding=UTF-8
             <!--For Java 25 support of byte-buddy. Byte-buddy is currently only used in mockito on unit tests within this project, so mitigate this problem by enabling this property-->
             -Dnet.bytebuddy.experimental=true
             -javaagent:"${settings.localRepository}"/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar

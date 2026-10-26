@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -70,9 +71,10 @@ public class BrowserInteropTest {
     private static final int TRANSPORT_COUNT = 2;
     private static final int NAMESPACE_COUNT = 2;
     private static final int EVENT_TYPE_COUNT = 6;
-    // Individual browser cases retain their 30-second page timeout. This
-    // larger process deadline accommodates cold browser launch overhead.
-    private static final long BROWSER_RUNNER_TIMEOUT_SECONDS = 240;
+    // Budget 30 seconds each for navigation and the result wait per sequential
+    // case, plus time for browser launches and context cleanup.
+    private static final long BROWSER_RUNNER_TIMEOUT_SECONDS = 240
+            + (long) BROWSER_COUNT * CLIENT_VERSION_COUNT * TRANSPORT_COUNT * 60;
     private static final long PROCESS_OUTPUT_DRAIN_TIMEOUT_SECONDS = 5;
     private static final int MAX_CAPTURED_PROCESS_OUTPUT_CHARS = 1_000_000;
 
@@ -267,7 +269,7 @@ public class BrowserInteropTest {
      * Wait until the embedded HTTP server is reachable.
      * Avoids Thread.sleep().
      */
-    private static void waitForHttpServer(int port)
+    private static void waitForHttpServer(CapturedProcess process, int port)
             throws Exception {
 
         long deadline =
@@ -276,8 +278,14 @@ public class BrowserInteropTest {
 
         while (System.currentTimeMillis() < deadline) {
 
-            try (Socket ignored =
-                         new Socket("127.0.0.1", port)) {
+            if (!process.isAlive()) {
+                throw new IllegalStateException(
+                        "HTTP server process exited unexpectedly with code " + process.exitValue()
+                                + ":\n" + process.output());
+            }
+
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress("127.0.0.1", port), 250);
                 return;
             } catch (Exception error) {
                 lastConnectionFailure = error;
@@ -286,7 +294,7 @@ public class BrowserInteropTest {
         }
 
         throw new IllegalStateException(
-                "HTTP server did not start on port " + port,
+                "HTTP server did not start on port " + port + "\nProcess output:\n" + process.output(),
                 lastConnectionFailure);
     }
 
@@ -355,6 +363,10 @@ public class BrowserInteropTest {
             return process.waitFor(timeout, unit);
         }
 
+        boolean isAlive() {
+            return process.isAlive();
+        }
+
         int exitValue() {
             return process.exitValue();
         }
@@ -414,6 +426,7 @@ public class BrowserInteropTest {
         Configuration config = new Configuration();
         config.setPort(serverPort);
         config.setOrigin("http://127.0.0.1:" + httpPort);
+        config.setWebsocketCompression(false);
 
         server = new SocketIOServer(config);
 
@@ -579,9 +592,11 @@ public class BrowserInteropTest {
                     "python3",
                     "-m",
                     "http.server",
+                    "--bind",
+                    "127.0.0.1",
                     String.valueOf(httpPort));
 
-            waitForHttpServer(httpPort);
+            waitForHttpServer(python, httpPort);
 
             node = startProcess(
                     dir,

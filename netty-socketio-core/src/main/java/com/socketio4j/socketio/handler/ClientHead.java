@@ -157,7 +157,12 @@ public class ClientHead {
         for (;;) {
             Channel current = state.getChannel();
             if (current != null && current != channel && current.isActive()) {
-                return false;
+                if (transport != Transport.POLLING
+                        || current.attr(EncoderHandler.WRITE_ONCE).get() == null) {
+                    return false;
+                }
+                // Previous polling response has already been written to this channel;
+                // it is no longer waiting for packets and is closing. Allow rebinding.
             }
             if (!state.compareAndSet(current, channel)) {
                 continue;

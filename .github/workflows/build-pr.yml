@@ -17,8 +17,9 @@ jobs:
 
   build:
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         java-version: [17, 21, 25]
     uses: ./.github/workflows/build.yml
     with:

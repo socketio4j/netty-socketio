@@ -26,10 +26,15 @@ jobs:
   build:
     runs-on: ${{ inputs.os }}
 
+    defaults:
+      run:
+        shell: bash
+
     env:
-      # Allow Testcontainers to control Docker
-      DOCKER_HOST: "unix:///var/run/docker.sock"
+      # Allow Testcontainers to control Docker on Linux
+      DOCKER_HOST: ${{ startsWith(inputs.os, 'ubuntu') && 'unix:///var/run/docker.sock' || '' }}
       TESTCONTAINERS_RYUK_DISABLED: false
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
 
     steps:
       # --- Staggered delay ---
@@ -68,7 +73,7 @@ jobs:
         id: playwright-cache
         uses: actions/cache@v6
         with:
-          path: ~/.cache/ms-playwright
+          path: .playwright-browsers
           key: ${{ runner.os }}-playwright-${{ hashFiles('netty-socketio-core/src/test/resources/js-interop/package-lock.json', 'netty-socketio-core/src/test/resources/js-interop/package.json') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
@@ -79,9 +84,9 @@ jobs:
         working-directory: netty-socketio-core/src/test/resources/js-interop
         run: npx playwright install --with-deps chromium firefox webkit
 
-      # --- Install OS Deps Only (On Cache Hit) ---
+      # --- Install OS Deps Only (On Cache Hit on Linux) ---
       - name: Install Playwright OS Dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        if: runner.os == 'Linux' && steps.playwright-cache.outputs.cache-hit == 'true'
         working-directory: netty-socketio-core/src/test/resources/js-interop
         run: npx playwright install-deps chromium firefox webkit
 
@@ -98,5 +103,9 @@ jobs:
                              -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN \
                              -Dcom.socketio4j.socketio.level=WARN \
                              -Dio.netty.leakDetection.level=PARANOID"
+          DOCKER_FLAG=""
+          if [ "${{ runner.os }}" != "Linux" ]; then
+            DOCKER_FLAG="-Dsocketio.skip.docker=true"
+          fi
           mvn --batch-mode --errors --fail-at-end -Dsocketio.test.forkCount=1C \
-            -Dsocketio.interop.versions=${{ inputs.interopVersions }} verify
+            -Dsocketio.interop.versions=${{ inputs.interopVersions }} $DOCKER_FLAG verify

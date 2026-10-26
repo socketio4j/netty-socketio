@@ -179,8 +179,9 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             return;
         }
 
+        boolean isV4 = EngineIOVersion.V4.equals(client.getEngineIOVersion());
         String contentType = req.headers().get(HttpHeaderNames.CONTENT_TYPE);
-        if (client.getEngineIOVersion().getValue().equals("4")
+        if (isV4
                 && contentType != null
                 && contentType.toLowerCase(Locale.ROOT).startsWith("application/octet-stream")) {
             log.debug("Rejecting raw binary Engine.IO v4 polling POST for session {}", sessionId);
@@ -192,7 +193,7 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         // Engine.IO v4 polling is a record-separated text payload. Reject an
         // invalid Engine.IO frame before acknowledging the POST so the client
         // receives the protocol-mandated 400 and the session cannot be reused.
-        if (client.getEngineIOVersion().getValue().equals("4")
+        if (isV4
                 && !isValidV4PollingPayload(req.content())) {
             log.debug("Rejecting malformed Engine.IO v4 polling payload for session {}", sessionId);
             client.onChannelDisconnect();
@@ -202,7 +203,9 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
 
         if (!client.tryAcquirePollingPost()) {
             log.debug("Rejecting overlapping polling POST for session {}", sessionId);
-            client.onChannelDisconnect();
+            if (isV4) {
+                client.onChannelDisconnect();
+            }
             sendError(ctx);
             return;
         }
@@ -271,8 +274,12 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
 
         if (!client.tryBindPollingChannel(ctx.channel())) {
             log.debug("Rejecting overlapping polling GET for session {}", sessionId);
-            client.onChannelDisconnect();
             sendError(ctx);
+            // Binding can also fail because the session already disconnected.
+            // Only a live v4 session has an outstanding poll to terminate.
+            if (EngineIOVersion.V4.equals(client.getEngineIOVersion()) && client.isConnected()) {
+                client.disconnectWithProtocolClose();
+            }
             return;
         }
 
