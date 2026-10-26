@@ -110,8 +110,10 @@ public class HazelcastPubSubEventStore implements EventStore {
         ITopic<T> topic = hazelcastSub.getTopic(getTopicName(type));
 
         UUID regId = topic.addMessageListener(msg -> {
-            if (!nodeId.equals(msg.getMessageObject().getNodeId())) {
-                listener.onMessage(msg.getMessageObject());
+            T eventMsg = msg.getMessageObject();
+            if (eventMsg != null && !nodeId.equals(eventMsg.getNodeId())) {
+                log.debug("[HZ-PUBSUB] Received event type {} from node {} (my nodeId={})", type, eventMsg.getNodeId(), nodeId);
+                listener.onMessage(eventMsg);
             }
         });
         activeSubTopics.put(regId, topic);

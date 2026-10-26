@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("SchedulerKey Tests")
-class SchedulerKeyTest {
+public class SchedulerKeyTest {
 
     @Nested
     @DisplayName("Constructor Tests")
@@ -95,6 +95,7 @@ class SchedulerKeyTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Type Enum Tests")
     class TypeEnumTests {
@@ -106,12 +107,13 @@ class SchedulerKeyTest {
             SchedulerKey.Type[] types = SchedulerKey.Type.values();
 
             // Then
-            assertThat(types).hasSize(4);
+            assertThat(types).hasSize(5);
             assertThat(types).contains(
                 SchedulerKey.Type.PING,
                 SchedulerKey.Type.PING_TIMEOUT,
                 SchedulerKey.Type.ACK_TIMEOUT,
-                SchedulerKey.Type.UPGRADE_TIMEOUT
+                SchedulerKey.Type.UPGRADE_TIMEOUT,
+                    SchedulerKey.Type.POLL_FLUSH_TIMEOUT
             );
         }
 
@@ -132,6 +134,7 @@ class SchedulerKeyTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Equals Tests")
     class EqualsTests {
@@ -264,6 +267,7 @@ class SchedulerKeyTest {
         }
     }
 
+    
     @Nested
     @DisplayName("HashCode Tests")
     class HashCodeTests {
@@ -338,6 +342,7 @@ class SchedulerKeyTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Edge Cases Tests")
     class EdgeCasesTests {

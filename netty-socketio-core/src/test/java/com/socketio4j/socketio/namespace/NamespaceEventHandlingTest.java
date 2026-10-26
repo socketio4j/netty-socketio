@@ -17,10 +17,9 @@
 package com.socketio4j.socketio.namespace;
 
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -62,7 +61,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class NamespaceEventHandlingTest extends BaseNamespaceTest {
+public class NamespaceEventHandlingTest extends AbstractNamespaceTestSupport {
 
     private Namespace namespace;
 
@@ -340,27 +339,23 @@ class NamespaceEventHandlingTest extends BaseNamespaceTest {
 
         // Test concurrent auth operations
         int taskCount = 5;
-        Set<AuthTokenResult> authResults = Collections.synchronizedSet(new HashSet<>());
+        List<AuthTokenResult> authResults = Collections.synchronizedList(new ArrayList<>());
 
         CountDownLatch latch = executeConcurrentOperations(taskCount, () -> {
-            try {
-                // Test auth token validation
-                AuthTokenResult result = namespace.onAuthData(mockClient, "testAuth");
-                assertNotNull(result);
-                assertTrue(result.isSuccess());
-                assertNotNull(result.toString());
-                authResults.add(result);
+            // Test auth token validation
+            AuthTokenResult result = namespace.onAuthData(mockClient, "testAuth");
+            assertNotNull(result);
+            assertTrue(result.isSuccess());
+            assertNotNull(result.toString());
+            authResults.add(result);
 
-                // Test event with exception handling
-                List<Object> args = Arrays.asList("testData");
-                assertNotNull(args);
-                assertEquals(1, args.size());
-                assertEquals("testData", args.get(0));
+            // Test event with exception handling
+            List<Object> args = Arrays.asList("testData");
+            assertNotNull(args);
+            assertEquals(1, args.size());
+            assertEquals("testData", args.get(0));
 
-                namespace.onEvent(mockNamespaceClient, EVENT_NAME, args, mockAckRequest);
-            } catch (Exception e) {
-                // Log exception but continue
-            }
+            namespace.onEvent(mockNamespaceClient, EVENT_NAME, args, mockAckRequest);
         });
 
         waitForCompletion(latch);
@@ -371,8 +366,7 @@ class NamespaceEventHandlingTest extends BaseNamespaceTest {
         assertTrue(authListenerCallCount.get() >= taskCount);
 
         // Verify all auth results are successful
-        // Note: Some threads may not complete due to timing
-        assertTrue(authResults.size() > 0);
+        assertEquals(taskCount, authResults.size());
         for (AuthTokenResult result : authResults) {
             assertNotNull(result);
             assertTrue(result.isSuccess());

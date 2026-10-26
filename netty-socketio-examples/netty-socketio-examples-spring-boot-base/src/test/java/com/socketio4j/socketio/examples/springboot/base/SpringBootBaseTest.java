@@ -3,6 +3,7 @@ package com.socketio4j.socketio.examples.springboot.base;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -18,7 +19,7 @@ import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-@SpringBootTest
+@SpringBootTest(properties = "netty-socket-io.port=0")
 public class SpringBootBaseTest {
 
     @Autowired
@@ -36,7 +37,8 @@ public class SpringBootBaseTest {
         await().atMost(10, TimeUnit.SECONDS)
                 .until(() -> socketIOServer != null && socketIOServer.isStarted());
 
-        socket = IO.socket("http://localhost:9200");
+        int port = socketIOServer.getConfiguration().getPort();
+        socket = IO.socket("http://localhost:" + port);
         socket.connect();
 
         await().atMost(5, TimeUnit.SECONDS)

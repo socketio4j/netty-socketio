@@ -16,17 +16,19 @@
  */
 package com.socketio4j.socketio.store.event;
 
+
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 import org.testcontainers.containers.GenericContainer;
 
-import com.socketio4j.socketio.store.CustomizedRedisContainer;
+import com.socketio4j.socketio.store.container.CustomizedRedisContainer;
 import com.socketio4j.socketio.store.redis_pubsub.RedisPubSubEventStore;
 
 /**
  * Test class for RedisPubSubEventStoreTest using testcontainers
  */
+
 public class RedisPubSubEventStoreTest extends AbstractEventStoreTest {
 
     private RedissonClient redissonPub;
@@ -50,15 +52,12 @@ public class RedisPubSubEventStoreTest extends AbstractEventStoreTest {
     }
 
     @Override
-    public void tearDown() throws Exception {
+    protected void closeClients() {
         if (redissonPub != null) {
             redissonPub.shutdown();
         }
         if (redissonSub != null) {
             redissonSub.shutdown();
-        }
-        if (container != null && container.isRunning()) {
-            container.stop();
         }
     }
 }
