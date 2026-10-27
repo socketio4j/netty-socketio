@@ -28,6 +28,7 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -53,6 +54,7 @@ public class NatsEventStore implements EventStore {
     private final Connection nats;
     private final Long nodeId;
     private final EventStoreMode eventStoreMode;
+    private volatile SocketIOMetrics metrics = SocketIOMetrics.noop();
 
     /**
      * EventType -> subscriptions
@@ -112,7 +114,22 @@ public class NatsEventStore implements EventStore {
             nats.publish(getSubjectName(type), data);
         } catch (Exception e) {
             log.warn("Failed to publish event {}", type, e);
+            metrics.eventPublishFailed(extractNamespace(msg));
         }
+    }
+
+    @Override
+    public void setMetrics(SocketIOMetrics metrics) {
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    @Override
+    public SocketIOMetrics getMetrics() {
+        return this.metrics;
     }
 
     @Override
@@ -192,6 +209,7 @@ public class NatsEventStore implements EventStore {
         // Optional
         private Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
         public Builder(@NotNull Connection nats) {
             this.nats = Objects.requireNonNull(nats, "nats");
@@ -207,12 +225,23 @@ public class NatsEventStore implements EventStore {
             return this;
         }
 
+        public Builder metrics(@Nullable SocketIOMetrics metrics) {
+            if (metrics != null) {
+                this.metrics = metrics;
+            } else {
+                this.metrics = SocketIOMetrics.noop();
+            }
+            return this;
+        }
+
         public NatsEventStore build() {
-            return new NatsEventStore(
+            NatsEventStore store = new NatsEventStore(
                     nats,
                     eventStoreMode,
                     nodeId
             );
+            store.setMetrics(metrics);
+            return store;
         }
     }
 }

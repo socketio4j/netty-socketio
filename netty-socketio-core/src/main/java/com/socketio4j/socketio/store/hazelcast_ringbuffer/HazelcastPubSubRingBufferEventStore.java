@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.topic.ITopic;
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -49,6 +50,8 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
     private final ConcurrentMap<EventType, Queue<UUID>> listenerMap = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, ITopic<EventMessage>> activePubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<UUID, ITopic<?>> activeSubTopics = new ConcurrentHashMap<>();
+
+    private volatile SocketIOMetrics metrics = SocketIOMetrics.noop();
 
     private static final Logger log = LoggerFactory.getLogger(HazelcastPubSubRingBufferEventStore.class);
     private final String ringBufferNamePrefix;
@@ -88,13 +91,29 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
+        String topicName = getRingBufferName(type);
+        ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> hazelcastPub.getReliableTopic(topicName));
 
-        ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> {
-            String topicName = getRingBufferName(k);
-            return hazelcastPub.getReliableTopic(topicName);
+        topic.publishAsync(msg).whenComplete((res, ex) -> {
+            if (ex != null) {
+                log.error("Failed to publish event {} on reliable topic {}", msg, topicName, ex);
+                metrics.eventPublishFailed(extractNamespace(msg));
+            }
         });
+    }
 
-        topic.publish(msg);
+    @Override
+    public void setMetrics(SocketIOMetrics metrics) {
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    @Override
+    public SocketIOMetrics getMetrics() {
+        return this.metrics;
     }
     private String getRingBufferName(EventType type) {
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
@@ -169,6 +188,7 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
         private Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         private String ringBufferNamePrefix = DEFAULT_RING_BUFFER_NAME_PREFIX;
+        private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
         // --------------------------------------------------
         // Constructors
@@ -206,18 +226,29 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
             return this;
         }
 
+        public Builder metrics(@Nullable SocketIOMetrics metrics) {
+            if (metrics != null) {
+                this.metrics = metrics;
+            } else {
+                this.metrics = SocketIOMetrics.noop();
+            }
+            return this;
+        }
+
         // --------------------------------------------------
         // Build
         // --------------------------------------------------
 
         public HazelcastPubSubRingBufferEventStore build() {
-            return new HazelcastPubSubRingBufferEventStore(
+            HazelcastPubSubRingBufferEventStore store = new HazelcastPubSubRingBufferEventStore(
                     hazelcastPub,
                     hazelcastSub,
                     nodeId,
                     eventStoreMode,
                     ringBufferNamePrefix
             );
+            store.setMetrics(metrics);
+            return store;
         }
     }
 

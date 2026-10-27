@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.handler.AuthorizeHandler;
 import com.socketio4j.socketio.handler.ClientHead;
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.namespace.NamespacesHub;
 import com.socketio4j.socketio.protocol.JsonSupport;
@@ -42,6 +43,13 @@ public abstract class BaseStoreFactory implements StoreFactory {
 
     protected Long getNodeId() {
         return nodeId;
+    }
+
+    @Override
+    public void setMetrics(SocketIOMetrics metrics) {
+        if (eventStore() != null) {
+            eventStore().setMetrics(metrics);
+        }
     }
 
     @Override

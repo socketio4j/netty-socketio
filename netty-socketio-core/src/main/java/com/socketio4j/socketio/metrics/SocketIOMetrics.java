@@ -26,6 +26,12 @@ public interface SocketIOMetrics {
 
     void eventFailed(String namespace);
 
+    void eventPublishFailed(String namespace);
+
+    default void publishFailed(String namespace) {
+        eventPublishFailed(namespace);
+    }
+
     void eventSent(String namespace, int recipients);
 
     void unknownEventReceived(String namespace);

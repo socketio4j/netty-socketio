@@ -22,10 +22,37 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
+
 public interface EventStore {
 
     Logger log = LoggerFactory.getLogger(EventStore.class);
 
+    default void setMetrics(SocketIOMetrics metrics) {
+    }
+
+    default SocketIOMetrics getMetrics() {
+        return SocketIOMetrics.noop();
+    }
+
+    default String extractNamespace(EventMessage msg) {
+        if (msg instanceof DispatchMessage) {
+            return ((DispatchMessage) msg).getNamespace();
+        }
+        if (msg instanceof JoinMessage) {
+            return ((JoinMessage) msg).getNamespace();
+        }
+        if (msg instanceof LeaveMessage) {
+            return ((LeaveMessage) msg).getNamespace();
+        }
+        if (msg instanceof BulkJoinMessage) {
+            return ((BulkJoinMessage) msg).getNamespace();
+        }
+        if (msg instanceof BulkLeaveMessage) {
+            return ((BulkLeaveMessage) msg).getNamespace();
+        }
+        return "";
+    }
 
     default EventStoreMode getEventStoreMode() {
         return EventStoreMode.MULTI_CHANNEL;
@@ -48,6 +75,7 @@ public interface EventStore {
             publish0(type, msg);
         } catch (Exception e) {
             log.error("Error publishing event {}", e.getMessage(), e);
+            getMetrics().eventPublishFailed(extractNamespace(msg));
             //re-throw to keep the behavior
             throw e;
         }

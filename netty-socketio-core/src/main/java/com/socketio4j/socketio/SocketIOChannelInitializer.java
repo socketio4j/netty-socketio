@@ -129,6 +129,9 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
                 && socketSslConfig.hasTrustStore();
 
         StoreFactory factory = configuration.getStoreFactory();
+        if (configuration.isMetricsEnabled()) {
+            factory.setMetrics(configuration.getMetrics());
+        }
         authorizeHandler = new AuthorizeHandler(connectPath, scheduler, configuration, namespacesHub, factory, this, ackManager, clientsBox);
         factory.init(namespacesHub, authorizeHandler, jsonSupport);
         xhrPollingTransport = new PollingTransport(decoder, authorizeHandler, clientsBox);

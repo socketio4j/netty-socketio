@@ -48,6 +48,7 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.misc.EventLoopSafety;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
@@ -100,6 +101,8 @@ public final class KafkaEventStore implements EventStore {
      */
     private final ConcurrentMap<EventType, CompletableFuture<Void>> consumerBootstrapped =
             new ConcurrentHashMap<>();
+
+    private volatile SocketIOMetrics metrics = SocketIOMetrics.noop();
 
     // ---------------------------------------------------------------------
     // Constructor
@@ -176,6 +179,7 @@ public final class KafkaEventStore implements EventStore {
         producer.send(record, (metadata, ex) -> {
             if (ex != null) {
                 log.error("Kafka publish failed {}", type, ex);
+                metrics.eventPublishFailed(extractNamespace(msg));
             } else {
                 log.debug(
                         "Kafka published topic={} partition={} offset={}",
@@ -185,6 +189,20 @@ public final class KafkaEventStore implements EventStore {
                 );
             }
         });
+    }
+
+    @Override
+    public void setMetrics(SocketIOMetrics metrics) {
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    @Override
+    public SocketIOMetrics getMetrics() {
+        return this.metrics;
     }
 
     // ---------------------------------------------------------------------

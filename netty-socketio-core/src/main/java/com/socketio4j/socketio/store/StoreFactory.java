@@ -21,6 +21,7 @@ import java.util.UUID;
 
 import com.socketio4j.socketio.Disconnectable;
 import com.socketio4j.socketio.handler.AuthorizeHandler;
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.namespace.NamespacesHub;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -39,6 +40,12 @@ public interface StoreFactory extends Disconnectable {
     Store createStore(UUID sessionId);
 
     void init(NamespacesHub namespacesHub, AuthorizeHandler authorizeHandler, JsonSupport jsonSupport);
+
+    default void setMetrics(SocketIOMetrics metrics) {
+        if (eventStore() != null) {
+            eventStore().setMetrics(metrics);
+        }
+    }
 
     void shutdown();
 

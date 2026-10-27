@@ -36,6 +36,7 @@ import org.redisson.api.stream.StreamTrimArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -60,6 +61,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
     private final ConcurrentMap<String, RReliableTopic> activeSubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RReliableTopic> activePubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RStream<String, EventMessage>> trimTopics = new ConcurrentHashMap<>();
+    private volatile SocketIOMetrics metrics = SocketIOMetrics.noop();
     private static final Logger log = LoggerFactory.getLogger(RedisPubSubReliableEventStore.class);
 
 
@@ -216,11 +218,28 @@ public class RedisPubSubReliableEventStore implements EventStore {
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        RReliableTopic topic = activePubTopics.computeIfAbsent(type, k -> {
-            String topicName = getStreamName(k);
-            return redissonPub.getReliableTopic(topicName);
+        String topicName = getStreamName(type);
+        RReliableTopic topic = activePubTopics.computeIfAbsent(type, k -> redissonPub.getReliableTopic(topicName));
+        topic.publishAsync(msg).whenComplete((count, ex) -> {
+            if (ex != null) {
+                log.error("Failed to publish event {} on reliable topic {}", msg, topicName, ex);
+                metrics.eventPublishFailed(extractNamespace(msg));
+            }
         });
-        topic.publish(msg);
+    }
+
+    @Override
+    public void setMetrics(SocketIOMetrics metrics) {
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    @Override
+    public SocketIOMetrics getMetrics() {
+        return this.metrics;
     }
 
     @Override
@@ -299,6 +318,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
         private String streamNamePrefix = DEFAULT_STREAM_NAME_PREFIX;
         private Integer streamMaxLength = DEFAULT_STREAM_MAX_LENGTH;
         private Duration trimEvery;
+        private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
         // -------------------------
         // Constructors
@@ -349,12 +369,21 @@ public class RedisPubSubReliableEventStore implements EventStore {
             return this;
         }
 
+        public Builder metrics(@Nullable SocketIOMetrics metrics) {
+            if (metrics != null) {
+                this.metrics = metrics;
+            } else {
+                this.metrics = SocketIOMetrics.noop();
+            }
+            return this;
+        }
+
         // -------------------------
         // Build
         // -------------------------
 
         public RedisPubSubReliableEventStore build() {
-            return new RedisPubSubReliableEventStore(
+            RedisPubSubReliableEventStore store = new RedisPubSubReliableEventStore(
                     redissonPub,
                     redissonSub,
                     nodeId,
@@ -363,6 +392,8 @@ public class RedisPubSubReliableEventStore implements EventStore {
                     streamMaxLength,
                     trimEvery
             );
+            store.setMetrics(metrics);
+            return store;
         }
     }
 

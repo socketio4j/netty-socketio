@@ -30,6 +30,7 @@ import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -50,6 +51,8 @@ public class RedisPubSubEventStore implements EventStore {
     private final ConcurrentMap<EventType, Queue<Integer>> map = new ConcurrentHashMap<>();
     private final ConcurrentMap<Integer, RTopic> activeSubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RTopic> activePubTopics = new ConcurrentHashMap<>();
+
+    private volatile SocketIOMetrics metrics = SocketIOMetrics.noop();
 
     private static final Logger log = LoggerFactory.getLogger(RedisPubSubEventStore.class);
 
@@ -89,11 +92,28 @@ public class RedisPubSubEventStore implements EventStore {
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        RTopic topic = activePubTopics.computeIfAbsent(type, k -> {
-            String topicName = getStreamName(k);
-            return redissonPub.getTopic(topicName);
+        String topicName = getStreamName(type);
+        RTopic topic = activePubTopics.computeIfAbsent(type, k -> redissonPub.getTopic(topicName));
+        topic.publishAsync(msg).whenComplete((count, ex) -> {
+            if (ex != null) {
+                log.error("Failed to publish event {} on topic {}", msg, topicName, ex);
+                metrics.eventPublishFailed(extractNamespace(msg));
+            }
         });
-        topic.publish(msg);
+    }
+
+    @Override
+    public void setMetrics(SocketIOMetrics metrics) {
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    @Override
+    public SocketIOMetrics getMetrics() {
+        return this.metrics;
     }
 
     @Override
@@ -154,6 +174,7 @@ public class RedisPubSubEventStore implements EventStore {
         // -------------------------
         private Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
         // -------------------------
         // Constructors
@@ -183,17 +204,28 @@ public class RedisPubSubEventStore implements EventStore {
             return this;
         }
 
+        public Builder metrics(@Nullable SocketIOMetrics metrics) {
+            if (metrics != null) {
+                this.metrics = metrics;
+            } else {
+                this.metrics = SocketIOMetrics.noop();
+            }
+            return this;
+        }
+
         // -------------------------
         // Build
         // -------------------------
 
         public RedisPubSubEventStore build() {
-            return new RedisPubSubEventStore(
+            RedisPubSubEventStore store = new RedisPubSubEventStore(
                     redissonPub,
                     redissonSub,
                     eventStoreMode,
                     nodeId
             );
+            store.setMetrics(metrics);
+            return store;
         }
     }
 
