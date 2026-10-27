@@ -91,7 +91,7 @@ public class RedisStreamEventStore implements EventStore {
     private final ConcurrentMap<EventType, ScheduledExecutorService> pollers =
             new ConcurrentHashMap<>();
 
-    private volatile SocketIOMetrics metrics = SocketIOMetrics.noop();
+    private final SocketIOMetrics metrics;
 
     // ---------------------------------------------------------------------
     // Constructor
@@ -103,7 +103,8 @@ public class RedisStreamEventStore implements EventStore {
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
             @Nullable String streamNamePrefix,
-            @Nullable Integer streamMaxLength
+            @Nullable Integer streamMaxLength,
+            @Nullable SocketIOMetrics metrics
     ) {
 
         this.redissonPub = Objects.requireNonNull(redissonPub, "redissonPub");
@@ -135,9 +136,24 @@ public class RedisStreamEventStore implements EventStore {
             );
         }
         this.streamMaxLength = streamMaxLength;
-
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
 
         initStreams();
+    }
+
+    public RedisStreamEventStore(
+            @NotNull RedissonClient redissonPub,
+            @NotNull RedissonClient redissonSub,
+            @Nullable Long nodeId,
+            @Nullable EventStoreMode eventStoreMode,
+            @Nullable String streamNamePrefix,
+            @Nullable Integer streamMaxLength
+    ) {
+        this(redissonPub, redissonSub, nodeId, eventStoreMode, streamNamePrefix, streamMaxLength, SocketIOMetrics.noop());
     }
 
     // ---------------------------------------------------------------------
@@ -194,15 +210,6 @@ public class RedisStreamEventStore implements EventStore {
                 metrics.eventPublishFailed(extractNamespace(msg));
             }
         });
-    }
-
-    @Override
-    public void setMetrics(SocketIOMetrics metrics) {
-        if (metrics != null) {
-            this.metrics = metrics;
-        } else {
-            this.metrics = SocketIOMetrics.noop();
-        }
     }
 
     @Override
@@ -490,16 +497,15 @@ public class RedisStreamEventStore implements EventStore {
         // -------------------------
 
         public RedisStreamEventStore build() {
-            RedisStreamEventStore store = new RedisStreamEventStore(
+            return new RedisStreamEventStore(
                     redissonPub,
                     redissonSub,
                     nodeId,
                     mode,
                     prefix,
-                    streamMaxLen
+                    streamMaxLen,
+                    metrics
             );
-            store.setMetrics(metrics);
-            return store;
         }
     }
 

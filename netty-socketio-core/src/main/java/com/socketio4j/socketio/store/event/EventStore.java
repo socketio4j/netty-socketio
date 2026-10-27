@@ -28,9 +28,6 @@ public interface EventStore {
 
     Logger log = LoggerFactory.getLogger(EventStore.class);
 
-    default void setMetrics(SocketIOMetrics metrics) {
-    }
-
     default SocketIOMetrics getMetrics() {
         return SocketIOMetrics.noop();
     }

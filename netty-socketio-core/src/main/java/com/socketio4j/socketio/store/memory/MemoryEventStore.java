@@ -16,6 +16,9 @@
  */
 package com.socketio4j.socketio.store.memory;
 
+import org.jetbrains.annotations.Nullable;
+
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -25,6 +28,25 @@ import com.socketio4j.socketio.store.event.EventType;
 
 
 public class MemoryEventStore implements EventStore {
+
+    private final SocketIOMetrics metrics;
+
+    public MemoryEventStore() {
+        this((SocketIOMetrics) null);
+    }
+
+    public MemoryEventStore(@Nullable SocketIOMetrics metrics) {
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    @Override
+    public SocketIOMetrics getMetrics() {
+        return this.metrics;
+    }
 
     @Override
     public EventStoreMode getEventStoreMode() {

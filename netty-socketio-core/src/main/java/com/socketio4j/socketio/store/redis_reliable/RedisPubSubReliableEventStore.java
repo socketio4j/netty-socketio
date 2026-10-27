@@ -61,7 +61,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
     private final ConcurrentMap<String, RReliableTopic> activeSubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RReliableTopic> activePubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RStream<String, EventMessage>> trimTopics = new ConcurrentHashMap<>();
-    private volatile SocketIOMetrics metrics = SocketIOMetrics.noop();
+    private final SocketIOMetrics metrics;
     private static final Logger log = LoggerFactory.getLogger(RedisPubSubReliableEventStore.class);
 
 
@@ -75,7 +75,8 @@ public class RedisPubSubReliableEventStore implements EventStore {
                                       @Nullable Long nodeId, EventStoreMode eventStoreMode,
                                       @Nullable String streamNamePrefix,
                                       @Nullable Integer streamMaxLength,
-                                      @Nullable Duration trimEvery) {
+                                      @Nullable Duration trimEvery,
+                                      @Nullable SocketIOMetrics metrics) {
 
         if (eventStoreMode == null) {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
@@ -91,7 +92,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
         }
         this.streamNamePrefix = streamNamePrefix;
 
-        if (streamMaxLength == null || streamMaxLength <=0) {
+        if (streamMaxLength == null || streamMaxLength <= 0) {
             streamMaxLength = DEFAULT_STREAM_MAX_LENGTH;
             log.warn("streamMaxLength is null/less than 1, loaded default : {}", DEFAULT_STREAM_MAX_LENGTH);
         }
@@ -128,7 +129,20 @@ public class RedisPubSubReliableEventStore implements EventStore {
                     TimeUnit.SECONDS
             );
         }
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
 
+    public RedisPubSubReliableEventStore(@NotNull RedissonClient redissonPub,
+                                      @NotNull RedissonClient redissonSub,
+                                      @Nullable Long nodeId, EventStoreMode eventStoreMode,
+                                      @Nullable String streamNamePrefix,
+                                      @Nullable Integer streamMaxLength,
+                                      @Nullable Duration trimEvery) {
+        this(redissonPub, redissonSub, nodeId, eventStoreMode, streamNamePrefix, streamMaxLength, trimEvery, SocketIOMetrics.noop());
     }
     /**
      * Trims all reliable streams to maintain the configured maximum length.
@@ -226,15 +240,6 @@ public class RedisPubSubReliableEventStore implements EventStore {
                 metrics.eventPublishFailed(extractNamespace(msg));
             }
         });
-    }
-
-    @Override
-    public void setMetrics(SocketIOMetrics metrics) {
-        if (metrics != null) {
-            this.metrics = metrics;
-        } else {
-            this.metrics = SocketIOMetrics.noop();
-        }
     }
 
     @Override
@@ -383,17 +388,16 @@ public class RedisPubSubReliableEventStore implements EventStore {
         // -------------------------
 
         public RedisPubSubReliableEventStore build() {
-            RedisPubSubReliableEventStore store = new RedisPubSubReliableEventStore(
+            return new RedisPubSubReliableEventStore(
                     redissonPub,
                     redissonSub,
                     nodeId,
                     eventStoreMode,
                     streamNamePrefix,
                     streamMaxLength,
-                    trimEvery
+                    trimEvery,
+                    metrics
             );
-            store.setMetrics(metrics);
-            return store;
         }
     }
 

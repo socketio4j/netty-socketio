@@ -102,7 +102,7 @@ public final class KafkaEventStore implements EventStore {
     private final ConcurrentMap<EventType, CompletableFuture<Void>> consumerBootstrapped =
             new ConcurrentHashMap<>();
 
-    private volatile SocketIOMetrics metrics = SocketIOMetrics.noop();
+    private final SocketIOMetrics metrics;
 
     // ---------------------------------------------------------------------
     // Constructor
@@ -113,7 +113,8 @@ public final class KafkaEventStore implements EventStore {
             @NotNull Properties consumerProps,
             @Nullable Long nodeId,
             @Nullable EventStoreMode mode,
-            @Nullable String topicPrefix
+            @Nullable String topicPrefix,
+            @Nullable SocketIOMetrics metrics
     ) {
 
         this.producer = Objects.requireNonNull(producer);
@@ -131,6 +132,21 @@ public final class KafkaEventStore implements EventStore {
             topicPrefix = "SOCKETIO4J-";
         }
         this.topicPrefix = Objects.requireNonNull(topicPrefix);
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    public KafkaEventStore(
+            @NotNull KafkaProducer<String, EventMessage> producer,
+            @NotNull Properties consumerProps,
+            @Nullable Long nodeId,
+            @Nullable EventStoreMode mode,
+            @Nullable String topicPrefix
+    ) {
+        this(producer, consumerProps, nodeId, mode, topicPrefix, SocketIOMetrics.noop());
     }
 
     // ---------------------------------------------------------------------
@@ -189,15 +205,6 @@ public final class KafkaEventStore implements EventStore {
                 );
             }
         });
-    }
-
-    @Override
-    public void setMetrics(SocketIOMetrics metrics) {
-        if (metrics != null) {
-            this.metrics = metrics;
-        } else {
-            this.metrics = SocketIOMetrics.noop();
-        }
     }
 
     @Override

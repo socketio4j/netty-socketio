@@ -54,7 +54,7 @@ public class NatsEventStore implements EventStore {
     private final Connection nats;
     private final Long nodeId;
     private final EventStoreMode eventStoreMode;
-    private volatile SocketIOMetrics metrics = SocketIOMetrics.noop();
+    private final SocketIOMetrics metrics;
 
     /**
      * EventType -> subscriptions
@@ -78,10 +78,12 @@ public class NatsEventStore implements EventStore {
      * @param natsConnection shared NATS connection
      * @param eventStoreMode SINGLE_CHANNEL or MULTI_CHANNEL
      * @param nodeId node identifier (used to ignore self-published events)
+     * @param metrics metrics instance
      */
     public NatsEventStore(@NotNull Connection natsConnection,
                           @Nullable EventStoreMode eventStoreMode,
-                          @Nullable Long nodeId) {
+                          @Nullable Long nodeId,
+                          @Nullable SocketIOMetrics metrics) {
 
         this.nats = Objects.requireNonNull(natsConnection, "natsConnection");
 
@@ -94,6 +96,17 @@ public class NatsEventStore implements EventStore {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         }
         this.eventStoreMode = eventStoreMode;
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    public NatsEventStore(@NotNull Connection natsConnection,
+                          @Nullable EventStoreMode eventStoreMode,
+                          @Nullable Long nodeId) {
+        this(natsConnection, eventStoreMode, nodeId, SocketIOMetrics.noop());
     }
 
     // ----------------------------------------------------------------------
@@ -115,15 +128,6 @@ public class NatsEventStore implements EventStore {
         } catch (Exception e) {
             log.warn("Failed to publish event {}", type, e);
             metrics.eventPublishFailed(extractNamespace(msg));
-        }
-    }
-
-    @Override
-    public void setMetrics(SocketIOMetrics metrics) {
-        if (metrics != null) {
-            this.metrics = metrics;
-        } else {
-            this.metrics = SocketIOMetrics.noop();
         }
     }
 
@@ -235,13 +239,12 @@ public class NatsEventStore implements EventStore {
         }
 
         public NatsEventStore build() {
-            NatsEventStore store = new NatsEventStore(
+            return new NatsEventStore(
                     nats,
                     eventStoreMode,
-                    nodeId
+                    nodeId,
+                    metrics
             );
-            store.setMetrics(metrics);
-            return store;
         }
     }
 }

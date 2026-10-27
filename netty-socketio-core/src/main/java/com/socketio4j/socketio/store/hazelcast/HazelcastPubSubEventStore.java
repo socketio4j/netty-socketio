@@ -52,7 +52,7 @@ public class HazelcastPubSubEventStore implements EventStore {
     private final ConcurrentMap<EventType, ITopic<EventMessage>> activePubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<UUID, ITopic<?>> activeSubTopics = new ConcurrentHashMap<>();
 
-    private volatile SocketIOMetrics metrics = SocketIOMetrics.noop();
+    private final SocketIOMetrics metrics;
 
     private static final Logger log = LoggerFactory.getLogger(HazelcastPubSubEventStore.class);
 
@@ -61,7 +61,8 @@ public class HazelcastPubSubEventStore implements EventStore {
             @NotNull HazelcastInstance hazelcastSub,
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
-            @Nullable String topicPrefix
+            @Nullable String topicPrefix,
+            @Nullable SocketIOMetrics metrics
     ) {
         Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
         Objects.requireNonNull(hazelcastSub, "hazelcastSub cannot be null");
@@ -82,7 +83,21 @@ public class HazelcastPubSubEventStore implements EventStore {
             nodeId = getNodeId();
         }
         this.nodeId = nodeId;
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
 
+    public HazelcastPubSubEventStore(
+            @NotNull HazelcastInstance hazelcastPub,
+            @NotNull HazelcastInstance hazelcastSub,
+            @Nullable Long nodeId,
+            @Nullable EventStoreMode eventStoreMode,
+            @Nullable String topicPrefix
+    ) {
+        this(hazelcastPub, hazelcastSub, nodeId, eventStoreMode, topicPrefix, SocketIOMetrics.noop());
     }
 
     @Override
@@ -97,15 +112,6 @@ public class HazelcastPubSubEventStore implements EventStore {
                 metrics.eventPublishFailed(extractNamespace(msg));
             }
         });
-    }
-
-    @Override
-    public void setMetrics(SocketIOMetrics metrics) {
-        if (metrics != null) {
-            this.metrics = metrics;
-        } else {
-            this.metrics = SocketIOMetrics.noop();
-        }
     }
 
     @Override
@@ -232,15 +238,14 @@ public class HazelcastPubSubEventStore implements EventStore {
         // --------------------------------------------------
 
         public HazelcastPubSubEventStore build() {
-            HazelcastPubSubEventStore store = new HazelcastPubSubEventStore(
+            return new HazelcastPubSubEventStore(
                     hazelcastPub,
                     hazelcastSub,
                     nodeId,
                     eventStoreMode,
-                    topicNamePrefix
+                    topicNamePrefix,
+                    metrics
             );
-            store.setMetrics(metrics);
-            return store;
         }
     }
 

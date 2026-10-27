@@ -52,7 +52,7 @@ public class RedisPubSubEventStore implements EventStore {
     private final ConcurrentMap<Integer, RTopic> activeSubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RTopic> activePubTopics = new ConcurrentHashMap<>();
 
-    private volatile SocketIOMetrics metrics = SocketIOMetrics.noop();
+    private final SocketIOMetrics metrics;
 
     private static final Logger log = LoggerFactory.getLogger(RedisPubSubEventStore.class);
 
@@ -65,11 +65,13 @@ public class RedisPubSubEventStore implements EventStore {
      * @param redissonSub
      * @param eventStoreMode
      * @param nodeId
+     * @param metrics
      */
     public RedisPubSubEventStore(@NotNull RedissonClient redissonPub,
                               @NotNull RedissonClient redissonSub,
                               @Nullable EventStoreMode eventStoreMode,
-                              @Nullable Long nodeId) {
+                              @Nullable Long nodeId,
+                              @Nullable SocketIOMetrics metrics) {
         Objects.requireNonNull(redissonPub, "redissonPub is null");
         Objects.requireNonNull(redissonSub, "redissonSub is null");
 
@@ -83,6 +85,18 @@ public class RedisPubSubEventStore implements EventStore {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         }
         this.eventStoreMode = eventStoreMode;
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    public RedisPubSubEventStore(@NotNull RedissonClient redissonPub,
+                              @NotNull RedissonClient redissonSub,
+                              @Nullable EventStoreMode eventStoreMode,
+                              @Nullable Long nodeId) {
+        this(redissonPub, redissonSub, eventStoreMode, nodeId, SocketIOMetrics.noop());
     }
 
     @Override
@@ -100,15 +114,6 @@ public class RedisPubSubEventStore implements EventStore {
                 metrics.eventPublishFailed(extractNamespace(msg));
             }
         });
-    }
-
-    @Override
-    public void setMetrics(SocketIOMetrics metrics) {
-        if (metrics != null) {
-            this.metrics = metrics;
-        } else {
-            this.metrics = SocketIOMetrics.noop();
-        }
     }
 
     @Override
@@ -218,14 +223,13 @@ public class RedisPubSubEventStore implements EventStore {
         // -------------------------
 
         public RedisPubSubEventStore build() {
-            RedisPubSubEventStore store = new RedisPubSubEventStore(
+            return new RedisPubSubEventStore(
                     redissonPub,
                     redissonSub,
                     eventStoreMode,
-                    nodeId
+                    nodeId,
+                    metrics
             );
-            store.setMetrics(metrics);
-            return store;
         }
     }
 
