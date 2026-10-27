@@ -46,6 +46,14 @@ repos:
         pass_filenames: false
         files: '(\.java$|pom\.xml$)'
 
+      # API Compatibility Check Gate (Revapi)
+      - id: maven-revapi
+        name: Maven API Compatibility Gate (Revapi)
+        entry: mvn --batch-mode revapi:check
+        language: system
+        pass_filenames: false
+        files: '(\.java$|pom\.xml$)'
+
       # Static audit, negative controls, and runtime probes
       - id: eventloop-safety
         name: Event-loop lock safety

@@ -393,6 +393,25 @@ else
                     FAILED_GATES=$(( FAILED_GATES + 1 ))
                 fi
             fi
+
+            # Sub-Gate 8.4: API Compatibility Check (Revapi)
+            REVAPI_STAGED=$(echo "$STAGED_FILES" | grep -E '(\.java$|(^|/)pom\.xml$)' || true)
+            if [ "$GATE8_STATUS" != "FAILED" ] && [ -n "$REVAPI_STAGED" ]; then
+                echo -e "  ${BLUE}• [8.4]${NC} Running API compatibility check (mvn revapi:check)..."
+                REVAPI_START=$SECONDS
+                if REVAPI_OUTPUT=$($MVN_CMD --batch-mode revapi:check 2>&1); then
+                    REVAPI_TIME=$(( SECONDS - REVAPI_START ))
+                    echo -e "    ${GREEN}✔ [PASS]${NC} API compatibility check passed (${REVAPI_TIME}s)."
+                else
+                    REVAPI_TIME=$(( SECONDS - REVAPI_START ))
+                    echo -e "    ${RED}❌ [FAIL] API compatibility check failed (${REVAPI_TIME}s):${NC}"
+                    echo "$REVAPI_OUTPUT" | grep -E "(\[ERROR\]|API problems)" | head -n 20 | while IFS= read -r rerr; do
+                        echo -e "       ${RED}✗${NC} $rerr"
+                    done
+                    GATE8_STATUS="FAILED"
+                    FAILED_GATES=$(( FAILED_GATES + 1 ))
+                fi
+            fi
         fi
     fi
 fi
