@@ -22,6 +22,8 @@ import java.io.InputStream;
 
 import javax.net.ssl.KeyManagerFactory;
 
+import com.socketio4j.socketio.misc.EventLoopSafety;
+
 public class SocketSslConfig {
     private String sslProtocol = "TLSv1";
     private boolean sslProtocolExplicitlySet;
@@ -75,12 +77,14 @@ public class SocketSslConfig {
      * Whether a key store is configured (stream not yet consumed or already buffered).
      */
     public boolean hasKeyStore() {
+        EventLoopSafety.requireBlockingAllowed();
         synchronized (sslMaterialLock) {
             return keyStore != null || cachedKeyStoreBytes != null;
         }
     }
 
     byte[] resolveKeyStoreBytes() throws IOException {
+        EventLoopSafety.requireBlockingAllowed();
         synchronized (sslMaterialLock) {
             if (cachedKeyStoreBytes != null) {
                 return cachedKeyStoreBytes;
@@ -141,12 +145,14 @@ public class SocketSslConfig {
      * Whether a trust store is configured (stream not yet consumed or already buffered).
      */
     public boolean hasTrustStore() {
+        EventLoopSafety.requireBlockingAllowed();
         synchronized (sslMaterialLock) {
             return trustStore != null || cachedTrustStoreBytes != null;
         }
     }
 
     byte[] resolveTrustStoreBytes() throws IOException {
+        EventLoopSafety.requireBlockingAllowed();
         synchronized (sslMaterialLock) {
             if (cachedTrustStoreBytes != null) {
                 return cachedTrustStoreBytes;

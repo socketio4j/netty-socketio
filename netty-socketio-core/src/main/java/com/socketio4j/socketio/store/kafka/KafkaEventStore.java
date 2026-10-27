@@ -43,6 +43,8 @@ import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.RecordDeserializationException;
 import org.apache.kafka.common.errors.WakeupException;
+
+import com.socketio4j.socketio.misc.EventLoopSafety;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -219,6 +221,7 @@ public final class KafkaEventStore implements EventStore {
     }
 
     private void awaitPollerBootstrap(EventType type) {
+        EventLoopSafety.requireBlockingAllowed();
         CompletableFuture<Void> signal = consumerBootstrapped.get(type);
         if (signal == null) {
             return;
@@ -307,6 +310,7 @@ public final class KafkaEventStore implements EventStore {
      * @throws IllegalStateException if topic partitions cannot be discovered after retries
      */
     private KafkaConsumer<String, EventMessage> createConsumer(EventType type) {
+        EventLoopSafety.requireBlockingAllowed();
 
         Properties props = new Properties();
         props.putAll(consumerProps);
@@ -495,6 +499,7 @@ public final class KafkaEventStore implements EventStore {
 
     @Override
     public void unsubscribe0(EventType type) {
+        EventLoopSafety.requireBlockingAllowed();
 
         listeners.remove(type);
         consumerBootstrapped.remove(type);
@@ -527,6 +532,7 @@ public final class KafkaEventStore implements EventStore {
 
     @Override
     public void shutdown0() {
+        EventLoopSafety.requireBlockingAllowed();
         if (!running.compareAndSet(true, false)) {
             return;
         }
