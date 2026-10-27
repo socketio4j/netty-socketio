@@ -96,11 +96,22 @@ public class JacksonJsonSupport implements JsonSupport {
                 }
 
                 JsonNode arg = iter.next();
-                if (arg.isTextual() || arg.isBoolean()) {
+                if ((arg.isTextual() || arg.isBoolean()) && !byte[].class.equals(clazz)) {
                     clazz = Object.class;
                 }
 
-                val = mapper.treeToValue(arg, clazz);
+                // Fix: HTTP Polling form-urlencoded decoding converts '+' in Base64 strings to ' ' (0x20).
+                // Intercept byte[] textual nodes, restore '+' characters, and decode directly via Base64.
+                if (byte[].class.equals(clazz) && arg.isTextual()) {
+                    String text = arg.asText();
+                    if (text.contains(" ")) {
+                        text = text.replace(' ', '+');
+                    }
+                    val = java.util.Base64.getDecoder().decode(text);
+                } else {
+                    val = mapper.treeToValue(arg, clazz);
+                }
+
                 args.add(val);
                 i++;
             }
