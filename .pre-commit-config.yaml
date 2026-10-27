@@ -1,0 +1,56 @@
+# ==============================================================================
+# SocketIO4J - Pre-Commit Configuration
+# See https://pre-commit.com for more information
+# ==============================================================================
+default_install_hook_types: [pre-commit]
+default_stages: [pre-commit]
+minimum_pre_commit_version: "3.2.0"
+
+repos:
+  # 1. Standard repository hygiene and security hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: check-json
+      - id: check-yaml
+        args: ['--allow-multiple-documents']
+      - id: end-of-file-fixer
+        exclude: '\.(pem|key|crt|der|log|p12|jks)$'
+      - id: trailing-whitespace
+        exclude: '\.(pem|key|crt|der|log|p12|jks)$'
+      - id: detect-private-key
+        exclude: '^(\.githooks/|.*/src/test/resources/)'
+
+  # 2. SocketIO4J repository-specific integrity gates
+  - repo: local
+    hooks:
+      # Checkstyle enforcement
+      - id: maven-checkstyle
+        name: Maven Checkstyle
+        entry: mvn --batch-mode checkstyle:check
+        language: system
+        pass_filenames: false
+        files: '(\.java$|pom\.xml$|checkstyle\.xml$)'
+
+      # Multi-Release Compilation Gate
+      - id: maven-compile
+        name: Maven Test Compilation Gate
+        entry: mvn --batch-mode test-compile -DskipTests
+        language: system
+        pass_filenames: false
+        files: '(\.java$|pom\.xml$)'
+
+      # Static audit, negative controls, and runtime probes
+      - id: eventloop-safety
+        name: Event-loop lock safety
+        entry: bash verification/locking/check.sh
+        language: system
+        pass_filenames: false
+        require_serial: true
+        files: '(\.java$|(^|/)pom\.xml$|^verification/locking/|^\.github/workflows/eventloop-locks\.yml$|^\.githooks/|^\.pre-commit-config\.yaml$)'
