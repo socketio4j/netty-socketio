@@ -16,23 +16,19 @@
  */
 package com.socketio4j.socketio.store.nats_pubsub;
 
-import java.util.Arrays;
 import java.util.Objects;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentMap;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.store.event.AbstractEventStore;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
-import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.event.SubscriptionRegistry;
 
 import io.nats.client.Connection;
 import io.nats.client.Dispatcher;
@@ -45,26 +41,14 @@ import io.nats.client.Subscription;
  * Unreliable NATS Core based EventStore.
  * Events are ephemeral and not replayed.
  */
-public class NatsEventStore implements EventStore {
+public class NatsEventStore extends AbstractEventStore {
 
     private static final Logger log =
             LoggerFactory.getLogger(NatsEventStore.class);
 
     private final Connection nats;
-    private final Long nodeId;
-    private final EventStoreMode eventStoreMode;
 
-    /**
-     * EventType -> subscriptions
-     */
-    private final ConcurrentMap<EventType, Queue<Subscription>> subscriptions =
-            new ConcurrentHashMap<>();
-
-    /**
-     * Subscription -> dispatcher
-     */
-    private final ConcurrentMap<Subscription, Dispatcher> activeDispatchers =
-            new ConcurrentHashMap<>();
+    private final SubscriptionRegistry<Subscription, Dispatcher> subscriptions = new SubscriptionRegistry<>();
 
     // ----------------------------------------------------------------------
     // Constructors
@@ -80,18 +64,8 @@ public class NatsEventStore implements EventStore {
     public NatsEventStore(@NotNull Connection natsConnection,
                           @Nullable EventStoreMode eventStoreMode,
                           @Nullable Long nodeId) {
-
+        super(nodeId, eventStoreMode, EventStoreMode.MULTI_CHANNEL, null, "");
         this.nats = Objects.requireNonNull(natsConnection, "natsConnection");
-
-        if (nodeId == null) {
-            nodeId = getNodeId();
-        }
-        this.nodeId = nodeId;
-
-        if (eventStoreMode == null) {
-            eventStoreMode = EventStoreMode.MULTI_CHANNEL;
-        }
-        this.eventStoreMode = eventStoreMode;
     }
 
     // ----------------------------------------------------------------------
@@ -99,17 +73,12 @@ public class NatsEventStore implements EventStore {
     // ----------------------------------------------------------------------
 
     @Override
-    public EventStoreMode getEventStoreMode() {
-        return eventStoreMode;
-    }
-
-    @Override
     public void publish0(EventType type, EventMessage msg) {
-        msg.setNodeId(nodeId);
+        stampNodeId(msg);
 
         try {
             byte[] data = EventMessageCodec.serialize(msg);
-            nats.publish(getSubjectName(type), data);
+            nats.publish(channelName(type), data);
         } catch (Exception e) {
             log.warn("Failed to publish event {}", type, e);
         }
@@ -121,13 +90,13 @@ public class NatsEventStore implements EventStore {
             final EventListener<T> listener,
             Class<T> clazz) {
 
-        final String subject = getSubjectName(type);
+        final String subject = channelName(type);
         final Dispatcher dispatcher = nats.createDispatcher();
 
         Subscription subscription = dispatcher.subscribe(subject, (Message msg) -> {
             try {
                 T event = EventMessageCodec.deserialize(msg.getData(), clazz);
-                if (!nodeId.equals(event.getNodeId())) {
+                if (isRemote(event)) {
                     listener.onMessage(event);
                 }
             } catch (Exception e) {
@@ -135,49 +104,21 @@ public class NatsEventStore implements EventStore {
             }
         });
 
-        activeDispatchers.put(subscription, dispatcher);
-        subscriptions
-                .computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
-                .add(subscription);
+        subscriptions.add(type, subscription, dispatcher);
     }
 
     @Override
     public void unsubscribe0(EventType type) {
-        Queue<Subscription> subs = subscriptions.remove(type);
-        if (subs == null || subs.isEmpty()) {
-            return;
-        }
-
-        for (Subscription sub : subs) {
-            try {
-                Dispatcher dispatcher = activeDispatchers.remove(sub);
-                if (dispatcher != null) {
-                    dispatcher.unsubscribe(sub);
-                    //sub.unsubscribe();
-                    nats.closeDispatcher(dispatcher);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to unsubscribe from {}", type, e);
-            }
-        }
+        subscriptions.remove(type, (subscription, dispatcher) -> {
+            dispatcher.unsubscribe(subscription);
+            nats.closeDispatcher(dispatcher);
+        });
     }
 
     @Override
     public void shutdown0() {
-        Arrays.stream(EventType.values()).forEach(this::unsubscribe);
+        unsubscribeAll();
         subscriptions.clear();
-        activeDispatchers.clear();
-    }
-
-    // ----------------------------------------------------------------------
-    // Helpers
-    // ----------------------------------------------------------------------
-
-    private String getSubjectName(EventType type) {
-        if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            return EventType.ALL_SINGLE_CHANNEL.name();
-        }
-        return type.name();
     }
 
     // ----------------------------------------------------------------------
