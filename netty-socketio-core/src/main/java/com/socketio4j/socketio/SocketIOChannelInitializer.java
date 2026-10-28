@@ -276,6 +276,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
     }
 
     public void stop() {
+        ackManager.clear();
         StoreFactory factory = configuration.getStoreFactory();
         factory.shutdown();
         scheduler.shutdown();
