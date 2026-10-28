@@ -16,6 +16,8 @@
  */
 package com.socketio4j.socketio.quarkus.deployment;
 
+import org.jboss.jandex.DotName;
+
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.annotation.OnConnect;
 import com.socketio4j.socketio.annotation.OnDisconnect;
@@ -26,6 +28,7 @@ import com.socketio4j.socketio.quarkus.recorder.NettySocketIOConfigRecorder;
 
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
 import io.quarkus.arc.deployment.SyntheticBeanBuildItem;
+import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
@@ -49,7 +52,7 @@ class SocketIOExtensionProcessor {
 
     /**
      * Register default Socket.IO beans.
-     * @return
+     * @return additional bean build item
      */
     @BuildStep
     AdditionalBeanBuildItem defaultSocketIOBeans() {
@@ -63,7 +66,7 @@ class SocketIOExtensionProcessor {
 
     /**
      * Register Socket.IO annotations for reflection.
-     * @return
+     * @return reflective class build item
      */
     @BuildStep
     ReflectiveClassBuildItem reflection() {
@@ -71,14 +74,24 @@ class SocketIOExtensionProcessor {
                 OnConnect.class,
                 OnDisconnect.class,
                 OnEvent.class
-        ).methods().build();
+        ).methods().fields().build();
     }
 
+    /**
+     * Ensure beans containing Socket.IO annotations are not stripped by ArC dead code elimination.
+     * @param producer build producer for unremovable beans
+     */
+    @BuildStep
+    void unremovableBeans(BuildProducer<UnremovableBeanBuildItem> producer) {
+        producer.produce(UnremovableBeanBuildItem.targetWithAnnotation(DotName.createSimple(OnConnect.class.getName())));
+        producer.produce(UnremovableBeanBuildItem.targetWithAnnotation(DotName.createSimple(OnDisconnect.class.getName())));
+        producer.produce(UnremovableBeanBuildItem.targetWithAnnotation(DotName.createSimple(OnEvent.class.getName())));
+    }
 
     /**
      * Create SocketIOServer bean.
-     * @param nettySocketIOConfigRecorder
-     * @param syntheticBeanBuildItemProducer
+     * @param nettySocketIOConfigRecorder config recorder
+     * @param syntheticBeanBuildItemProducer synthetic bean producer
      */
     @BuildStep
     @Record(ExecutionTime.RUNTIME_INIT)
@@ -99,7 +112,7 @@ class SocketIOExtensionProcessor {
 
     /**
      * Register SocketIOServerLifecycle bean.
-     * @return
+     * @return additional bean build item
      */
     @BuildStep
     AdditionalBeanBuildItem socketIOServerLifecycle() {
