@@ -17,6 +17,9 @@
 package com.socketio4j.socketio.scheduler;
 
 
+import com.socketio4j.socketio.annotation.Internal;
+
+@Internal
 public class SchedulerKey {
 
     public enum Type {PING, PING_TIMEOUT, ACK_TIMEOUT, UPGRADE_TIMEOUT, POLL_FLUSH_TIMEOUT};

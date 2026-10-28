@@ -48,6 +48,8 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
+import com.socketio4j.socketio.misc.EventLoopSafety;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -100,6 +102,8 @@ public final class KafkaEventStore implements EventStore {
     private final ConcurrentMap<EventType, CompletableFuture<Void>> consumerBootstrapped =
             new ConcurrentHashMap<>();
 
+    private final SocketIOMetrics metrics;
+
     // ---------------------------------------------------------------------
     // Constructor
     // ---------------------------------------------------------------------
@@ -109,7 +113,8 @@ public final class KafkaEventStore implements EventStore {
             @NotNull Properties consumerProps,
             @Nullable Long nodeId,
             @Nullable EventStoreMode mode,
-            @Nullable String topicPrefix
+            @Nullable String topicPrefix,
+            @Nullable SocketIOMetrics metrics
     ) {
 
         this.producer = Objects.requireNonNull(producer);
@@ -127,6 +132,21 @@ public final class KafkaEventStore implements EventStore {
             topicPrefix = "SOCKETIO4J-";
         }
         this.topicPrefix = Objects.requireNonNull(topicPrefix);
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    public KafkaEventStore(
+            @NotNull KafkaProducer<String, EventMessage> producer,
+            @NotNull Properties consumerProps,
+            @Nullable Long nodeId,
+            @Nullable EventStoreMode mode,
+            @Nullable String topicPrefix
+    ) {
+        this(producer, consumerProps, nodeId, mode, topicPrefix, SocketIOMetrics.noop());
     }
 
     // ---------------------------------------------------------------------
@@ -175,6 +195,7 @@ public final class KafkaEventStore implements EventStore {
         producer.send(record, (metadata, ex) -> {
             if (ex != null) {
                 log.error("Kafka publish failed {}", type, ex);
+                metrics.eventPublishFailed(extractNamespace(msg));
             } else {
                 log.debug(
                         "Kafka published topic={} partition={} offset={}",
@@ -184,6 +205,11 @@ public final class KafkaEventStore implements EventStore {
                 );
             }
         });
+    }
+
+    @Override
+    public SocketIOMetrics getMetrics() {
+        return this.metrics;
     }
 
     // ---------------------------------------------------------------------
@@ -219,6 +245,7 @@ public final class KafkaEventStore implements EventStore {
     }
 
     private void awaitPollerBootstrap(EventType type) {
+        EventLoopSafety.requireBlockingAllowed();
         CompletableFuture<Void> signal = consumerBootstrapped.get(type);
         if (signal == null) {
             return;
@@ -307,6 +334,7 @@ public final class KafkaEventStore implements EventStore {
      * @throws IllegalStateException if topic partitions cannot be discovered after retries
      */
     private KafkaConsumer<String, EventMessage> createConsumer(EventType type) {
+        EventLoopSafety.requireBlockingAllowed();
 
         Properties props = new Properties();
         props.putAll(consumerProps);
@@ -495,6 +523,7 @@ public final class KafkaEventStore implements EventStore {
 
     @Override
     public void unsubscribe0(EventType type) {
+        EventLoopSafety.requireBlockingAllowed();
 
         listeners.remove(type);
         consumerBootstrapped.remove(type);
@@ -527,6 +556,7 @@ public final class KafkaEventStore implements EventStore {
 
     @Override
     public void shutdown0() {
+        EventLoopSafety.requireBlockingAllowed();
         if (!running.compareAndSet(true, false)) {
             return;
         }

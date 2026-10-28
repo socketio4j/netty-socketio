@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.Transport;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.handler.AuthorizeHandler;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.handler.ClientsBox;
@@ -53,6 +54,7 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.websocketx.WebSocket13FrameDecoder;
 
+@Internal
 @Sharable
 public class PollingTransport extends ChannelInboundHandlerAdapter {
 
@@ -177,8 +179,9 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             return;
         }
 
+        boolean isV4 = EngineIOVersion.V4.equals(client.getEngineIOVersion());
         String contentType = req.headers().get(HttpHeaderNames.CONTENT_TYPE);
-        if (client.getEngineIOVersion().getValue().equals("4")
+        if (isV4
                 && contentType != null
                 && contentType.toLowerCase(Locale.ROOT).startsWith("application/octet-stream")) {
             log.debug("Rejecting raw binary Engine.IO v4 polling POST for session {}", sessionId);
@@ -190,7 +193,7 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         // Engine.IO v4 polling is a record-separated text payload. Reject an
         // invalid Engine.IO frame before acknowledging the POST so the client
         // receives the protocol-mandated 400 and the session cannot be reused.
-        if (client.getEngineIOVersion().getValue().equals("4")
+        if (isV4
                 && !isValidV4PollingPayload(req.content())) {
             log.debug("Rejecting malformed Engine.IO v4 polling payload for session {}", sessionId);
             client.onChannelDisconnect();
@@ -200,7 +203,9 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
 
         if (!client.tryAcquirePollingPost()) {
             log.debug("Rejecting overlapping polling POST for session {}", sessionId);
-            client.onChannelDisconnect();
+            if (isV4) {
+                client.onChannelDisconnect();
+            }
             sendError(ctx);
             return;
         }
@@ -242,21 +247,22 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         }
         int frameStart = content.readerIndex();
         int end = content.writerIndex();
+        int validFrames = 0;
         for (int i = frameStart; i <= end; i++) {
             if (i == end || content.getByte(i) == 0x1E) {
-                if (i == frameStart) {
-                    return false;
-                }
-                byte type = content.getByte(frameStart);
-                // "b" is the v4 polling binary frame marker. Other frames
-                // begin with the ASCII Engine.IO packet type (0 through 6).
-                if (type != 'b' && (type < '0' || type > '6')) {
-                    return false;
+                if (i > frameStart) {
+                    byte type = content.getByte(frameStart);
+                    // "b" is the v4 polling binary frame marker. Other frames
+                    // begin with the ASCII Engine.IO packet type (0 through 6).
+                    if (type != 'b' && (type < '0' || type > '6')) {
+                        return false;
+                    }
+                    validFrames++;
                 }
                 frameStart = i + 1;
             }
         }
-        return true;
+        return validFrames > 0;
     }
 
     protected void onGet(UUID sessionId, ChannelHandlerContext ctx, String origin) {
@@ -269,8 +275,12 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
 
         if (!client.tryBindPollingChannel(ctx.channel())) {
             log.debug("Rejecting overlapping polling GET for session {}", sessionId);
-            client.onChannelDisconnect();
             sendError(ctx);
+            // Binding can also fail because the session already disconnected.
+            // Only a live v4 session has an outstanding poll to terminate.
+            if (EngineIOVersion.V4.equals(client.getEngineIOVersion()) && client.isConnected()) {
+                client.disconnectWithProtocolClose();
+            }
             return;
         }
 

@@ -16,9 +16,8 @@
  */
 package com.socketio4j.socketio.handler;
 
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
 
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
@@ -28,38 +27,37 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Unit test for WrongUrlHandler.
- * Verifies that invalid context path requests return HTTP 400 Bad Request and close the channel.
- */
+@DisplayName("WrongUrlHandler Tests")
+class WrongUrlHandlerTest {
 
-public class WrongUrlHandlerTest {
+    @Test
+    @DisplayName("Should answer BAD REQUEST, release the request and close the channel")
+    void shouldRejectHttpRequest() {
+        EmbeddedChannel channel = new EmbeddedChannel(new WrongUrlHandler());
+        FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET,
+                "/wrong/?key=value");
 
-    private WrongUrlHandler handler;
-    private EmbeddedChannel channel;
+        channel.writeInbound(request);
 
-    @BeforeEach
-    public void setUp() {
-        handler = new WrongUrlHandler();
-        channel = new EmbeddedChannel(handler);
+        HttpResponse response = channel.readOutbound();
+        assertThat(response.status()).isEqualTo(HttpResponseStatus.BAD_REQUEST);
+        assertThat(request.refCnt()).isZero();
+        assertThat(channel.isOpen()).isFalse();
+        assertThat((Object) channel.readInbound()).isNull();
     }
 
     @Test
-    public void testWrongUrlReturnsBadRequestAndClosesChannel() throws Exception {
-        FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/wrong/socket.io/path");
+    @DisplayName("Should pass through messages which are not http requests")
+    void shouldPassThroughNonHttpMessages() {
+        EmbeddedChannel channel = new EmbeddedChannel(new WrongUrlHandler());
 
-        channel.writeInbound(req);
+        channel.writeInbound("payload");
 
-        HttpResponse res = channel.readOutbound();
-        assertNotNull(res, "Response should not be null");
-        assertEquals(HttpResponseStatus.BAD_REQUEST, res.status(), "Response status should be 400 Bad Request");
-
-        // Verify channel is closed after writing bad request response
-        assertFalse(channel.isOpen(), "Channel should be closed after handling wrong URL request");
-        assertEquals(0, req.refCnt(), "HTTP Request reference count should be released");
+        assertThat((Object) channel.readOutbound()).isNull();
+        assertThat((String) channel.readInbound()).isEqualTo("payload");
+        assertThat(channel.isOpen()).isTrue();
+        channel.finishAndReleaseAll();
     }
 }

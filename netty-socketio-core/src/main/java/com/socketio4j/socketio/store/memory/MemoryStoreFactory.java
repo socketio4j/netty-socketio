@@ -22,7 +22,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -50,7 +52,17 @@ public class MemoryStoreFactory extends BaseStoreFactory {
      * @apiNote Added in API version {@code 4.0.0}
      */
     public MemoryStoreFactory() {
-        this.eventStore = new MemoryEventStore();
+        this((SocketIOMetrics) null);
+    }
+
+    /**
+     * Creates a new {@code MemoryStoreFactory} with metrics tracking.
+     * Both session data and events remain local to the JVM.
+     *
+     * @param metrics metrics instance, or null for no-op metrics
+     */
+    public MemoryStoreFactory(@Nullable SocketIOMetrics metrics) {
+        this.eventStore = new MemoryEventStore(metrics);
     }
 
     /**

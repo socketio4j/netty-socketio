@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.AuthTokenResult;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.listener.ExceptionListener;
 import com.socketio4j.socketio.messages.PacketsMessage;
 import com.socketio4j.socketio.namespace.Namespace;
@@ -40,6 +41,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.CharsetUtil;
 
+@Internal
 @Sharable
 public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage> {
 

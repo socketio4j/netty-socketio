@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.Transport;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.messages.HttpErrorMessage;
 import com.socketio4j.socketio.messages.HttpMessage;
 import com.socketio4j.socketio.messages.OutPacketMessage;
@@ -71,6 +72,7 @@ import io.netty.util.concurrent.GenericFutureListener;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
+@Internal
 @Sharable
 public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
@@ -124,7 +126,8 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         if (msg.getSessionId() != null) {
             res.headers().add(HttpHeaderNames.SET_COOKIE, "io=" + msg.getSessionId());
         }
-        res.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE)
+        res.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE)
+                .add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, "GET, POST, OPTIONS")
                 .add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, HttpHeaderNames.CONTENT_TYPE);
 
         String origin = ctx.channel().attr(ORIGIN).get();
@@ -144,7 +147,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         HttpResponse res = new DefaultHttpResponse(HTTP_1_1, status);
 
         res.headers().add(HttpHeaderNames.CONTENT_TYPE, type)
-                .add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+                .add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
         if (msg.getSessionId() != null) {
             res.headers().add(HttpHeaderNames.SET_COOKIE, "io=" + msg.getSessionId());
         }
@@ -183,6 +186,9 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
         if (msg instanceof OutPacketMessage) {
             OutPacketMessage outMsg = (OutPacketMessage) msg;
+            if (outMsg.getTransport() == Transport.POLLING) {
+                outMsg.getClientHead().releasePollingChannel(channel);
+            }
             if (outMsg.getClientHead().hasPollFlushedListeners()) {
                 promise.addListener(f -> {
                     outMsg.getClientHead().notifyPollFlushed();
@@ -214,13 +220,22 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             if (configuration.getOrigin() != null) {
                 res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, configuration.getOrigin());
                 res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, Boolean.TRUE);
-            } else {
-                if (origin != null) {
-                    res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
-                    res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, Boolean.TRUE);
-                } else {
-                    res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+                res.headers().add(HttpHeaderNames.VARY, HttpHeaderNames.ORIGIN);
+            } else if (origin == null) {
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+            } else if (!configuration.getAllowedOrigins().isEmpty()) {
+                if (!configuration.isOriginAllowed(origin)) {
+                    res.headers().add(HttpHeaderNames.VARY, HttpHeaderNames.ORIGIN);
+                    return;
                 }
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, Boolean.TRUE);
+                res.headers().add(HttpHeaderNames.VARY, HttpHeaderNames.ORIGIN);
+            } else {
+                // credentials are not allowed for arbitrary reflected origins,
+                // configure allowedOrigins or origin to enable them
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+                res.headers().add(HttpHeaderNames.VARY, HttpHeaderNames.ORIGIN);
             }
             if (configuration.getAllowHeaders() != null) {
                 res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, configuration.getAllowHeaders());

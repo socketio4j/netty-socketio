@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOChannelInitializer;
 import com.socketio4j.socketio.Transport;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.handler.AuthorizeHandler;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.handler.ClientsBox;
@@ -64,6 +65,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
+@Internal
 @Sharable
 public class WebSocketTransport extends ChannelInboundHandlerAdapter {
 
@@ -137,6 +139,12 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
 
             if (transport != null && transport.size() == 1 && NAME.equals(transport.get(0))) {
                 try {
+                    String origin = req.headers().get(HttpHeaderNames.ORIGIN);
+                    if (origin != null && !configuration.isOriginAllowed(origin)) {
+                        log.warn("Blocked websocket request from disallowed origin: {}, client: {}", origin, ctx.channel().remoteAddress());
+                        writeForbidden(ctx);
+                        return;
+                    }
                     if (!configuration.getTransports().contains(Transport.WEBSOCKET)) {
                         log.debug("{} transport not supported by configuration.", Transport.WEBSOCKET);
                         ctx.channel().close();
@@ -315,6 +323,11 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
 
     private void writeBadRequest(ChannelHandlerContext ctx) {
         ctx.channel().writeAndFlush(new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.BAD_REQUEST))
+                .addListener(ChannelFutureListener.CLOSE);
+    }
+
+    private void writeForbidden(ChannelHandlerContext ctx) {
+        ctx.channel().writeAndFlush(new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.FORBIDDEN))
                 .addListener(ChannelFutureListener.CLOSE);
     }
 

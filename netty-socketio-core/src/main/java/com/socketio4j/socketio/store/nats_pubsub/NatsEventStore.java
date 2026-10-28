@@ -28,6 +28,7 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -53,6 +54,7 @@ public class NatsEventStore implements EventStore {
     private final Connection nats;
     private final Long nodeId;
     private final EventStoreMode eventStoreMode;
+    private final SocketIOMetrics metrics;
 
     /**
      * EventType -> subscriptions
@@ -76,10 +78,12 @@ public class NatsEventStore implements EventStore {
      * @param natsConnection shared NATS connection
      * @param eventStoreMode SINGLE_CHANNEL or MULTI_CHANNEL
      * @param nodeId node identifier (used to ignore self-published events)
+     * @param metrics metrics instance
      */
     public NatsEventStore(@NotNull Connection natsConnection,
                           @Nullable EventStoreMode eventStoreMode,
-                          @Nullable Long nodeId) {
+                          @Nullable Long nodeId,
+                          @Nullable SocketIOMetrics metrics) {
 
         this.nats = Objects.requireNonNull(natsConnection, "natsConnection");
 
@@ -92,6 +96,17 @@ public class NatsEventStore implements EventStore {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         }
         this.eventStoreMode = eventStoreMode;
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    public NatsEventStore(@NotNull Connection natsConnection,
+                          @Nullable EventStoreMode eventStoreMode,
+                          @Nullable Long nodeId) {
+        this(natsConnection, eventStoreMode, nodeId, SocketIOMetrics.noop());
     }
 
     // ----------------------------------------------------------------------
@@ -112,7 +127,13 @@ public class NatsEventStore implements EventStore {
             nats.publish(getSubjectName(type), data);
         } catch (Exception e) {
             log.warn("Failed to publish event {}", type, e);
+            metrics.eventPublishFailed(extractNamespace(msg));
         }
+    }
+
+    @Override
+    public SocketIOMetrics getMetrics() {
+        return this.metrics;
     }
 
     @Override
@@ -192,6 +213,7 @@ public class NatsEventStore implements EventStore {
         // Optional
         private Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
         public Builder(@NotNull Connection nats) {
             this.nats = Objects.requireNonNull(nats, "nats");
@@ -207,11 +229,21 @@ public class NatsEventStore implements EventStore {
             return this;
         }
 
+        public Builder metrics(@Nullable SocketIOMetrics metrics) {
+            if (metrics != null) {
+                this.metrics = metrics;
+            } else {
+                this.metrics = SocketIOMetrics.noop();
+            }
+            return this;
+        }
+
         public NatsEventStore build() {
             return new NatsEventStore(
                     nats,
                     eventStoreMode,
-                    nodeId
+                    nodeId,
+                    metrics
             );
         }
     }
