@@ -439,7 +439,7 @@ public class ClientHead {
             Channel channel = state.getChannel();
             if (channel != null && state.compareAndSet(channel, null)) {
                 clientsBox.remove(channel);
-                if (transport != deferredCloseTransport && channel.isOpen()) {
+                if (transport == Transport.WEBSOCKET && transport != deferredCloseTransport && channel.isOpen()) {
                     channel.close();
                 }
             }
