@@ -395,11 +395,12 @@ else
             fi
 
             # Sub-Gate 8.4: API Compatibility Check (Revapi)
+            # Only bundle modules produce API artifacts; exclude pom aggregators.
             REVAPI_STAGED=$(echo "$STAGED_FILES" | grep -E '(\.java$|(^|/)pom\.xml$)' || true)
             if [ "$GATE8_STATUS" != "FAILED" ] && [ -n "$REVAPI_STAGED" ]; then
-                echo -e "  ${BLUE}• [8.4]${NC} Running API compatibility check (mvn revapi:check)..."
+                echo -e "  ${BLUE}• [8.4]${NC} Packaging bundle modules and running API compatibility check (mvn package -DskipTests revapi:check)..."
                 REVAPI_START=$SECONDS
-                if REVAPI_OUTPUT=$($MVN_CMD --batch-mode revapi:check 2>&1); then
+                if REVAPI_OUTPUT=$($MVN_CMD --batch-mode -pl netty-socketio-core,netty-socketio-spring,netty-socketio-spring-boot-starter,netty-socketio-micronaut package -DskipTests revapi:check 2>&1); then
                     REVAPI_TIME=$(( SECONDS - REVAPI_START ))
                     echo -e "    ${GREEN}✔ [PASS]${NC} API compatibility check passed (${REVAPI_TIME}s)."
                 else
