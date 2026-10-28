@@ -18,6 +18,7 @@ package com.socketio4j.socketio.spring;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.ReflectionUtils;
 import org.springframework.util.ReflectionUtils.MethodCallback;
 import org.springframework.util.ReflectionUtils.MethodFilter;
@@ -39,16 +41,23 @@ public class SpringAnnotationScanner implements BeanPostProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(SpringAnnotationScanner.class);
 
+    private static final Method AOP_GET_TARGET_CLASS;
+
+    static {
+        Method method = null;
+        try {
+            Class<?> aopUtilsClass = Class.forName("org.springframework.aop.support.AopUtils");
+            method = aopUtilsClass.getMethod("getTargetClass", Object.class);
+        } catch (Exception | LinkageError ignored) {
+            // spring-aop not present on classpath
+        }
+        AOP_GET_TARGET_CLASS = method;
+    }
+
     private final List<Class<? extends Annotation>> annotations =
-                    Arrays.asList(OnConnect.class, OnDisconnect.class, OnEvent.class);
+            Arrays.asList(OnConnect.class, OnDisconnect.class, OnEvent.class);
 
     private final SocketIOServer socketIOServer;
-
-    private Class originalBeanClass;
-
-    private Object originalBean;
-
-    private String originalBeanName;
 
     public SpringAnnotationScanner(SocketIOServer socketIOServer) {
         super();
@@ -57,44 +66,60 @@ public class SpringAnnotationScanner implements BeanPostProcessor {
 
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
-        if (originalBeanClass != null) {
-            socketIOServer.addListeners(originalBean, originalBeanClass);
-            log.info("{} bean listeners added", originalBeanName);
-            originalBeanClass = null;
-            originalBeanName = null;
+        if (bean != null) {
+            Class<?> targetClass = resolveTargetClass(bean);
+            if (targetClass != null && hasSocketIOAnnotations(targetClass)) {
+                socketIOServer.addListeners(bean, targetClass);
+                log.info("{} bean listeners added", beanName);
+            }
         }
         return bean;
     }
 
     @Override
     public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
-        final AtomicBoolean add = new AtomicBoolean();
-        ReflectionUtils.doWithMethods(bean.getClass(),
-                new MethodCallback() {
-            @Override
-            public void doWith(Method method) throws IllegalArgumentException,
-            IllegalAccessException {
-                add.set(true);
-            }
-        },
-        new MethodFilter() {
-            @Override
-            public boolean matches(Method method) {
-                for (Class<? extends Annotation> annotationClass : annotations) {
-                    if (method.isAnnotationPresent(annotationClass)) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-        });
-
-        if (add.get()) {
-            originalBeanClass = bean.getClass();
-            originalBean = bean;
-            originalBeanName = beanName;
-        }
         return bean;
     }
 
+    private Class<?> resolveTargetClass(Object bean) {
+        if (AOP_GET_TARGET_CLASS != null) {
+            try {
+                return (Class<?>) AOP_GET_TARGET_CLASS.invoke(null, bean);
+            } catch (Exception | LinkageError ignored) {
+                // fall through to getUserClass
+            }
+        }
+        Class<?> userClass = ClassUtils.getUserClass(bean);
+        if (Proxy.isProxyClass(userClass)) {
+            for (Class<?> ifc : userClass.getInterfaces()) {
+                if (hasSocketIOAnnotations(ifc)) {
+                    return ifc;
+                }
+            }
+        }
+        return userClass;
+    }
+
+    private boolean hasSocketIOAnnotations(Class<?> clazz) {
+        final AtomicBoolean hasAnnotation = new AtomicBoolean();
+        ReflectionUtils.doWithMethods(clazz,
+                new MethodCallback() {
+                    @Override
+                    public void doWith(Method method) throws IllegalArgumentException, IllegalAccessException {
+                        hasAnnotation.set(true);
+                    }
+                },
+                new MethodFilter() {
+                    @Override
+                    public boolean matches(Method method) {
+                        for (Class<? extends Annotation> annotationClass : annotations) {
+                            if (method.isAnnotationPresent(annotationClass)) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                });
+        return hasAnnotation.get();
+    }
 }
