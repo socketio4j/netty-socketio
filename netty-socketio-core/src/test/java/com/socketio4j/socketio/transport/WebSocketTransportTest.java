@@ -31,13 +31,20 @@
  */
 package com.socketio4j.socketio.transport;
 
-import org.junit.jupiter.api.Test;
+import java.util.UUID;
 
+import org.junit.jupiter.api.Test;
 
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.handler.ClientsBox;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
+
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -47,14 +54,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import java.util.UUID;
-
-import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
 
 /**
  * @author hangsu.cho@navercorp.com
@@ -127,6 +126,22 @@ public class WebSocketTransportTest {
     transport.channelWritabilityChanged(channel.pipeline().firstContext());
 
     verify(clientHead).flush(Transport.WEBSOCKET);
+  }
+
+  @Test
+  public void testChannelInactiveDoesNotQueueDisconnectPacketOnDeadSession() throws Exception {
+    ClientsBox clientsBox = mock(ClientsBox.class);
+    ClientHead clientHead = mock(ClientHead.class);
+    WebSocketTransport transport = new WebSocketTransport(false, null, null, null, clientsBox);
+
+    EmbeddedChannel channel = new EmbeddedChannel(transport);
+    when(clientsBox.get(channel)).thenReturn(clientHead);
+    when(clientHead.isTransportChannel(channel, Transport.WEBSOCKET)).thenReturn(true);
+
+    channel.close();
+
+    verify(clientHead).onChannelDisconnect();
+    verify(clientHead, never()).send(any());
   }
 
   private EmbeddedChannel createChannel() {

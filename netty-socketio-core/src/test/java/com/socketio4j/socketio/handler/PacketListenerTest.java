@@ -327,6 +327,24 @@ public class PacketListenerTest {
             verify(baseClient, never()).schedulePingTimeout();
             channel.finishAndReleaseAll();
         }
+
+        @Test
+        @DisplayName("Should mark upgrade in progress and queue NOOP when WebSocket is temporarily unwritable during probe PING")
+        void shouldBeginUpgradeWhenWebSocketTemporarilyUnwritableOnProbePing() {
+            when(baseClient.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
+            when(baseClient.isConnected()).thenReturn(true);
+            when(baseClient.send(any(Packet.class), eq(Transport.WEBSOCKET))).thenReturn(null);
+
+            Packet packet = createPacket(PacketType.PING);
+            packet.setData("probe");
+
+            packetListener.onTransportPacket(packet, baseClient, Transport.WEBSOCKET);
+
+            verify(baseClient).beginUpgrade();
+            verify(baseClient).send(any(Packet.class), eq(Transport.WEBSOCKET));
+            verify(baseClient).send(packetCaptor.capture(), eq(Transport.POLLING));
+            assertEquals(PacketType.NOOP, packetCaptor.getValue().getType());
+        }
     }
 
     
