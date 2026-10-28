@@ -97,6 +97,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
     private InPacketHandler packetHandler;
     private SslContext sslContext;
     private Configuration configuration;
+    private boolean needClientAuth;
 
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) {
@@ -123,6 +124,9 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
                 throw new IllegalStateException(e);
             }
         }
+        this.needClientAuth = configuration.isNeedClientAuth()
+                && socketSslConfig != null
+                && socketSslConfig.hasTrustStore();
 
         StoreFactory factory = configuration.getStoreFactory();
         authorizeHandler = new AuthorizeHandler(connectPath, scheduler, configuration, namespacesHub, factory, this, ackManager, clientsBox);
@@ -160,9 +164,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         if (sslContext != null) {
             SSLEngine engine = sslContext.newEngine(pipeline.channel().alloc());
             engine.setUseClientMode(false);
-            if (configuration.isNeedClientAuth()
-                    && configuration.getSocketSslConfig() != null
-                    && configuration.getSocketSslConfig().hasTrustStore()) {
+            if (needClientAuth) {
                 engine.setNeedClientAuth(true);
             }
             pipeline.addLast(SSL_HANDLER, new SslHandler(engine));

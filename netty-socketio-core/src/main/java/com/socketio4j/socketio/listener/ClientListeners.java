@@ -27,7 +27,15 @@ public interface ClientListeners {
 
     void addDisconnectListener(DisconnectListener listener);
 
+    default void removeDisconnectListener(DisconnectListener listener) {
+        throw new UnsupportedOperationException("removeDisconnectListener is not implemented");
+    }
+
     void addConnectListener(ConnectListener listener);
+
+    default void removeConnectListener(ConnectListener listener) {
+        throw new UnsupportedOperationException("removeConnectListener is not implemented");
+    }
 
     /**
      * from v4, ping will always be sent by server except probe ping packet sent from client,

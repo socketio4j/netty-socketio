@@ -48,6 +48,7 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.misc.EventLoopSafety;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -219,6 +220,7 @@ public final class KafkaEventStore implements EventStore {
     }
 
     private void awaitPollerBootstrap(EventType type) {
+        EventLoopSafety.requireBlockingAllowed();
         CompletableFuture<Void> signal = consumerBootstrapped.get(type);
         if (signal == null) {
             return;
@@ -307,6 +309,7 @@ public final class KafkaEventStore implements EventStore {
      * @throws IllegalStateException if topic partitions cannot be discovered after retries
      */
     private KafkaConsumer<String, EventMessage> createConsumer(EventType type) {
+        EventLoopSafety.requireBlockingAllowed();
 
         Properties props = new Properties();
         props.putAll(consumerProps);
@@ -441,7 +444,12 @@ public final class KafkaEventStore implements EventStore {
 
                     // Continue loop → next poll()
                 } catch (WakeupException e) {
-                    // Expected during shutdown - consumer.wakeup() was called
+                    // Expected during shutdown or unsubscribe - consumer.wakeup() was called
+                    if (running.get() && consumers.get(type) == consumer) {
+                        log.error("Unexpected Kafka consumer wakeup for type {}", type, e);
+                        throw e;
+                    }
+                    log.debug("Kafka consumer wakeup for type {}", type);
                     break;
                 }
             }
@@ -450,6 +458,7 @@ public final class KafkaEventStore implements EventStore {
         } finally {
             try {
                 consumer.close();
+                consumers.remove(type, consumer);
             } catch (Exception e) {
                 log.warn("Error closing Kafka consumer {}", type, e);
             }
@@ -489,43 +498,76 @@ public final class KafkaEventStore implements EventStore {
 
     @Override
     public void unsubscribe0(EventType type) {
+        EventLoopSafety.requireBlockingAllowed();
 
         listeners.remove(type);
         consumerBootstrapped.remove(type);
 
         KafkaConsumer<?, ?> consumer = consumers.remove(type);
         if (consumer != null) {
-            consumer.wakeup(); // primary shutdown signal
+            consumer.wakeup();
         }
 
-        ExecutorService exec = pollers.remove(type);
-        if (exec != null) {
-            exec.shutdown(); // graceful
+        ExecutorService executor = pollers.remove(type);
+        if (executor != null) {
+            executor.shutdown();
 
-            if (exec.isTerminated()) {
-                log.info("exec {} terminated", type);
+            try {
+                if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
+                    log.warn("Kafka poller for {} did not terminate within 30 seconds; forcing shutdown", type);
+
+                    executor.shutdownNow();
+
+                    if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                        log.warn("Kafka poller for {} did not terminate after forced shutdown", type);
+                    }
+                }
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
             }
         }
     }
 
-
     @Override
     public void shutdown0() {
+        EventLoopSafety.requireBlockingAllowed();
+        if (!running.compareAndSet(true, false)) {
+            return;
+        }
         running.set(false);
 
-        listeners.clear();
-        consumerBootstrapped.clear();
-
+        // Interrupt any blocking poll()
         consumers.values().forEach(KafkaConsumer::wakeup);
-        consumers.clear();
 
-        pollers.values().forEach(ExecutorService::shutdownNow);
-        pollers.clear();
+        // Stop accepting new polling tasks
+        pollers.values().forEach(ExecutorService::shutdown);
+
+        // Wait for pollers to close their consumers
+        for (ExecutorService executor : pollers.values()) {
+            try {
+                if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
+                    log.warn("Kafka poller did not terminate within 30 seconds; forcing shutdown");
+                    executor.shutdownNow();
+
+                    if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                        log.warn("Kafka poller did not terminate after forced shutdown");
+                    }
+                }
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
 
         try {
-            producer.flush();
+            producer.close(); // flushes before closing
         } finally {
-            producer.close();
+            consumers.clear();
+            pollers.clear();
+            listeners.clear();
+            consumerBootstrapped.clear();
         }
     }
 
