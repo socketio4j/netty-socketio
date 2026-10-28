@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Queue;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -50,12 +51,19 @@ import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.misc.EventLoopSafety;
+import com.socketio4j.socketio.store.event.BulkJoinMessage;
+import com.socketio4j.socketio.store.event.BulkLeaveMessage;
+import com.socketio4j.socketio.store.event.ConnectMessage;
+import com.socketio4j.socketio.store.event.DisconnectMessage;
+import com.socketio4j.socketio.store.event.DispatchMessage;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.event.JoinMessage;
+import com.socketio4j.socketio.store.event.LeaveMessage;
 import com.socketio4j.socketio.store.event.ListenerRegistration;
 
 /**
@@ -185,26 +193,74 @@ public final class KafkaEventStore implements EventStore {
      */
     @Override
     public void publish0(EventType type, EventMessage msg) {
+        if (msg == null) {
+            return;
+        }
 
         msg.setNodeId(nodeId);
 
         String topic = topic(resolve(type));
         ProducerRecord<String, EventMessage> record =
-                new ProducerRecord<>(topic, type.name(), msg);
+                new ProducerRecord<>(topic, resolveRecordKey(type, msg), msg);
 
-        producer.send(record, (metadata, ex) -> {
-            if (ex != null) {
-                log.error("Kafka publish failed {}", type, ex);
-                metrics.eventPublishFailed(extractNamespace(msg));
-            } else {
-                log.debug(
-                        "Kafka published topic={} partition={} offset={}",
-                        metadata.topic(),
-                        metadata.partition(),
-                        metadata.offset()
-                );
+        try {
+            producer.send(record, (metadata, ex) -> {
+                if (ex != null) {
+                    log.error("Kafka publish failed {}", type, ex);
+                    metrics.eventPublishFailed(extractNamespace(msg));
+                } else {
+                    log.debug(
+                            "Kafka published topic={} partition={} offset={}",
+                            metadata.topic(),
+                            metadata.partition(),
+                            metadata.offset()
+                    );
+                }
+            });
+        } catch (Exception ex) {
+            log.error("Kafka initiate publish failed for {}", type, ex);
+            metrics.eventPublishFailed(extractNamespace(msg));
+        }
+    }
+
+    private String resolveRecordKey(EventType type, EventMessage msg) {
+        if (msg instanceof DispatchMessage) {
+            String room = ((DispatchMessage) msg).getRoom();
+            if (room != null && !room.isEmpty()) {
+                return room;
             }
-        });
+        } else if (msg instanceof JoinMessage) {
+            String room = ((JoinMessage) msg).getRoom();
+            if (room != null && !room.isEmpty()) {
+                return room;
+            }
+        } else if (msg instanceof LeaveMessage) {
+            String room = ((LeaveMessage) msg).getRoom();
+            if (room != null && !room.isEmpty()) {
+                return room;
+            }
+        } else if (msg instanceof BulkJoinMessage) {
+            UUID sessionId = ((BulkJoinMessage) msg).getSessionId();
+            if (sessionId != null) {
+                return sessionId.toString();
+            }
+        } else if (msg instanceof BulkLeaveMessage) {
+            UUID sessionId = ((BulkLeaveMessage) msg).getSessionId();
+            if (sessionId != null) {
+                return sessionId.toString();
+            }
+        } else if (msg instanceof DisconnectMessage) {
+            UUID sessionId = ((DisconnectMessage) msg).getSessionId();
+            if (sessionId != null) {
+                return sessionId.toString();
+            }
+        } else if (msg instanceof ConnectMessage) {
+            UUID sessionId = ((ConnectMessage) msg).getSessionId();
+            if (sessionId != null) {
+                return sessionId.toString();
+            }
+        }
+        return type.name();
     }
 
     @Override
@@ -451,7 +507,11 @@ public final class KafkaEventStore implements EventStore {
                                         rec.offset()
                         );
 
-                        dispatch(type, msg);
+                        try {
+                            dispatch(type, msg);
+                        } catch (Exception t) {
+                            log.error("Unhandled error dispatching event {} for type {}", msg, type, t);
+                        }
                     }
 
                 } catch (RecordDeserializationException e) {
@@ -510,9 +570,13 @@ public final class KafkaEventStore implements EventStore {
 
         for (ListenerRegistration<? extends EventMessage> reg : regs) {
             if (reg.getClazz().isInstance(msg)) {
-                ((ListenerRegistration<T>) reg)
-                        .getListener()
-                        .onMessage((T) msg);
+                try {
+                    ((ListenerRegistration<T>) reg)
+                            .getListener()
+                            .onMessage((T) msg);
+                } catch (Exception t) {
+                    log.error("Unhandled error in event listener for type {}: {}", type, msg, t);
+                }
             }
         }
     }
@@ -588,6 +652,8 @@ public final class KafkaEventStore implements EventStore {
 
         try {
             producer.close(); // flushes before closing
+        } catch (Exception e) {
+            log.warn("Error closing Kafka producer", e);
         } finally {
             consumers.clear();
             pollers.clear();

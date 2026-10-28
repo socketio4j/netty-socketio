@@ -16,11 +16,6 @@
  */
 package com.socketio4j.socketio.store.nats_pubsub;
 
-/**
- * @author https://github.com/sanjomo
- * @date 22/12/25 4:04 pm
- */
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventMessageJsonSupport;
@@ -33,6 +28,9 @@ public final class EventMessageCodec {
     }
 
     public static byte[] serialize(EventMessage msg) {
+        if (msg == null) {
+            return new byte[0];
+        }
         try {
             return MAPPER.writeValueAsBytes(msg);
         } catch (Exception e) {
@@ -41,6 +39,9 @@ public final class EventMessageCodec {
     }
 
     public static <T extends EventMessage> T deserialize(byte[] data, Class<T> clazz) {
+        if (data == null || data.length == 0) {
+            return null;
+        }
         try {
             return MAPPER.readValue(data, clazz);
         } catch (Exception e) {

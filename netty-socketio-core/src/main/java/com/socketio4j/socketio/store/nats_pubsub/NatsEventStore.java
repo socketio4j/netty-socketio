@@ -40,8 +40,6 @@ import io.nats.client.Dispatcher;
 import io.nats.client.Message;
 import io.nats.client.Subscription;
 
-
-
 /**
  * Unreliable NATS Core based EventStore.
  * Events are ephemeral and not replayed.
@@ -54,6 +52,7 @@ public class NatsEventStore implements EventStore {
     private final Connection nats;
     private final Long nodeId;
     private final EventStoreMode eventStoreMode;
+    private final String subjectPrefix;
     private final SocketIOMetrics metrics;
 
     /**
@@ -73,16 +72,18 @@ public class NatsEventStore implements EventStore {
     // ----------------------------------------------------------------------
 
     /**
-     * API 4.x.y
+     * Creates a NatsEventStore with all parameters.
      *
      * @param natsConnection shared NATS connection
      * @param eventStoreMode SINGLE_CHANNEL or MULTI_CHANNEL
      * @param nodeId node identifier (used to ignore self-published events)
+     * @param subjectPrefix optional subject prefix
      * @param metrics metrics instance
      */
     public NatsEventStore(@NotNull Connection natsConnection,
                           @Nullable EventStoreMode eventStoreMode,
                           @Nullable Long nodeId,
+                          @Nullable String subjectPrefix,
                           @Nullable SocketIOMetrics metrics) {
 
         this.nats = Objects.requireNonNull(natsConnection, "natsConnection");
@@ -96,6 +97,13 @@ public class NatsEventStore implements EventStore {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         }
         this.eventStoreMode = eventStoreMode;
+
+        if (subjectPrefix != null && !subjectPrefix.isEmpty()) {
+            this.subjectPrefix = subjectPrefix;
+        } else {
+            this.subjectPrefix = "";
+        }
+
         if (metrics != null) {
             this.metrics = metrics;
         } else {
@@ -103,10 +111,25 @@ public class NatsEventStore implements EventStore {
         }
     }
 
+    /**
+     * API 4.x.y
+     *
+     * @param natsConnection shared NATS connection
+     * @param eventStoreMode SINGLE_CHANNEL or MULTI_CHANNEL
+     * @param nodeId node identifier (used to ignore self-published events)
+     * @param metrics metrics instance
+     */
+    public NatsEventStore(@NotNull Connection natsConnection,
+                          @Nullable EventStoreMode eventStoreMode,
+                          @Nullable Long nodeId,
+                          @Nullable SocketIOMetrics metrics) {
+        this(natsConnection, eventStoreMode, nodeId, "", metrics);
+    }
+
     public NatsEventStore(@NotNull Connection natsConnection,
                           @Nullable EventStoreMode eventStoreMode,
                           @Nullable Long nodeId) {
-        this(natsConnection, eventStoreMode, nodeId, SocketIOMetrics.noop());
+        this(natsConnection, eventStoreMode, nodeId, "", SocketIOMetrics.noop());
     }
 
     // ----------------------------------------------------------------------
@@ -120,6 +143,9 @@ public class NatsEventStore implements EventStore {
 
     @Override
     public void publish0(EventType type, EventMessage msg) {
+        if (msg == null) {
+            return;
+        }
         msg.setNodeId(nodeId);
 
         try {
@@ -147,9 +173,16 @@ public class NatsEventStore implements EventStore {
 
         Subscription subscription = dispatcher.subscribe(subject, (Message msg) -> {
             try {
+                if (msg == null || msg.getData() == null) {
+                    return;
+                }
                 T event = EventMessageCodec.deserialize(msg.getData(), clazz);
-                if (!nodeId.equals(event.getNodeId())) {
-                    listener.onMessage(event);
+                if (event != null && !nodeId.equals(event.getNodeId())) {
+                    try {
+                        listener.onMessage(event);
+                    } catch (Exception ex) {
+                        log.error("Error processing event in listener on subject {}", subject, ex);
+                    }
                 }
             } catch (Exception e) {
                 log.warn("Failed to process event on subject {}", subject, e);
@@ -174,7 +207,6 @@ public class NatsEventStore implements EventStore {
                 Dispatcher dispatcher = activeDispatchers.remove(sub);
                 if (dispatcher != null) {
                     dispatcher.unsubscribe(sub);
-                    //sub.unsubscribe();
                     nats.closeDispatcher(dispatcher);
                 }
             } catch (Exception e) {
@@ -186,6 +218,13 @@ public class NatsEventStore implements EventStore {
     @Override
     public void shutdown0() {
         Arrays.stream(EventType.values()).forEach(this::unsubscribe);
+        for (Dispatcher dispatcher : activeDispatchers.values()) {
+            try {
+                nats.closeDispatcher(dispatcher);
+            } catch (Exception e) {
+                log.warn("Failed to close NATS dispatcher", e);
+            }
+        }
         subscriptions.clear();
         activeDispatchers.clear();
     }
@@ -195,10 +234,14 @@ public class NatsEventStore implements EventStore {
     // ----------------------------------------------------------------------
 
     private String getSubjectName(EventType type) {
+        String baseName = type.name();
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
-            return EventType.ALL_SINGLE_CHANNEL.name();
+            baseName = EventType.ALL_SINGLE_CHANNEL.name();
         }
-        return type.name();
+        if (subjectPrefix != null && !subjectPrefix.isEmpty()) {
+            return subjectPrefix + baseName;
+        }
+        return baseName;
     }
 
     // ----------------------------------------------------------------------
@@ -213,6 +256,7 @@ public class NatsEventStore implements EventStore {
         // Optional
         private Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        private String subjectPrefix = "";
         private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
         public Builder(@NotNull Connection nats) {
@@ -226,6 +270,15 @@ public class NatsEventStore implements EventStore {
 
         public Builder eventStoreMode(@NotNull EventStoreMode mode) {
             this.eventStoreMode = Objects.requireNonNull(mode, "eventStoreMode");
+            return this;
+        }
+
+        public Builder subjectPrefix(@Nullable String prefix) {
+            if (prefix != null) {
+                this.subjectPrefix = prefix;
+            } else {
+                this.subjectPrefix = "";
+            }
             return this;
         }
 
@@ -243,6 +296,7 @@ public class NatsEventStore implements EventStore {
                     nats,
                     eventStoreMode,
                     nodeId,
+                    subjectPrefix,
                     metrics
             );
         }
