@@ -48,19 +48,22 @@ public class ClientsBox {
     public void addClient(ClientHead clientHead) {
         if (uuid2clients.putIfAbsent(clientHead.getSessionId(), clientHead) == null) {
             clientsCount.incrementAndGet();
-        } else {
-            uuid2clients.put(clientHead.getSessionId(), clientHead);
         }
     }
 
     public boolean tryAddClient(ClientHead clientHead, int maxLimit) {
-        if (maxLimit <= 0) {
-            addClient(clientHead);
-            return true;
+        ClientHead existing = uuid2clients.get(clientHead.getSessionId());
+        if (existing != null) {
+            return existing == clientHead;
         }
 
-        if (uuid2clients.replace(clientHead.getSessionId(), clientHead) != null) {
-            return true;
+        if (maxLimit <= 0) {
+            ClientHead prev = uuid2clients.putIfAbsent(clientHead.getSessionId(), clientHead);
+            if (prev == null) {
+                clientsCount.incrementAndGet();
+                return true;
+            }
+            return prev == clientHead;
         }
 
         for (;;) {
@@ -72,7 +75,7 @@ public class ClientsBox {
                 ClientHead previous = uuid2clients.putIfAbsent(clientHead.getSessionId(), clientHead);
                 if (previous != null) {
                     clientsCount.decrementAndGet();
-                    uuid2clients.put(clientHead.getSessionId(), clientHead);
+                    return previous == clientHead;
                 }
                 return true;
             }

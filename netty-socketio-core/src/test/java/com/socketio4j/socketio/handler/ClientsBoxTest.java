@@ -127,4 +127,64 @@ class ClientsBoxTest {
         clientsBox.remove(channel);
         assertThat(clientsBox.get(channel)).isNull();
     }
+
+    @Test
+    @DisplayName("Session ID collision in tryAddClient does not replace active client")
+    void testSessionIdCollisionInTryAddClient() {
+        UUID sid = UUID.randomUUID();
+        ClientHead client1 = mock(ClientHead.class);
+        when(client1.getSessionId()).thenReturn(sid);
+
+        ClientHead client2 = mock(ClientHead.class);
+        when(client2.getSessionId()).thenReturn(sid);
+
+        assertThat(clientsBox.tryAddClient(client1, 10)).isTrue();
+        assertThat(clientsBox.getClientsCount()).isEqualTo(1);
+        assertThat(clientsBox.get(sid)).isSameAs(client1);
+
+        // Attempt to register different client with same session ID must fail
+        assertThat(clientsBox.tryAddClient(client2, 10)).isFalse();
+        assertThat(clientsBox.getClientsCount()).isEqualTo(1);
+        assertThat(clientsBox.get(sid)).isSameAs(client1);
+    }
+
+    @Test
+    @DisplayName("Session ID collision in tryAddClient unlimited does not replace active client")
+    void testSessionIdCollisionInTryAddClientUnlimited() {
+        UUID sid = UUID.randomUUID();
+        ClientHead client1 = mock(ClientHead.class);
+        when(client1.getSessionId()).thenReturn(sid);
+
+        ClientHead client2 = mock(ClientHead.class);
+        when(client2.getSessionId()).thenReturn(sid);
+
+        assertThat(clientsBox.tryAddClient(client1, 0)).isTrue();
+        assertThat(clientsBox.getClientsCount()).isEqualTo(1);
+        assertThat(clientsBox.get(sid)).isSameAs(client1);
+
+        // Collision rejected even when unlimited
+        assertThat(clientsBox.tryAddClient(client2, 0)).isFalse();
+        assertThat(clientsBox.getClientsCount()).isEqualTo(1);
+        assertThat(clientsBox.get(sid)).isSameAs(client1);
+    }
+
+    @Test
+    @DisplayName("Session ID collision in addClient preserves existing active client")
+    void testSessionIdCollisionInAddClient() {
+        UUID sid = UUID.randomUUID();
+        ClientHead client1 = mock(ClientHead.class);
+        when(client1.getSessionId()).thenReturn(sid);
+
+        ClientHead client2 = mock(ClientHead.class);
+        when(client2.getSessionId()).thenReturn(sid);
+
+        clientsBox.addClient(client1);
+        assertThat(clientsBox.getClientsCount()).isEqualTo(1);
+        assertThat(clientsBox.get(sid)).isSameAs(client1);
+
+        // Colliding addClient must not displace client1
+        clientsBox.addClient(client2);
+        assertThat(clientsBox.getClientsCount()).isEqualTo(1);
+        assertThat(clientsBox.get(sid)).isSameAs(client1);
+    }
 }
