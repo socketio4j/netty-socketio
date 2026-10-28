@@ -214,6 +214,18 @@ class MicrometerSocketIOMetricsTest {
     }
 
     @Test
+    @DisplayName("Should track publish failures counter for namespace")
+    void shouldTrackEventPublishFailed() {
+        metrics.eventPublishFailed(NS);
+        metrics.publishFailed(NS);
+        metrics.eventPublishFailed(null);
+        metrics.eventPublishFailed("");
+
+        assertThat(counter("socketio.event.publish.failed", NS).count()).isEqualTo(2);
+        assertThat(counter("socketio.event.publish.failed", "default").count()).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("Should ignore every call on the noop implementation")
     void shouldIgnoreCallsOnNoopMetrics() {
         SocketIOMetrics noop = SocketIOMetrics.noop();
@@ -221,6 +233,8 @@ class MicrometerSocketIOMetricsTest {
         noop.eventReceived(NS);
         noop.eventHandled(NS, 1);
         noop.eventFailed(NS);
+        noop.eventPublishFailed(NS);
+        noop.publishFailed(NS);
         noop.eventSent(NS, 1);
         noop.unknownEventReceived(NS);
         noop.unknownEventNames(NS, "name");

@@ -38,6 +38,7 @@ import org.redisson.api.stream.StreamReadArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -90,6 +91,8 @@ public class RedisStreamEventStore implements EventStore {
     private final ConcurrentMap<EventType, ScheduledExecutorService> pollers =
             new ConcurrentHashMap<>();
 
+    private final SocketIOMetrics metrics;
+
     // ---------------------------------------------------------------------
     // Constructor
     // ---------------------------------------------------------------------
@@ -100,7 +103,8 @@ public class RedisStreamEventStore implements EventStore {
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
             @Nullable String streamNamePrefix,
-            @Nullable Integer streamMaxLength
+            @Nullable Integer streamMaxLength,
+            @Nullable SocketIOMetrics metrics
     ) {
 
         this.redissonPub = Objects.requireNonNull(redissonPub, "redissonPub");
@@ -132,9 +136,24 @@ public class RedisStreamEventStore implements EventStore {
             );
         }
         this.streamMaxLength = streamMaxLength;
-
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
 
         initStreams();
+    }
+
+    public RedisStreamEventStore(
+            @NotNull RedissonClient redissonPub,
+            @NotNull RedissonClient redissonSub,
+            @Nullable Long nodeId,
+            @Nullable EventStoreMode eventStoreMode,
+            @Nullable String streamNamePrefix,
+            @Nullable Integer streamMaxLength
+    ) {
+        this(redissonPub, redissonSub, nodeId, eventStoreMode, streamNamePrefix, streamMaxLength, SocketIOMetrics.noop());
     }
 
     // ---------------------------------------------------------------------
@@ -180,11 +199,22 @@ public class RedisStreamEventStore implements EventStore {
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
 
+        EventType resolved = resolve(type);
         pubStreams.computeIfAbsent(
-                resolve(type),
+                resolved,
                 t -> redissonPub.getStream(streamName(t))
-        ).add(StreamAddArgs.entry(type.name(), msg).trimNonStrict().maxLen(streamMaxLength).noLimit());
+        ).addAsync(StreamAddArgs.entry(type.name(), msg).trimNonStrict().maxLen(streamMaxLength).noLimit())
+        .whenComplete((id, ex) -> {
+            if (ex != null) {
+                log.error("Failed to publish event {} to redis stream {}", msg, streamName(resolved), ex);
+                metrics.eventPublishFailed(extractNamespace(msg));
+            }
+        });
+    }
 
+    @Override
+    public SocketIOMetrics getMetrics() {
+        return this.metrics;
     }
 
     // ---------------------------------------------------------------------
@@ -407,6 +437,7 @@ public class RedisStreamEventStore implements EventStore {
         private String prefix;
         private Integer streamMaxLen;
         private Duration trimEvery;
+        private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
         // -------------------------
         // Constructors
@@ -452,6 +483,15 @@ public class RedisStreamEventStore implements EventStore {
             return this;
         }
 
+        public Builder metrics(@Nullable SocketIOMetrics metrics) {
+            if (metrics != null) {
+                this.metrics = metrics;
+            } else {
+                this.metrics = SocketIOMetrics.noop();
+            }
+            return this;
+        }
+
         // -------------------------
         // Build
         // -------------------------
@@ -463,7 +503,8 @@ public class RedisStreamEventStore implements EventStore {
                     nodeId,
                     mode,
                     prefix,
-                    streamMaxLen
+                    streamMaxLen,
+                    metrics
             );
         }
     }

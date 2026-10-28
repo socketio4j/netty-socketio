@@ -799,6 +799,12 @@
                       "justification": "Transitioned specific internal implementation classes to @Internal to establish API boundaries"
                     },
                     {
+                      "code": "java.class.removed",
+                      "regex": true,
+                      "old": "(class|interface|enum) com\\.socketio4j\\.socketio\\.protocol\\.(EngineIOVersion|Packet|PacketType)",
+                      "justification": "Core protocol classes are no longer embedded into the spring module jar"
+                    },
+                    {
                       "code": "java.annotation.added",
                       "annotation": "@org.jetbrains.annotations.Nullable",
                       "justification": "Added nullability annotations for enhanced type safety and Kotlin interop"
@@ -829,6 +835,16 @@
                       "code": "java.method.addedToInterface",
                       "new": "method void com.socketio4j.socketio.listener.ClientListeners::removeDisconnectListener(com.socketio4j.socketio.listener.DisconnectListener)",
                       "justification": "Added default method to allow dynamic unregistering of disconnect listeners"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method void com.socketio4j.socketio.metrics.SocketIOMetrics::eventPublishFailed(java.lang.String)",
+                      "justification": "Added default method for tracking event publish failure metrics"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method void com.socketio4j.socketio.metrics.SocketIOMetrics::publishFailed(java.lang.String)",
+                      "justification": "Added default method alias for tracking event publish failure metrics"
                     },
                     {
                       "code": "java.field.serialVersionUIDUnchanged",
