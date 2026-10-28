@@ -132,7 +132,9 @@ public class ClientHead {
             state.compareAndSet(channel, null);
             return;
         }
-        sendPackets(transport, channel);
+        if (channel.isWritable()) {
+            sendPackets(transport, channel);
+        }
     }
 
     /**
@@ -178,7 +180,9 @@ public class ClientHead {
                 state.compareAndSet(channel, null);
                 return false;
             }
-            sendPackets(transport, channel);
+            if (channel.isWritable()) {
+                sendPackets(transport, channel);
+            }
             return true;
         }
     }
@@ -257,10 +261,48 @@ public class ClientHead {
 
     public @Nullable ChannelFuture send(Packet packet, Transport transport) {
         TransportState state = channels.get(transport);
-        state.getPacketsQueue().add(packet);
+        if (state == null) {
+            return null;
+        }
+
+        Queue<Packet> queue = state.getPacketsQueue();
+        int maxPending = configuration.getMaxPendingPackets();
+        if (maxPending > 0 && queue.size() >= maxPending) {
+            log.warn("Session {} exceeded max pending packets ({}) on transport {}; disconnecting slow consumer",
+                    sessionId, maxPending, transport);
+            disconnect();
+            return null;
+        }
+
+        queue.add(packet);
 
         Channel channel = state.getChannel();
         if (channel == null
+                || (transport == Transport.POLLING && channel.attr(EncoderHandler.WRITE_ONCE).get() != null)) {
+            return null;
+        }
+
+        if (!channel.isWritable()) {
+            if (log.isDebugEnabled()) {
+                log.debug("Channel {} is not writable for session {}, holding packet in queue", channel, sessionId);
+            }
+            return null;
+        }
+
+        return sendPackets(transport, channel);
+    }
+
+    public @Nullable ChannelFuture flush(Transport transport) {
+        TransportState state = channels.get(transport);
+        if (state == null) {
+            return null;
+        }
+        Queue<Packet> queue = state.getPacketsQueue();
+        if (queue.isEmpty()) {
+            return null;
+        }
+        Channel channel = state.getChannel();
+        if (channel == null || !channel.isWritable()
                 || (transport == Transport.POLLING && channel.attr(EncoderHandler.WRITE_ONCE).get() != null)) {
             return null;
         }
@@ -509,7 +551,7 @@ public class ClientHead {
             }
         }
         Channel channel = state.getChannel();
-        if (channel != null) {
+        if (channel != null && channel.isWritable()) {
             sendPackets(currentTransport, channel);
         }
     }
@@ -556,7 +598,14 @@ public class ClientHead {
      * @return
      */
     public boolean isWritable() {
-        TransportState state = channels.get(getCurrentTransport());
+        return isWritable(getCurrentTransport());
+    }
+
+    public boolean isWritable(Transport transport) {
+        TransportState state = channels.get(transport);
+        if (state == null) {
+            return false;
+        }
         Channel channel = state.getChannel();
         return channel != null && channel.isWritable();
     }

@@ -189,6 +189,17 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
         super.channelReadComplete(ctx);
     }
 
+    @Override
+    public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
+        if (ctx.channel().isWritable()) {
+            ClientHead client = clientsBox.get(ctx.channel());
+            if (client != null && client.isTransportChannel(ctx.channel(), Transport.WEBSOCKET)) {
+                client.flush(Transport.WEBSOCKET);
+            }
+        }
+        super.channelWritabilityChanged(ctx);
+    }
+
     /**
      * Deliver engine/socket.io payload to {@link com.socketio4j.socketio.handler.InPacketHandler} without
      * re-entering the pipeline from the head (avoids passing {@link PacketsMessage} through {@code SslHandler}
