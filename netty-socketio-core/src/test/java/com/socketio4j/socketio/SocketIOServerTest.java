@@ -17,12 +17,49 @@
 package com.socketio4j.socketio;
 
 import com.socketio4j.socketio.nativeio.TransportType;
+import io.netty.util.ResourceLeakDetector;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SocketIOServerTest {
+
+    @Test
+    void testConfigurationLeakDetectionLevel() {
+        Configuration config = new Configuration();
+        assertNull(config.getLeakDetectionLevel());
+
+        config.setLeakDetectionLevel(ResourceLeakDetector.Level.ADVANCED);
+        assertEquals(ResourceLeakDetector.Level.ADVANCED, config.getLeakDetectionLevel());
+
+        Configuration copy = new Configuration(config);
+        assertEquals(ResourceLeakDetector.Level.ADVANCED, copy.getLeakDetectionLevel());
+    }
+
+    @Test
+    void testSocketIOServerAppliesLeakDetectionLevel() {
+        ResourceLeakDetector.Level prev = ResourceLeakDetector.getLevel();
+        try {
+            Configuration configuration = new Configuration();
+            configuration.setHostname("127.0.0.1");
+            configuration.setPort(0);
+            configuration.setTransportType(TransportType.NIO);
+            configuration.setLeakDetectionLevel(ResourceLeakDetector.Level.ADVANCED);
+
+            SocketIOServer server = new SocketIOServer(configuration);
+            try {
+                server.start();
+                assertEquals(ResourceLeakDetector.Level.ADVANCED, ResourceLeakDetector.getLevel());
+            } finally {
+                server.stop();
+            }
+        } finally {
+            ResourceLeakDetector.setLevel(prev);
+        }
+    }
 
     @Test
     void startPublishesEphemeralPortBeforeReturning() {
