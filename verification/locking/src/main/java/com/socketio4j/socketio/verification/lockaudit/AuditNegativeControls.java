@@ -13,8 +13,8 @@ public final class AuditNegativeControls implements Opcodes {
   public static void main(String[] args) throws Exception {
     Path directory = Files.createTempDirectory("lock-audit-controls");
     try {
-      for (boolean caught : new boolean[] {false}) {
-        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+      for (boolean caught : new boolean[] {false, true}) {
+        ClassWriter writer = new ClassWriter(0);
         String name = "com/socketio4j/socketio/verification/fixtures/UnsafeGuard";
         writer.visit(V1_8, ACC_PUBLIC, name, null, "java/lang/Object", null);
         MethodVisitor method =
