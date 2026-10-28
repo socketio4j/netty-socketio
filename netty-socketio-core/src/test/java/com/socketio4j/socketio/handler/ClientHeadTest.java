@@ -41,14 +41,21 @@ import com.socketio4j.socketio.transport.NamespaceClient;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.util.Attribute;
 import io.netty.util.CharsetUtil;
+
+import com.socketio4j.socketio.messages.OutPacketMessage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -273,5 +280,63 @@ public class ClientHeadTest {
 
         assertTrue(bindRejected.get());
         lateChannel.finishAndReleaseAll();
+    }
+
+    @Test
+    void testSendChecksChannelWritability() {
+        Channel channel = mock(Channel.class);
+        Attribute<Boolean> writeOnceAttr = mock(Attribute.class);
+        when(channel.attr(EncoderHandler.WRITE_ONCE)).thenReturn(writeOnceAttr);
+        when(channel.isActive()).thenReturn(true);
+        when(channel.isWritable()).thenReturn(false);
+
+        clientHead.bindChannel(channel, Transport.WEBSOCKET);
+        assertFalse(clientHead.isWritable(Transport.WEBSOCKET));
+
+        Packet packet = new Packet(PacketType.MESSAGE);
+        ChannelFuture future = clientHead.send(packet, Transport.WEBSOCKET);
+
+        assertNull(future, "send() must return null when channel is not writable");
+        assertEquals(1, clientHead.getPacketsQueue(Transport.WEBSOCKET).size(),
+                "Packet should be queued when channel is not writable");
+
+        // When channel becomes writable, flush() writes pending packets
+        when(channel.isWritable()).thenReturn(true);
+        assertTrue(clientHead.isWritable(Transport.WEBSOCKET));
+        when(channel.writeAndFlush(any())).thenReturn(mock(ChannelFuture.class));
+
+        ChannelFuture flushFuture = clientHead.flush(Transport.WEBSOCKET);
+        assertNotNull(flushFuture);
+        verify(channel).writeAndFlush(any(OutPacketMessage.class));
+    }
+
+    @Test
+    void testBackpressureMaxPendingPacketsDisconnectsSlowConsumer() {
+        configuration.setMaxPendingPackets(3);
+
+        Channel channel = mock(Channel.class);
+        Attribute<Boolean> writeOnceAttr = mock(Attribute.class);
+        when(channel.attr(EncoderHandler.WRITE_ONCE)).thenReturn(writeOnceAttr);
+        when(channel.isActive()).thenReturn(true);
+        when(channel.isWritable()).thenReturn(false);
+
+        clientHead.bindChannel(channel, Transport.WEBSOCKET);
+        assertTrue(clientHead.isConnected());
+
+        clientHead.send(new Packet(PacketType.MESSAGE), Transport.WEBSOCKET);
+        assertEquals(1, clientHead.getPacketsQueue(Transport.WEBSOCKET).size());
+        assertTrue(clientHead.isConnected());
+
+        clientHead.send(new Packet(PacketType.MESSAGE), Transport.WEBSOCKET);
+        assertEquals(2, clientHead.getPacketsQueue(Transport.WEBSOCKET).size());
+        assertTrue(clientHead.isConnected());
+
+        clientHead.send(new Packet(PacketType.MESSAGE), Transport.WEBSOCKET);
+        assertEquals(3, clientHead.getPacketsQueue(Transport.WEBSOCKET).size());
+        assertTrue(clientHead.isConnected());
+
+        // 4th packet exceeds maxPendingPackets(3) -> disconnects slow consumer
+        clientHead.send(new Packet(PacketType.MESSAGE), Transport.WEBSOCKET);
+        assertFalse(clientHead.isConnected(), "Client must be disconnected when pending queue exceeds limit");
     }
 }

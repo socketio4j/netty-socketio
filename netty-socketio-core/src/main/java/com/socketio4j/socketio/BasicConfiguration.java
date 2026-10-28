@@ -52,6 +52,7 @@ public abstract class BasicConfiguration {
 
     protected int maxHttpContentLength = 64 * 1024;
     protected int maxFramePayloadLength = 64 * 1024;
+    protected int maxPendingPackets = 10000;
 
     protected String packagePrefix;
     protected String hostname;
@@ -137,6 +138,7 @@ public abstract class BasicConfiguration {
         setPreferDirectBuffer(conf.isPreferDirectBuffer());
         setAckMode(conf.getAckMode());
         setMaxFramePayloadLength(conf.getMaxFramePayloadLength());
+        setMaxPendingPackets(conf.getMaxPendingPackets());
         setUpgradeTimeout(conf.getUpgradeTimeout());
 
         setAddVersionHeader(conf.isAddVersionHeader());
@@ -338,6 +340,21 @@ public abstract class BasicConfiguration {
 
     public int getMaxFramePayloadLength() {
         return maxFramePayloadLength;
+    }
+
+    /**
+     * Set maximum pending packets in the queue for a single client before
+     * backpressure disconnects the slow consumer.
+     * Set to 0 or negative for unbounded queue (not recommended in production).
+     *
+     * @param maxPendingPackets - maximum pending packets limit
+     */
+    public void setMaxPendingPackets(int maxPendingPackets) {
+        this.maxPendingPackets = maxPendingPackets;
+    }
+
+    public int getMaxPendingPackets() {
+        return maxPendingPackets;
     }
 
     /**
