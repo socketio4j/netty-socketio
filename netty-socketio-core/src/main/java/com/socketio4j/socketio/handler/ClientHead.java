@@ -30,6 +30,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -85,8 +86,17 @@ public class ClientHead {
     private final CancelableScheduler scheduler;
     private final Configuration configuration;
 
-    private Packet lastBinaryPacket;
-    private ByteBuf lastBinaryPacketSource;
+    private static final class PendingBinaryPacket {
+        private final Packet packet;
+        private final ByteBuf source;
+
+        private PendingBinaryPacket(Packet packet, ByteBuf source) {
+            this.packet = packet;
+            this.source = source;
+        }
+    }
+
+    private final AtomicReference<PendingBinaryPacket> pendingBinaryPacket = new AtomicReference<>();
 
     // TODO use lazy set
     private volatile Transport currentTransport;
@@ -417,15 +427,21 @@ public class ClientHead {
         if (!disconnected.compareAndSet(false, true)) {
             return;
         }
-        cleanupDisconnectedSession();
+        cleanupDisconnectedSession(null);
     }
 
-    private void cleanupDisconnectedSession() {
+    private void cleanupDisconnectedSession(Transport deferredCloseTransport) {
         for (Transport transport : Transport.values()) {
             TransportState state = channels.get(transport);
+            if (transport != deferredCloseTransport) {
+                state.clearPacketsQueue();
+            }
             Channel channel = state.getChannel();
             if (channel != null && state.compareAndSet(channel, null)) {
                 clientsBox.remove(channel);
+                if (transport != deferredCloseTransport && channel.isOpen()) {
+                    channel.close();
+                }
             }
         }
 
@@ -457,18 +473,25 @@ public class ClientHead {
 
         Transport closeTransport = currentTransport;
         TransportState state = channels.get(closeTransport);
-        state.getPacketsQueue().add(new Packet(PacketType.CLOSE));
         Channel closeChannel = state.getChannel();
         ChannelFuture future = null;
-        if (closeChannel != null
+        if (closeChannel != null && closeChannel.isActive() && closeChannel.isWritable()
                 && (closeTransport != Transport.POLLING
                         || closeChannel.attr(EncoderHandler.WRITE_ONCE).get() == null)) {
+            state.getPacketsQueue().add(new Packet(PacketType.CLOSE));
             future = sendPackets(closeTransport, closeChannel);
         }
-        cleanupDisconnectedSession();
+        Transport deferredTransport = null;
+        if (future != null) {
+            deferredTransport = closeTransport;
+        }
+        cleanupDisconnectedSession(deferredTransport);
 
         if (future != null) {
-            future.addListener(ChannelFutureListener.CLOSE);
+            future.addListener((ChannelFutureListener) f -> {
+                state.clearPacketsQueue();
+                f.channel().close();
+            });
         }
     }
 
@@ -498,14 +521,33 @@ public class ClientHead {
         if (!disconnected.compareAndSet(false, true)) {
             return;
         }
-        Packet packet = new Packet(PacketType.MESSAGE);
-        packet.setSubType(PacketType.DISCONNECT);
-        ChannelFuture future = send(packet);
+        Transport closeTransport = getCurrentTransport();
+        TransportState state = channels.get(closeTransport);
+        ChannelFuture future = null;
+        if (state != null) {
+            int maxPending = configuration.getMaxPendingPackets();
+            if (maxPending <= 0 || state.getPacketsQueue().size() < maxPending) {
+                Packet packet = new Packet(PacketType.MESSAGE);
+                packet.setSubType(PacketType.DISCONNECT);
+                future = send(packet, closeTransport);
+            }
+        }
+        Transport deferredTransport = null;
         if (future != null) {
-            future.addListener(ChannelFutureListener.CLOSE);
+            deferredTransport = closeTransport;
         }
 
-        cleanupDisconnectedSession();
+        cleanupDisconnectedSession(deferredTransport);
+
+        if (future != null) {
+            final TransportState finalState = state;
+            future.addListener((ChannelFutureListener) f -> {
+                if (finalState != null) {
+                    finalState.clearPacketsQueue();
+                }
+                f.channel().close();
+            });
+        }
     }
 
     public boolean isChannelOpen() {
@@ -566,25 +608,33 @@ public class ClientHead {
 
 
     public Packet getLastBinaryPacket() {
-        return lastBinaryPacket;
+        PendingBinaryPacket current = pendingBinaryPacket.get();
+        if (current != null) {
+            return current.packet;
+        }
+        return null;
     }
 
     public ByteBuf getLastBinaryPacketSource() {
-        return lastBinaryPacketSource;
+        PendingBinaryPacket current = pendingBinaryPacket.get();
+        if (current != null) {
+            return current.source;
+        }
+        return null;
     }
 
     public void setPendingBinaryPacket(@NotNull Packet packet, @NotNull ByteBuf source) {
-        if (this.lastBinaryPacketSource != null && this.lastBinaryPacketSource != source) {
-            this.lastBinaryPacketSource.release();
+        PendingBinaryPacket next = new PendingBinaryPacket(packet, source);
+        PendingBinaryPacket prev = pendingBinaryPacket.getAndSet(next);
+        if (prev != null && prev.source != null && prev.source != source) {
+            prev.source.release();
         }
-        this.lastBinaryPacket = packet;
-        this.lastBinaryPacketSource = source;
     }
+
     public void clearPendingBinaryPacket() {
-        this.lastBinaryPacket = null;
-        if (lastBinaryPacketSource != null) {
-            lastBinaryPacketSource.release();
-            lastBinaryPacketSource = null;
+        PendingBinaryPacket prev = pendingBinaryPacket.getAndSet(null);
+        if (prev != null && prev.source != null) {
+            prev.source.release();
         }
     }
 

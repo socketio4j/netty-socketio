@@ -32,8 +32,6 @@ import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.handler.ClientsBox;
 import com.socketio4j.socketio.messages.PacketsMessage;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
-import com.socketio4j.socketio.protocol.Packet;
-import com.socketio4j.socketio.protocol.PacketType;
 import com.socketio4j.socketio.scheduler.CancelableScheduler;
 import com.socketio4j.socketio.scheduler.SchedulerKey;
 
@@ -223,18 +221,13 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        final  Channel channel = ctx.channel();
+        final Channel channel = ctx.channel();
         ClientHead client = clientsBox.get(channel);
-        Packet packet = new Packet(PacketType.MESSAGE);
-        packet.setSubType(PacketType.DISCONNECT);
         if (client != null && client.isTransportChannel(ctx.channel(), Transport.WEBSOCKET)) {
             log.debug("channel inactive {}", client.getSessionId());
             client.onChannelDisconnect();
         }
         super.channelInactive(ctx);
-        if (client != null) {
-            client.send(packet);
-        }
         channel.close();
         ctx.close();
     }

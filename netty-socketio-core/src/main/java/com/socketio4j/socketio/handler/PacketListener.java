@@ -71,14 +71,16 @@ public class PacketListener {
             Packet outPacket = new Packet(PacketType.PONG);
             outPacket.setData(packet.getData());
             if (upgrading) {
+                client.beginUpgrade();
                 ChannelFuture pongFuture = client.send(outPacket, transport);
                 if (pongFuture != null) {
                     pongFuture.addListener(future -> {
                         if (future.isSuccess()) {
-                            client.beginUpgrade();
                             client.send(new Packet(PacketType.NOOP), Transport.POLLING);
                         }
                     });
+                } else if (client.isConnected()) {
+                    client.send(new Packet(PacketType.NOOP), Transport.POLLING);
                 }
             } else {
                 client.send(outPacket, transport);
@@ -137,7 +139,7 @@ public class PacketListener {
     public void onPacket(Packet packet, NamespaceClient client, Transport transport) {
         final AckRequest ackRequest = new AckRequest(packet, client);
 
-        if (packet.isAckRequested()) {
+        if (packet.isAckRequested() && packet.getAckId() != null) {
             ackManager.initAckIndex(client.getSessionId(), packet.getAckId());
         }
 
