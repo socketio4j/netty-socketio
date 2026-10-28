@@ -297,6 +297,15 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         ChannelFutureList writeFutureList = new ChannelFutureList();
 
         while (true) {
+            if (!ctx.channel().isWritable()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Channel {} unwritable during WebSocket frame write; holding remaining packets in queue, sessionId: {}",
+                            ctx.channel(), msg.getSessionId());
+                }
+                writeFutureList.setChannelPromise(promise);
+                break;
+            }
+
             Queue<Packet> queue = msg.getClientHead().getPacketsQueue(msg.getTransport());
             Packet packet = queue.poll();
             if (packet == null) {
