@@ -241,7 +241,7 @@ public class RedisStreamEventStore implements EventStore {
     }
 
     private void ensurePoller(EventType type) {
-
+        running.set(true);
         pollers.compute(type, (t, exec) -> {
             if (exec == null || exec.isShutdown()) {
 
@@ -278,38 +278,45 @@ public class RedisStreamEventStore implements EventStore {
                         .timeout(Duration.ofSeconds(10))
                         .count(100)
         ).whenComplete((records, err) -> {
-
-            if (err != null) {
-                if (!running.get() || isRedissonShutdown(err)) {
-                    log.debug("XREAD cancelled during store shutdown for {}", type);
-                    return;
-                }
-                log.error("XREAD failed {}", type, err);
-                scheduleRetry(stream, type);
-                return;
-            }
-
-            if (records != null && !records.isEmpty()) {
-                records.forEach((id, map) -> {
-                    if (map.isEmpty()) {
-                        offsets.put(type, id);
+            boolean shouldScheduleNext = false;
+            try {
+                if (err != null) {
+                    if (!running.get() || isRedissonShutdown(err)) {
+                        log.debug("XREAD cancelled during store shutdown for {}", type);
                         return;
                     }
+                    log.error("XREAD failed {}", type, err);
+                    scheduleRetry(stream, type);
+                    return;
+                }
 
-                    EventMessage msg = map.values().iterator().next();
-                    try {
-                        if (!nodeId.equals(msg.getNodeId())) {
-                            dispatch(type, msg, id);
+                if (records != null && !records.isEmpty()) {
+                    records.forEach((id, map) -> {
+                        if (map.isEmpty()) {
+                            offsets.put(type, id);
+                            return;
                         }
-                    } finally {
-                        offsets.put(type, id);
-                    }
-                });
-            }
 
-            ScheduledExecutorService exec = pollers.get(type);
-            if (exec != null && running.get()) {
-                exec.execute(() -> pollLoop(stream, type));
+                        EventMessage msg = map.values().iterator().next();
+                        try {
+                            if (msg != null && !nodeId.equals(msg.getNodeId())) {
+                                dispatch(type, msg, id);
+                            }
+                        } catch (Exception e) {
+                            log.error("Failed to dispatch stream message {} for type {}", id, type, e);
+                        } finally {
+                            offsets.put(type, id);
+                        }
+                    });
+                }
+                shouldScheduleNext = true;
+            } finally {
+                if (shouldScheduleNext) {
+                    ScheduledExecutorService exec = pollers.get(type);
+                    if (exec != null && running.get()) {
+                        exec.execute(() -> pollLoop(stream, type));
+                    }
+                }
             }
         });
     }
@@ -319,6 +326,9 @@ public class RedisStreamEventStore implements EventStore {
             EventMessage msg,
             StreamMessageId id
     ) {
+        if (msg == null) {
+            return;
+        }
 
         Queue<ListenerRegistration<? extends EventMessage>> regs =
                 listeners.get(type);
@@ -331,9 +341,13 @@ public class RedisStreamEventStore implements EventStore {
 
         for (ListenerRegistration<? extends EventMessage> reg : regs) {
             if (reg.getClazz().isInstance(msg)) {
-                ((ListenerRegistration<T>) reg)
-                        .getListener()
-                        .onMessage((T) msg);
+                try {
+                    ((ListenerRegistration<T>) reg)
+                            .getListener()
+                            .onMessage((T) msg);
+                } catch (Exception e) {
+                    log.error("Error executing listener for stream event type {}", type, e);
+                }
             }
         }
     }
@@ -359,7 +373,7 @@ public class RedisStreamEventStore implements EventStore {
             exec.shutdownNow();
         }
 
-        if (listeners.isEmpty()) {
+        if (listeners.isEmpty() && pollers.isEmpty()) {
             running.set(false);
         }
     }

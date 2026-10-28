@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.store.redis_pubsub;
 
+import java.time.Duration;
 import java.util.UUID;
 
 import org.redisson.api.RMap;
@@ -23,18 +24,43 @@ import org.redisson.api.RedissonClient;
 
 import com.socketio4j.socketio.store.Store;
 
-
 public class RedisStore implements Store {
 
+    public static final Duration DEFAULT_TTL = Duration.ofDays(1);
+
     private final RMap<String, Object> map;
+    private final Duration ttl;
 
     public RedisStore(UUID sessionId, RedissonClient redisson) {
-        this.map = redisson.getMap(sessionId.toString());
+        this(sessionId, redisson, null, DEFAULT_TTL);
+    }
+
+    public RedisStore(UUID sessionId, RedissonClient redisson, String keyPrefix, Duration ttl) {
+        String key;
+        if (keyPrefix != null && !keyPrefix.isEmpty()) {
+            key = keyPrefix + sessionId.toString();
+        } else {
+            key = sessionId.toString();
+        }
+        this.map = redisson.getMap(key);
+        if (ttl != null) {
+            this.ttl = ttl;
+        } else {
+            this.ttl = DEFAULT_TTL;
+        }
+        refreshTtl();
+    }
+
+    private void refreshTtl() {
+        if (ttl != null && !ttl.isZero() && !ttl.isNegative()) {
+            map.expire(ttl);
+        }
     }
 
     @Override
     public void set(String key, Object value) {
         map.put(key, value);
+        refreshTtl();
     }
 
     @Override
@@ -50,6 +76,7 @@ public class RedisStore implements Store {
     @Override
     public void del(String key) {
         map.remove(key);
+        refreshTtl();
     }
 
     @Override

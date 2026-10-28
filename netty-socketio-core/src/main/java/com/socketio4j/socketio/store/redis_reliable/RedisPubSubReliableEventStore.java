@@ -121,12 +121,14 @@ public class RedisPubSubReliableEventStore implements EventStore {
         });
         this.trimExecutor = executorService;
         this.trimEvery = trimEvery;
-        if (trimEvery != null) {
+        if (trimEvery != null && !trimEvery.isZero() && !trimEvery.isNegative()) {
+            long initialDelayMillis = Math.min(1000L, trimEvery.toMillis());
+            long periodMillis = Math.max(1L, trimEvery.toMillis());
             executorService.scheduleAtFixedRate(
                     this::trimAllReliableStreams,
-                    Duration.ofSeconds(1).getSeconds(),
-                    trimEvery.getSeconds(),
-                    TimeUnit.SECONDS
+                    initialDelayMillis,
+                    periodMillis,
+                    TimeUnit.MILLISECONDS
             );
         }
         if (metrics != null) {
@@ -253,8 +255,12 @@ public class RedisPubSubReliableEventStore implements EventStore {
             RReliableTopic reliableTopic = redissonSub.getReliableTopic(getStreamName(type));
             Objects.requireNonNull(reliableTopic, "reliableTopic can not be null");
             String id = reliableTopic.addListener(clazz, (channel, msg) -> {
-                if (!nodeId.equals(msg.getNodeId())) {
-                    listener.onMessage(msg);
+                if (msg != null && !nodeId.equals(msg.getNodeId())) {
+                    try {
+                        listener.onMessage(msg);
+                    } catch (Exception e) {
+                        log.error("Error dispatching reliable topic message for type {}", type, e);
+                    }
                 }
             });
             activeSubTopics.put(id, reliableTopic);
@@ -294,8 +300,8 @@ public class RedisPubSubReliableEventStore implements EventStore {
 
     @Override
     public void shutdown0() {
-        // Gracefully shutdown trim executor
-        trimExecutor.shutdown();
+        // Shutdown trim executor
+        trimExecutor.shutdownNow();
 
         // Unsubscribe from all event types
         Arrays.stream(EventType.values()).forEach(this::unsubscribe);

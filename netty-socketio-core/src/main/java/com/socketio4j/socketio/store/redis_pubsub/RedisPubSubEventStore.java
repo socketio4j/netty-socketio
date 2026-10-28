@@ -125,8 +125,12 @@ public class RedisPubSubEventStore implements EventStore {
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
         RTopic topic = redissonSub.getTopic(getStreamName(type));
         int regId = topic.addListener(clazz, (channel, msg) -> {
-            if (!nodeId.equals(msg.getNodeId())) {
-                listener.onMessage(msg);
+            if (msg != null && !nodeId.equals(msg.getNodeId())) {
+                try {
+                    listener.onMessage(msg);
+                } catch (Exception e) {
+                    log.error("Error dispatching message for type {}", type, e);
+                }
             }
         });
         activeSubTopics.put(regId, topic);
