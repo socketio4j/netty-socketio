@@ -61,6 +61,7 @@ import io.netty.channel.ServerChannel;
 import io.netty.channel.WriteBufferWaterMark;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.ResourceLeakDetector;
 import io.netty.util.concurrent.DefaultPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.FutureListener;
@@ -223,6 +224,20 @@ public class SocketIOServer implements ClientListeners {
                 log.error("Exception during beforeStart listener", e);
             }
         });
+    }
+
+    private void applyLeakDetectionLevel() {
+        ResourceLeakDetector.Level configured = configCopy.getLeakDetectionLevel();
+        if (configured != null) {
+            ResourceLeakDetector.setLevel(configured);
+            log.info("Netty ResourceLeakDetector level configured to: {}", configured);
+        } else {
+            ResourceLeakDetector.Level current = ResourceLeakDetector.getLevel();
+            log.debug("Current Netty ResourceLeakDetector level: {}", current);
+            if (current == ResourceLeakDetector.Level.SIMPLE) {
+                log.info("Netty ResourceLeakDetector is at SIMPLE level (1% sampling). In staging or diagnostic environments, consider ADVANCED or PARANOID.");
+            }
+        }
     }
 
     private void fireAfterStart() {
@@ -514,6 +529,7 @@ public class SocketIOServer implements ClientListeners {
         try {
             configCopy.setPort(configuration.getPort());
             fireBeforeStart();
+            applyLeakDetectionLevel();
             log.info("Session store / event store factory: {}", configCopy.getStoreFactory());
             initGroups();
             pipelineFactory.start(configCopy, namespacesHub);
