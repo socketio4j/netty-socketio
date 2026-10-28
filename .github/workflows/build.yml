@@ -139,6 +139,15 @@ jobs:
             echo "docker.host=tcp://127.0.0.1:2375" >> "$HOME/.testcontainers.properties"
           fi
 
+      # --- Fast-fail Code Quality Gates ---
+      - name: Code Quality & Style Check
+        run: mvn --batch-mode --no-transfer-progress checkstyle:check
+
+      # --- Event-Loop Lock Safety Gate ---
+      - name: Event-Loop Lock Safety Gate
+        if: runner.os == 'Linux'
+        run: bash verification/locking/check.sh
+
       # --- Build + Tests ---
       - name: Build Project
         timeout-minutes: 120
