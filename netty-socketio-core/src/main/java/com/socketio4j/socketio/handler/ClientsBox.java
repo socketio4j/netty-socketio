@@ -59,8 +59,7 @@ public class ClientsBox {
             return true;
         }
 
-        if (uuid2clients.containsKey(clientHead.getSessionId())) {
-            uuid2clients.put(clientHead.getSessionId(), clientHead);
+        if (uuid2clients.replace(clientHead.getSessionId(), clientHead) != null) {
             return true;
         }
 
