@@ -34,6 +34,7 @@ package com.socketio4j.socketio.transport;
 import org.junit.jupiter.api.Test;
 
 
+import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.handler.ClientsBox;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
@@ -111,6 +112,21 @@ public class WebSocketTransportTest {
     assertTrue(!secondChannel.isOpen(), "The newly opened duplicate WebSocket must be closed");
     verify(clientHead, never()).disconnect();
     verify(clientsBox, never()).removeClient(eq(sessionId));
+  }
+
+  @Test
+  public void testChannelWritabilityChangedFlushesClient() throws Exception {
+    ClientsBox clientsBox = mock(ClientsBox.class);
+    ClientHead clientHead = mock(ClientHead.class);
+    WebSocketTransport transport = new WebSocketTransport(false, null, null, null, clientsBox);
+
+    EmbeddedChannel channel = new EmbeddedChannel(transport);
+    when(clientsBox.get(channel)).thenReturn(clientHead);
+    when(clientHead.isTransportChannel(channel, Transport.WEBSOCKET)).thenReturn(true);
+
+    transport.channelWritabilityChanged(channel.pipeline().firstContext());
+
+    verify(clientHead).flush(Transport.WEBSOCKET);
   }
 
   private EmbeddedChannel createChannel() {
