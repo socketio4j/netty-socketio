@@ -63,8 +63,15 @@ public interface EventStore {
         return PublishMode.UNRELIABLE;
     }
 
+    final class DefaultNodeIdHolder {
+        static final Long INSTANCE = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
+
+        private DefaultNodeIdHolder() {
+        }
+    }
+
     default Long getNodeId() {
-        return ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
+        return DefaultNodeIdHolder.INSTANCE;
     }
 
     default void publish(EventType type, EventMessage msg) {
