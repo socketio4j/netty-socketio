@@ -301,4 +301,107 @@ class AckManagerTest {
 
         assertThat(scheduler.cancelled).isEmpty();
     }
+
+    @Test
+    @DisplayName("Should not create AckEntry when getCallback is called for unknown session")
+    void shouldNotCreateAckEntryOnGetCallbackForUnknownSession() {
+        UUID unknownSession = UUID.randomUUID();
+        assertThat(ackManager.getAckEntriesCount()).isEqualTo(0);
+
+        AckCallback<?> cb = ackManager.getCallback(unknownSession, 123L);
+        assertThat(cb).isNull();
+        assertThat(ackManager.getAckEntriesCount()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Should handle null client on disconnect safely")
+    void shouldHandleNullClientOnDisconnectSafely() {
+        ackManager.onDisconnect((ClientHead) null);
+        ackManager.onDisconnect((UUID) null);
+        assertThat(ackManager.getAckEntriesCount()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Should continue timing out callbacks if one callback throws exception on disconnect")
+    void shouldContinueTimingOutCallbacksIfOneThrowsException() {
+        AtomicReference<Boolean> secondTimedOut = new AtomicReference<>(false);
+
+        AckCallback<String> faultyCallback = new AckCallback<String>(String.class, 10) {
+            @Override
+            public void onSuccess(String result) {
+            }
+
+            @Override
+            public void onTimeout() {
+                throw new RuntimeException("Simulated error in onTimeout");
+            }
+        };
+
+        AckCallback<String> normalCallback = new AckCallback<String>(String.class, 10) {
+            @Override
+            public void onSuccess(String result) {
+            }
+
+            @Override
+            public void onTimeout() {
+                secondTimedOut.set(true);
+            }
+        };
+
+        long index1 = ackManager.registerAck(sessionId, faultyCallback);
+        long index2 = ackManager.registerAck(sessionId, normalCallback);
+        assertThat(ackManager.getAckCallbacksCount(sessionId)).isEqualTo(2);
+
+        ClientHead clientHead = mock(ClientHead.class);
+        when(clientHead.getSessionId()).thenReturn(sessionId);
+        ackManager.onDisconnect(clientHead);
+
+        assertThat(secondTimedOut.get()).isTrue();
+        assertThat(scheduler.cancelled).contains(
+                new AckSchedulerKey(SchedulerKey.Type.ACK_TIMEOUT, sessionId, index1),
+                new AckSchedulerKey(SchedulerKey.Type.ACK_TIMEOUT, sessionId, index2)
+        );
+        assertThat(ackManager.getAckEntriesCount()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Should handle exception in onSuccess during onAck safely")
+    void shouldHandleExceptionInOnSuccessSafely() {
+        AckCallback<String> faultyCallback = new AckCallback<String>(String.class, 10) {
+            @Override
+            public void onSuccess(String result) {
+                throw new RuntimeException("Simulated error in onSuccess");
+            }
+        };
+
+        long index = ackManager.registerAck(sessionId, faultyCallback);
+        Packet packet = ackPacket(index, Collections.singletonList("data"));
+
+        // onAck should catch the exception and not propagate it
+        ackManager.onAck(client(), packet);
+        assertThat(ackManager.getCallback(sessionId, index)).isNull();
+    }
+
+    @Test
+    @DisplayName("Should clear all ack entries on clear")
+    void shouldClearAllAckEntriesOnClear() {
+        AtomicReference<Boolean> timedOut = new AtomicReference<>(false);
+        AckCallback<String> callback = new AckCallback<String>(String.class, 10) {
+            @Override
+            public void onSuccess(String result) {
+            }
+
+            @Override
+            public void onTimeout() {
+                timedOut.set(true);
+            }
+        };
+
+        ackManager.registerAck(sessionId, callback);
+        assertThat(ackManager.getAckEntriesCount()).isEqualTo(1);
+
+        ackManager.clear();
+        assertThat(timedOut.get()).isTrue();
+        assertThat(ackManager.getAckEntriesCount()).isEqualTo(0);
+    }
 }
