@@ -19,13 +19,19 @@ package com.socketio4j.socketio;
 import java.util.Iterator;
 import java.util.List;
 
+import org.jspecify.annotations.Nullable;
+
 public class MultiTypeArgs implements Iterable<Object> {
 
     private final List<Object> args;
 
-    public MultiTypeArgs(List<Object> args) {
+    public MultiTypeArgs(@Nullable List<Object> args) {
         super();
-        this.args = args;
+        if (args != null) {
+            this.args = args;
+        } else {
+            this.args = java.util.Collections.emptyList();
+        }
     }
 
     public boolean isEmpty() {
@@ -40,11 +46,11 @@ public class MultiTypeArgs implements Iterable<Object> {
         return args;
     }
 
-    public <T> T first() {
+    public <T> @Nullable T first() {
         return get(0);
     }
 
-    public <T> T second() {
+    public <T> @Nullable T second() {
         return get(1);
     }
 
@@ -55,7 +61,7 @@ public class MultiTypeArgs implements Iterable<Object> {
      * @param index to get
      * @return argument
      */
-    public <T> T get(int index) {
+    public <T> @Nullable T get(int index) {
         if (size() <= index) {
             return null;
         }

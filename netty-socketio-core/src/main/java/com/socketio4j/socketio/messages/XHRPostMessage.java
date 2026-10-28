@@ -18,12 +18,14 @@ package com.socketio4j.socketio.messages;
 
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.annotation.Internal;
 
 @Internal
 public class XHRPostMessage extends HttpMessage {
 
-    public XHRPostMessage(String origin, UUID sessionId) {
+    public XHRPostMessage(@Nullable String origin, @Nullable UUID sessionId) {
         super(origin, sessionId);
     }
 

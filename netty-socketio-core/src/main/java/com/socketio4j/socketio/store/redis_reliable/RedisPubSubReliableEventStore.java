@@ -27,8 +27,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.redisson.api.RReliableTopic;
 import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
@@ -53,7 +53,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
     private final EventStoreMode eventStoreMode;
     private final String streamNamePrefix;
     private final Integer streamMaxLength;
-    private final Duration trimEvery;
+    private final @Nullable Duration trimEvery;
     private final ScheduledExecutorService trimExecutor;
     private static final String DEFAULT_STREAM_NAME_PREFIX = "SOCKETIO4J:";
     private static final int DEFAULT_STREAM_MAX_LENGTH = Integer.MAX_VALUE;
@@ -70,8 +70,8 @@ public class RedisPubSubReliableEventStore implements EventStore {
     // ----------------------------------------------------------------------
 
 
-    public RedisPubSubReliableEventStore(@NotNull RedissonClient redissonPub,
-                                      @NotNull RedissonClient redissonSub,
+    public RedisPubSubReliableEventStore(@NonNull RedissonClient redissonPub,
+                                      @NonNull RedissonClient redissonSub,
                                       @Nullable Long nodeId, EventStoreMode eventStoreMode,
                                       @Nullable String streamNamePrefix,
                                       @Nullable Integer streamMaxLength,
@@ -136,8 +136,8 @@ public class RedisPubSubReliableEventStore implements EventStore {
         }
     }
 
-    public RedisPubSubReliableEventStore(@NotNull RedissonClient redissonPub,
-                                      @NotNull RedissonClient redissonSub,
+    public RedisPubSubReliableEventStore(@NonNull RedissonClient redissonPub,
+                                      @NonNull RedissonClient redissonSub,
                                       @Nullable Long nodeId, EventStoreMode eventStoreMode,
                                       @Nullable String streamNamePrefix,
                                       @Nullable Integer streamMaxLength,
@@ -318,23 +318,23 @@ public class RedisPubSubReliableEventStore implements EventStore {
         // -------------------------
         // Optional (defaults)
         // -------------------------
-        private Long nodeId;
+        private @Nullable Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         private String streamNamePrefix = DEFAULT_STREAM_NAME_PREFIX;
         private Integer streamMaxLength = DEFAULT_STREAM_MAX_LENGTH;
-        private Duration trimEvery;
+        private @Nullable Duration trimEvery;
         private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
         // -------------------------
         // Constructors
         // -------------------------
 
-        public Builder(@NotNull RedissonClient redissonClient) {
+        public Builder(@NonNull RedissonClient redissonClient) {
             this(redissonClient, redissonClient);
         }
 
-        public Builder(@NotNull RedissonClient redissonPub,
-                       @NotNull RedissonClient redissonSub) {
+        public Builder(@NonNull RedissonClient redissonPub,
+                       @NonNull RedissonClient redissonSub) {
             this.redissonPub = Objects.requireNonNull(redissonPub, "redissonPub");
             this.redissonSub = Objects.requireNonNull(redissonSub, "redissonSub");
         }
@@ -348,12 +348,12 @@ public class RedisPubSubReliableEventStore implements EventStore {
             return this;
         }
 
-        public Builder eventStoreMode(@NotNull EventStoreMode mode) {
+        public Builder eventStoreMode(@NonNull EventStoreMode mode) {
             this.eventStoreMode = Objects.requireNonNull(mode, "eventStoreMode");
             return this;
         }
 
-        public Builder streamNamePrefix(@NotNull String prefix) {
+        public Builder streamNamePrefix(@NonNull String prefix) {
             if (prefix.isEmpty()) {
                 throw new IllegalArgumentException("streamNamePrefix cannot be empty");
             }
@@ -369,7 +369,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
             return this;
         }
 
-        public Builder trimEvery(@NotNull Duration duration) {
+        public Builder trimEvery(@NonNull Duration duration) {
             this.trimEvery = duration;
             return this;
         }

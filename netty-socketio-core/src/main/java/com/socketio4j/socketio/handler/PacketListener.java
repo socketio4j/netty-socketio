@@ -56,7 +56,11 @@ public class PacketListener {
      * the namespace-scoped Socket.IO message layer.
      */
     public void onTransportPacket(Packet packet, ClientHead client, Transport transport) {
-        switch (packet.getType()) {
+        PacketType type = packet.getType();
+        if (type == null) {
+            return;
+        }
+        switch (type) {
         case PING: {
             boolean upgrading = "probe".equals(packet.getData())
                     && transport == Transport.WEBSOCKET
@@ -138,10 +142,18 @@ public class PacketListener {
         final AckRequest ackRequest = new AckRequest(packet, client);
 
         if (packet.isAckRequested()) {
-            ackManager.initAckIndex(client.getSessionId(), packet.getAckId());
+            Long ackId = packet.getAckId();
+            if (ackId != null) {
+                ackManager.initAckIndex(client.getSessionId(), ackId);
+            }
         }
 
-        switch (packet.getType()) {
+        PacketType type = packet.getType();
+        if (type == null) {
+            return;
+        }
+
+        switch (type) {
         case PING: {
             Packet outPacket = new Packet(PacketType.PONG);
             outPacket.setData(packet.getData());
@@ -153,13 +165,17 @@ public class PacketListener {
                 client.getBaseClient().schedulePingTimeout();
             }
             Namespace namespace = namespacesHub.get(packet.getNsp());
-            namespace.onPing(client);
+            if (namespace != null) {
+                namespace.onPing(client);
+            }
             break;
         }
         case PONG: {
             client.getBaseClient().schedulePingTimeout();
             Namespace namespace = namespacesHub.get(packet.getNsp());
-            namespace.onPong(client);
+            if (namespace != null) {
+                namespace.onPong(client);
+            }
             break;
         }
 
@@ -182,7 +198,9 @@ public class PacketListener {
 
             if (packet.getSubType() == PacketType.CONNECT) {
                 Namespace namespace = namespacesHub.get(packet.getNsp());
-                namespace.onConnect(client);
+                if (namespace != null) {
+                    namespace.onConnect(client);
+                }
                 // send connect handshake packet back to client
                 if (!EngineIOVersion.V4.equals(client.getEngineIOVersion())) {
                     client.getBaseClient().send(packet, transport);
@@ -197,11 +215,13 @@ public class PacketListener {
             if (packet.getSubType() == PacketType.EVENT
                     || packet.getSubType() == PacketType.BINARY_EVENT) {
                 Namespace namespace = namespacesHub.get(packet.getNsp());
-                List<Object> args = Collections.emptyList();
-                if (packet.getData() != null) {
-                    args = packet.getData();
+                if (namespace != null && packet.getName() != null) {
+                    List<Object> args = Collections.emptyList();
+                    if (packet.getData() != null) {
+                        args = packet.getData();
+                    }
+                    namespace.onEvent(client, packet.getName(), args, ackRequest);
                 }
-                namespace.onEvent(client, packet.getName(), args, ackRequest);
             }
             break;
         }

@@ -23,8 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
@@ -67,8 +67,8 @@ public class RedisPubSubEventStore implements EventStore {
      * @param nodeId
      * @param metrics
      */
-    public RedisPubSubEventStore(@NotNull RedissonClient redissonPub,
-                              @NotNull RedissonClient redissonSub,
+    public RedisPubSubEventStore(@NonNull RedissonClient redissonPub,
+                              @NonNull RedissonClient redissonSub,
                               @Nullable EventStoreMode eventStoreMode,
                               @Nullable Long nodeId,
                               @Nullable SocketIOMetrics metrics) {
@@ -92,8 +92,8 @@ public class RedisPubSubEventStore implements EventStore {
         }
     }
 
-    public RedisPubSubEventStore(@NotNull RedissonClient redissonPub,
-                              @NotNull RedissonClient redissonSub,
+    public RedisPubSubEventStore(@NonNull RedissonClient redissonPub,
+                              @NonNull RedissonClient redissonSub,
                               @Nullable EventStoreMode eventStoreMode,
                               @Nullable Long nodeId) {
         this(redissonPub, redissonSub, eventStoreMode, nodeId, SocketIOMetrics.noop());
@@ -177,7 +177,7 @@ public class RedisPubSubEventStore implements EventStore {
         // -------------------------
         // Optional (defaults)
         // -------------------------
-        private Long nodeId;
+        private @Nullable Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
@@ -185,12 +185,12 @@ public class RedisPubSubEventStore implements EventStore {
         // Constructors
         // -------------------------
 
-        public Builder(@NotNull RedissonClient redissonClient) {
+        public Builder(@NonNull RedissonClient redissonClient) {
             this(redissonClient, redissonClient);
         }
 
-        public Builder(@NotNull RedissonClient redissonPub,
-                       @NotNull RedissonClient redissonSub) {
+        public Builder(@NonNull RedissonClient redissonPub,
+                       @NonNull RedissonClient redissonSub) {
             this.redissonPub = Objects.requireNonNull(redissonPub, "redissonPub");
             this.redissonSub = Objects.requireNonNull(redissonSub, "redissonSub");
         }
@@ -204,7 +204,7 @@ public class RedisPubSubEventStore implements EventStore {
             return this;
         }
 
-        public Builder eventStoreMode(@NotNull EventStoreMode mode) {
+        public Builder eventStoreMode(@NonNull EventStoreMode mode) {
             this.eventStoreMode = Objects.requireNonNull(mode, "eventStoreMode");
             return this;
         }

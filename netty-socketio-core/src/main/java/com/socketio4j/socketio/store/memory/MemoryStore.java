@@ -19,6 +19,8 @@ package com.socketio4j.socketio.store.memory;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.store.Store;
 
 public class MemoryStore implements Store {
@@ -31,7 +33,7 @@ public class MemoryStore implements Store {
     }
 
     @Override
-    public <T> T get(String key) {
+    public <T> @Nullable T get(String key) {
         return (T) store.get(key);
     }
 

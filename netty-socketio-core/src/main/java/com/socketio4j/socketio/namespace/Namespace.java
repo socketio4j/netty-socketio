@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,6 +58,7 @@ import com.socketio4j.socketio.listener.MultiTypeEventListener;
 import com.socketio4j.socketio.listener.PingListener;
 import com.socketio4j.socketio.listener.PongListener;
 import com.socketio4j.socketio.metrics.SocketIOMetrics;
+import com.socketio4j.socketio.protocol.JacksonJsonSupport;
 import com.socketio4j.socketio.protocol.JsonSupport;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.store.StoreFactory;
@@ -106,7 +108,12 @@ public class Namespace implements SocketIONamespace {
     public Namespace(String name, Configuration configuration) {
         super();
         this.name = name;
-        this.jsonSupport = configuration.getJsonSupport();
+        JsonSupport js = configuration.getJsonSupport();
+        if (js != null) {
+            this.jsonSupport = js;
+        } else {
+            this.jsonSupport = new JacksonJsonSupport();
+        }
         this.storeFactory = configuration.getStoreFactory();
         this.exceptionListener = configuration.getExceptionListener();
         this.ackMode = configuration.getAckMode();
@@ -308,7 +315,7 @@ public class Namespace implements SocketIONamespace {
         }
     }
 
-    private Object getEventData(List<Object> args, DataListener<?> dataListener) {
+    private @Nullable Object getEventData(List<Object> args, DataListener<?> dataListener) {
         if (dataListener instanceof MultiTypeEventListener) {
             return new MultiTypeArgs(args);
         } else {
@@ -638,7 +645,7 @@ public class Namespace implements SocketIONamespace {
     }
 
     @Override
-    public SocketIOClient getClient(UUID uuid) {
+    public @Nullable SocketIOClient getClient(UUID uuid) {
         return allClients.get(uuid);
     }
 

@@ -19,6 +19,8 @@ package com.socketio4j.socketio;
 import java.util.Collection;
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.listener.ClientListeners;
 
 /**
@@ -48,7 +50,7 @@ public interface SocketIONamespace extends ClientListeners {
      * @param uuid - id of client
      * @return client
      */
-    SocketIOClient getClient(UUID uuid);
+    @Nullable SocketIOClient getClient(UUID uuid);
 
     void addAuthTokenListener(AuthTokenListener listener);
 }

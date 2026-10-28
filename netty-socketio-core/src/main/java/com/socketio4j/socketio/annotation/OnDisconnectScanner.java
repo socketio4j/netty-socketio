@@ -37,7 +37,11 @@ public class OnDisconnectScanner implements AnnotationScanner {
             try {
                 method.invoke(object, client);
             } catch (InvocationTargetException e) {
-                throw new SocketIOException(e.getCause());
+                Throwable cause = e.getCause();
+                if (cause != null) {
+                    throw new SocketIOException(cause);
+                }
+                throw new SocketIOException(e);
             } catch (Exception e) {
                 throw new SocketIOException(e);
             }

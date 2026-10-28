@@ -18,6 +18,7 @@ package com.socketio4j.socketio.store.redis_pubsub;
 
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
 import org.redisson.api.RMap;
 import org.redisson.api.RedissonClient;
 
@@ -38,7 +39,7 @@ public class RedisStore implements Store {
     }
 
     @Override
-    public <T> T get(String key) {
+    public <T> @Nullable T get(String key) {
         return (T) map.get(key);
     }
 

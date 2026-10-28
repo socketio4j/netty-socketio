@@ -16,6 +16,8 @@
  */
 package com.socketio4j.socketio;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Base ack callback with {@link Void} class as type.
  *
@@ -31,7 +33,7 @@ public abstract class VoidAckCallback extends AckCallback<Void> {
     }
 
     @Override
-    public final void onSuccess(Void result) {
+    public final void onSuccess(@Nullable Void result) {
         onSuccess();
     }
 

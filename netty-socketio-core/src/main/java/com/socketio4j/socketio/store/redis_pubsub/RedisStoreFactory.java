@@ -20,8 +20,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -123,8 +123,8 @@ public class RedisStoreFactory extends BaseStoreFactory {
      * @param redisClient non-null Redis client
      * @param eventStore  non-null event store implementation
      */
-    public RedisStoreFactory(@NotNull RedissonClient redisClient,
-                                @NotNull EventStore eventStore) {
+    public RedisStoreFactory(@NonNull RedissonClient redisClient,
+                                @NonNull EventStore eventStore) {
         this.redisClient = Objects.requireNonNull(redisClient, "redisClient cannot be null");
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore cannot be null");
     }
@@ -136,7 +136,7 @@ public class RedisStoreFactory extends BaseStoreFactory {
      * @param redisClient non-null Redis client
      * @param metrics     metrics instance, or null for no-op metrics
      */
-    public RedisStoreFactory(@NotNull RedissonClient redisClient,
+    public RedisStoreFactory(@NonNull RedissonClient redisClient,
                              @Nullable SocketIOMetrics metrics) {
         this(redisClient,
              new RedisPubSubEventStore(redisClient, redisClient, EventStoreMode.MULTI_CHANNEL, null, metrics));
@@ -151,7 +151,7 @@ public class RedisStoreFactory extends BaseStoreFactory {
      * 
      * @param redisClient non-null Redis client
      */
-    public RedisStoreFactory(@NotNull RedissonClient redisClient) {
+    public RedisStoreFactory(@NonNull RedissonClient redisClient) {
         this(redisClient, (SocketIOMetrics) null);
     }
 

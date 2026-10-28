@@ -17,6 +17,9 @@
 package com.socketio4j.socketio.misc;
 
 import java.util.Iterator;
+import java.util.NoSuchElementException;
+
+import org.jspecify.annotations.Nullable;
 
 import com.socketio4j.socketio.annotation.Internal;
 
@@ -24,7 +27,7 @@ import com.socketio4j.socketio.annotation.Internal;
 public class CompositeIterator<T> implements Iterator<T> {
 
     private final Iterator<Iterator<T>> listIterator;
-    private Iterator<T> currentIterator;
+    private @Nullable Iterator<T> currentIterator;
     
     public CompositeIterator(Iterator<Iterator<T>> listIterator) {
         this.currentIterator = null;
@@ -48,12 +51,17 @@ public class CompositeIterator<T> implements Iterator<T> {
 
     @Override
     public T next() {
-        hasNext();
+        if (!hasNext() || currentIterator == null) {
+            throw new NoSuchElementException();
+        }
         return currentIterator.next();
     }
 
     @Override
     public void remove() {
+        if (currentIterator == null) {
+            throw new IllegalStateException();
+        }
         currentIterator.remove();
     }
 }

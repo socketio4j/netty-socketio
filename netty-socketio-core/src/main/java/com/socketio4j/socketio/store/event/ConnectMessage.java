@@ -18,21 +18,23 @@ package com.socketio4j.socketio.store.event;
 
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
+
 public class ConnectMessage extends EventMessage {
 
     private static final long serialVersionUID = 3108918714495865101L;
 
-    private UUID sessionId;
+    private @Nullable UUID sessionId;
 
     public ConnectMessage() {
     }
 
-    public ConnectMessage(UUID sessionId) {
+    public ConnectMessage(@Nullable UUID sessionId) {
         super();
         this.sessionId = sessionId;
     }
 
-    public UUID getSessionId() {
+    public @Nullable UUID getSessionId() {
         return sessionId;
     }
     @Override

@@ -21,8 +21,8 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.Store;
@@ -74,7 +74,7 @@ public class MemoryStoreFactory extends BaseStoreFactory {
      * @param eventStore non-null event store
      * @throws NullPointerException if {@code eventStore} is {@code null}
      */
-    public MemoryStoreFactory(@NotNull EventStore eventStore) {
+    public MemoryStoreFactory(@NonNull EventStore eventStore) {
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore can not be null");
     }
 

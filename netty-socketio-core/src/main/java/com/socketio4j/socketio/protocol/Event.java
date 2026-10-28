@@ -18,28 +18,30 @@ package com.socketio4j.socketio.protocol;
 
 import java.util.List;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.annotation.Internal;
 
 @Internal
 public class Event {
 
-    private String name;
-    private List<Object> args;
+    private @Nullable String name;
+    private @Nullable List<Object> args;
 
     public Event() {
     }
 
-    public Event(String name, List<Object> args) {
+    public Event(@Nullable String name, @Nullable List<Object> args) {
         super();
         this.name = name;
         this.args = args;
     }
 
-    public List<Object> getArgs() {
+    public @Nullable List<Object> getArgs() {
         return args;
     }
 
-    public String getName() {
+    public @Nullable String getName() {
         return name;
     }
 

@@ -22,6 +22,8 @@ import java.io.InputStream;
 
 import javax.net.ssl.KeyManagerFactory;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.misc.EventLoopSafety;
 
 public class SocketSslConfig {
@@ -29,16 +31,16 @@ public class SocketSslConfig {
     private boolean sslProtocolExplicitlySet;
 
     private String keyStoreFormat = "JKS";
-    private InputStream keyStore;
-    private String keyStorePassword;
+    private @Nullable InputStream keyStore;
+    private @Nullable String keyStorePassword;
 
     private String trustStoreFormat = "JKS";
-    private InputStream trustStore;
-    private String trustStorePassword;
+    private @Nullable InputStream trustStore;
+    private @Nullable String trustStorePassword;
 
     private final Object sslMaterialLock = new Object();
-    private byte[] cachedKeyStoreBytes;
-    private byte[] cachedTrustStoreBytes;
+    private byte @Nullable [] cachedKeyStoreBytes;
+    private byte @Nullable [] cachedTrustStoreBytes;
 
     private String keyManagerFactoryAlgorithm = KeyManagerFactory.getDefaultAlgorithm();
 
@@ -47,11 +49,11 @@ public class SocketSslConfig {
      *
      * @param keyStorePassword - password of key store
      */
-    public void setKeyStorePassword(String keyStorePassword) {
+    public void setKeyStorePassword(@Nullable String keyStorePassword) {
         this.keyStorePassword = keyStorePassword;
     }
 
-    public String getKeyStorePassword() {
+    public @Nullable String getKeyStorePassword() {
         return keyStorePassword;
     }
 
@@ -65,11 +67,11 @@ public class SocketSslConfig {
      *
      * @param keyStore - key store input stream
      */
-    public void setKeyStore(InputStream keyStore) {
+    public void setKeyStore(@Nullable InputStream keyStore) {
         this.keyStore = keyStore;
     }
 
-    public InputStream getKeyStore() {
+    public @Nullable InputStream getKeyStore() {
         return keyStore;
     }
 
@@ -83,7 +85,7 @@ public class SocketSslConfig {
         }
     }
 
-    byte[] resolveKeyStoreBytes() throws IOException {
+    byte @Nullable [] resolveKeyStoreBytes() throws IOException {
         EventLoopSafety.requireBlockingAllowed();
         synchronized (sslMaterialLock) {
             if (cachedKeyStoreBytes != null) {
@@ -128,7 +130,7 @@ public class SocketSslConfig {
         this.trustStoreFormat = trustStoreFormat;
     }
 
-    public InputStream getTrustStore() {
+    public @Nullable InputStream getTrustStore() {
         return trustStore;
     }
 
@@ -137,7 +139,7 @@ public class SocketSslConfig {
      *
      * @param trustStore trust store input stream
      */
-    public void setTrustStore(InputStream trustStore) {
+    public void setTrustStore(@Nullable InputStream trustStore) {
         this.trustStore = trustStore;
     }
 
@@ -151,7 +153,7 @@ public class SocketSslConfig {
         }
     }
 
-    byte[] resolveTrustStoreBytes() throws IOException {
+    byte @Nullable [] resolveTrustStoreBytes() throws IOException {
         EventLoopSafety.requireBlockingAllowed();
         synchronized (sslMaterialLock) {
             if (cachedTrustStoreBytes != null) {
@@ -174,11 +176,11 @@ public class SocketSslConfig {
         }
     }
 
-    public String getTrustStorePassword() {
+    public @Nullable String getTrustStorePassword() {
         return trustStorePassword;
     }
 
-    public void setTrustStorePassword(String trustStorePassword) {
+    public void setTrustStorePassword(@Nullable String trustStorePassword) {
         this.trustStorePassword = trustStorePassword;
     }
 

@@ -27,7 +27,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,7 +88,7 @@ public class SocketIOServer implements ClientListeners {
     private final AtomicReference<Channel> serverChannel = new AtomicReference<>();
 
     private final AtomicBoolean shutdownHookInstalled = new AtomicBoolean();
-    private Thread shutdownHook;
+    private @Nullable Thread shutdownHook;
 
     private final AtomicReference<ServerStatus> serverStatus = new AtomicReference<>(ServerStatus.INIT);
 
@@ -110,7 +111,7 @@ public class SocketIOServer implements ClientListeners {
      *                 {@code null}
      * @throws NullPointerException if {@code listener} is {@code null}
      */
-    public void addBeforeStartListener(@NotNull ServerBeforeStartListener listener) {
+    public void addBeforeStartListener(@NonNull ServerBeforeStartListener listener) {
         beforeStartListeners.add(Objects.requireNonNull(listener));
     }
     /**
@@ -121,7 +122,7 @@ public class SocketIOServer implements ClientListeners {
      *         {@code false} otherwise
      * @throws NullPointerException if {@code listener} is {@code null}
      */
-    public boolean removeBeforeStartListener(@NotNull ServerBeforeStartListener listener) {
+    public boolean removeBeforeStartListener(@NonNull ServerBeforeStartListener listener) {
         return beforeStartListeners.remove(Objects.requireNonNull(listener));
     }
     /**
@@ -139,7 +140,7 @@ public class SocketIOServer implements ClientListeners {
      *                 {@code null}
      * @throws NullPointerException if {@code listener} is {@code null}
      */
-    public void addAfterStartListener(@NotNull ServerAfterStartListener listener) {
+    public void addAfterStartListener(@NonNull ServerAfterStartListener listener) {
         afterStartListeners.add(Objects.requireNonNull(listener));
     }
     /**
@@ -150,7 +151,7 @@ public class SocketIOServer implements ClientListeners {
      *         {@code false} otherwise
      * @throws NullPointerException if {@code listener} is {@code null}
      */
-    public boolean removeAfterStartListener(@NotNull ServerAfterStartListener listener) {
+    public boolean removeAfterStartListener(@NonNull ServerAfterStartListener listener) {
         return afterStartListeners.remove(Objects.requireNonNull(listener));
     }
     /**
@@ -171,7 +172,7 @@ public class SocketIOServer implements ClientListeners {
      *                 {@code null}
      * @throws NullPointerException if {@code listener} is {@code null}
      */
-    public void addBeforeStopListener(@NotNull ServerBeforeStopListener listener) {
+    public void addBeforeStopListener(@NonNull ServerBeforeStopListener listener) {
         beforeStopListeners.add(Objects.requireNonNull(listener));
     }
     /**
@@ -182,7 +183,7 @@ public class SocketIOServer implements ClientListeners {
      *         {@code false} otherwise
      * @throws NullPointerException if {@code listener} is {@code null}
      */
-    public boolean removeBeforeStopListener(@NotNull ServerBeforeStopListener listener) {
+    public boolean removeBeforeStopListener(@NonNull ServerBeforeStopListener listener) {
         return beforeStopListeners.remove(Objects.requireNonNull(listener));
     }
     /**
@@ -200,7 +201,7 @@ public class SocketIOServer implements ClientListeners {
      *                 {@code null}
      * @throws NullPointerException if {@code listener} is {@code null}
      */
-    public void addAfterStopListener(@NotNull ServerAfterStopListener listener) {
+    public void addAfterStopListener(@NonNull ServerAfterStopListener listener) {
         afterStopListeners.add(Objects.requireNonNull(listener));
     }
     /**
@@ -211,7 +212,7 @@ public class SocketIOServer implements ClientListeners {
      *         {@code false} otherwise
      * @throws NullPointerException if {@code listener} is {@code null}
      */
-    public boolean removeAfterStopListener(@NotNull ServerAfterStopListener listener) {
+    public boolean removeAfterStopListener(@NonNull ServerAfterStopListener listener) {
         return afterStopListeners.remove(Objects.requireNonNull(listener));
     }
 
@@ -317,7 +318,7 @@ public class SocketIOServer implements ClientListeners {
     }
 
     @SuppressWarnings("unchecked")
-    private static Class<? extends ServerChannel> getIoUringServerSocketChannelClass() {
+    private static @Nullable Class<? extends ServerChannel> getIoUringServerSocketChannelClass() {
         try {
             return (Class<? extends ServerChannel>) Class.forName("io.netty.channel.uring.IoUringServerSocketChannel");
         } catch (ClassNotFoundException e) {
@@ -326,7 +327,7 @@ public class SocketIOServer implements ClientListeners {
     }
 
     @SuppressWarnings("unchecked")
-    private static Class<? extends ServerChannel> getEpollServerSocketChannelClass() {
+    private static @Nullable Class<? extends ServerChannel> getEpollServerSocketChannelClass() {
         try {
             return (Class<? extends ServerChannel>) Class.forName("io.netty.channel.epoll.EpollServerSocketChannel");
         } catch (ClassNotFoundException e) {
@@ -335,7 +336,7 @@ public class SocketIOServer implements ClientListeners {
     }
 
     @SuppressWarnings("unchecked")
-    private static Class<? extends ServerChannel> getKQueueServerSocketChannelClass() {
+    private static @Nullable Class<? extends ServerChannel> getKQueueServerSocketChannelClass() {
         try {
             return (Class<? extends ServerChannel>) Class.forName("io.netty.channel.kqueue.KQueueServerSocketChannel");
         } catch (ClassNotFoundException e) {
@@ -343,7 +344,7 @@ public class SocketIOServer implements ClientListeners {
         }
     }
 
-    private static IoHandlerFactory getIoUringIoHandlerFactory() {
+    private static @Nullable IoHandlerFactory getIoUringIoHandlerFactory() {
         try {
             Class<?> clazz = Class.forName("io.netty.channel.uring.IoUringIoHandler");
             return (IoHandlerFactory) clazz.getMethod("newFactory").invoke(null);
@@ -352,7 +353,7 @@ public class SocketIOServer implements ClientListeners {
         }
     }
 
-    private static IoHandlerFactory getEpollIoHandlerFactory() {
+    private static @Nullable IoHandlerFactory getEpollIoHandlerFactory() {
         try {
             Class<?> clazz = Class.forName("io.netty.channel.epoll.EpollIoHandler");
             return (IoHandlerFactory) clazz.getMethod("newFactory").invoke(null);
@@ -361,7 +362,7 @@ public class SocketIOServer implements ClientListeners {
         }
     }
 
-    private static IoHandlerFactory getKQueueIoHandlerFactory() {
+    private static @Nullable IoHandlerFactory getKQueueIoHandlerFactory() {
         try {
             Class<?> clazz = Class.forName("io.netty.channel.kqueue.KQueueIoHandler");
             return (IoHandlerFactory) clazz.getMethod("newFactory").invoke(null);
@@ -378,8 +379,8 @@ public class SocketIOServer implements ClientListeners {
 
     private SocketIOChannelInitializer pipelineFactory = new SocketIOChannelInitializer();
 
-    private EventLoopGroup bossGroup;
-    private EventLoopGroup workerGroup;
+    private @Nullable EventLoopGroup bossGroup;
+    private @Nullable EventLoopGroup workerGroup;
 
     public SocketIOServer(Configuration configuration) {
         this.configuration = configuration;
@@ -393,11 +394,11 @@ public class SocketIOServer implements ClientListeners {
     }
 
     public Collection<SocketIOClient> getAllClients() {
-        return namespacesHub.get(Namespace.DEFAULT_NAME).getAllClients();
+        return mainNamespace.getAllClients();
     }
 
-    public SocketIOClient getClient(UUID uuid) {
-        return namespacesHub.get(Namespace.DEFAULT_NAME).getClient(uuid);
+    public @Nullable SocketIOClient getClient(UUID uuid) {
+        return mainNamespace.getClient(uuid);
     }
 
     public Collection<SocketIONamespace> getAllNamespaces() {
@@ -719,7 +720,7 @@ public class SocketIOServer implements ClientListeners {
         }
     }
 
-    private void awaitEventLoopTermination(EventLoopGroup group, String name) {
+    private void awaitEventLoopTermination(@Nullable EventLoopGroup group, String name) {
         EventLoopSafety.requireBlockingAllowed();
         if (group == null) {
             return;
@@ -961,7 +962,7 @@ public class SocketIOServer implements ClientListeners {
      * @param name the namespace name
      * @return the namespace instance, or {@code null} if no such namespace exists
      */
-    public SocketIONamespace getNamespace(String name) {
+    public @Nullable SocketIONamespace getNamespace(String name) {
         return namespacesHub.get(name);
     }
 

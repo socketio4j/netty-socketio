@@ -20,6 +20,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.HandshakeData;
 import com.socketio4j.socketio.annotation.Internal;
 
@@ -32,7 +34,7 @@ public class ClientsBox {
     private final Map<Channel, ClientHead> channel2clients = new ConcurrentHashMap<>();
 
     // TODO use storeFactory
-    public HandshakeData getHandshakeData(UUID sessionId) {
+    public @Nullable HandshakeData getHandshakeData(UUID sessionId) {
         ClientHead client = uuid2clients.get(sessionId);
         if (client == null) {
             return null;
@@ -42,14 +44,14 @@ public class ClientsBox {
     }
 
     public void addClient(ClientHead clientHead) {
-        uuid2clients.put(clientHead.getSessionId(), clientHead);
+        uuid2clients.putIfAbsent(clientHead.getSessionId(), clientHead);
     }
 
-    public ClientHead removeClient(UUID sessionId) {
+    public @Nullable ClientHead removeClient(UUID sessionId) {
         return uuid2clients.remove(sessionId);
     }
 
-    public ClientHead get(UUID sessionId) {
+    public @Nullable ClientHead get(UUID sessionId) {
         return uuid2clients.get(sessionId);
     }
 
@@ -62,7 +64,7 @@ public class ClientsBox {
     }
 
 
-    public ClientHead get(Channel channel) {
+    public @Nullable ClientHead get(Channel channel) {
         return channel2clients.get(channel);
     }
 

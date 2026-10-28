@@ -21,7 +21,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.LinkedList;
 import java.util.Map;
 
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -310,7 +310,7 @@ public class PacketDecoder {
         return false;
     }
 
-    public Packet decodePackets(ByteBuf buffer, ClientHead client) throws IOException {
+    public @Nullable Packet decodePackets(ByteBuf buffer, ClientHead client) throws IOException {
         return decodePackets(buffer, client, client.getCurrentTransport());
     }
 
@@ -344,7 +344,7 @@ public class PacketDecoder {
         return decode(client, buffer, transport);
     }
 
-    private Packet decodeLegacyBinaryPayload(ByteBuf buffer,
+    private @Nullable Packet decodeLegacyBinaryPayload(ByteBuf buffer,
                                              ClientHead client,
                                              Transport transport) throws IOException {
         byte marker = buffer.readByte();
@@ -389,7 +389,7 @@ public class PacketDecoder {
      * Decode packet with string header format
      * Handles packets that start with 0x0 byte
      */
-    private Packet decodeWithStringHeader(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
+    private @Nullable Packet decodeWithStringHeader(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
         int maxLength = Math.min(buffer.readableBytes(), 10);
         int headEndIndex = buffer.bytesBefore(maxLength, (byte) -1);
         if (headEndIndex == -1) {
@@ -403,7 +403,7 @@ public class PacketDecoder {
      * Decode packet with length header format
      * Handles packets with format "length:data"
      */
-    private Packet decodeWithLengthHeader(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
+    private @Nullable Packet decodeWithLengthHeader(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
         int lengthEndIndex = buffer.bytesBefore((byte) ':');
         int lenHeader = (int) readLong(buffer, lengthEndIndex);
         int len = utf8scanner.getActualLength(buffer, lenHeader);
@@ -414,7 +414,7 @@ public class PacketDecoder {
      * Common frame decoding logic
      * Extracts frame data and advances buffer position
      */
-    private Packet decodeFrame(ByteBuf buffer, ClientHead client, int len, Transport transport) throws IOException {
+    private @Nullable Packet decodeFrame(ByteBuf buffer, ClientHead client, int len, Transport transport) throws IOException {
         ByteBuf frame = buffer.slice(buffer.readerIndex() + 1, len);
         buffer.readerIndex(buffer.readerIndex() + 1 + len);
         return decode(client, frame, transport);
@@ -738,6 +738,9 @@ public class PacketDecoder {
 
         LinkedList<ByteBuf> slices = new LinkedList<>();
         ByteBuf source = head.getLastBinaryPacketSource();
+        if (source == null) {
+            throw new IllegalStateException("Can't find binary packet source");
+        }
         for (int i = 0; i < binaryPacket.getAttachments().size(); i++) {
             ByteBuf attachment = binaryPacket.getAttachments().get(i);
             ByteBuf scanValue = Unpooled.copiedBuffer("{\"_placeholder\":true,\"num\":" + i + "}", CharsetUtil.UTF_8);
@@ -781,6 +784,9 @@ public class PacketDecoder {
         }
 
         PacketType subType = packet.getSubType();
+        if (subType == null) {
+            return;
+        }
         
         // Handle different packet subtypes
         switch (subType) {
@@ -849,7 +855,12 @@ public class PacketDecoder {
      * Parse ACK packet bodies
      */
     private void parseAckBody(ClientHead head, ByteBuf frame, Packet packet) throws IOException {
-        AckCallback<?> callback = ackManager.getCallback(head.getSessionId(), packet.getAckId());
+        Long ackId = packet.getAckId();
+        if (ackId == null) {
+            frame.clear();
+            return;
+        }
+        AckCallback<?> callback = ackManager.getCallback(head.getSessionId(), ackId);
         
         if (callback != null) {
             ByteBufInputStream in = new ByteBufInputStream(frame);

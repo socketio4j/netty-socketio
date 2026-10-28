@@ -25,6 +25,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.nativeio.TransportType;
 
@@ -54,11 +56,11 @@ public abstract class BasicConfiguration {
     protected int maxFramePayloadLength = 64 * 1024;
     protected int maxPendingPackets = 10000;
 
-    protected String packagePrefix;
-    protected String hostname;
+    protected @Nullable String packagePrefix;
+    protected @Nullable String hostname;
     protected int port = -1;
 
-    protected String allowHeaders;
+    protected @Nullable String allowHeaders;
 
     protected boolean preferDirectBuffer = true;
 
@@ -66,7 +68,7 @@ public abstract class BasicConfiguration {
 
     protected boolean addVersionHeader = true;
 
-    protected String origin;
+    protected @Nullable String origin;
 
     protected Set<String> allowedOrigins = Collections.emptySet();
 
@@ -157,7 +159,7 @@ public abstract class BasicConfiguration {
         setMicrometerHistogramEnabled(conf.isMicrometerHistogramEnabled());
     }
 
-    public String getHostname() {
+    public @Nullable String getHostname() {
         return hostname;
     }
 
@@ -167,7 +169,7 @@ public abstract class BasicConfiguration {
      *
      * @param hostname - name of host
      */
-    public void setHostname(String hostname) {
+    public void setHostname(@Nullable String hostname) {
         this.hostname = hostname;
     }
 
@@ -290,11 +292,11 @@ public abstract class BasicConfiguration {
      * @param packagePrefix - prefix string
      *
      */
-    public void setPackagePrefix(String packagePrefix) {
+    public void setPackagePrefix(@Nullable String packagePrefix) {
         this.packagePrefix = packagePrefix;
     }
 
-    public String getPackagePrefix() {
+    public @Nullable String getPackagePrefix() {
         return packagePrefix;
     }
 
@@ -394,11 +396,11 @@ public abstract class BasicConfiguration {
      *
      * @param origin - origin
      */
-    public void setOrigin(String origin) {
+    public void setOrigin(@Nullable String origin) {
         this.origin = origin;
     }
 
-    public String getOrigin() {
+    public @Nullable String getOrigin() {
         return origin;
     }
 
@@ -417,7 +419,7 @@ public abstract class BasicConfiguration {
      *
      * @param allowedOrigins - allowed origins
      */
-    public void setAllowedOrigins(Set<String> allowedOrigins) {
+    public void setAllowedOrigins(@Nullable Set<String> allowedOrigins) {
         if (allowedOrigins == null || allowedOrigins.isEmpty()) {
             this.allowedOrigins = Collections.emptySet();
             this.allowedOriginPatterns = Collections.emptyList();
@@ -502,11 +504,11 @@ public abstract class BasicConfiguration {
      * @param allowHeaders - allow headers
      *
      */
-    public void setAllowHeaders(String allowHeaders) {
+    public void setAllowHeaders(@Nullable String allowHeaders) {
         this.allowHeaders = allowHeaders;
     }
 
-    public String getAllowHeaders() {
+    public @Nullable String getAllowHeaders() {
         return allowHeaders;
     }
 

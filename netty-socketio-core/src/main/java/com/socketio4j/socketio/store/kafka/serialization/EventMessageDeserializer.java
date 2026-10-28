@@ -21,6 +21,7 @@ package com.socketio4j.socketio.store.kafka.serialization;
  * @date 15/12/25 6:21 pm
  */
 import org.apache.kafka.common.serialization.Deserializer;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +36,7 @@ public final class EventMessageDeserializer
     private static final ObjectMapper MAPPER = EventMessageJsonSupport.createObjectMapper();
 
     @Override
-    public EventMessage deserialize(String topic, byte[] data) {
+    public @Nullable EventMessage deserialize(String topic, byte @Nullable [] data) {
 
         if (data == null || data.length == 0) {
             return null;

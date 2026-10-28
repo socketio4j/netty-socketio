@@ -16,7 +16,7 @@
  */
 package com.socketio4j.socketio.store.memory;
 
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.Nullable;
 
 import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.event.EventListener;

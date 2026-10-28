@@ -66,50 +66,64 @@ public abstract class BaseStoreFactory implements StoreFactory {
 
             if (msg instanceof ConnectMessage) {
                 ConnectMessage m = (ConnectMessage) msg;
-                auth.connect(m.getSessionId());
+                if (m.getSessionId() != null) {
+                    auth.connect(m.getSessionId());
+                }
                 log.debug("[PUBSUB-SC] CONNECT {}", m.getSessionId());
             } else if (msg instanceof DisconnectMessage) {
                 DisconnectMessage m = (DisconnectMessage) msg;
                 log.debug("[PUBSUB-SC] DISCONNECT {}", m.getSessionId());
             } else if (msg instanceof JoinMessage) {
                 JoinMessage m = (JoinMessage) msg;
-                Namespace n = hub.get(m.getNamespace());
-                if (n != null) {
-                    n.join(m.getRoom(), m.getSessionId());
+                if (m.getNamespace() != null && m.getRoom() != null && m.getSessionId() != null) {
+                    Namespace n = hub.get(m.getNamespace());
+                    if (n != null) {
+                        n.join(m.getRoom(), m.getSessionId());
+                    }
                 }
                 log.debug("[PUBSUB-SC] JOIN {}", m.getSessionId());
             } else if (msg instanceof LeaveMessage) {
                 LeaveMessage m = (LeaveMessage) msg;
-                Namespace n = hub.get(m.getNamespace());
-                if (n != null) {
-                    n.leave(m.getRoom(), m.getSessionId());
+                if (m.getNamespace() != null && m.getRoom() != null && m.getSessionId() != null) {
+                    Namespace n = hub.get(m.getNamespace());
+                    if (n != null) {
+                        n.leave(m.getRoom(), m.getSessionId());
+                    }
                 }
                 log.debug("[PUBSUB-SC] LEAVE {}", m.getSessionId());
             } else if (msg instanceof DispatchMessage) {
                 DispatchMessage m = (DispatchMessage) msg;
-                Namespace n = hub.get(m.getNamespace());
-                if (msg.getOffset() != null && !msg.getOffset().isEmpty()) {
-                    attachOffset(m.getPacket(), m.getOffset());
+                Packet packet = m.getPacket();
+                String offset = msg.getOffset();
+                if (packet != null && offset != null && !offset.isEmpty()) {
+                    attachOffset(packet, offset);
                 }
-                if (n != null) {
-                    n.dispatch(m.getRoom(), m.getPacket());
+                if (m.getNamespace() != null && packet != null && m.getRoom() != null) {
+                    Namespace n = hub.get(m.getNamespace());
+                    if (n != null) {
+                        n.dispatch(m.getRoom(), packet);
+                    }
                 }
                 log.debug("[PUBSUB-SC] DISPATCH {}", m.getPacket());
             } else if (msg instanceof BulkJoinMessage) {
                 BulkJoinMessage m = (BulkJoinMessage) msg;
-                Namespace n = hub.get(m.getNamespace());
-                if (n != null) {
-                    for (String r : m.getRooms()) {
-                        n.join(r, m.getSessionId());
+                if (m.getNamespace() != null && m.getRooms() != null && m.getSessionId() != null) {
+                    Namespace n = hub.get(m.getNamespace());
+                    if (n != null) {
+                        for (String r : m.getRooms()) {
+                            n.join(r, m.getSessionId());
+                        }
                     }
                 }
                 log.debug("[PUBSUB-SC] BULK_JOIN {}", m.getSessionId());
             } else if (msg instanceof BulkLeaveMessage) {
                 BulkLeaveMessage m = (BulkLeaveMessage) msg;
-                Namespace n = hub.get(m.getNamespace());
-                if (n != null) {
-                    for (String r : m.getRooms()) {
-                        n.leave(r, m.getSessionId());
+                if (m.getNamespace() != null && m.getRooms() != null && m.getSessionId() != null) {
+                    Namespace n = hub.get(m.getNamespace());
+                    if (n != null) {
+                        for (String r : m.getRooms()) {
+                            n.leave(r, m.getSessionId());
+                        }
                     }
                 }
                 log.debug("[PUBSUB-SC] BULK_LEAVE {}", m.getSessionId());
@@ -155,34 +169,42 @@ public abstract class BaseStoreFactory implements StoreFactory {
 
         subscribe(EventType.CONNECT, ConnectMessage.class,
                 m -> {
-                    auth.connect(m.getSessionId());
+                    if (m.getSessionId() != null) {
+                        auth.connect(m.getSessionId());
+                    }
                     log.debug("[PUBSUB-MC] CONNECT {}", m.getSessionId());
                 });
 
         subscribe(EventType.DISPATCH, DispatchMessage.class,
                 m -> {
-                    Namespace n = hub.get(m.getNamespace());
-                    if (n != null) {
-                        n.dispatch(m.getRoom(), m.getPacket());
+                    if (m.getNamespace() != null && m.getRoom() != null && m.getPacket() != null) {
+                        Namespace n = hub.get(m.getNamespace());
+                        if (n != null) {
+                            n.dispatch(m.getRoom(), m.getPacket());
+                        }
                     }
                     log.debug("[PUBSUB-MC] DISPATCH {}", m.getPacket());
                 });
 
         subscribe(EventType.JOIN, JoinMessage.class,
                 m -> {
-                    Namespace n = hub.get(m.getNamespace());
-                    if (n != null) {
-                        n.join(m.getRoom(), m.getSessionId());
+                    if (m.getNamespace() != null && m.getRoom() != null && m.getSessionId() != null) {
+                        Namespace n = hub.get(m.getNamespace());
+                        if (n != null) {
+                            n.join(m.getRoom(), m.getSessionId());
+                        }
                     }
                     log.debug("[PUBSUB-MC] JOIN {}", m.getSessionId());
                 });
 
         subscribe(EventType.BULK_JOIN, BulkJoinMessage.class,
                 m -> {
-                    Namespace n = hub.get(m.getNamespace());
-                    if (n != null) {
-                        for (String r : m.getRooms()) {
-                            n.join(r, m.getSessionId());
+                    if (m.getNamespace() != null && m.getRooms() != null && m.getSessionId() != null) {
+                        Namespace n = hub.get(m.getNamespace());
+                        if (n != null) {
+                            for (String r : m.getRooms()) {
+                                n.join(r, m.getSessionId());
+                            }
                         }
                     }
                     log.debug("[PUBSUB-MC] BULK_JOIN {}", m.getSessionId());
@@ -190,19 +212,23 @@ public abstract class BaseStoreFactory implements StoreFactory {
 
         subscribe(EventType.LEAVE, LeaveMessage.class,
                 m -> {
-                    Namespace n = hub.get(m.getNamespace());
-                    if (n != null) {
-                        n.leave(m.getRoom(), m.getSessionId());
+                    if (m.getNamespace() != null && m.getRoom() != null && m.getSessionId() != null) {
+                        Namespace n = hub.get(m.getNamespace());
+                        if (n != null) {
+                            n.leave(m.getRoom(), m.getSessionId());
+                        }
                     }
                     log.debug("[PUBSUB-MC] LEAVE {}", m.getSessionId());
                 });
 
         subscribe(EventType.BULK_LEAVE, BulkLeaveMessage.class,
                 m -> {
-                    Namespace n = hub.get(m.getNamespace());
-                    if (n != null) {
-                        for (String r : m.getRooms()) {
-                            n.leave(r, m.getSessionId());
+                    if (m.getNamespace() != null && m.getRooms() != null && m.getSessionId() != null) {
+                        Namespace n = hub.get(m.getNamespace());
+                        if (n != null) {
+                            for (String r : m.getRooms()) {
+                                n.leave(r, m.getSessionId());
+                            }
                         }
                     }
                     log.debug("[PUBSUB-MC] BULK_LEAVE {}", m.getSessionId());

@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -163,7 +164,7 @@ public class NamespaceClient implements SocketIOClient {
     }
 
     @Override
-    public SocketAddress getRemoteAddress() {
+    public @Nullable SocketAddress getRemoteAddress() {
         return baseClient.getRemoteAddress();
     }
 
@@ -231,7 +232,7 @@ public class NamespaceClient implements SocketIOClient {
     }
 
     @Override
-    public <T> T get(String key) {
+    public <T> @Nullable T get(String key) {
         return baseClient.getStore().get(key);
     }
 

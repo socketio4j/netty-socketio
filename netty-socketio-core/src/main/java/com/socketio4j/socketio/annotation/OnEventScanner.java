@@ -63,12 +63,20 @@ public class OnEventScanner implements AnnotationScanner {
                     }
                     int i = 0;
                     for (int index : dataIndexes) {
-                        args[index] = data.get(i);
+                        if (data != null) {
+                            args[index] = data.get(i);
+                        } else {
+                            args[index] = null;
+                        }
                         i++;
                     }
                     method.invoke(object, args);
                 } catch (InvocationTargetException e) {
-                    throw new SocketIOException(e.getCause());
+                    Throwable cause = e.getCause();
+                    if (cause != null) {
+                        throw new SocketIOException(cause);
+                    }
+                    throw new SocketIOException(e);
                 } catch (Exception e) {
                     throw new SocketIOException(e);
                 }
@@ -94,7 +102,11 @@ public class OnEventScanner implements AnnotationScanner {
                     }
                     method.invoke(object, args);
                 } catch (InvocationTargetException e) {
-                    throw new SocketIOException(e.getCause());
+                    Throwable cause = e.getCause();
+                    if (cause != null) {
+                        throw new SocketIOException(cause);
+                    }
+                    throw new SocketIOException(e);
                 } catch (Exception e) {
                     throw new SocketIOException(e);
                 }

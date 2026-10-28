@@ -24,8 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,8 +57,8 @@ public class HazelcastPubSubEventStore implements EventStore {
     private static final Logger log = LoggerFactory.getLogger(HazelcastPubSubEventStore.class);
 
     public HazelcastPubSubEventStore(
-            @NotNull HazelcastInstance hazelcastPub,
-            @NotNull HazelcastInstance hazelcastSub,
+            @NonNull HazelcastInstance hazelcastPub,
+            @NonNull HazelcastInstance hazelcastSub,
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
             @Nullable String topicPrefix,
@@ -91,8 +91,8 @@ public class HazelcastPubSubEventStore implements EventStore {
     }
 
     public HazelcastPubSubEventStore(
-            @NotNull HazelcastInstance hazelcastPub,
-            @NotNull HazelcastInstance hazelcastSub,
+            @NonNull HazelcastInstance hazelcastPub,
+            @NonNull HazelcastInstance hazelcastSub,
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
             @Nullable String topicPrefix
@@ -183,7 +183,7 @@ public class HazelcastPubSubEventStore implements EventStore {
         private final HazelcastInstance hazelcastSub;
 
         // optional
-        private Long nodeId;
+        private @Nullable Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         private String topicNamePrefix = DEFAULT_TOPIC_NAME_PREFIX;
         private SocketIOMetrics metrics = SocketIOMetrics.noop();
@@ -192,12 +192,12 @@ public class HazelcastPubSubEventStore implements EventStore {
         // Constructors
         // --------------------------------------------------
 
-        public Builder(@NotNull HazelcastInstance hazelcastClient) {
+        public Builder(@NonNull HazelcastInstance hazelcastClient) {
             this(hazelcastClient, hazelcastClient);
         }
 
-        public Builder(@NotNull HazelcastInstance hazelcastPub,
-                       @NotNull HazelcastInstance hazelcastSub) {
+        public Builder(@NonNull HazelcastInstance hazelcastPub,
+                       @NonNull HazelcastInstance hazelcastSub) {
             this.hazelcastPub = Objects.requireNonNull(hazelcastPub, "hazelcastPub");
             this.hazelcastSub = Objects.requireNonNull(hazelcastSub, "hazelcastSub");
         }
@@ -211,12 +211,12 @@ public class HazelcastPubSubEventStore implements EventStore {
             return this;
         }
 
-        public HazelcastPubSubEventStore.Builder eventStoreMode(@NotNull EventStoreMode mode) {
+        public HazelcastPubSubEventStore.Builder eventStoreMode(@NonNull EventStoreMode mode) {
             this.eventStoreMode = Objects.requireNonNull(mode, "eventStoreMode");
             return this;
         }
 
-        public HazelcastPubSubEventStore.Builder topicNamePrefix(@NotNull String prefix) {
+        public HazelcastPubSubEventStore.Builder topicNamePrefix(@NonNull String prefix) {
             if (prefix.isEmpty()) {
                 throw new IllegalArgumentException("ringBufferNamePrefix cannot be empty");
             }

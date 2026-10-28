@@ -204,7 +204,13 @@ public final class NamespaceMeters {
         Gauge.builder(
                 "socketio.event.unknown.distinct.estimate",
                 unknownEventPublished,
-                ref -> ref.get().cardinality()
+                ref -> {
+                    HLL hll = ref.get();
+                    if (hll != null) {
+                        return (double) hll.cardinality();
+                    }
+                    return 0.0;
+                }
         ).tag("namespace", ns).register(registry);
 
 

@@ -18,33 +18,35 @@ package com.socketio4j.socketio.store.event;
 
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
+
 public class JoinMessage extends EventMessage {
 
     private static final long serialVersionUID = -944515928988033174L;
 
-    private UUID sessionId;
-    private String namespace;
-    private String room;
+    private @Nullable UUID sessionId;
+    private @Nullable String namespace;
+    private @Nullable String room;
 
     public JoinMessage() {
     }
 
-    public JoinMessage(UUID id, String room, String namespace) {
+    public JoinMessage(@Nullable UUID id, @Nullable String room, @Nullable String namespace) {
         super();
         this.sessionId = id;
         this.room = room;
         this.namespace = namespace;
     }
 
-    public String getNamespace() {
+    public @Nullable String getNamespace() {
         return namespace;
     }
 
-    public UUID getSessionId() {
+    public @Nullable UUID getSessionId() {
         return sessionId;
     }
 
-    public String getRoom() {
+    public @Nullable String getRoom() {
         return room;
     }
     @Override

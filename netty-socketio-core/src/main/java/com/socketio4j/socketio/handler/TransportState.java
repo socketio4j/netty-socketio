@@ -20,6 +20,8 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.protocol.Packet;
 
@@ -39,15 +41,15 @@ public class TransportState {
         return packetsQueue;
     }
 
-    public Channel getChannel() {
+    public @Nullable Channel getChannel() {
         return channel.get();
     }
 
-    public Channel update(Channel channel) {
+    public @Nullable Channel update(@Nullable Channel channel) {
         return this.channel.getAndSet(channel);
     }
 
-    public boolean compareAndSet(Channel expected, Channel updated) {
+    public boolean compareAndSet(@Nullable Channel expected, @Nullable Channel updated) {
         return channel.compareAndSet(expected, updated);
     }
 

@@ -20,8 +20,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,8 +64,8 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
      * @param eventStore      non-null event store implementation
      * @throws NullPointerException if either argument is {@code null}
      */
-    public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient,
-                                 @NotNull EventStore eventStore) {
+    public HazelcastStoreFactory(@NonNull HazelcastInstance hazelcastClient,
+                                 @NonNull EventStore eventStore) {
         this.hazelcastClient = Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
         this.eventStore = Objects.requireNonNull(eventStore, "eventStore cannot be null");
     }
@@ -77,7 +77,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
      * @param hazelcastClient non-null Hazelcast instance
      * @param metrics         metrics instance, or null for no-op metrics
      */
-    public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient,
+    public HazelcastStoreFactory(@NonNull HazelcastInstance hazelcastClient,
                                  @Nullable SocketIOMetrics metrics) {
         this(hazelcastClient,
              new HazelcastPubSubEventStore(hazelcastClient, hazelcastClient, null, null, null, metrics));
@@ -93,7 +93,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
      * 
      * @param hazelcastClient non-null Hazelcast instance
      */
-    public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient) {
+    public HazelcastStoreFactory(@NonNull HazelcastInstance hazelcastClient) {
         this(hazelcastClient, (SocketIOMetrics) null);
     }
 

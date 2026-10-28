@@ -24,8 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,8 +67,8 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
     private static final String DEFAULT_RING_BUFFER_NAME_PREFIX = "SOCKETIO4J:";
 
     public HazelcastPubSubRingBufferEventStore(
-            @NotNull HazelcastInstance hazelcastPub,
-            @NotNull HazelcastInstance hazelcastSub,
+            @NonNull HazelcastInstance hazelcastPub,
+            @NonNull HazelcastInstance hazelcastSub,
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
             @Nullable String ringBufferNamePrefix,
@@ -124,8 +124,8 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
     }
 
     public HazelcastPubSubRingBufferEventStore(
-            @NotNull HazelcastInstance hazelcastPub,
-            @NotNull HazelcastInstance hazelcastSub,
+            @NonNull HazelcastInstance hazelcastPub,
+            @NonNull HazelcastInstance hazelcastSub,
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
             @Nullable String ringBufferNamePrefix,
@@ -136,8 +136,8 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
     }
 
     public HazelcastPubSubRingBufferEventStore(
-            @NotNull HazelcastInstance hazelcastPub,
-            @NotNull HazelcastInstance hazelcastSub,
+            @NonNull HazelcastInstance hazelcastPub,
+            @NonNull HazelcastInstance hazelcastSub,
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
             @Nullable String ringBufferNamePrefix
@@ -291,7 +291,7 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
         private final HazelcastInstance hazelcastSub;
 
         // optional
-        private Long nodeId;
+        private @Nullable Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         private String ringBufferNamePrefix = DEFAULT_RING_BUFFER_NAME_PREFIX;
         private SocketIOMetrics metrics = SocketIOMetrics.noop();
@@ -303,12 +303,12 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
         // Constructors
         // --------------------------------------------------
 
-        public Builder(@NotNull HazelcastInstance hazelcastClient) {
+        public Builder(@NonNull HazelcastInstance hazelcastClient) {
             this(hazelcastClient, hazelcastClient);
         }
 
-        public Builder(@NotNull HazelcastInstance hazelcastPub,
-                       @NotNull HazelcastInstance hazelcastSub) {
+        public Builder(@NonNull HazelcastInstance hazelcastPub,
+                       @NonNull HazelcastInstance hazelcastSub) {
             this.hazelcastPub = Objects.requireNonNull(hazelcastPub, "hazelcastPub");
             this.hazelcastSub = Objects.requireNonNull(hazelcastSub, "hazelcastSub");
         }
@@ -322,12 +322,12 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
             return this;
         }
 
-        public Builder eventStoreMode(@NotNull EventStoreMode mode) {
+        public Builder eventStoreMode(@NonNull EventStoreMode mode) {
             this.eventStoreMode = Objects.requireNonNull(mode, "eventStoreMode");
             return this;
         }
 
-        public Builder ringBufferNamePrefix(@NotNull String prefix) {
+        public Builder ringBufferNamePrefix(@NonNull String prefix) {
             if (prefix.isEmpty()) {
                 throw new IllegalArgumentException("ringBufferNamePrefix cannot be empty");
             }
@@ -360,7 +360,7 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
             return this;
         }
 
-        public Builder topicOverloadPolicy(@NotNull TopicOverloadPolicy topicOverloadPolicy) {
+        public Builder topicOverloadPolicy(@NonNull TopicOverloadPolicy topicOverloadPolicy) {
             this.topicOverloadPolicy = Objects.requireNonNull(topicOverloadPolicy, "topicOverloadPolicy");
             return this;
         }

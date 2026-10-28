@@ -24,6 +24,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManagerFactory;
 
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,20 +84,20 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
 
     private static final Logger log = LoggerFactory.getLogger(SocketIOChannelInitializer.class);
 
-    private AckManager ackManager;
+    private @Nullable AckManager ackManager;
 
     private ClientsBox clientsBox = new ClientsBox();
-    private AuthorizeHandler authorizeHandler;
-    private PollingTransport xhrPollingTransport;
-    private WebSocketTransport webSocketTransport;
-    private EncoderHandler encoderHandler;
-    private WrongUrlHandler wrongUrlHandler;
+    private @Nullable AuthorizeHandler authorizeHandler;
+    private @Nullable PollingTransport xhrPollingTransport;
+    private @Nullable WebSocketTransport webSocketTransport;
+    private @Nullable EncoderHandler encoderHandler;
+    private @Nullable WrongUrlHandler wrongUrlHandler;
 
     private CancelableScheduler scheduler = new HashedWheelTimeoutScheduler();
 
-    private InPacketHandler packetHandler;
-    private SslContext sslContext;
-    private Configuration configuration;
+    private @Nullable InPacketHandler packetHandler;
+    private @Nullable SslContext sslContext;
+    private @Nullable Configuration configuration;
     private boolean needClientAuth;
 
     @Override
@@ -110,6 +111,9 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         ackManager = new AckManager(scheduler);
 
         JsonSupport jsonSupport = configuration.getJsonSupport();
+        if (jsonSupport == null) {
+            throw new IllegalStateException("Configuration does not have JsonSupport configured");
+        }
         PacketEncoder encoder = new PacketEncoder(configuration, jsonSupport);
         PacketDecoder decoder = new PacketDecoder(jsonSupport, ackManager);
 
@@ -177,10 +181,14 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
      * @param pipeline - channel pipeline
      */
     protected void addSocketioHandlers(ChannelPipeline pipeline) {
-        pipeline.addLast(HTTP_REQUEST_DECODER, new HttpRequestDecoder(configuration.getHttpDecoderConfig()));
-        pipeline.addLast(HTTP_AGGREGATOR, new HttpObjectAggregator(configuration.getMaxHttpContentLength()) {
+        Configuration config = configuration;
+        if (config == null) {
+            throw new IllegalStateException("SocketIOChannelInitializer has not been started with Configuration");
+        }
+        pipeline.addLast(HTTP_REQUEST_DECODER, new HttpRequestDecoder(config.getHttpDecoderConfig()));
+        pipeline.addLast(HTTP_AGGREGATOR, new HttpObjectAggregator(config.getMaxHttpContentLength()) {
             @Override
-            protected Object newContinueResponse(HttpMessage start, int maxContentLength,
+            protected @Nullable Object newContinueResponse(HttpMessage start, int maxContentLength,
                     ChannelPipeline pipeline) {
                 return null;
             }
@@ -188,22 +196,34 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         });
         pipeline.addLast(HTTP_ENCODER, new HttpResponseEncoder());
 
-        if (configuration.isHttpCompression()) {
+        if (config.isHttpCompression()) {
             pipeline.addLast(HTTP_COMPRESSION, new HttpContentCompressor());
         }
 
-        pipeline.addLast(PACKET_HANDLER, packetHandler);
-
-        pipeline.addLast(AUTHORIZE_HANDLER, authorizeHandler);
-        pipeline.addLast(XHR_POLLING_TRANSPORT, xhrPollingTransport);
-        if (configuration.isWebsocketCompression()) {
-            pipeline.addLast(WEB_SOCKET_TRANSPORT_COMPRESSION, new WebSocketServerCompressionHandler(configuration.getDecompressionBufferSize()));
+        if (packetHandler != null) {
+            pipeline.addLast(PACKET_HANDLER, packetHandler);
         }
-        pipeline.addLast(WEB_SOCKET_TRANSPORT, webSocketTransport);
 
-        pipeline.addLast(SOCKETIO_ENCODER, encoderHandler);
+        if (authorizeHandler != null) {
+            pipeline.addLast(AUTHORIZE_HANDLER, authorizeHandler);
+        }
+        if (xhrPollingTransport != null) {
+            pipeline.addLast(XHR_POLLING_TRANSPORT, xhrPollingTransport);
+        }
+        if (config.isWebsocketCompression()) {
+            pipeline.addLast(WEB_SOCKET_TRANSPORT_COMPRESSION, new WebSocketServerCompressionHandler(config.getDecompressionBufferSize()));
+        }
+        if (webSocketTransport != null) {
+            pipeline.addLast(WEB_SOCKET_TRANSPORT, webSocketTransport);
+        }
 
-        pipeline.addLast(WRONG_URL_HANDLER, wrongUrlHandler);
+        if (encoderHandler != null) {
+            pipeline.addLast(SOCKETIO_ENCODER, encoderHandler);
+        }
+
+        if (wrongUrlHandler != null) {
+            pipeline.addLast(WRONG_URL_HANDLER, wrongUrlHandler);
+        }
     }
 
     private SslContext createSSLContext(SocketSslConfig socketSslConfig) throws Exception {
@@ -212,12 +232,18 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
             throw new IllegalStateException("SocketSslConfig key store material is missing");
         }
         KeyStore ks = KeyStore.getInstance(socketSslConfig.getKeyStoreFormat());
+        char[] keyPass;
+        if (socketSslConfig.getKeyStorePassword() != null) {
+            keyPass = socketSslConfig.getKeyStorePassword().toCharArray();
+        } else {
+            keyPass = new char[0];
+        }
         try (InputStream keyStoreStream = new ByteArrayInputStream(keyMaterial)) {
-            ks.load(keyStoreStream, socketSslConfig.getKeyStorePassword().toCharArray());
+            ks.load(keyStoreStream, keyPass);
         }
 
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(socketSslConfig.getKeyManagerFactoryAlgorithm());
-        kmf.init(ks, socketSslConfig.getKeyStorePassword().toCharArray());
+        kmf.init(ks, keyPass);
 
         SslProvider sslProvider;
         if (OpenSsl.isAvailable()) {
@@ -246,8 +272,14 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
             }
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             KeyStore ts = KeyStore.getInstance(socketSslConfig.getTrustStoreFormat());
+            char[] trustPass;
+            if (socketSslConfig.getTrustStorePassword() != null) {
+                trustPass = socketSslConfig.getTrustStorePassword().toCharArray();
+            } else {
+                trustPass = new char[0];
+            }
             try (InputStream trustStoreStream = new ByteArrayInputStream(trustMaterial)) {
-                ts.load(trustStoreStream, socketSslConfig.getTrustStorePassword().toCharArray());
+                ts.load(trustStoreStream, trustPass);
             }
             tmf.init(ts);
             builder.trustManager(tmf);
@@ -266,19 +298,28 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
 
     @Override
     public void onDisconnect(ClientHead client) {
-        ackManager.onDisconnect(client);
-        authorizeHandler.onDisconnect(client);
-        configuration.getStoreFactory().onDisconnect(client);
-
-        configuration.getStoreFactory().eventStore().publish(EventType.DISCONNECT, new DisconnectMessage(client.getSessionId()));
+        if (ackManager != null) {
+            ackManager.onDisconnect(client);
+        }
+        if (authorizeHandler != null) {
+            authorizeHandler.onDisconnect(client);
+        }
+        if (configuration != null) {
+            configuration.getStoreFactory().onDisconnect(client);
+            configuration.getStoreFactory().eventStore().publish(EventType.DISCONNECT, new DisconnectMessage(client.getSessionId()));
+        }
 
         log.debug("Client with sessionId: {} disconnected", client.getSessionId());
     }
 
     public void stop() {
-        ackManager.clear();
-        StoreFactory factory = configuration.getStoreFactory();
-        factory.shutdown();
+        if (ackManager != null) {
+            ackManager.clear();
+        }
+        if (configuration != null) {
+            StoreFactory factory = configuration.getStoreFactory();
+            factory.shutdown();
+        }
         scheduler.shutdown();
     }
 

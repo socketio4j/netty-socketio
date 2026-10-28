@@ -21,6 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.annotation.Internal;
 
 import io.netty.channel.ChannelHandlerContext;
@@ -41,7 +43,7 @@ public class HashedWheelScheduler implements CancelableScheduler {
         executorService = new HashedWheelTimer(threadFactory);
     }
 
-    private volatile ChannelHandlerContext ctx;
+    private volatile @Nullable ChannelHandlerContext ctx;
 
     @Override
     public void update(ChannelHandlerContext ctx) {
@@ -63,13 +65,24 @@ public class HashedWheelScheduler implements CancelableScheduler {
 
     @Override
     public void scheduleCallback(final SchedulerKey key, final Runnable runnable, long delay, TimeUnit unit) {
-        Timeout timeout = executorService.newTimeout(timeout1 -> ctx.executor().execute(() -> {
-            try {
-                runnable.run();
-            } finally {
-                scheduledFutures.remove(key);
+        Timeout timeout = executorService.newTimeout(timeout1 -> {
+            ChannelHandlerContext currentCtx = ctx;
+            if (currentCtx != null) {
+                currentCtx.executor().execute(() -> {
+                    try {
+                        runnable.run();
+                    } finally {
+                        scheduledFutures.remove(key);
+                    }
+                });
+            } else {
+                try {
+                    runnable.run();
+                } finally {
+                    scheduledFutures.remove(key);
+                }
             }
-        }), delay, unit);
+        }, delay, unit);
 
         if (!timeout.isExpired()) {
             scheduledFutures.put(key, timeout);

@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIONamespace;
@@ -59,7 +61,7 @@ public class NamespacesHub {
         return new CompositeIterable<>(allClients);
     }
 
-    public Namespace get(String name) {
+    public @Nullable Namespace get(String name) {
         return (Namespace) namespaces.get(name);
     }
 

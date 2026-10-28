@@ -22,6 +22,7 @@ import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
 
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +35,7 @@ public class ScannerEngine {
     private static final List<? extends AnnotationScanner> ANNOTATION_SCANNERS =
                     Arrays.asList(new OnConnectScanner(), new OnDisconnectScanner(), new OnEventScanner());
 
-    private Method findSimilarMethod(Class<?> objectClazz, Method method) {
+    private @Nullable Method findSimilarMethod(Class<?> objectClazz, Method method) {
         Method[] methods = objectClazz.getDeclaredMethods();
         for (Method m : methods) {
             if (isEquals(m, method)) {

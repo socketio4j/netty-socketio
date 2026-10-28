@@ -19,33 +19,35 @@ package com.socketio4j.socketio.store.event;
 import java.util.Set;
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
+
 public class BulkJoinMessage extends EventMessage {
 
     private static final long serialVersionUID = 7506016762607624388L;
 
-    private UUID sessionId;
-    private String namespace;
-    private Set<String> rooms;
+    private @Nullable UUID sessionId;
+    private @Nullable String namespace;
+    private @Nullable Set<String> rooms;
 
     public BulkJoinMessage() {
     }
 
-    public BulkJoinMessage(UUID id, Set<String> rooms, String namespace) {
+    public BulkJoinMessage(@Nullable UUID id, @Nullable Set<String> rooms, @Nullable String namespace) {
         super();
         this.sessionId = id;
         this.rooms = rooms;
         this.namespace = namespace;
     }
 
-    public String getNamespace() {
+    public @Nullable String getNamespace() {
         return namespace;
     }
 
-    public UUID getSessionId() {
+    public @Nullable UUID getSessionId() {
         return sessionId;
     }
 
-    public Set<String> getRooms() {
+    public @Nullable Set<String> getRooms() {
         return rooms;
     }
 

@@ -418,18 +418,28 @@ public class PacketEncoder {
             buf = allocateBuffer(allocator);
         }
         List<ByteBuf> attachments = Collections.emptyList();
-        buf.writeByte(toChar(packet.getType().getValue()));
+        PacketType type = packet.getType();
+        if (type == null) {
+            type = PacketType.MESSAGE;
+        }
+        buf.writeByte(toChar(type.getValue()));
 
         try {
-            switch (packet.getType()) {
+            switch (type) {
 
                 case PONG:
-                    buf.writeBytes(packet.getData().toString().getBytes(CharsetUtil.UTF_8));
+                    Object pongData = packet.getData();
+                    if (pongData != null) {
+                        buf.writeBytes(pongData.toString().getBytes(CharsetUtil.UTF_8));
+                    }
                     break;
 
                 case OPEN: {
                     ByteBufOutputStream out = new ByteBufOutputStream(buf);
-                    jsonSupport.writeValue(out, packet.getData());
+                    Object openData = packet.getData();
+                    if (openData != null) {
+                        jsonSupport.writeValue(out, openData);
+                    }
                     break;
                 }
 
@@ -441,7 +451,10 @@ public class PacketEncoder {
                     if (subType == PacketType.ERROR) {
                         encBuf = allocateBuffer(allocator);
                         ByteBufOutputStream out = new ByteBufOutputStream(encBuf);
-                        jsonSupport.writeValue(out, packet.getData());
+                        Object errorData = packet.getData();
+                        if (errorData != null) {
+                            jsonSupport.writeValue(out, errorData);
+                        }
                     }
 
                     if (subType == PacketType.EVENT || subType == PacketType.ACK) {
@@ -451,7 +464,10 @@ public class PacketEncoder {
                             values.add(packet.getName());
                         }
 
-                        values.addAll(packet.getData());
+                        List<Object> packetData = packet.getData();
+                        if (packetData != null) {
+                            values.addAll(packetData);
+                        }
 
                         encBuf = allocateBuffer(allocator);
                         ByteBufOutputStream out = new ByteBufOutputStream(encBuf);
@@ -473,7 +489,9 @@ public class PacketEncoder {
                         }
                     }
 
-                    buf.writeByte(toChar(subType.getValue()));
+                    if (subType != null) {
+                        buf.writeByte(toChar(subType.getValue()));
+                    }
 
                     if (!attachments.isEmpty()) {
                         buf.writeBytes(toChars(attachments.size()));

@@ -18,21 +18,23 @@ package com.socketio4j.socketio.store.event;
 
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
+
 public class DisconnectMessage extends EventMessage {
 
     private static final long serialVersionUID = -2763553673397520368L;
 
-    private UUID sessionId;
+    private @Nullable UUID sessionId;
 
     public DisconnectMessage() {
     }
 
-    public DisconnectMessage(UUID sessionId) {
+    public DisconnectMessage(@Nullable UUID sessionId) {
         super();
         this.sessionId = sessionId;
     }
 
-    public UUID getSessionId() {
+    public @Nullable UUID getSessionId() {
         return sessionId;
     }
     @Override

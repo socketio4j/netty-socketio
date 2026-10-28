@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
@@ -44,11 +45,11 @@ public class SpringAnnotationScanner implements BeanPostProcessor {
 
     private final SocketIOServer socketIOServer;
 
-    private Class originalBeanClass;
+    private @Nullable Class originalBeanClass;
 
-    private Object originalBean;
+    private @Nullable Object originalBean;
 
-    private String originalBeanName;
+    private @Nullable String originalBeanName;
 
     public SpringAnnotationScanner(SocketIOServer socketIOServer) {
         super();
@@ -57,9 +58,10 @@ public class SpringAnnotationScanner implements BeanPostProcessor {
 
     @Override
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
-        if (originalBeanClass != null) {
+        if (originalBeanClass != null && originalBean != null) {
             socketIOServer.addListeners(originalBean, originalBeanClass);
             log.info("{} bean listeners added", originalBeanName);
+            originalBean = null;
             originalBeanClass = null;
             originalBeanName = null;
         }

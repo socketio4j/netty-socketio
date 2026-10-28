@@ -18,6 +18,8 @@ package com.socketio4j.socketio.store.hazelcast;
 
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
+
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import com.socketio4j.socketio.store.Store;
@@ -37,7 +39,7 @@ public class HazelcastStore implements Store {
     }
 
     @Override
-    public <T> T get(String key) {
+    public <T> @Nullable T get(String key) {
         return (T) map.get(key);
     }
 

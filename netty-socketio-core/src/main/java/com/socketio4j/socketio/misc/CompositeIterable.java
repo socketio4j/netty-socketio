@@ -20,18 +20,21 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.annotation.Internal;
 
 @Internal
 public class CompositeIterable<T> implements Iterable<T> {
 
-    private List<Iterable<T>> iterablesList;
-    private Iterable<T>[] iterables;
+    private @Nullable List<Iterable<T>> iterablesList;
+    private Iterable<T> @Nullable [] iterables;
 
     public CompositeIterable(List<Iterable<T>> iterables) {
         this.iterablesList = iterables;
     }
 
+    @SafeVarargs
     public CompositeIterable(Iterable<T>... iterables) {
         this.iterables = iterables;
     }
@@ -48,7 +51,7 @@ public class CompositeIterable<T> implements Iterable<T> {
             for (Iterable<T> iterable : iterables) {
                 iterators.add(iterable.iterator());
             }
-        } else {
+        } else if (iterablesList != null) {
             for (Iterable<T> iterable : iterablesList) {
                 iterators.add(iterable.iterator());
             }

@@ -22,30 +22,32 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+import org.jspecify.annotations.Nullable;
+
 import io.netty.handler.codec.http.HttpHeaders;
 
 public class HandshakeData implements Serializable {
 
     private static final long serialVersionUID = 1196350300161819978L;
 
-    private HttpHeaders headers;
-    private InetSocketAddress address;
+    private @Nullable HttpHeaders headers;
+    private @Nullable InetSocketAddress address;
     private Date time = new Date();
-    private InetSocketAddress local;
-    private String url;
-    private Map<String, List<String>> urlParams;
+    private @Nullable InetSocketAddress local;
+    private @Nullable String url;
+    private @Nullable Map<String, List<String>> urlParams;
     private boolean xdomain;
-    private Object authToken;
+    private @Nullable Object authToken;
 
     // needed for correct deserialization
     public HandshakeData() {
     }
 
-    public HandshakeData(HttpHeaders headers, Map<String, List<String>> urlParams, InetSocketAddress address, String url, boolean xdomain) {
+    public HandshakeData(@Nullable HttpHeaders headers, @Nullable Map<String, List<String>> urlParams, @Nullable InetSocketAddress address, @Nullable String url, boolean xdomain) {
         this(headers, urlParams, address, null, url, xdomain);
     }
 
-    public HandshakeData(HttpHeaders headers, Map<String, List<String>> urlParams, InetSocketAddress address, InetSocketAddress local, String url, boolean xdomain) {
+    public HandshakeData(@Nullable HttpHeaders headers, @Nullable Map<String, List<String>> urlParams, @Nullable InetSocketAddress address, @Nullable InetSocketAddress local, @Nullable String url, boolean xdomain) {
         super();
         this.headers = headers;
         this.urlParams = urlParams;
@@ -60,7 +62,7 @@ public class HandshakeData implements Serializable {
      *
      * @return network address
      */
-    public InetSocketAddress getAddress() {
+    public @Nullable InetSocketAddress getAddress() {
         return address;
     }
 
@@ -69,7 +71,7 @@ public class HandshakeData implements Serializable {
      *
      * @return local address
      */
-    public InetSocketAddress getLocal() {
+    public @Nullable InetSocketAddress getLocal() {
         return local;
     }
 
@@ -78,7 +80,7 @@ public class HandshakeData implements Serializable {
      *
      * @return headers
      */
-    public HttpHeaders getHttpHeaders() {
+    public @Nullable HttpHeaders getHttpHeaders() {
         return headers;
     }
 
@@ -96,7 +98,7 @@ public class HandshakeData implements Serializable {
      *
      * @return url
      */
-    public String getUrl() {
+    public @Nullable String getUrl() {
         return url;
     }
 
@@ -109,11 +111,14 @@ public class HandshakeData implements Serializable {
      *
      * @return map
      */
-    public Map<String, List<String>> getUrlParams() {
+    public @Nullable Map<String, List<String>> getUrlParams() {
         return urlParams;
     }
 
-    public String getSingleUrlParam(String name) {
+    public @Nullable String getSingleUrlParam(String name) {
+        if (urlParams == null) {
+            return null;
+        }
         List<String> values = urlParams.get(name);
         if (values != null && values.size() == 1) {
             return values.iterator().next();
@@ -121,11 +126,11 @@ public class HandshakeData implements Serializable {
         return null;
     }
 
-    public void setAuthToken(Object token) {
+    public void setAuthToken(@Nullable Object token) {
         this.authToken = token;
     }
 
-    public Object getAuthToken() {
+    public @Nullable Object getAuthToken() {
         return this.authToken;
     }
 }

@@ -16,34 +16,36 @@
  */
 package com.socketio4j.socketio.store.event;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.protocol.Packet;
 
 public class DispatchMessage extends EventMessage {
 
     private static final long serialVersionUID = 6692047718303934349L;
 
-    private String room;
-    private String namespace;
-    private Packet packet;
+    private @Nullable String room;
+    private @Nullable String namespace;
+    private @Nullable Packet packet;
 
     public DispatchMessage() {
     }
 
-    public DispatchMessage(String room, Packet packet, String namespace) {
+    public DispatchMessage(@Nullable String room, @Nullable Packet packet, @Nullable String namespace) {
         this.room = room;
         this.packet = packet;
         this.namespace = namespace;
     }
 
-    public String getNamespace() {
+    public @Nullable String getNamespace() {
         return namespace;
     }
 
-    public Packet getPacket() {
+    public @Nullable Packet getPacket() {
         return packet;
     }
 
-    public String getRoom() {
+    public @Nullable String getRoom() {
         return room;
     }
 

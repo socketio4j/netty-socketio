@@ -26,6 +26,7 @@ import java.util.Queue;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +89,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
     private final PacketEncoder encoder;
 
-    private String version;
+    private @Nullable String version;
     private Configuration configuration;
 
     public EncoderHandler(Configuration configuration, PacketEncoder encoder) throws IOException {
@@ -307,6 +308,10 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             }
 
             Queue<Packet> queue = msg.getClientHead().getPacketsQueue(msg.getTransport());
+            if (queue == null) {
+                writeFutureList.setChannelPromise(promise);
+                break;
+            }
             Packet packet = queue.poll();
             if (packet == null) {
                 if (log.isDebugEnabled()) {
@@ -370,10 +375,10 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
         Queue<Packet> queue = msg.getClientHead().getPacketsQueue(msg.getTransport());
 
-        if (!channel.isActive() || queue.isEmpty() || !attr.compareAndSet(null, true)) {
+        if (!channel.isActive() || queue == null || queue.isEmpty() || !attr.compareAndSet(null, true)) {
             if (log.isDebugEnabled()) {
                 log.debug("HTTP processing skipped - channel active: {}, queue empty: {}, write once set: {}, sessionId: {}", 
-                    channel.isActive(), queue.isEmpty(), attr.get() != null, msg.getSessionId());
+                    channel.isActive(), queue == null || queue.isEmpty(), attr.get() != null, msg.getSessionId());
             }
             promise.trySuccess();
             return;
@@ -432,7 +437,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
     private static class ChannelFutureList implements GenericFutureListener<Future<Void>> {
 
         private List<ChannelFuture> futureList = new ArrayList<>();
-        private ChannelPromise promise = null;
+        private @Nullable ChannelPromise promise = null;
 
         private void cleanup() {
             promise = null;
@@ -449,7 +454,9 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                         if (log.isDebugEnabled()) {
                             log.debug("ChannelFuture failed, setting promise failure, cause: {}", f.cause().getMessage());
                         }
-                        promise.tryFailure(f.cause());
+                        if (promise != null) {
+                            promise.tryFailure(f.cause());
+                        }
                         cleanup();
                         return;
                     }
@@ -461,7 +468,9 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
                 if (log.isDebugEnabled()) {
                     log.debug("All ChannelFutures completed successfully, setting promise success");
                 }
-                promise.trySuccess();
+                if (promise != null) {
+                    promise.trySuccess();
+                }
                 cleanup();
             }
         }

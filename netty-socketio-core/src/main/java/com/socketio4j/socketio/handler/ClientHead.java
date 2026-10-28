@@ -31,8 +31,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,6 +59,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.util.AttributeKey;
 
 @Internal
@@ -85,8 +86,8 @@ public class ClientHead {
     private final CancelableScheduler scheduler;
     private final Configuration configuration;
 
-    private Packet lastBinaryPacket;
-    private ByteBuf lastBinaryPacketSource;
+    private @Nullable Packet lastBinaryPacket;
+    private @Nullable ByteBuf lastBinaryPacketSource;
 
     // TODO use lazy set
     private volatile Transport currentTransport;
@@ -122,6 +123,9 @@ public class ClientHead {
         log.debug("binding channel: {} to transport: {}", channel, transport);
 
         TransportState state = channels.get(transport);
+        if (state == null) {
+            return;
+        }
         Channel prevChannel = state.update(channel);
         if (prevChannel != null) {
             clientsBox.remove(prevChannel);
@@ -156,6 +160,9 @@ public class ClientHead {
         }
 
         TransportState state = channels.get(transport);
+        if (state == null) {
+            return false;
+        }
         for (;;) {
             Channel current = state.getChannel();
             if (current != null && current != channel && current.isActive()) {
@@ -198,7 +205,8 @@ public class ClientHead {
 
     public void releasePollingChannel(Channel channel) {
         try {
-            if (channels.get(Transport.POLLING).compareAndSet(channel, null)) {
+            TransportState state = channels.get(Transport.POLLING);
+            if (state != null && state.compareAndSet(channel, null)) {
                 clientsBox.remove(channel);
             }
         } catch (Exception e) {
@@ -206,8 +214,12 @@ public class ClientHead {
         }
     }
 
-    public String getOrigin() {
-        return handshakeData.getHttpHeaders().get(HttpHeaderNames.ORIGIN);
+    public @Nullable String getOrigin() {
+        HttpHeaders headers = handshakeData.getHttpHeaders();
+        if (headers != null) {
+            return headers.get(HttpHeaderNames.ORIGIN);
+        }
+        return null;
     }
 
     public @Nullable ChannelFuture send(Packet packet) {
@@ -321,7 +333,7 @@ public class ClientHead {
         // without receiving a spurious "Session ID unknown" response.
     }
 
-    public NamespaceClient getChildClient(Namespace namespace) {
+    public @Nullable NamespaceClient getChildClient(Namespace namespace) {
         return namespaceClients.get(namespace);
     }
 
@@ -405,9 +417,9 @@ public class ClientHead {
 
     private static final class PollFlushedListener {
         private final Runnable listener;
-        private final SchedulerKey timeoutKey;
+        private final @Nullable SchedulerKey timeoutKey;
 
-        private PollFlushedListener(Runnable listener, SchedulerKey timeoutKey) {
+        private PollFlushedListener(Runnable listener, @Nullable SchedulerKey timeoutKey) {
             this.listener = listener;
             this.timeoutKey = timeoutKey;
         }
@@ -423,9 +435,11 @@ public class ClientHead {
     private void cleanupDisconnectedSession() {
         for (Transport transport : Transport.values()) {
             TransportState state = channels.get(transport);
-            Channel channel = state.getChannel();
-            if (channel != null && state.compareAndSet(channel, null)) {
-                clientsBox.remove(channel);
+            if (state != null) {
+                Channel channel = state.getChannel();
+                if (channel != null && state.compareAndSet(channel, null)) {
+                    clientsBox.remove(channel);
+                }
             }
         }
 
@@ -457,23 +471,28 @@ public class ClientHead {
 
         Transport closeTransport = currentTransport;
         TransportState state = channels.get(closeTransport);
-        state.getPacketsQueue().add(new Packet(PacketType.CLOSE));
-        Channel closeChannel = state.getChannel();
-        ChannelFuture future = null;
-        if (closeChannel != null
-                && (closeTransport != Transport.POLLING
-                        || closeChannel.attr(EncoderHandler.WRITE_ONCE).get() == null)) {
-            future = sendPackets(closeTransport, closeChannel);
-        }
-        cleanupDisconnectedSession();
+        if (state != null) {
+            state.getPacketsQueue().add(new Packet(PacketType.CLOSE));
+            Channel closeChannel = state.getChannel();
+            ChannelFuture future = null;
+            if (closeChannel != null
+                    && (closeTransport != Transport.POLLING
+                            || closeChannel.attr(EncoderHandler.WRITE_ONCE).get() == null)) {
+                future = sendPackets(closeTransport, closeChannel);
+            }
+            cleanupDisconnectedSession();
 
-        if (future != null) {
-            future.addListener(ChannelFutureListener.CLOSE);
+            if (future != null) {
+                future.addListener(ChannelFutureListener.CLOSE);
+            }
+        } else {
+            cleanupDisconnectedSession();
         }
     }
 
     public void releaseTransport(Transport transport, Channel channel) {
-        if (channels.get(transport).compareAndSet(channel, null)) {
+        TransportState state = channels.get(transport);
+        if (state != null && state.compareAndSet(channel, null)) {
             clientsBox.remove(channel);
         }
     }
@@ -490,7 +509,7 @@ public class ClientHead {
         return sessionId;
     }
 
-    public SocketAddress getRemoteAddress() {
+    public @Nullable SocketAddress getRemoteAddress() {
         return handshakeData.getAddress();
     }
 
@@ -523,7 +542,11 @@ public class ClientHead {
     }
 
     public boolean isTransportChannel(Channel channel, Transport transport) {
-        Channel current = channels.get(transport).getChannel();
+        TransportState state = channels.get(transport);
+        if (state == null) {
+            return false;
+        }
+        Channel current = state.getChannel();
         return current != null && current.equals(channel);
     }
 
@@ -538,21 +561,23 @@ public class ClientHead {
     public void upgradeCurrentTransport(Transport currentTransport) {
         upgradeInProgress.set(false);
         TransportState state = channels.get(currentTransport);
-        for (Entry<Transport, TransportState> entry : channels.entrySet()) {
-            if (!entry.getKey().equals(currentTransport)) {
-                Queue<Packet> queue = entry.getValue().getPacketsQueue();
-                // NOOP only releases the old polling transport. Once the client
-                // has selected the new transport it must not be replayed over it.
-                queue.removeIf(packet -> packet.getType() == PacketType.NOOP);
-                state.setPacketsQueue(queue);
-                this.currentTransport = currentTransport;
-                log.debug("Transport upgraded to: {} for: {}", currentTransport, sessionId);
-                break;
+        if (state != null) {
+            for (Entry<Transport, TransportState> entry : channels.entrySet()) {
+                if (!entry.getKey().equals(currentTransport)) {
+                    Queue<Packet> queue = entry.getValue().getPacketsQueue();
+                    // NOOP only releases the old polling transport. Once the client
+                    // has selected the new transport it must not be replayed over it.
+                    queue.removeIf(packet -> packet.getType() == PacketType.NOOP);
+                    state.setPacketsQueue(queue);
+                    this.currentTransport = currentTransport;
+                    log.debug("Transport upgraded to: {} for: {}", currentTransport, sessionId);
+                    break;
+                }
             }
-        }
-        Channel channel = state.getChannel();
-        if (channel != null && channel.isWritable()) {
-            sendPackets(currentTransport, channel);
+            Channel channel = state.getChannel();
+            if (channel != null && channel.isWritable()) {
+                sendPackets(currentTransport, channel);
+            }
         }
     }
 
@@ -560,20 +585,24 @@ public class ClientHead {
         return currentTransport;
     }
 
-    public Queue<Packet> getPacketsQueue(Transport transport) {
-        return channels.get(transport).getPacketsQueue();
+    public @Nullable Queue<Packet> getPacketsQueue(Transport transport) {
+        TransportState state = channels.get(transport);
+        if (state != null) {
+            return state.getPacketsQueue();
+        }
+        return null;
     }
 
 
-    public Packet getLastBinaryPacket() {
+    public @Nullable Packet getLastBinaryPacket() {
         return lastBinaryPacket;
     }
 
-    public ByteBuf getLastBinaryPacketSource() {
+    public @Nullable ByteBuf getLastBinaryPacketSource() {
         return lastBinaryPacketSource;
     }
 
-    public void setPendingBinaryPacket(@NotNull Packet packet, @NotNull ByteBuf source) {
+    public void setPendingBinaryPacket(@NonNull Packet packet, @NonNull ByteBuf source) {
         if (this.lastBinaryPacketSource != null && this.lastBinaryPacketSource != source) {
             this.lastBinaryPacketSource.release();
         }

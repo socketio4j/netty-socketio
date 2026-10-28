@@ -12,3 +12,5 @@
 **/*.iml
 **/dependency-reduced-pom.xml
 **/node_modules/
+/.mvn/**
+!/.mvn/jvm.config

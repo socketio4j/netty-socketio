@@ -18,6 +18,8 @@ package com.socketio4j.socketio.store.event;
 
 import java.io.Serializable;
 
+import org.jspecify.annotations.Nullable;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -41,23 +43,23 @@ public abstract class EventMessage implements Serializable {
 
     private static final long serialVersionUID = -8789343104393884987L;
 
-    private Long nodeId;
+    private @Nullable Long nodeId;
 
-    private String offset;
+    private @Nullable String offset;
 
-    public Long getNodeId() {
+    public @Nullable Long getNodeId() {
         return nodeId;
     }
 
-    public void setNodeId(Long nodeId) {
+    public void setNodeId(@Nullable Long nodeId) {
         this.nodeId = nodeId;
     }
 
-    public String getOffset() {
+    public @Nullable String getOffset() {
         return offset;
     }
 
-    public void setOffset(String offset) {
+    public void setOffset(@Nullable String offset) {
         this.offset = offset;
     }
 

@@ -19,6 +19,7 @@ package com.socketio4j.socketio.handler;
 import java.util.Collections;
 import java.util.Map;
 
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -277,7 +278,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
      * The Java socket.io-client parser accepts only JSON objects for CONNECT_ERROR payloads; bare strings fail
      * validation so connect_error is never emitted to application listeners.
      */
-    private static Object toConnectErrorPayload(Object errorData) {
+    private static Object toConnectErrorPayload(@Nullable Object errorData) {
         if (errorData instanceof Map) {
             return errorData;
         }

@@ -18,6 +18,8 @@ package com.socketio4j.socketio.micronaut.config;
 
 import javax.net.ssl.KeyManagerFactory;
 
+import org.jspecify.annotations.Nullable;
+
 import io.micronaut.context.annotation.ConfigurationProperties;
 
 import static com.socketio4j.socketio.micronaut.config.NettySocketIOSslConfigProperties.PREFIX;
@@ -32,11 +34,11 @@ public class NettySocketIOSslConfigProperties {
 
     private String sslProtocol = "TLSv1";
     private String keyStoreFormat = "JKS";
-    private String keyStore;
-    private String keyStorePassword;
+    private @Nullable String keyStore;
+    private @Nullable String keyStorePassword;
     private String trustStoreFormat = "JKS";
-    private String trustStore;
-    private String trustStorePassword;
+    private @Nullable String trustStore;
+    private @Nullable String trustStorePassword;
     private String keyManagerFactoryAlgorithm = KeyManagerFactory.getDefaultAlgorithm();
 
     public String getSslProtocol() {
@@ -55,19 +57,19 @@ public class NettySocketIOSslConfigProperties {
         this.keyStoreFormat = keyStoreFormat;
     }
 
-    public String getKeyStore() {
+    public @Nullable String getKeyStore() {
         return keyStore;
     }
 
-    public void setKeyStore(String keyStore) {
+    public void setKeyStore(@Nullable String keyStore) {
         this.keyStore = keyStore;
     }
 
-    public String getKeyStorePassword() {
+    public @Nullable String getKeyStorePassword() {
         return keyStorePassword;
     }
 
-    public void setKeyStorePassword(String keyStorePassword) {
+    public void setKeyStorePassword(@Nullable String keyStorePassword) {
         this.keyStorePassword = keyStorePassword;
     }
 
@@ -79,19 +81,19 @@ public class NettySocketIOSslConfigProperties {
         this.trustStoreFormat = trustStoreFormat;
     }
 
-    public String getTrustStore() {
+    public @Nullable String getTrustStore() {
         return trustStore;
     }
 
-    public void setTrustStore(String trustStore) {
+    public void setTrustStore(@Nullable String trustStore) {
         this.trustStore = trustStore;
     }
 
-    public String getTrustStorePassword() {
+    public @Nullable String getTrustStorePassword() {
         return trustStorePassword;
     }
 
-    public void setTrustStorePassword(String trustStorePassword) {
+    public void setTrustStorePassword(@Nullable String trustStorePassword) {
         this.trustStorePassword = trustStorePassword;
     }
 

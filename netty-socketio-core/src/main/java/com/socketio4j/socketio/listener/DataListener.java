@@ -16,6 +16,8 @@
  */
 package com.socketio4j.socketio.listener;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.SocketIOClient;
 
@@ -29,6 +31,6 @@ public interface DataListener<T> {
      * @param ackSender - ack request
      *
      */
-    void onData(SocketIOClient client, T data, AckRequest ackSender) throws Exception;
+    void onData(SocketIOClient client, @Nullable T data, AckRequest ackSender) throws Exception;
 
 }

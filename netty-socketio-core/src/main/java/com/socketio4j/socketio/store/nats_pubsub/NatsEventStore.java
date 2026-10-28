@@ -23,8 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +80,7 @@ public class NatsEventStore implements EventStore {
      * @param nodeId node identifier (used to ignore self-published events)
      * @param metrics metrics instance
      */
-    public NatsEventStore(@NotNull Connection natsConnection,
+    public NatsEventStore(@NonNull Connection natsConnection,
                           @Nullable EventStoreMode eventStoreMode,
                           @Nullable Long nodeId,
                           @Nullable SocketIOMetrics metrics) {
@@ -103,7 +103,7 @@ public class NatsEventStore implements EventStore {
         }
     }
 
-    public NatsEventStore(@NotNull Connection natsConnection,
+    public NatsEventStore(@NonNull Connection natsConnection,
                           @Nullable EventStoreMode eventStoreMode,
                           @Nullable Long nodeId) {
         this(natsConnection, eventStoreMode, nodeId, SocketIOMetrics.noop());
@@ -211,11 +211,11 @@ public class NatsEventStore implements EventStore {
         private final Connection nats;
 
         // Optional
-        private Long nodeId;
+        private @Nullable Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
-        public Builder(@NotNull Connection nats) {
+        public Builder(@NonNull Connection nats) {
             this.nats = Objects.requireNonNull(nats, "nats");
         }
 
@@ -224,7 +224,7 @@ public class NatsEventStore implements EventStore {
             return this;
         }
 
-        public Builder eventStoreMode(@NotNull EventStoreMode mode) {
+        public Builder eventStoreMode(@NonNull EventStoreMode mode) {
             this.eventStoreMode = Objects.requireNonNull(mode, "eventStoreMode");
             return this;
         }

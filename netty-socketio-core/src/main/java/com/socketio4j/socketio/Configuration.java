@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio;
 
+import org.jspecify.annotations.Nullable;
 
 import com.socketio4j.socketio.handler.SuccessAuthorizationListener;
 import com.socketio4j.socketio.listener.DefaultExceptionListener;
@@ -25,7 +26,6 @@ import com.socketio4j.socketio.store.StoreFactory;
 import com.socketio4j.socketio.store.hazelcast.HazelcastStoreFactory;
 import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 import com.socketio4j.socketio.store.redis_pubsub.RedisStoreFactory;
-
 
 import io.netty.handler.codec.http.HttpDecoderConfig;
 import io.netty.util.ResourceLeakDetector;
@@ -40,13 +40,13 @@ public class Configuration extends BasicConfiguration {
 
     private StoreFactory storeFactory = new MemoryStoreFactory();
 
-    private JsonSupport jsonSupport;
+    private @Nullable JsonSupport jsonSupport;
 
     private AuthorizationListener authorizationListener = new SuccessAuthorizationListener();
 
     private HttpRequestDecoderConfiguration httpRequestDecoderConfiguration = new HttpRequestDecoderConfiguration();
 
-    private ResourceLeakDetector.Level leakDetectionLevel;
+    private ResourceLeakDetector.@Nullable Level leakDetectionLevel;
 
     public Configuration() {
         super();
@@ -79,7 +79,10 @@ public class Configuration extends BasicConfiguration {
             }
         }
 
-        setJsonSupport(new JsonSupportWrapper(conf.getJsonSupport()));
+        JsonSupport js = conf.getJsonSupport();
+        if (js != null) {
+            setJsonSupport(new JsonSupportWrapper(js));
+        }
 
         setSocketSslConfig(conf.getSocketSslConfig());
         setStoreFactory(conf.getStoreFactory());
@@ -91,7 +94,7 @@ public class Configuration extends BasicConfiguration {
         setLeakDetectionLevel(conf.getLeakDetectionLevel());
     }
 
-    public JsonSupport getJsonSupport() {
+    public @Nullable JsonSupport getJsonSupport() {
         return jsonSupport;
     }
 
@@ -103,7 +106,7 @@ public class Configuration extends BasicConfiguration {
      *
      * @see JsonSupport
      */
-    public void setJsonSupport(JsonSupport jsonSupport) {
+    public void setJsonSupport(@Nullable JsonSupport jsonSupport) {
         this.jsonSupport = jsonSupport;
     }
 
@@ -202,7 +205,7 @@ public class Configuration extends BasicConfiguration {
      *
      * @return configured leak detection level, or {@code null}
      */
-    public ResourceLeakDetector.Level getLeakDetectionLevel() {
+    public ResourceLeakDetector.@Nullable Level getLeakDetectionLevel() {
         return leakDetectionLevel;
     }
 
@@ -221,7 +224,7 @@ public class Configuration extends BasicConfiguration {
      *
      * @param leakDetectionLevel desired leak detection level, or {@code null} to leave unchanged
      */
-    public void setLeakDetectionLevel(ResourceLeakDetector.Level leakDetectionLevel) {
+    public void setLeakDetectionLevel(ResourceLeakDetector.@Nullable Level leakDetectionLevel) {
         this.leakDetectionLevel = leakDetectionLevel;
     }
 }

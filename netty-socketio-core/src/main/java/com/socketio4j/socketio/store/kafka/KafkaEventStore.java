@@ -43,8 +43,8 @@ import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.RecordDeserializationException;
 import org.apache.kafka.common.errors.WakeupException;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -109,8 +109,8 @@ public final class KafkaEventStore implements EventStore {
     // ---------------------------------------------------------------------
 
     public KafkaEventStore(
-            @NotNull KafkaProducer<String, EventMessage> producer,
-            @NotNull Properties consumerProps,
+            @NonNull KafkaProducer<String, EventMessage> producer,
+            @NonNull Properties consumerProps,
             @Nullable Long nodeId,
             @Nullable EventStoreMode mode,
             @Nullable String topicPrefix,
@@ -140,8 +140,8 @@ public final class KafkaEventStore implements EventStore {
     }
 
     public KafkaEventStore(
-            @NotNull KafkaProducer<String, EventMessage> producer,
-            @NotNull Properties consumerProps,
+            @NonNull KafkaProducer<String, EventMessage> producer,
+            @NonNull Properties consumerProps,
             @Nullable Long nodeId,
             @Nullable EventStoreMode mode,
             @Nullable String topicPrefix

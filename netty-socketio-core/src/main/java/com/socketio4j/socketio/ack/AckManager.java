@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,11 +59,11 @@ public class AckManager implements Disconnectable {
             return ackCallbacks.keySet();
         }
 
-        public AckCallback<?> getAckCallback(long index) {
+        public @Nullable AckCallback<?> getAckCallback(long index) {
             return ackCallbacks.get(index);
         }
 
-        public AckCallback<?> removeCallback(long index) {
+        public @Nullable AckCallback<?> removeCallback(long index) {
             return ackCallbacks.remove(index);
         }
 
@@ -105,10 +106,14 @@ public class AckManager implements Disconnectable {
         if (client == null || packet == null) {
             return;
         }
-        AckSchedulerKey key = new AckSchedulerKey(Type.ACK_TIMEOUT, client.getSessionId(), packet.getAckId());
+        Long ackId = packet.getAckId();
+        if (ackId == null) {
+            return;
+        }
+        AckSchedulerKey key = new AckSchedulerKey(Type.ACK_TIMEOUT, client.getSessionId(), ackId);
         scheduler.cancel(key);
 
-        AckCallback callback = removeCallback(client.getSessionId(), packet.getAckId());
+        AckCallback callback = removeCallback(client.getSessionId(), ackId);
         if (callback == null) {
             return;
         }
@@ -118,21 +123,23 @@ public class AckManager implements Disconnectable {
             } else {
                 Object param = null;
                 List<Object> args = packet.getData();
-                if (!args.isEmpty()) {
-                    param = args.get(0);
-                }
-                if (args.size() > 1) {
-                    log.error("Wrong ack args amount. Should be only one argument, but current amount is: {}. Ack id: {}, sessionId: {}",
-                            args.size(), packet.getAckId(), client.getSessionId());
+                if (args != null) {
+                    if (!args.isEmpty()) {
+                        param = args.get(0);
+                    }
+                    if (args.size() > 1) {
+                        log.error("Wrong ack args amount. Should be only one argument, but current amount is: {}. Ack id: {}, sessionId: {}",
+                                args.size(), ackId, client.getSessionId());
+                    }
                 }
                 callback.onSuccess(param);
             }
         } catch (Exception e) {
-            log.error("Error executing onSuccess for ack id: {}, sessionId: {}", packet.getAckId(), client.getSessionId(), e);
+            log.error("Error executing onSuccess for ack id: {}, sessionId: {}", ackId, client.getSessionId(), e);
         }
     }
 
-    private AckCallback<?> removeCallback(UUID sessionId, long index) {
+    private @Nullable AckCallback<?> removeCallback(@Nullable UUID sessionId, long index) {
         if (sessionId == null) {
             return null;
         }
@@ -145,7 +152,7 @@ public class AckManager implements Disconnectable {
         return null;
     }
 
-    public AckCallback<?> getCallback(UUID sessionId, long index) {
+    public @Nullable AckCallback<?> getCallback(@Nullable UUID sessionId, long index) {
         if (sessionId == null) {
             return null;
         }

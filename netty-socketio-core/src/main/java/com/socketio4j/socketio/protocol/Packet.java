@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.jspecify.annotations.Nullable;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.socketio4j.socketio.namespace.Namespace;
 
@@ -30,19 +32,19 @@ public class Packet implements Serializable {
 
     private static final long serialVersionUID = 4560159536486711426L;
 
-    private PacketType type;
+    private @Nullable PacketType type;
     @Deprecated
     private EngineIOVersion engineIOVersion = EngineIOVersion.V4;
 
-    private PacketType subType;
-    private Long ackId;
-    private String name;
+    private @Nullable PacketType subType;
+    private @Nullable Long ackId;
+    private @Nullable String name;
     private String nsp = Namespace.DEFAULT_NAME;
 
-    private Object data;
+    private @Nullable Object data;
 
     @Deprecated
-    private transient ByteBuf dataSource;
+    private transient @Nullable ByteBuf dataSource;
     private int attachmentsCount;
     private List<ByteBuf> attachments = Collections.emptyList();
 
@@ -50,7 +52,7 @@ public class Packet implements Serializable {
     }
 
     //only for tests
-    public Packet(PacketType type) {
+    public Packet(@Nullable PacketType type) {
         super();
         this.type = type;
     }
@@ -59,24 +61,24 @@ public class Packet implements Serializable {
      * @deprecated Engine.IO version is now negotiated per-connection. Use {@link #Packet(PacketType)} instead.
      */
     @Deprecated
-    public Packet(PacketType type, EngineIOVersion engineIOVersion) {
+    public Packet(@Nullable PacketType type, EngineIOVersion engineIOVersion) {
         this(type);
         this.engineIOVersion = engineIOVersion;
     }
 
-    public PacketType getSubType() {
+    public @Nullable PacketType getSubType() {
         return subType;
     }
 
-    public void setSubType(PacketType subType) {
+    public void setSubType(@Nullable PacketType subType) {
         this.subType = subType;
     }
 
-    public PacketType getType() {
+    public @Nullable PacketType getType() {
         return type;
     }
 
-    public void setData(Object data) {
+    public void setData(@Nullable Object data) {
         this.data = data;
     }
 
@@ -90,7 +92,7 @@ public class Packet implements Serializable {
      * <b>message</b> for PacketType.MESSAGE type
      * </pre>
      */
-    public <T> T getData() {
+    public <T> @Nullable T getData() {
         return (T) data;
     }
 
@@ -157,19 +159,19 @@ public class Packet implements Serializable {
         return nsp;
     }
 
-    public String getName() {
+    public @Nullable String getName() {
         return name;
     }
 
-    public void setName(String name) {
+    public void setName(@Nullable String name) {
         this.name = name;
     }
 
-    public Long getAckId() {
+    public @Nullable Long getAckId() {
         return ackId;
     }
 
-    public void setAckId(Long ackId) {
+    public void setAckId(@Nullable Long ackId) {
         this.ackId = ackId;
     }
 
@@ -216,7 +218,7 @@ public class Packet implements Serializable {
      */
     @Deprecated
     @JsonIgnore
-    public ByteBuf getDataSource() {
+    public @Nullable ByteBuf getDataSource() {
         return dataSource;
     }
 
@@ -224,7 +226,7 @@ public class Packet implements Serializable {
      * @deprecated Binary attachments are handled via {@link #addAttachment(ByteBuf)}.
      */
     @Deprecated
-    public void setDataSource(ByteBuf dataSource) {
+    public void setDataSource(@Nullable ByteBuf dataSource) {
         this.dataSource = dataSource;
     }
 

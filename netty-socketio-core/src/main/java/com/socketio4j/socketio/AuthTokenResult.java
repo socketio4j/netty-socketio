@@ -16,6 +16,8 @@
  */
 package com.socketio4j.socketio;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Copyright (c) 2012-2023 Nikita Koksharov
  *
@@ -36,9 +38,9 @@ public class AuthTokenResult {
 
   public static final AuthTokenResult AUTH_TOKEN_RESULT_SUCCESS = new AuthTokenResult(true, null);
   private final boolean success;
-  private final Object errorData;
+  private final @Nullable Object errorData;
 
-  public AuthTokenResult(final boolean success, final Object errorData) {
+  public AuthTokenResult(final boolean success, final @Nullable Object errorData) {
     this.success = success;
     this.errorData = errorData;
   }
@@ -47,7 +49,7 @@ public class AuthTokenResult {
     return success;
   }
 
-  public Object getErrorData() {
+  public @Nullable Object getErrorData() {
     return errorData;
   }
 }

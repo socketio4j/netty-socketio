@@ -34,19 +34,39 @@ public interface EventStore {
 
     default String extractNamespace(EventMessage msg) {
         if (msg instanceof DispatchMessage) {
-            return ((DispatchMessage) msg).getNamespace();
+            String ns = ((DispatchMessage) msg).getNamespace();
+            if (ns != null) {
+                return ns;
+            }
+            return "";
         }
         if (msg instanceof JoinMessage) {
-            return ((JoinMessage) msg).getNamespace();
+            String ns = ((JoinMessage) msg).getNamespace();
+            if (ns != null) {
+                return ns;
+            }
+            return "";
         }
         if (msg instanceof LeaveMessage) {
-            return ((LeaveMessage) msg).getNamespace();
+            String ns = ((LeaveMessage) msg).getNamespace();
+            if (ns != null) {
+                return ns;
+            }
+            return "";
         }
         if (msg instanceof BulkJoinMessage) {
-            return ((BulkJoinMessage) msg).getNamespace();
+            String ns = ((BulkJoinMessage) msg).getNamespace();
+            if (ns != null) {
+                return ns;
+            }
+            return "";
         }
         if (msg instanceof BulkLeaveMessage) {
-            return ((BulkLeaveMessage) msg).getNamespace();
+            String ns = ((BulkLeaveMessage) msg).getNamespace();
+            if (ns != null) {
+                return ns;
+            }
+            return "";
         }
         return "";
     }

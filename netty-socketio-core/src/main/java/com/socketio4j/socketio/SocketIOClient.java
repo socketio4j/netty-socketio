@@ -20,6 +20,8 @@ import java.net.SocketAddress;
 import java.util.Set;
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.protocol.EngineIOVersion;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.store.Store;
@@ -94,7 +96,7 @@ public interface SocketIOClient extends ClientOperations, Store {
      *
      * @return remote address
      */
-    SocketAddress getRemoteAddress();
+    @Nullable SocketAddress getRemoteAddress();
 
     /**
      * Check is underlying channel open

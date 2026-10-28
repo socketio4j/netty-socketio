@@ -28,8 +28,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.stream.StreamAddArgs;
@@ -98,8 +98,8 @@ public class RedisStreamEventStore implements EventStore {
     // ---------------------------------------------------------------------
 
     public RedisStreamEventStore(
-            @NotNull RedissonClient redissonPub,
-            @NotNull RedissonClient redissonSub,
+            @NonNull RedissonClient redissonPub,
+            @NonNull RedissonClient redissonSub,
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
             @Nullable String streamNamePrefix,
@@ -146,8 +146,8 @@ public class RedisStreamEventStore implements EventStore {
     }
 
     public RedisStreamEventStore(
-            @NotNull RedissonClient redissonPub,
-            @NotNull RedissonClient redissonSub,
+            @NonNull RedissonClient redissonPub,
+            @NonNull RedissonClient redissonSub,
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
             @Nullable String streamNamePrefix,
@@ -432,23 +432,23 @@ public class RedisStreamEventStore implements EventStore {
         // -------------------------
         // Optional (nullable → constructor applies defaults + WARN)
         // -------------------------
-        private Long nodeId;
-        private EventStoreMode mode;
-        private String prefix;
-        private Integer streamMaxLen;
-        private Duration trimEvery;
+        private @Nullable Long nodeId;
+        private @Nullable EventStoreMode mode;
+        private @Nullable String prefix;
+        private @Nullable Integer streamMaxLen;
+        private @Nullable Duration trimEvery;
         private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
         // -------------------------
         // Constructors
         // -------------------------
 
-        public Builder(@NotNull RedissonClient redissonClient) {
+        public Builder(@NonNull RedissonClient redissonClient) {
             this(redissonClient, redissonClient);
         }
 
-        public Builder(@NotNull RedissonClient redissonPub,
-                       @NotNull RedissonClient redissonSub) {
+        public Builder(@NonNull RedissonClient redissonPub,
+                       @NonNull RedissonClient redissonSub) {
             this.redissonPub = Objects.requireNonNull(redissonPub, "redissonPub");
             this.redissonSub = Objects.requireNonNull(redissonSub, "redissonSub");
         }
@@ -462,12 +462,12 @@ public class RedisStreamEventStore implements EventStore {
             return this;
         }
 
-        public Builder eventStoreMode(@NotNull EventStoreMode mode) {
+        public Builder eventStoreMode(@NonNull EventStoreMode mode) {
             this.mode = Objects.requireNonNull(mode, "mode");
             return this;
         }
 
-        public Builder prefix(@NotNull String prefix) {
+        public Builder prefix(@NonNull String prefix) {
             if (prefix.isEmpty()) {
                 throw new IllegalArgumentException("prefix cannot be empty");
             }

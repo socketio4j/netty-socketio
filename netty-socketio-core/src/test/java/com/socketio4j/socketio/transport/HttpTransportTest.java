@@ -36,7 +36,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -181,7 +180,7 @@ public class HttpTransportTest {
     }
   }
 
-    private static @NotNull HttpURLConnection getHttpURLConnection(String bodyForPost, HttpURLConnection http) throws IOException {
+    private static HttpURLConnection getHttpURLConnection(String bodyForPost, HttpURLConnection http) throws IOException {
         if (bodyForPost != null) {
           http.setRequestMethod("POST"); // PUT is another valid option
           http.setDoOutput(true);

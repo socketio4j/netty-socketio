@@ -16,6 +16,8 @@
  */
 package com.socketio4j.socketio;
 
+import org.jspecify.annotations.Nullable;
+
 
 /**
  * Base ack callback class.
@@ -70,7 +72,7 @@ public abstract class AckCallback<T> {
      *
      * @param result - object sended by client
      */
-    public abstract void onSuccess(T result);
+    public abstract void onSuccess(@Nullable T result);
 
     /**
      * Invoked only once then <code>timeout</code> defined

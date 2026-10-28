@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.store;
 
+import org.jspecify.annotations.Nullable;
 
 /**
  * Store interface for managing session-specific data storage.
@@ -43,7 +44,7 @@ public interface Store {
      * @param key the key to retrieve
      * @return the value associated with the key, or null if the key does not exist
      */
-    <T> T get(String key);
+    <T> @Nullable T get(String key);
 
     /**
      * Checks whether a key exists in this store.

@@ -22,6 +22,7 @@ package com.socketio4j.socketio.store.kafka.serialization;
  */
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Serializer;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +37,7 @@ public final class EventMessageSerializer
     private static final ObjectMapper MAPPER = EventMessageJsonSupport.createObjectMapper();
 
     @Override
-    public byte[] serialize(String topic, EventMessage data) {
+    public byte @Nullable [] serialize(String topic, @Nullable EventMessage data) {
 
         if (data == null) {
             return null;

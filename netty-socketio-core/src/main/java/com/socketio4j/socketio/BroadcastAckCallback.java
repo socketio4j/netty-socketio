@@ -19,6 +19,8 @@ package com.socketio4j.socketio;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.jspecify.annotations.Nullable;
+
 public class BroadcastAckCallback<T> {
 
     final AtomicBoolean loopFinished = new AtomicBoolean();
@@ -40,7 +42,7 @@ public class BroadcastAckCallback<T> {
         counter.getAndIncrement();
         return new AckCallback<T>(resultClass, timeout) {
             @Override
-            public void onSuccess(T result) {
+            public void onSuccess(@Nullable T result) {
                 counter.getAndDecrement();
                 onClientSuccess(client, result);
                 executeSuccess();
@@ -58,7 +60,7 @@ public class BroadcastAckCallback<T> {
 
     }
 
-    protected void onClientSuccess(SocketIOClient client, T result) {
+    protected void onClientSuccess(SocketIOClient client, @Nullable T result) {
 
     }
 

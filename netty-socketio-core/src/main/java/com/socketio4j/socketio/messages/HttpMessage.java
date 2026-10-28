@@ -18,24 +18,26 @@ package com.socketio4j.socketio.messages;
 
 import java.util.UUID;
 
+import org.jspecify.annotations.Nullable;
+
 import com.socketio4j.socketio.annotation.Internal;
 
 @Internal
 public abstract class HttpMessage {
 
-    private final String origin;
-    private final UUID sessionId;
+    private final @Nullable String origin;
+    private final @Nullable UUID sessionId;
 
-    public HttpMessage(String origin, UUID sessionId) {
+    public HttpMessage(@Nullable String origin, @Nullable UUID sessionId) {
         this.origin = origin;
         this.sessionId = sessionId;
     }
 
-    public String getOrigin() {
+    public @Nullable String getOrigin() {
         return origin;
     }
 
-    public UUID getSessionId() {
+    public @Nullable UUID getSessionId() {
         return sessionId;
     }
 
