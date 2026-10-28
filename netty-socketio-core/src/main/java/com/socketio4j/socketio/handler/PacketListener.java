@@ -22,6 +22,7 @@ import java.util.List;
 import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.ack.AckManager;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.namespace.NamespacesHub;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
@@ -34,6 +35,7 @@ import com.socketio4j.socketio.transport.PollingTransport;
 
 import io.netty.channel.ChannelFuture;
 
+@Internal
 public class PacketListener {
 
     private final NamespacesHub namespacesHub;

@@ -22,8 +22,11 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -32,10 +35,37 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketType;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+
 public class EventMessageJsonSupportTest {
 
     private static class EmptyBean {
         // No public fields or getters
+    }
+
+    @Test
+    void shouldExcludeLegacyDataSourceFromDispatchMessageJson() throws Exception {
+        ObjectMapper mapper = EventMessageJsonSupport.createObjectMapper();
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setData("payload");
+        ByteBuf dataSource = Unpooled.wrappedBuffer(new byte[] {1, 2, 3});
+        packet.setDataSource(dataSource);
+
+        try {
+            DispatchMessage message = new DispatchMessage("room", packet, "/");
+            String json = mapper.writeValueAsString(message);
+
+            assertFalse(mapper.readTree(json).get("packet").has("dataSource"));
+            assertSame(dataSource, packet.getDataSource());
+            assertEquals(1, dataSource.refCnt());
+
+            DispatchMessage decoded = mapper.readValue(json, DispatchMessage.class);
+            assertEquals("payload", decoded.getPacket().getData());
+            assertNull(decoded.getPacket().getDataSource());
+        } finally {
+            dataSource.release();
+        }
     }
 
     @Test

@@ -65,9 +65,10 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <testcontainers.version>2.0.5</testcontainers.version>
-    <netty.version>4.2.15.Final</netty.version>
-    <netty.tcnative.version>2.0.78.Final</netty.tcnative.version>
-    <byte-buddy.version>1.18.8</byte-buddy.version>
+    <netty.version>4.2.17.Final</netty.version>
+    <netty.tcnative.version>2.0.81.Final</netty.tcnative.version>
+    <jmockit.version>1.50</jmockit.version>
+    <byte-buddy.version>1.18.10</byte-buddy.version>
     <junit.version>6.1.0</junit.version>
     <junit-platform-launcher.version>6.1.0</junit-platform-launcher.version>
     <slf4j.version>2.0.17</slf4j.version>
@@ -79,7 +80,7 @@
     <hazelcast.version>5.7.0</hazelcast.version>
     <awaitility.version>4.3.0</awaitility.version>
     <assertj.version>3.27.7</assertj.version>
-    <mockito.version>5.21.0</mockito.version>
+    <mockito.version>5.23.0</mockito.version>
     <logback.version>1.5.26</logback.version>
     <socketio.version>2.1.2</socketio.version>
     <javafaker.version>1.0.2</javafaker.version>
@@ -88,13 +89,43 @@
     <nats.version>2.25.3</nats.version>
     <micrometer-bom.version>1.17.0</micrometer-bom.version>
     <hll.version>1.6.0</hll.version>
-    <lz4.version>1.10.3</lz4.version>
+    <lz4.version>1.11.1</lz4.version>
     <okhttp.version>3.12.13</okhttp.version>
     <socketio.test.forkCount>1</socketio.test.forkCount>
+    <revapi-maven-plugin.version>0.15.1</revapi-maven-plugin.version>
+    <revapi-java.version>0.28.4</revapi-java.version>
+    <revapi.oldVersion>4.0.1</revapi.oldVersion>
+    <revapi.skip>false</revapi.skip>
+    <revapi.failOnUnresolvedArtifacts>true</revapi.failOnUnresolvedArtifacts>
+    <revapi.failCriticality>error</revapi.failCriticality>
+    <socketio.skip.docker>false</socketio.skip.docker>
 
   </properties>
 
   <profiles>
+    <profile>
+      <id>verify-eventloop-locks</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <argLine>
+                -Dfile.encoding=UTF-8
+                -Dnet.bytebuddy.experimental=true
+                -javaagent:"${settings.localRepository}"/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
+                -Dio.netty.leakDetection.level=PARANOID
+                -javaagent:${socketio.lockagent}=${socketio.lockreport}
+              </argLine>
+              <classesDirectory>${project.build.directory}/classes</classesDirectory>
+              <forkCount>1</forkCount>
+              <reuseForks>true</reuseForks>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
     <profile>
       <id>release</id>
       <build>
@@ -492,7 +523,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>3.6.2</version>
+        <version>3.6.3</version>
         <executions>
           <execution>
             <id>enforce-maven</id>
@@ -599,6 +630,29 @@
 
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>move-module-info-to-mrjar</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <mkdir dir="${project.build.outputDirectory}/META-INF/versions/11" />
+                <move todir="${project.build.outputDirectory}/META-INF/versions/11">
+                  <fileset dir="${project.build.outputDirectory}" includes="module-info.class" />
+                </move>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-source-plugin</artifactId>
         <version>3.4.0</version>
         <executions>
@@ -624,6 +678,7 @@
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <forkedProcessTimeoutInSeconds>3600</forkedProcessTimeoutInSeconds>
           <argLine>
+            -Dfile.encoding=UTF-8
             <!--For Java 25 support of byte-buddy. Byte-buddy is currently only used in mockito on unit tests within this project, so mitigate this problem by enabling this property-->
             -Dnet.bytebuddy.experimental=true
             -javaagent:"${settings.localRepository}"/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
@@ -686,6 +741,126 @@
         </configuration>
         <executions>
           <execution>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.revapi</groupId>
+        <artifactId>revapi-maven-plugin</artifactId>
+        <version>${revapi-maven-plugin.version}</version>
+        <dependencies>
+          <dependency>
+            <groupId>org.revapi</groupId>
+            <artifactId>revapi-java</artifactId>
+            <version>${revapi-java.version}</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <oldVersion>${revapi.oldVersion}</oldVersion>
+          <skip>${revapi.skip}</skip>
+          <checkDependencies>false</checkDependencies>
+          <failCriticality>${revapi.failCriticality}</failCriticality>
+          <failOnUnresolvedArtifacts>${revapi.failOnUnresolvedArtifacts}</failOnUnresolvedArtifacts>
+          <analysisConfiguration>
+            [
+              {
+                "extension": "revapi.java",
+                "configuration": {
+                  "missing-classes": {
+                    "behavior": "ignore"
+                  }
+                }
+              },
+              {
+                "extension": "revapi.filter",
+                "configuration": {
+                  "elements": {
+                    "exclude": [
+                      {
+                        "matcher": "java",
+                        "match": "@com.socketio4j.socketio.annotation.Internal ^*;"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "extension": "revapi.differences",
+                "configuration": {
+                  "ignore": true,
+                  "differences": [
+                    {
+                      "code": "java.class.removed",
+                      "regex": true,
+                      "old": "(class|interface) com\\.socketio4j\\.socketio\\.(ack\\.(AckManager|AckSchedulerKey)|handler\\.(AuthorizeHandler|ClientHead|ClientsBox|EncoderHandler|InPacketHandler|PacketListener|TransportState|WrongUrlHandler)|messages\\.(HttpErrorMessage|HttpMessage|OutPacketMessage|PacketsMessage|XHROptionsMessage|XHRPostMessage)|metrics\\.NamespaceMeters|misc\\.(CompositeIterable.*|CompositeIterator.*|IterableCollection.*)|namespace\\.(EventEntry.*|Namespace|NamespacesHub)|protocol\\.(AuthPacket|ConnPacket|Event|PacketDecoder|PacketEncoder|UTF8CharsScanner)|scheduler\\.(CancelableScheduler|HashedWheelScheduler|HashedWheelTimeoutScheduler|SchedulerKey)|store\\.event\\.EventMessageJsonSupport|transport\\.(PollingTransport|WebSocketTransport))",
+                      "justification": "Transitioned specific internal implementation classes to @Internal to establish API boundaries"
+                    },
+                    {
+                      "code": "java.class.removed",
+                      "regex": true,
+                      "old": "(class|interface|enum) com\\.socketio4j\\.socketio\\.protocol\\.(EngineIOVersion|Packet|PacketType)",
+                      "justification": "Core protocol classes are no longer embedded into the spring module jar"
+                    },
+                    {
+                      "code": "java.annotation.added",
+                      "annotation": "@org.jetbrains.annotations.Nullable",
+                      "justification": "Added nullability annotations for enhanced type safety and Kotlin interop"
+                    },
+                    {
+                      "code": "java.annotation.added",
+                      "new": "method io.netty.buffer.ByteBuf com.socketio4j.socketio.protocol.Packet::getDataSource()",
+                      "annotation": "@com.fasterxml.jackson.annotation.JsonIgnore",
+                      "justification": "Exclude legacy dataSource from event-store JSON while preserving the runtime getter"
+                    },
+                    {
+                      "code": "java.method.exception.checkedRemoved",
+                      "old": "method boolean com.socketio4j.socketio.listener.DefaultExceptionListener::exceptionCaught(io.netty.channel.ChannelHandlerContext, java.lang.Throwable) throws java.lang.Exception",
+                      "exception": "java.lang.Exception",
+                      "justification": "DefaultExceptionListener.exceptionCaught no longer declares Exception compared to 4.0.1"
+                    },
+                    {
+                      "code": "java.method.removed",
+                      "old": "method void com.socketio4j.socketio.handler.ClientHead::setLastBinaryPacket(com.socketio4j.socketio.protocol.Packet)",
+                      "justification": "Internal binary packet handling moved to dedicated pipeline handler"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method void com.socketio4j.socketio.listener.ClientListeners::removeConnectListener(com.socketio4j.socketio.listener.ConnectListener)",
+                      "justification": "Added default method to allow dynamic unregistering of connect listeners"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method void com.socketio4j.socketio.listener.ClientListeners::removeDisconnectListener(com.socketio4j.socketio.listener.DisconnectListener)",
+                      "justification": "Added default method to allow dynamic unregistering of disconnect listeners"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method void com.socketio4j.socketio.metrics.SocketIOMetrics::eventPublishFailed(java.lang.String)",
+                      "justification": "Added default method for tracking event publish failure metrics"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method void com.socketio4j.socketio.metrics.SocketIOMetrics::publishFailed(java.lang.String)",
+                      "justification": "Added default method alias for tracking event publish failure metrics"
+                    },
+                    {
+                      "code": "java.field.serialVersionUIDUnchanged",
+                      "old": "field com.socketio4j.socketio.protocol.Packet.serialVersionUID",
+                      "justification": "Packet serialization schema evolved; serialVersionUID maintained for backwards compatibility"
+                    }
+                  ]
+                }
+              }
+            ]
+          </analysisConfiguration>
+        </configuration>
+        <executions>
+          <execution>
+            <id>check-api</id>
             <goals>
               <goal>check</goal>
             </goals>

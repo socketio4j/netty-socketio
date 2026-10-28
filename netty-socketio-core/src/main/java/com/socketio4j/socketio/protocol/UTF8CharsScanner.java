@@ -16,8 +16,11 @@
  */
 package com.socketio4j.socketio.protocol;
 
+import com.socketio4j.socketio.annotation.Internal;
+
 import io.netty.buffer.ByteBuf;
 
+@Internal
 public class UTF8CharsScanner {
 
     /**

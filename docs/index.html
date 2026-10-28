@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SocketIO4j - Real-Time Java Socket.IO Server</title>
+  <meta name="description" content="SocketIO4j maintains Netty-SocketIO, a fast, lightweight, and scalable Java Socket.IO server built on Netty.">
+  <meta property="og:title" content="SocketIO4j - Real-Time Java Socket.IO Server">
+  <meta property="og:description" content="Netty-SocketIO is an open-source Java implementation of the Socket.IO server framework.">
+  <meta property="og:url" content="https://socketio4j.com/">
+  <meta property="og:type" content="website">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(18, 26, 43, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-border-hover: rgba(99, 102, 241, 0.4);
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+      --accent-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --code-bg: rgba(15, 23, 42, 0.85);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+      background-image: 
+        radial-gradient(circle at 20% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+        radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.12) 0%, transparent 40%);
+    }
+
+    .container {
+      max-width: 760px;
+      width: 100%;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+      margin-bottom: 1.5rem;
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    h1 {
+      font-size: 2.75rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 1rem;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 2rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      margin-bottom: 2rem;
+    }
+
+    .endpoint-box {
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin: 1.25rem 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95rem;
+    }
+
+    .endpoint-url {
+      color: #38bdf8;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 1.25rem;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--accent-gradient);
+      color: #ffffff;
+      border: none;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--card-border-hover);
+      transform: translateY(-1px);
+    }
+
+    footer {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: 1rem;
+    }
+
+    footer a {
+      color: var(--text-muted);
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <div class="badge" id="status-badge">
+      <span class="badge-dot"></span>
+      <span>SocketIO4j Project Services</span>
+    </div>
+
+    <h1 id="main-title">Netty-SocketIO</h1>
+    <p class="subtitle" id="main-desc">
+      A fast, lightweight, and scalable Java implementation of the Socket.IO server framework built on top of Netty.
+    </p>
+
+    <div class="card" id="funding-card">
+      <h2 style="font-size: 1.35rem; margin-bottom: 0.5rem;">Funding &amp; Project Metadata</h2>
+      <p style="color: var(--text-muted); font-size: 0.95rem;">
+        This domain serves project discovery metadata including our Funding JSON specification:
+      </p>
+
+      <div class="endpoint-box" id="endpoint-box">
+        <span class="endpoint-url">https://socketio4j.com/funding.json</span>
+        <a href="/funding.json" class="btn btn-secondary" style="padding: 0.4rem 0.85rem; font-size: 0.85rem;" id="btn-view-json">View JSON</a>
+      </div>
+
+      <div class="btn-group" id="actions-group">
+        <a href="https://github.com/socketio4j/netty-socketio" class="btn btn-primary" id="btn-github" target="_blank" rel="noopener">
+          View on GitHub
+        </a>
+        <a href="https://opencollective.com/socketio4j" class="btn btn-secondary" id="btn-opencollective" target="_blank" rel="noopener">
+          Open Collective
+        </a>
+        <a href="/funding.json" class="btn btn-secondary" id="btn-funding">
+          funding.json
+        </a>
+      </div>
+    </div>
+
+    <footer>
+      <p>&copy; 2026 SocketIO4j Project. Licensed under the Apache License, Version 2.0.</p>
+    </footer>
+  </main>
+</body>
+</html>

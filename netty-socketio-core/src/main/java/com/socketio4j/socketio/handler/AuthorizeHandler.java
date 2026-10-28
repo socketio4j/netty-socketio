@@ -18,9 +18,12 @@ package com.socketio4j.socketio.handler;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -37,6 +40,7 @@ import com.socketio4j.socketio.HandshakeData;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.ack.AckManager;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.messages.HttpErrorMessage;
 import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.namespace.NamespacesHub;
@@ -70,10 +74,14 @@ import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
+@Internal
 @Sharable
 public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Disconnectable {
 
     private static final Logger log = LoggerFactory.getLogger(AuthorizeHandler.class);
+
+    private static final Set<String> SENSITIVE_HEADERS =
+            new HashSet<>(Arrays.asList("cookie", "authorization", "proxy-authorization", "x-api-key"));
 
     private final CancelableScheduler scheduler;
 
@@ -191,8 +199,19 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             log.debug("Starting authorization for client: {} with origin: {}", channel.remoteAddress(), origin);
         }
         
+        if (origin != null && !configuration.isOriginAllowed(origin)) {
+            log.warn("Blocked handshake from disallowed origin: {}, client: {}", origin, channel.remoteAddress());
+            HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.FORBIDDEN);
+            channel.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
+            return false;
+        }
+
         Map<String, List<String>> headers = new HashMap<String, List<String>>(req.headers().names().size());
         for (String name : req.headers().names()) {
+            if (SENSITIVE_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
+                headers.put(name, Collections.singletonList("[redacted]"));
+                continue;
+            }
             List<String> values = req.headers().getAll(name);
             headers.put(name, values);
         }
@@ -234,6 +253,10 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             }
         } else {
             sessionId = this.generateOrGetSessionIdFromRequest(req.headers());
+            if (clientsBox.get(sessionId) != null) {
+                log.warn("Client supplied an already used session id, generating a new one");
+                sessionId = UUID.randomUUID();
+            }
             if (log.isDebugEnabled()) {
                 log.debug("Retrieved existing session ID: {} for client: {}", sessionId, channel.remoteAddress());
             }

@@ -107,6 +107,14 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
     }
 
     @Override
+    public void eventPublishFailed(String ns) {
+        if (ns == null || ns.isEmpty()) {
+            ns = "default";
+        }
+        ns(ns).getEventPublishFailed().increment();
+    }
+
+    @Override
     public void eventSent(String ns, int recipients) {
         if (ns.isEmpty()) {
             ns = "default";
