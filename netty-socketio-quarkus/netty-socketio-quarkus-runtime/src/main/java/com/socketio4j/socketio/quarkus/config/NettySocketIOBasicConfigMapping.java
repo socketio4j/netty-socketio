@@ -145,6 +145,13 @@ public interface NettySocketIOBasicConfigMapping {
     int maxFramePayloadLength();
 
     /**
+     * maximum number of concurrent connected clients (0 or negative means unlimited)
+     * @see BasicConfiguration#getMaxConnectionCount()
+     */
+    @WithDefault("0")
+    int maxConnectionCount();
+
+    /**
      * WebSocket idle timeout in milliseconds
      * @see BasicConfiguration#getPackagePrefix()
      */
