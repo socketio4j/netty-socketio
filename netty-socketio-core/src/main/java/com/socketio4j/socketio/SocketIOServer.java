@@ -44,6 +44,7 @@ import com.socketio4j.socketio.listener.ServerAfterStartListener;
 import com.socketio4j.socketio.listener.ServerAfterStopListener;
 import com.socketio4j.socketio.listener.ServerBeforeStartListener;
 import com.socketio4j.socketio.listener.ServerBeforeStopListener;
+import com.socketio4j.socketio.misc.EventLoopSafety;
 import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.namespace.NamespacesHub;
 
@@ -60,8 +61,11 @@ import io.netty.channel.ServerChannel;
 import io.netty.channel.WriteBufferWaterMark;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.concurrent.DefaultPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.FutureListener;
+import io.netty.util.concurrent.GlobalEventExecutor;
+import io.netty.util.concurrent.Promise;
 import io.netty.util.concurrent.SucceededFuture;
 
 /**
@@ -410,6 +414,7 @@ public class SocketIOServer implements ClientListeners {
     }
 
     public void start() {
+        EventLoopSafety.requireBlockingAllowed();
         startAsync().syncUninterruptibly();
     }
 
@@ -507,6 +512,7 @@ public class SocketIOServer implements ClientListeners {
         }
 
         try {
+            configCopy.setPort(configuration.getPort());
             fireBeforeStart();
             log.info("Session store / event store factory: {}", configCopy.getStoreFactory());
             initGroups();
@@ -598,34 +604,45 @@ public class SocketIOServer implements ClientListeners {
                 address = new InetSocketAddress(configCopy.getHostname(), configCopy.getPort());
             }
 
-            return bootstrap.bind(address).addListener((FutureListener<Void>) future -> {
+            Promise<Void> startPromise = new DefaultPromise<>(GlobalEventExecutor.INSTANCE);
+            bootstrap.bind(address).addListener((FutureListener<Void>) future -> {
                 if (future.isSuccess()) {
-                    ChannelFuture cf = (ChannelFuture) future;
-                    serverChannel.set(cf.channel());
-                    if (configCopy.getPort() == 0) {
-                        try {
-                            InetSocketAddress local = (InetSocketAddress) cf.channel().localAddress();
-                            int actualPort = local.getPort();
-                            configCopy.setPort(actualPort);
-                            configuration.setPort(actualPort);
-                        } catch (Exception ignore) {
-                            // keep configured port if localAddress is not InetSocketAddress
+                    try {
+                        ChannelFuture cf = (ChannelFuture) future;
+                        serverChannel.set(cf.channel());
+                        if (configCopy.getPort() == 0) {
+                            try {
+                                InetSocketAddress local = (InetSocketAddress) cf.channel().localAddress();
+                                int actualPort = local.getPort();
+                                configCopy.setPort(actualPort);
+                                configuration.setPort(actualPort);
+                            } catch (Exception ignore) {
+                                // keep configured port if localAddress is not InetSocketAddress
+                            }
                         }
+                        serverStatus.set(ServerStatus.STARTED);
+                        log.info("SocketIO server started on port {}", configCopy.getPort());
+                        installShutdownHookOnce();
+                        fireAfterStart();
+                        startPromise.setSuccess(null);
+                    } catch (Exception e) {
+                        serverStatus.set(ServerStatus.INIT);
+                        cleanUpResourcesAsync();
+                        log.error("Server start error on port {}", configCopy.getPort(), e);
+                        startPromise.setFailure(e);
                     }
-                    serverStatus.set(ServerStatus.STARTED);
-                    log.info("SocketIO server started on port {}", configCopy.getPort());
-                    installShutdownHookOnce();
-                    fireAfterStart();
                 } else {
                     serverStatus.set(ServerStatus.INIT);
                     log.error("Failed to start server on port {}", configCopy.getPort());
-                    cleanUpResources(false);
+                    cleanUpResourcesAsync();
+                    startPromise.setFailure(future.cause());
                 }
             });
+            return startPromise;
 
         } catch (Exception e) {
             serverStatus.set(ServerStatus.INIT);
-            cleanUpResources(false);
+            cleanUpResourcesAsync();
             log.error("Server start error on port {}: {}", configCopy.getPort(), e.getMessage(), e);
             throw e;
         }
@@ -644,32 +661,41 @@ public class SocketIOServer implements ClientListeners {
     }
 
 
-    private void cleanUpResources(boolean await) {
-        // Close the actual TCP Port (stop accepting connections)
+    private void cleanUpResourcesAsync() {
         Channel ch = serverChannel.getAndSet(null);
         if (ch != null && ch.isOpen()) {
-            if (await) {
-                try {
-                    if (!ch.close().await(SERVER_CHANNEL_CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                        log.warn("Server channel did not close within {}s", SERVER_CHANNEL_CLOSE_TIMEOUT_SECONDS);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    log.warn("Interrupted while waiting for server channel to close");
+            ch.close();
+        }
+
+        shutdownGroups();
+
+        try {
+            pipelineFactory.stop();
+        } catch (Exception t) {
+            log.warn("Pipeline stop failed", t);
+        }
+    }
+
+    private void cleanUpResourcesBlocking() {
+        EventLoopSafety.requireBlockingAllowed();
+
+        Channel ch = serverChannel.getAndSet(null);
+        if (ch != null && ch.isOpen()) {
+            try {
+                if (!ch.close().await(SERVER_CHANNEL_CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                    log.warn("Server channel did not close within {}s", SERVER_CHANNEL_CLOSE_TIMEOUT_SECONDS);
                 }
-            } else {
-                ch.close();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Interrupted while waiting for server channel to close");
             }
         }
 
         shutdownGroups();
 
-        if (await) {
-            awaitEventLoopTermination(bossGroup, "boss");
-            awaitEventLoopTermination(workerGroup, "worker");
-        }
+        awaitEventLoopTermination(bossGroup, "boss");
+        awaitEventLoopTermination(workerGroup, "worker");
 
-        // Stop timers and stores after I/O threads have quiesced
         try {
             pipelineFactory.stop();
         } catch (Exception t) {
@@ -678,6 +704,7 @@ public class SocketIOServer implements ClientListeners {
     }
 
     private void awaitEventLoopTermination(EventLoopGroup group, String name) {
+        EventLoopSafety.requireBlockingAllowed();
         if (group == null) {
             return;
         }
@@ -852,6 +879,7 @@ public class SocketIOServer implements ClientListeners {
      * </ul>
      */
     public void stop() {
+        EventLoopSafety.requireBlockingAllowed();
         if (!serverStatus.compareAndSet(ServerStatus.STARTED, ServerStatus.STOPPING)) {
             log.warn("Server not in STARTED state ({}), ignoring stop()", serverStatus.get());
             return;
@@ -873,7 +901,7 @@ public class SocketIOServer implements ClientListeners {
         }
 
         fireBeforeStop();
-        cleanUpResources(true);
+        cleanUpResourcesBlocking();
 
         log.info("SocketIO server stopped");
 
@@ -1066,6 +1094,16 @@ public class SocketIOServer implements ClientListeners {
     @Override
     public void addConnectListener(ConnectListener listener) {
         mainNamespace.addConnectListener(listener);
+    }
+
+    @Override
+    public void removeConnectListener(ConnectListener listener) {
+        mainNamespace.removeConnectListener(listener);
+    }
+
+    @Override
+    public void removeDisconnectListener(DisconnectListener listener) {
+        mainNamespace.removeDisconnectListener(listener);
     }
 
     /**

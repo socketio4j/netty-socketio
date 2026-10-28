@@ -22,6 +22,7 @@ import java.util.concurrent.CountDownLatch;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -41,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Test class for NamespacesHub functionality and thread safety.
  */
-class NamespacesHubTest extends BaseNamespaceTest {
+public class NamespacesHubTest extends AbstractNamespaceTestSupport {
 
     private NamespacesHub namespacesHub;
 
@@ -251,19 +252,15 @@ class NamespacesHubTest extends BaseNamespaceTest {
                 executeConcurrentOperationsWithIndex(
                         taskCount,
                         index -> {
-                            try {
-                                String namespaceName = "concurrentNamespace" + index;
-                                Namespace namespace = namespacesHub.create(namespaceName);
-                                assertNotNull(namespace);
-                                assertEquals(namespaceName, namespace.getName());
+                            String namespaceName = "concurrentNamespace" + index;
+                            Namespace namespace = namespacesHub.create(namespaceName);
+                            assertNotNull(namespace);
+                            assertEquals(namespaceName, namespace.getName());
 
-                                // Verify namespace is immediately accessible
-                                Namespace retrievedNamespace = namespacesHub.get(namespaceName);
-                                assertNotNull(retrievedNamespace);
-                                assertSame(namespace, retrievedNamespace);
-                            } catch (Exception e) {
-                                // Log exception but continue
-                            }
+                            // Verify namespace is immediately accessible
+                            Namespace retrievedNamespace = namespacesHub.get(namespaceName);
+                            assertNotNull(retrievedNamespace);
+                            assertSame(namespace, retrievedNamespace);
                         });
 
         waitForCompletion(createLatch);
@@ -277,14 +274,10 @@ class NamespacesHubTest extends BaseNamespaceTest {
                 executeConcurrentOperationsWithIndex(
                         taskCount,
                         index -> {
-                            try {
-                                String namespaceName = "concurrentNamespace" + index;
-                                Namespace namespace = namespacesHub.get(namespaceName);
-                                assertNotNull(namespace);
-                                assertEquals(namespaceName, namespace.getName());
-                            } catch (Exception e) {
-                                // Log exception but continue
-                            }
+                            String namespaceName = "concurrentNamespace" + index;
+                            Namespace namespace = namespacesHub.get(namespaceName);
+                            assertNotNull(namespace);
+                            assertEquals(namespaceName, namespace.getName());
                         });
 
         waitForCompletion(retrieveLatch);
