@@ -23,19 +23,11 @@ package com.socketio4j.socketio.store.nats_pubsub;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.socketio4j.socketio.store.event.EventMessage;
+import com.socketio4j.socketio.store.event.EventMessageJsonSupport;
 
 public final class EventMessageCodec {
 
-    private static final ObjectMapper MAPPER;
-
-    static {
-        MAPPER = new ObjectMapper();
-        MAPPER.configure(
-                com.fasterxml.jackson.databind.DeserializationFeature
-                        .FAIL_ON_UNKNOWN_PROPERTIES,
-                false
-        );
-    }
+    private static final ObjectMapper MAPPER = EventMessageJsonSupport.createObjectMapper();
 
     private EventMessageCodec() {
     }

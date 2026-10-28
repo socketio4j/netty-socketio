@@ -21,6 +21,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.socketio4j.socketio.annotation.Internal;
+
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -38,6 +40,7 @@ import net.agkn.hll.HLL;
  * @author https://github.com/sanjomo
  * @date 05/01/26 3:10 pm
  */
+@Internal
 public final class NamespaceMeters {
 
     /* ===================== Event Counters ===================== */
@@ -45,6 +48,7 @@ public final class NamespaceMeters {
     private final Counter eventReceived;
     private final Counter eventHandled;
     private final Counter eventFailed;
+    private final Counter eventPublishFailed;
     private final Counter eventSent;
     private final Counter eventUnknown;
 
@@ -91,6 +95,9 @@ public final class NamespaceMeters {
     }
     public Counter getEventFailed() {
         return eventFailed;
+    }
+    public Counter getEventPublishFailed() {
+        return eventPublishFailed;
     }
     public Counter getEventSent() {
         return eventSent;
@@ -173,6 +180,10 @@ public final class NamespaceMeters {
                 .register(registry);
 
         this.eventFailed = Counter.builder("socketio.event.failed")
+                .tag("namespace", ns)
+                .register(registry);
+
+        this.eventPublishFailed = Counter.builder("socketio.event.publish.failed")
                 .tag("namespace", ns)
                 .register(registry);
 
