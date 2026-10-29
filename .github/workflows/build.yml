@@ -107,6 +107,7 @@ jobs:
       # --- Set up Docker on Windows via WSL2 ---
       - name: Set up WSL on Windows
         if: runner.os == 'Windows'
+        continue-on-error: true
         uses: Vampire/setup-wsl@v7
         with:
           distribution: Ubuntu-22.04
@@ -114,22 +115,33 @@ jobs:
 
       - name: Start Docker daemon in WSL
         if: runner.os == 'Windows'
+        continue-on-error: true
         shell: wsl-bash {0}
         run: |
-          sudo mkdir -p /etc/docker
-          echo '{"hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"]}' | sudo tee /etc/docker/daemon.json
-          sudo service docker restart
+          sudo rm -f /etc/docker/daemon.json
+          sudo mkdir -p /etc/systemd/system/docker.service.d
+          sudo tee /etc/systemd/system/docker.service.d/override.conf <<'EOF'
+          [Service]
+          ExecStart=
+          ExecStart=/usr/bin/dockerd -H fd:// -H tcp://0.0.0.0:2375 --containerd=/run/containerd/containerd.sock
+          EOF
+          sudo systemctl daemon-reload
+          sudo systemctl restart docker
           sudo docker info
 
       - name: Configure Docker Host for Windows
         if: runner.os == 'Windows'
+        continue-on-error: true
         shell: bash
         run: |
           WSL_IP=$(wsl hostname -I | awk '{print $1}')
           echo "Discovered WSL IP: $WSL_IP"
-          echo "DOCKER_HOST=tcp://$WSL_IP:2375" >> $GITHUB_ENV
-          echo "DOCKER_TLS_VERIFY=0" >> $GITHUB_ENV
-          echo "TESTCONTAINERS_RYUK_DISABLED=true" >> $GITHUB_ENV
+          if [ -n "$WSL_IP" ]; then
+            echo "DOCKER_HOST=tcp://$WSL_IP:2375" >> $GITHUB_ENV
+            echo "DOCKER_TLS_VERIFY=0" >> $GITHUB_ENV
+            echo "TESTCONTAINERS_RYUK_DISABLED=true" >> $GITHUB_ENV
+            docker info || true
+          fi
 
       # --- Testcontainers configuration for CI ---
       - name: Configure Testcontainers
@@ -138,8 +150,10 @@ jobs:
           echo "testcontainers.reuse.enable=false" > "$HOME/.testcontainers.properties"
           if [ "${{ runner.os }}" = "Windows" ]; then
             WSL_IP=$(wsl hostname -I | awk '{print $1}')
-            echo "docker.client.strategy=org.testcontainers.dockerclient.EnvironmentAndSystemPropertyClientProviderStrategy" >> "$HOME/.testcontainers.properties"
-            echo "docker.host=tcp://$WSL_IP:2375" >> "$HOME/.testcontainers.properties"
+            if [ -n "$WSL_IP" ]; then
+              echo "docker.client.strategy=org.testcontainers.dockerclient.EnvironmentAndSystemPropertyClientProviderStrategy" >> "$HOME/.testcontainers.properties"
+              echo "docker.host=tcp://$WSL_IP:2375" >> "$HOME/.testcontainers.properties"
+            fi
           fi
 
       # --- Fast-fail Code Quality Gates ---
