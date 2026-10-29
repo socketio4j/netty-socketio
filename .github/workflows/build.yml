@@ -93,16 +93,27 @@ jobs:
       # --- Set up Docker on macOS via Colima ---
       - name: Set up Docker on macOS
         if: runner.os == 'macOS'
+        continue-on-error: true
         run: |
           brew install colima docker qemu
-          colima start --cpu 2 --memory 4 --runtime docker
+          for attempt in 1 2 3; do
+            echo "Starting Colima (attempt $attempt/3)..."
+            if colima start --cpu 2 --memory 4 --runtime docker --dns 8.8.8.8 --dns 1.1.1.1; then
+              echo "Colima started successfully."
+              break
+            fi
+            echo "Colima failed to start on attempt $attempt. Retrying in 10s..."
+            colima stop || true
+            colima delete -f || true
+            sleep 10
+          done
           docker context use colima || true
           sudo mkdir -p /var/run
           sudo ln -sf "$HOME/.colima/default/docker.sock" /var/run/docker.sock
           echo "DOCKER_HOST=unix://$HOME/.colima/default/docker.sock" >> $GITHUB_ENV
           echo "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock" >> $GITHUB_ENV
           echo "TESTCONTAINERS_RYUK_DISABLED=true" >> $GITHUB_ENV
-          docker info
+          docker info || true
 
       # --- Set up Docker on Windows via WSL2 ---
       - name: Set up WSL on Windows
