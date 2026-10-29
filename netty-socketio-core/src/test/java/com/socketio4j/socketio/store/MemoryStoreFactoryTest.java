@@ -44,6 +44,7 @@ import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -185,7 +186,10 @@ public class MemoryStoreFactoryTest extends AbstractStoreFactoryTestSupport {
         Long id1 = eventStore.getNodeId();
         Long id2 = eventStore.getNodeId();
         assertNotNull(id1);
-        assertEquals(id1, id2, "getNodeId() should return the same singleton Long on repeated calls");
+        assertEquals(id1, id2, "getNodeId() should return the same singleton Long on repeated calls on the same store");
+
+        MemoryEventStore otherStore = new MemoryEventStore();
+        assertNotEquals(id1, otherStore.getNodeId(), "Different event store instances must have distinct node IDs");
     }
 
     @Test

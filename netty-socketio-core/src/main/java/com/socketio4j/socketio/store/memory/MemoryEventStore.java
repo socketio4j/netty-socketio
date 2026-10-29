@@ -16,6 +16,8 @@
  */
 package com.socketio4j.socketio.store.memory;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 import org.jetbrains.annotations.Nullable;
 
 import com.socketio4j.socketio.metrics.SocketIOMetrics;
@@ -29,18 +31,33 @@ import com.socketio4j.socketio.store.event.EventType;
 
 public class MemoryEventStore implements EventStore {
 
+    private final Long nodeId;
     private final SocketIOMetrics metrics;
 
     public MemoryEventStore() {
-        this((SocketIOMetrics) null);
+        this(null, null);
     }
 
     public MemoryEventStore(@Nullable SocketIOMetrics metrics) {
+        this(null, metrics);
+    }
+
+    public MemoryEventStore(@Nullable Long nodeId, @Nullable SocketIOMetrics metrics) {
+        if (nodeId == null) {
+            this.nodeId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
+        } else {
+            this.nodeId = nodeId;
+        }
         if (metrics != null) {
             this.metrics = metrics;
         } else {
             this.metrics = SocketIOMetrics.noop();
         }
+    }
+
+    @Override
+    public Long getNodeId() {
+        return this.nodeId;
     }
 
     @Override

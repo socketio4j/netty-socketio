@@ -137,6 +137,11 @@ public class NatsEventStore implements EventStore {
     }
 
     @Override
+    public Long getNodeId() {
+        return this.nodeId;
+    }
+
+    @Override
     public <T extends EventMessage> void subscribe0(
             EventType type,
             final EventListener<T> listener,

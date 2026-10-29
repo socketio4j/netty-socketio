@@ -209,6 +209,11 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
     public SocketIOMetrics getMetrics() {
         return this.metrics;
     }
+
+    @Override
+    public Long getNodeId() {
+        return this.nodeId;
+    }
     private String getRingBufferName(EventType type) {
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
             return ringBufferNamePrefix + EventType.ALL_SINGLE_CHANNEL.name();

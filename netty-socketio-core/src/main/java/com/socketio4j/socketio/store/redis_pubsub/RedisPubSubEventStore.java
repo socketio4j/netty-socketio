@@ -122,6 +122,11 @@ public class RedisPubSubEventStore implements EventStore {
     }
 
     @Override
+    public Long getNodeId() {
+        return this.nodeId;
+    }
+
+    @Override
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
         RTopic topic = redissonSub.getTopic(getStreamName(type));
         int regId = topic.addListener(clazz, (channel, msg) -> {

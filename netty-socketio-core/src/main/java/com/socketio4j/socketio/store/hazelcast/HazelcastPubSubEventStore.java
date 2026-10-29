@@ -118,6 +118,11 @@ public class HazelcastPubSubEventStore implements EventStore {
     public SocketIOMetrics getMetrics() {
         return this.metrics;
     }
+
+    @Override
+    public Long getNodeId() {
+        return this.nodeId;
+    }
     private String getTopicName(EventType type) {
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
             return topicPrefix + EventType.ALL_SINGLE_CHANNEL.name();

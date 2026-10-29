@@ -217,6 +217,11 @@ public class RedisStreamEventStore implements EventStore {
         return this.metrics;
     }
 
+    @Override
+    public Long getNodeId() {
+        return this.nodeId;
+    }
+
     // ---------------------------------------------------------------------
     // Subscribe
     // ---------------------------------------------------------------------
