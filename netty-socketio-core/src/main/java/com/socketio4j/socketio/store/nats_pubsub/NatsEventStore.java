@@ -22,6 +22,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -88,7 +89,7 @@ public class NatsEventStore implements EventStore {
         this.nats = Objects.requireNonNull(natsConnection, "natsConnection");
 
         if (nodeId == null) {
-            nodeId = getNodeId();
+            nodeId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
         }
         this.nodeId = nodeId;
 
@@ -137,6 +138,11 @@ public class NatsEventStore implements EventStore {
     }
 
     @Override
+    public Long getNodeId() {
+        return this.nodeId;
+    }
+
+    @Override
     public <T extends EventMessage> void subscribe0(
             EventType type,
             final EventListener<T> listener,
@@ -148,7 +154,7 @@ public class NatsEventStore implements EventStore {
         Subscription subscription = dispatcher.subscribe(subject, (Message msg) -> {
             try {
                 T event = EventMessageCodec.deserialize(msg.getData(), clazz);
-                if (!nodeId.equals(event.getNodeId())) {
+                if (!Objects.equals(this.nodeId, event.getNodeId())) {
                     listener.onMessage(event);
                 }
             } catch (Exception e) {
