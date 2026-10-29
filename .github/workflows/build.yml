@@ -93,9 +93,8 @@ jobs:
       # --- Set up Docker on macOS via Colima ---
       - name: Set up Docker on macOS
         if: runner.os == 'macOS'
-        continue-on-error: true
         run: |
-          brew install colima docker
+          brew install colima docker qemu
           colima start --cpu 2 --memory 4 --runtime docker
           docker context use colima || true
           sudo mkdir -p /var/run
@@ -103,11 +102,11 @@ jobs:
           echo "DOCKER_HOST=unix://$HOME/.colima/default/docker.sock" >> $GITHUB_ENV
           echo "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock" >> $GITHUB_ENV
           echo "TESTCONTAINERS_RYUK_DISABLED=true" >> $GITHUB_ENV
+          docker info
 
-      # --- Set up Docker on Windows via WSL2 (Experimental) ---
+      # --- Set up Docker on Windows via WSL2 ---
       - name: Set up WSL on Windows
         if: runner.os == 'Windows'
-        continue-on-error: true
         uses: Vampire/setup-wsl@v7
         with:
           distribution: Ubuntu-22.04
@@ -115,17 +114,20 @@ jobs:
 
       - name: Start Docker daemon in WSL
         if: runner.os == 'Windows'
-        continue-on-error: true
         shell: wsl-bash {0}
         run: |
-          sudo dockerd -H tcp://0.0.0.0:2375 -H unix:///var/run/docker.sock > /dev/null 2>&1 &
-          sleep 5
+          sudo mkdir -p /etc/docker
+          echo '{"hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"]}' | sudo tee /etc/docker/daemon.json
+          sudo service docker restart
+          sudo docker info
 
       - name: Configure Docker Host for Windows
         if: runner.os == 'Windows'
-        continue-on-error: true
+        shell: bash
         run: |
-          echo "DOCKER_HOST=tcp://127.0.0.1:2375" >> $GITHUB_ENV
+          WSL_IP=$(wsl hostname -I | awk '{print $1}')
+          echo "Discovered WSL IP: $WSL_IP"
+          echo "DOCKER_HOST=tcp://$WSL_IP:2375" >> $GITHUB_ENV
           echo "DOCKER_TLS_VERIFY=0" >> $GITHUB_ENV
           echo "TESTCONTAINERS_RYUK_DISABLED=true" >> $GITHUB_ENV
 
@@ -135,8 +137,9 @@ jobs:
           mkdir -p "$HOME"
           echo "testcontainers.reuse.enable=false" > "$HOME/.testcontainers.properties"
           if [ "${{ runner.os }}" = "Windows" ]; then
+            WSL_IP=$(wsl hostname -I | awk '{print $1}')
             echo "docker.client.strategy=org.testcontainers.dockerclient.EnvironmentAndSystemPropertyClientProviderStrategy" >> "$HOME/.testcontainers.properties"
-            echo "docker.host=tcp://127.0.0.1:2375" >> "$HOME/.testcontainers.properties"
+            echo "docker.host=tcp://$WSL_IP:2375" >> "$HOME/.testcontainers.properties"
           fi
 
       # --- Fast-fail Code Quality Gates ---

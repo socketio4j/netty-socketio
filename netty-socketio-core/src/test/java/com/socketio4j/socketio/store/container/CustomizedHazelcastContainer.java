@@ -16,14 +16,14 @@
  */
 package com.socketio4j.socketio.store.container;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.testcontainers.containers.BindMode;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.wait.strategy.Wait;
-
 import java.time.Duration;
 import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.utility.MountableFile;
 
 /**
  * Optimized Hazelcast container for testing.
@@ -58,10 +58,9 @@ public class CustomizedHazelcastContainer extends GenericContainer<CustomizedHaz
         // Map custom test config file
         withEnv("JVM_OPTS", "-Dhazelcast.config=/opt/hazelcast/config_ext/hazelcast.xml");
         withEnv("HZ_CLUSTERNAME", clusterName);
-        withClasspathResourceMapping(
-                "hazelcast-test-config.xml",
-                "/opt/hazelcast/config_ext/hazelcast.xml",
-                BindMode.READ_ONLY
+        withCopyFileToContainer(
+                MountableFile.forClasspathResource("hazelcast-test-config.xml"),
+                "/opt/hazelcast/config_ext/hazelcast.xml"
         );
 
         // Proper readiness check (fast, reliable, no sleeps)
