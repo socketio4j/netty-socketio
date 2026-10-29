@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import org.jetbrains.annotations.NotNull;
@@ -110,7 +111,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
         if (nodeId == null) {
-            nodeId = getNodeId();
+            nodeId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
         }
         this.nodeId = nodeId;
 
@@ -258,7 +259,7 @@ public class RedisPubSubReliableEventStore implements EventStore {
             RReliableTopic reliableTopic = redissonSub.getReliableTopic(getStreamName(type));
             Objects.requireNonNull(reliableTopic, "reliableTopic can not be null");
             String id = reliableTopic.addListener(clazz, (channel, msg) -> {
-                if (!nodeId.equals(msg.getNodeId())) {
+                if (!Objects.equals(this.nodeId, msg.getNodeId())) {
                     listener.onMessage(msg);
                 }
             });

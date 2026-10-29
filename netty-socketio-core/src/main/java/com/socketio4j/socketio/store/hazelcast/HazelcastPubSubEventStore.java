@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -80,7 +81,7 @@ public class HazelcastPubSubEventStore implements EventStore {
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
         if (nodeId == null) {
-            nodeId = getNodeId();
+            nodeId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
         }
         this.nodeId = nodeId;
         if (metrics != null) {
@@ -141,7 +142,7 @@ public class HazelcastPubSubEventStore implements EventStore {
 
         UUID regId = topic.addMessageListener(msg -> {
             T eventMsg = msg.getMessageObject();
-            if (eventMsg != null && !nodeId.equals(eventMsg.getNodeId())) {
+            if (eventMsg != null && !Objects.equals(this.nodeId, eventMsg.getNodeId())) {
                 log.debug("[HZ-PUBSUB] Received event type {} from node {} (my nodeId={})", type, eventMsg.getNodeId(), nodeId);
                 listener.onMessage(eventMsg);
             }

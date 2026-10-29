@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -93,7 +94,7 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
         if (nodeId == null) {
-            nodeId = getNodeId();
+            nodeId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
         }
         this.nodeId = nodeId;
         if (metrics != null) {
@@ -237,7 +238,7 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
         ITopic<T> topic = hazelcastSub.getReliableTopic(getRingBufferName(type));
 
         UUID regId = topic.addMessageListener(msg -> {
-            if (!nodeId.equals(msg.getMessageObject().getNodeId())) {
+            if (!Objects.equals(this.nodeId, msg.getMessageObject().getNodeId())) {
                 listener.onMessage(msg.getMessageObject());
             }
         });
