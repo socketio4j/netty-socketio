@@ -74,9 +74,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .playwright-browsers
-          key: ${{ runner.os }}-playwright-${{ hashFiles('netty-socketio-core/src/test/resources/js-interop/package-lock.json', 'netty-socketio-core/src/test/resources/js-interop/package.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('netty-socketio-core/src/test/resources/js-interop/package-lock.json', 'netty-socketio-core/src/test/resources/js-interop/package.json') }}
           restore-keys: |
-            ${{ runner.os }}-playwright-
+            ${{ runner.os }}-${{ runner.arch }}-playwright-
 
       # --- Install Playwright Browsers & OS Deps (On Cache Miss) ---
       - name: Install Playwright Browsers & OS Deps
