@@ -14,7 +14,7 @@
   <description>Socket.IO server Spring integration</description>
 
   <properties>
-    <spring-framework.version>7.0.8</spring-framework.version>
+    <spring-framework.version>7.0.9</spring-framework.version>
   </properties>
 
   <dependencies>
@@ -41,6 +41,17 @@
         </exclusion>
       </exclusions>
       <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 

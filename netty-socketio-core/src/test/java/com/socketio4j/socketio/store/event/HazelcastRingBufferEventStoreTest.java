@@ -16,17 +16,21 @@
  */
 package com.socketio4j.socketio.store.event;
 
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.testcontainers.containers.GenericContainer;
+
+
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.core.HazelcastInstance;
-import com.socketio4j.socketio.store.CustomizedHazelcastContainer;
+import com.socketio4j.socketio.store.container.CustomizedHazelcastContainer;
 import com.socketio4j.socketio.store.hazelcast.HazelcastPubSubEventStore;
 
 /**
  * Test class for HazelcastPubSubStore using testcontainers
  */
+@ResourceLock("EMBEDDED_HAZELCAST")
 public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
 
     private HazelcastInstance hazelcastPub;
@@ -42,6 +46,7 @@ public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
         CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
 
         ClientConfig config = new ClientConfig();
+        config.setClusterName(hz.getClusterName());
         config.getNetworkConfig()
                 .setSmartRouting(false)                   // never try unreachable members inside container
                 .setRedoOperation(true)
@@ -54,9 +59,12 @@ public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
     }
 
     @Override
-    public void tearDown() throws Exception {
-        if (hazelcastPub != null) hazelcastPub.shutdown();
-        if (hazelcastSub != null) hazelcastSub.shutdown();
-        if (container != null && container.isRunning()) container.stop();
+    protected void closeClients() {
+        if (hazelcastPub != null) {
+            hazelcastPub.shutdown();
+        }
+        if (hazelcastSub != null) {
+            hazelcastSub.shutdown();
+        }
     }
 }

@@ -37,6 +37,10 @@ public enum EngineIOVersion {
      */
     V4("4"),
 
+    /**
+     * @deprecated Unknown revisions are rejected in handshake; use {@link #isSupported(String)}
+     */
+    @Deprecated
     UNKNOWN("");
 
     public static final String EIO = "EIO";
@@ -45,7 +49,9 @@ public enum EngineIOVersion {
 
     static {
         for (EngineIOVersion value : values()) {
-            VERSIONS.put(value.getValue(), value);
+            if (value != UNKNOWN) {
+                VERSIONS.put(value.getValue(), value);
+            }
         }
     }
 
@@ -64,6 +70,16 @@ public enum EngineIOVersion {
         if (engineIOVersion != null) {
             return engineIOVersion;
         }
-       return UNKNOWN;
+        return V4;
+    }
+
+    /**
+     * Whether a query-string EIO value names a protocol revision this server
+     * actually implements. {@link #fromValue(String)} deliberately retains its
+     * historic v4 fallback for internal callers; HTTP handshakes must reject
+     * missing and unknown revisions instead of silently negotiating v4.
+     */
+    public static boolean isSupported(String value) {
+        return VERSIONS.containsKey(value);
     }
 }
