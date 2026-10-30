@@ -52,6 +52,7 @@ public abstract class BasicConfiguration {
 
     protected int maxHttpContentLength = 64 * 1024;
     protected int maxFramePayloadLength = 64 * 1024;
+    protected int maxConnectionCount = 0;
     protected int maxPendingPackets = 10000;
 
     protected String packagePrefix;
@@ -133,6 +134,7 @@ public abstract class BasicConfiguration {
 
         setTransports(conf.getTransports().toArray(new Transport[0]));
         setMaxHttpContentLength(conf.getMaxHttpContentLength());
+        setMaxConnectionCount(conf.getMaxConnectionCount());
         setPackagePrefix(conf.getPackagePrefix());
 
         setPreferDirectBuffer(conf.isPreferDirectBuffer());
@@ -261,6 +263,26 @@ public abstract class BasicConfiguration {
 
     public int getMaxHttpContentLength() {
         return maxHttpContentLength;
+    }
+
+    /**
+     * Maximum number of concurrent connected clients allowed.
+     * Value &lt;= 0 means unlimited (default is 0).
+     *
+     * @return max connection count
+     */
+    public int getMaxConnectionCount() {
+        return maxConnectionCount;
+    }
+
+    /**
+     * Set the maximum number of concurrent connected clients.
+     * Value &lt;= 0 means unlimited.
+     *
+     * @param maxConnectionCount max number of clients
+     */
+    public void setMaxConnectionCount(int maxConnectionCount) {
+        this.maxConnectionCount = maxConnectionCount;
     }
 
     /**

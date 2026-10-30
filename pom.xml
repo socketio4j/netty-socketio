@@ -867,6 +867,11 @@
                       "justification": "Added default method alias for tracking event publish failure metrics"
                     },
                     {
+                      "code": "java.method.addedToInterface",
+                      "new": "method int com.socketio4j.socketio.quarkus.config.NettySocketIOBasicConfigMapping::maxConnectionCount()",
+                      "justification": "Added maxConnectionCount configuration property mapping for Quarkus"
+                    },
+                    {
                       "code": "java.field.serialVersionUIDUnchanged",
                       "old": "field com.socketio4j.socketio.protocol.Packet.serialVersionUID",
                       "justification": "Packet serialization schema evolved; serialVersionUID maintained for backwards compatibility"

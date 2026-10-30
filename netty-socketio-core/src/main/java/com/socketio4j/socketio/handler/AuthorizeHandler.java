@@ -217,6 +217,14 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
         if (log.isDebugEnabled()) {
             log.debug("Starting authorization for client: {} with origin: {}", channel.remoteAddress(), origin);
         }
+
+        if (!clientsBox.canAcceptClient(configuration.getMaxConnectionCount())) {
+            log.warn("Connection rejected for client {}: max connection count ({}) reached",
+                    channel.remoteAddress(), configuration.getMaxConnectionCount());
+            HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.SERVICE_UNAVAILABLE);
+            channel.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
+            return false;
+        }
         
         if (origin != null && !configuration.isOriginAllowed(origin)) {
             log.warn("Blocked handshake from disallowed origin: {}, client: {}", origin, channel.remoteAddress());
@@ -225,15 +233,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             return false;
         }
 
-        Map<String, List<String>> headers = new HashMap<String, List<String>>(req.headers().names().size());
-        for (String name : req.headers().names()) {
-            if (SENSITIVE_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
-                headers.put(name, Collections.singletonList("[redacted]"));
-                continue;
-            }
-            List<String> values = req.headers().getAll(name);
-            headers.put(name, values);
-        }
+        Map<String, List<String>> headers = sanitizeHeaders(req.headers());
 
         HandshakeData data = new HandshakeData(req.headers(), params,
                 (InetSocketAddress) channel.remoteAddress(),
@@ -264,22 +264,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             return false;
         }
 
-        UUID sessionId;
-        if (configuration.isRandomSession()) {
-            sessionId = UUID.randomUUID();
-            if (log.isDebugEnabled()) {
-                log.debug("Generated random session ID: {} for client: {}", sessionId, channel.remoteAddress());
-            }
-        } else {
-            sessionId = this.generateOrGetSessionIdFromRequest(req.headers());
-            if (clientsBox.get(sessionId) != null) {
-                log.warn("Client supplied an already used session id, generating a new one");
-                sessionId = UUID.randomUUID();
-            }
-            if (log.isDebugEnabled()) {
-                log.debug("Retrieved existing session ID: {} for client: {}", sessionId, channel.remoteAddress());
-            }
-        }
+        UUID sessionId = resolveSessionId(req, channel);
 
         List<String> transportValue = params.get("transport");
         if (transportValue == null) {
@@ -321,8 +306,15 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
         ClientHead client = new ClientHead(sessionId, ackManager, disconnectable, storeFactory, data, clientsBox, transport, scheduler, configuration, params);
         Store store = client.getStore();
         storeParams.forEach(store::set);
+        if (!clientsBox.tryAddClient(client, configuration.getMaxConnectionCount())) {
+            storeFactory.onDisconnect(client);
+            log.warn("Connection rejected for client {}: max connection count ({}) reached",
+                    channel.remoteAddress(), configuration.getMaxConnectionCount());
+            HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.SERVICE_UNAVAILABLE);
+            channel.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
+            return false;
+        }
         channel.attr(ClientHead.CLIENT).set(client);
-        clientsBox.addClient(client);
 
         String[] transports = {};
         //:TODO lyjnew   Current WEBSOCKET retrun upgrade[] engine-io protocol
@@ -415,6 +407,39 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
         }
 
         return UUID.randomUUID();
+    }
+
+    private Map<String, List<String>> sanitizeHeaders(HttpHeaders reqHeaders) {
+        Map<String, List<String>> headers = new HashMap<String, List<String>>(reqHeaders.names().size());
+        for (String name : reqHeaders.names()) {
+            if (SENSITIVE_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
+                headers.put(name, Collections.singletonList("[redacted]"));
+                continue;
+            }
+            List<String> values = reqHeaders.getAll(name);
+            headers.put(name, values);
+        }
+        return headers;
+    }
+
+    private UUID resolveSessionId(FullHttpRequest req, Channel channel) {
+        UUID sessionId;
+        if (configuration.isRandomSession()) {
+            sessionId = UUID.randomUUID();
+            if (log.isDebugEnabled()) {
+                log.debug("Generated random session ID: {} for client: {}", sessionId, channel.remoteAddress());
+            }
+        } else {
+            sessionId = this.generateOrGetSessionIdFromRequest(req.headers());
+            if (clientsBox.get(sessionId) != null) {
+                log.warn("Client supplied an already used session id, generating a new one");
+                sessionId = UUID.randomUUID();
+            }
+            if (log.isDebugEnabled()) {
+                log.debug("Retrieved existing session ID: {} for client: {}", sessionId, channel.remoteAddress());
+            }
+        }
+        return sessionId;
     }
 
     public void connect(UUID sessionId) {

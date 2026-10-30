@@ -652,6 +652,28 @@ public class AuthorizeHandlerTest {
     }
 
     @Test
+    @DisplayName("Max connection count reached - Should reject handshake with Service Unavailable")
+    void testChannelRead_WhenMaxConnectionCountReached_ShouldRejectWithServiceUnavailable() {
+        configuration.setMaxConnectionCount(1);
+
+        FullHttpRequest request1 = createHttpRequest(CONNECT_PATH + "?transport=polling&EIO=4", TEST_ORIGIN);
+        channel.writeInbound(request1);
+        assertThat(channel.isActive()).isTrue();
+        assertThat(clientsBox.getClientsCount()).isEqualTo(1);
+
+        // Second client attempts to connect when limit is reached
+        EmbeddedChannel secondChannel = new EmbeddedChannel(authorizeHandler);
+        FullHttpRequest request2 = createHttpRequest(CONNECT_PATH + "?transport=polling&EIO=4", TEST_ORIGIN);
+        secondChannel.writeInbound(request2);
+
+        assertThat(secondChannel.isActive()).isFalse();
+        Object outboundMessage = secondChannel.outboundMessages().poll();
+        assertThat(outboundMessage).isInstanceOf(DefaultHttpResponse.class);
+        DefaultHttpResponse response = (DefaultHttpResponse) outboundMessage;
+        assertThat(response.status()).isEqualTo(HttpResponseStatus.SERVICE_UNAVAILABLE);
+        secondChannel.finishAndReleaseAll();
+    }
+  
     @DisplayName("Channel Inactive - Should Cancel Scheduled FirstDataTimeout")
     void testChannelInactive_ShouldCancelFirstDataTimeout() throws Exception {
         CancelableScheduler spyScheduler = org.mockito.Mockito.spy(scheduler);

@@ -50,7 +50,7 @@ repos:
       # Only bundle modules produce API artifacts; exclude pom aggregators.
       - id: maven-revapi
         name: Maven API Compatibility Gate (Revapi)
-        entry: mvn --batch-mode -pl netty-socketio-core,netty-socketio-spring,netty-socketio-spring-boot-starter,netty-socketio-micronaut package -DskipTests revapi:check
+        entry: mvn --batch-mode -pl netty-socketio-core,netty-socketio-spring,netty-socketio-spring-boot-starter,netty-socketio-micronaut,netty-socketio-quarkus/netty-socketio-quarkus-runtime package -DskipTests revapi:check
         language: system
         pass_filenames: false
         files: '(\.java$|pom\.xml$)'
