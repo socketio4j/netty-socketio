@@ -16,14 +16,15 @@
  */
 package com.socketio4j.socketio.integration.interop;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.BufferedReader;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
@@ -56,6 +57,7 @@ import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.namespace.NamespaceTestReuseAssertions;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
+import com.sun.net.httpserver.HttpServer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -98,7 +100,7 @@ public class BrowserInteropTest {
     private static SocketIOServer server;
     private static int serverPort;
     private static int httpPort;
-    private static CapturedProcess pythonServer;
+    private static HttpServer httpServer;
 
     /**
      * Every received event is recorded.
@@ -266,38 +268,6 @@ public class BrowserInteropTest {
         order.add(event);
     }
 
-    /**
-     * Wait until the embedded HTTP server is reachable.
-     * Avoids Thread.sleep().
-     */
-    private static void waitForHttpServer(CapturedProcess process, int port)
-            throws Exception {
-
-        long deadline =
-                System.currentTimeMillis() + 10000;
-        Exception lastConnectionFailure = null;
-
-        while (System.currentTimeMillis() < deadline) {
-
-            if (!process.isAlive()) {
-                throw new IllegalStateException(
-                        "HTTP server process exited unexpectedly with code " + process.exitValue()
-                                + ":\n" + process.output());
-            }
-
-            try (Socket socket = new Socket()) {
-                socket.connect(new InetSocketAddress("127.0.0.1", port), 250);
-                return;
-            } catch (Exception error) {
-                lastConnectionFailure = error;
-                Thread.sleep(100);
-            }
-        }
-
-        throw new IllegalStateException(
-                "HTTP server did not start on port " + port + "\nProcess output:\n" + process.output(),
-                lastConnectionFailure);
-    }
 
     /**
      * SHA-256 helper for binary integrity verification.
@@ -422,7 +392,44 @@ public class BrowserInteropTest {
     static void beforeAll() throws Exception {
 
         serverPort = findAvailablePort();
-        httpPort = findAvailablePort();
+
+        File dir = new File("src/test/resources/js-interop");
+        if (!dir.exists()) {
+            dir = new File("netty-socketio-core/src/test/resources/js-interop");
+        }
+        final File webDir = dir;
+
+        httpServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        httpServer.createContext("/", exchange -> {
+            try {
+                String path = exchange.getRequestURI().getPath();
+                if (path == null || path.isEmpty() || "/".equals(path)) {
+                    path = "/interop.html";
+                }
+                File requestedFile = new File(webDir, path.replaceFirst("^/", ""));
+                if (requestedFile.exists() && !requestedFile.isDirectory()) {
+                    if (path.endsWith(".html")) {
+                        exchange.getResponseHeaders().set("Content-Type", "text/html; charset=UTF-8");
+                    } else if (path.endsWith(".js")) {
+                        exchange.getResponseHeaders().set("Content-Type", "application/javascript; charset=UTF-8");
+                    }
+                    exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+                    byte[] bytes = Files.readAllBytes(requestedFile.toPath());
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(bytes);
+                    }
+                } else {
+                    exchange.sendResponseHeaders(404, -1);
+                }
+            } catch (Exception e) {
+                exchange.sendResponseHeaders(500, -1);
+            } finally {
+                exchange.close();
+            }
+        });
+        httpServer.start();
+        httpPort = httpServer.getAddress().getPort();
 
         Configuration config = new Configuration();
         config.setPort(serverPort);
@@ -433,34 +440,24 @@ public class BrowserInteropTest {
 
         for (String namespace : new String[]{"", "/chat"}) {
 
-            SocketIONamespace nsp = namespace.isEmpty()
-                    ? server.getNamespace("")
-                    : server.addNamespace(namespace);
+            SocketIONamespace nsp;
+            if (namespace.isEmpty()) {
+                nsp = server.getNamespace("");
+            } else {
+                nsp = server.addNamespace(namespace);
+            }
 
             register(nsp);
         }
 
         server.start();
-
-        File dir = new File("src/test/resources/js-interop");
-        pythonServer = startProcess(
-                dir,
-                null,
-                "python3",
-                "-m",
-                "http.server",
-                "--bind",
-                "127.0.0.1",
-                String.valueOf(httpPort));
-
-        waitForHttpServer(pythonServer, httpPort);
     }
 
     @AfterAll
     static void afterAll() throws InterruptedException {
 
-        if (pythonServer != null) {
-            pythonServer.stop();
+        if (httpServer != null) {
+            httpServer.stop(0);
         }
 
         if (server != null) {
@@ -597,6 +594,9 @@ public class BrowserInteropTest {
         resetRecorder();
 
         File dir = new File("src/test/resources/js-interop");
+        if (!dir.exists()) {
+            dir = new File("netty-socketio-core/src/test/resources/js-interop");
+        }
         CapturedProcess node = null;
         Map<String, String> env = new java.util.HashMap<>();
         env.put("HTTP_PORT", String.valueOf(httpPort));

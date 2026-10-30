@@ -30,6 +30,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -128,8 +129,8 @@ public final class KafkaEventStore implements EventStore {
         this.producer = Objects.requireNonNull(producer);
         this.consumerProps = Objects.requireNonNull(consumerProps);
 
-        if (nodeId == null){
-            nodeId = getNodeId();
+        if (nodeId == null) {
+            nodeId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
         }
         this.nodeId = Objects.requireNonNull(nodeId);
         if (mode == null) {
@@ -266,6 +267,11 @@ public final class KafkaEventStore implements EventStore {
     @Override
     public SocketIOMetrics getMetrics() {
         return this.metrics;
+    }
+
+    @Override
+    public Long getNodeId() {
+        return this.nodeId;
     }
 
     // ---------------------------------------------------------------------
@@ -496,7 +502,7 @@ public final class KafkaEventStore implements EventStore {
 
                         EventMessage msg = rec.value();
                         // Skip null messages and messages from this node (already processed locally)
-                        if (msg == null || nodeId.equals(msg.getNodeId())) {
+                        if (msg == null || Objects.equals(this.nodeId, msg.getNodeId())) {
                             continue;
                         }
 

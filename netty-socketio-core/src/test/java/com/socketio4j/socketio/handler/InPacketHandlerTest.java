@@ -694,6 +694,86 @@ public class InPacketHandlerTest {
             // We verify the handler processes the packet without crashing
             assertThat(client.getSessionId()).isNotNull();
         }
+
+        @Test
+        @DisplayName("Should reject Engine.IO v4 CONNECT without auth payload when AuthTokenListener requires credentials")
+        public void testV4ConnectWithoutAuthPayloadRejectedWhenAuthListenerDeniesNull() throws Exception {
+            UUID sessionId = UUID.randomUUID();
+            ClientHead client = createTestClient(sessionId, EngineIOVersion.V4);
+
+            AtomicInteger listenerInvocations = new AtomicInteger(0);
+            Namespace ns = namespacesHub.get(VALID_NAMESPACE);
+            ns.addAuthTokenListener((authData, clientParam) -> {
+                listenerInvocations.incrementAndGet();
+                if (authData == null) {
+                    return new AuthTokenResult(false, "Missing authentication payload");
+                }
+                return AuthTokenResult.AUTH_TOKEN_RESULT_SUCCESS;
+            });
+
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
+            connectPacket.setSubType(PacketType.CONNECT);
+            connectPacket.setNsp(VALID_NAMESPACE);
+
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V4, connectPacket);
+            PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
+
+            channel.writeInbound(message);
+            channel.runPendingTasks();
+
+            assertThat(listenerInvocations.get()).isEqualTo(1);
+            assertThat(client.getNamespaces()).isEmpty();
+            assertThat(client.getChildClient(ns)).isNull();
+            ClientPacketTestUtils.assertErrorPacketSent(client, VALID_NAMESPACE, "Missing authentication payload");
+        }
+
+        @Test
+        @DisplayName("Should continue processing subsequent packets in multi-packet payload when first namespace is invalid or fails auth")
+        public void testMultiPacketContinuesAfterInvalidNamespaceOrFailedV4Auth() throws Exception {
+            UUID sessionId = UUID.randomUUID();
+            ClientHead client = createTestClient(sessionId, EngineIOVersion.V4);
+
+            Namespace restrictedNs = namespacesHub.get(VALID_NAMESPACE);
+            restrictedNs.addAuthTokenListener((authData, clientParam) ->
+                    new AuthTokenResult(false, "Denied on default namespace"));
+
+            Namespace allowedNs = namespacesHub.get(CUSTOM_NAMESPACE);
+            allowedNs.addAuthTokenListener((authData, clientParam) ->
+                    AuthTokenResult.AUTH_TOKEN_RESULT_SUCCESS);
+
+            Packet invalidNsConnect = new Packet(PacketType.MESSAGE);
+            invalidNsConnect.setSubType(PacketType.CONNECT);
+            invalidNsConnect.setNsp(INVALID_NAMESPACE);
+
+            Packet failedAuthConnect = new Packet(PacketType.MESSAGE);
+            failedAuthConnect.setSubType(PacketType.CONNECT);
+            failedAuthConnect.setNsp(VALID_NAMESPACE);
+
+            Packet validCustomConnect = new Packet(PacketType.MESSAGE);
+            validCustomConnect.setSubType(PacketType.CONNECT);
+            validCustomConnect.setNsp(CUSTOM_NAMESPACE);
+
+            Queue<Packet> packets = new ArrayDeque<>();
+            packets.add(invalidNsConnect);
+            packets.add(failedAuthConnect);
+            packets.add(validCustomConnect);
+
+            ByteBuf combinedContent = Unpooled.buffer();
+            packetEncoder.encodePackets(
+                    EngineIOVersion.V4,
+                    packets,
+                    combinedContent,
+                    channel.alloc(),
+                    Integer.MAX_VALUE
+            );
+
+            channel.writeInbound(new PacketsMessage(client, combinedContent, Transport.POLLING));
+            channel.runPendingTasks();
+
+            assertThat(client.getChildClient(restrictedNs)).isNull();
+            assertThat(client.getChildClient(allowedNs)).isNotNull();
+            assertThat(client.getNamespaces()).containsExactly(allowedNs);
+        }
     }
 
     

@@ -30,6 +30,8 @@ public class Packet implements Serializable {
 
     private static final long serialVersionUID = 4560159536486711426L;
 
+    private static final int MAX_ATTACHMENTS = 64;
+
     private PacketType type;
     @Deprecated
     private EngineIOVersion engineIOVersion = EngineIOVersion.V4;
@@ -178,8 +180,11 @@ public class Packet implements Serializable {
     }
 
     public void initAttachments(int attachmentsCount) {
+        if (attachmentsCount < 0 || attachmentsCount > MAX_ATTACHMENTS) {
+            throw new IllegalArgumentException("Invalid attachments count: " + attachmentsCount);
+        }
         this.attachmentsCount = attachmentsCount;
-        this.attachments = new ArrayList<>();
+        this.attachments = new ArrayList<>(attachmentsCount);
     }
     public void addAttachment(ByteBuf attachment) {
         if (this.attachments.size() < attachmentsCount) {
