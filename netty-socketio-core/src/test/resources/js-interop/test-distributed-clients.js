@@ -63,7 +63,8 @@ try {
     failFast(`Failed to load Socket.IO client ${version}`, e.message);
 }
 
-const url = `http://localhost:${port}${customNamespace}`;
+const host = args.host || '127.0.0.1';
+const url = `http://${host}:${port}${customNamespace}`;
 const socket = io(url, {
     transports: [transport],
     reconnection: false,

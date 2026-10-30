@@ -122,7 +122,9 @@ public class NamespaceClient implements SocketIOClient {
     }
 
     public void onDisconnect() {
-        disconnected.set(true);
+        if (!disconnected.compareAndSet(false, true)) {
+            return;
+        }
 
         baseClient.removeNamespaceClient(this);
         namespace.onDisconnect(this);

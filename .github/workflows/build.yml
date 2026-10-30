@@ -74,9 +74,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .playwright-browsers
-          key: ${{ runner.os }}-playwright-${{ hashFiles('netty-socketio-core/src/test/resources/js-interop/package-lock.json', 'netty-socketio-core/src/test/resources/js-interop/package.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('netty-socketio-core/src/test/resources/js-interop/package-lock.json', 'netty-socketio-core/src/test/resources/js-interop/package.json') }}
           restore-keys: |
-            ${{ runner.os }}-playwright-
+            ${{ runner.os }}-${{ runner.arch }}-playwright-
 
       # --- Install Playwright Browsers & OS Deps (On Cache Miss) ---
       - name: Install Playwright Browsers & OS Deps
@@ -95,16 +95,27 @@ jobs:
         if: runner.os == 'macOS'
         continue-on-error: true
         run: |
-          brew install colima docker
-          colima start --cpu 2 --memory 4 --runtime docker
+          brew install colima docker qemu
+          for attempt in 1 2 3; do
+            echo "Starting Colima (attempt $attempt/3)..."
+            if colima start --cpu 2 --memory 4 --runtime docker --dns 8.8.8.8 --dns 1.1.1.1; then
+              echo "Colima started successfully."
+              break
+            fi
+            echo "Colima failed to start on attempt $attempt. Retrying in 10s..."
+            colima stop || true
+            colima delete -f || true
+            sleep 10
+          done
           docker context use colima || true
           sudo mkdir -p /var/run
           sudo ln -sf "$HOME/.colima/default/docker.sock" /var/run/docker.sock
           echo "DOCKER_HOST=unix://$HOME/.colima/default/docker.sock" >> $GITHUB_ENV
           echo "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock" >> $GITHUB_ENV
           echo "TESTCONTAINERS_RYUK_DISABLED=true" >> $GITHUB_ENV
+          docker info || true
 
-      # --- Set up Docker on Windows via WSL2 (Experimental) ---
+      # --- Set up Docker on Windows via WSL2 ---
       - name: Set up WSL on Windows
         if: runner.os == 'Windows'
         continue-on-error: true
@@ -118,16 +129,30 @@ jobs:
         continue-on-error: true
         shell: wsl-bash {0}
         run: |
-          sudo dockerd -H tcp://0.0.0.0:2375 -H unix:///var/run/docker.sock > /dev/null 2>&1 &
-          sleep 5
+          sudo rm -f /etc/docker/daemon.json
+          sudo mkdir -p /etc/systemd/system/docker.service.d
+          sudo tee /etc/systemd/system/docker.service.d/override.conf <<'EOF'
+          [Service]
+          ExecStart=
+          ExecStart=/usr/bin/dockerd -H fd:// -H tcp://0.0.0.0:2375 --containerd=/run/containerd/containerd.sock
+          EOF
+          sudo systemctl daemon-reload
+          sudo systemctl restart docker
+          sudo docker info
 
       - name: Configure Docker Host for Windows
         if: runner.os == 'Windows'
         continue-on-error: true
+        shell: bash
         run: |
-          echo "DOCKER_HOST=tcp://127.0.0.1:2375" >> $GITHUB_ENV
-          echo "DOCKER_TLS_VERIFY=0" >> $GITHUB_ENV
-          echo "TESTCONTAINERS_RYUK_DISABLED=true" >> $GITHUB_ENV
+          WSL_IP=$(wsl hostname -I | awk '{print $1}')
+          echo "Discovered WSL IP: $WSL_IP"
+          if [ -n "$WSL_IP" ]; then
+            echo "DOCKER_HOST=tcp://$WSL_IP:2375" >> $GITHUB_ENV
+            echo "DOCKER_TLS_VERIFY=0" >> $GITHUB_ENV
+            echo "TESTCONTAINERS_RYUK_DISABLED=true" >> $GITHUB_ENV
+            docker info || true
+          fi
 
       # --- Testcontainers configuration for CI ---
       - name: Configure Testcontainers
@@ -135,9 +160,21 @@ jobs:
           mkdir -p "$HOME"
           echo "testcontainers.reuse.enable=false" > "$HOME/.testcontainers.properties"
           if [ "${{ runner.os }}" = "Windows" ]; then
-            echo "docker.client.strategy=org.testcontainers.dockerclient.EnvironmentAndSystemPropertyClientProviderStrategy" >> "$HOME/.testcontainers.properties"
-            echo "docker.host=tcp://127.0.0.1:2375" >> "$HOME/.testcontainers.properties"
+            WSL_IP=$(wsl hostname -I | awk '{print $1}')
+            if [ -n "$WSL_IP" ]; then
+              echo "docker.client.strategy=org.testcontainers.dockerclient.EnvironmentAndSystemPropertyClientProviderStrategy" >> "$HOME/.testcontainers.properties"
+              echo "docker.host=tcp://$WSL_IP:2375" >> "$HOME/.testcontainers.properties"
+            fi
           fi
+
+      # --- Fast-fail Code Quality Gates ---
+      - name: Code Quality & Style Check
+        run: mvn --batch-mode --no-transfer-progress checkstyle:check
+
+      # --- Event-Loop Lock Safety Gate ---
+      - name: Event-Loop Lock Safety Gate
+        if: runner.os == 'Linux'
+        run: bash verification/locking/check.sh
 
       # --- Build + Tests ---
       - name: Build Project
