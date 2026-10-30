@@ -16,29 +16,33 @@
  */
 package com.socketio4j.socketio.scheduler;
 
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+
+import com.socketio4j.socketio.annotation.Internal;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
 
+@Internal
 public class HashedWheelScheduler implements CancelableScheduler {
 
-    private final Map<SchedulerKey, Timeout> scheduledFutures = new ConcurrentHashMap<>();
+    private final ConcurrentMap<SchedulerKey, Timeout> scheduledFutures = new ConcurrentHashMap<>();
     private final HashedWheelTimer executorService;
-    
+
+    private volatile boolean shutdown;
+    private volatile ChannelHandlerContext ctx;
+
     public HashedWheelScheduler() {
         executorService = new HashedWheelTimer();
     }
-    
+
     public HashedWheelScheduler(ThreadFactory threadFactory) {
         executorService = new HashedWheelTimer(threadFactory);
     }
-
-    private volatile ChannelHandlerContext ctx;
 
     @Override
     public void update(ChannelHandlerContext ctx) {
@@ -55,42 +59,75 @@ public class HashedWheelScheduler implements CancelableScheduler {
 
     @Override
     public void schedule(final Runnable runnable, long delay, TimeUnit unit) {
+        if (shutdown) {
+            return;
+        }
         executorService.newTimeout(timeout -> runnable.run(), delay, unit);
     }
 
     @Override
     public void scheduleCallback(final SchedulerKey key, final Runnable runnable, long delay, TimeUnit unit) {
-        Timeout timeout = executorService.newTimeout(timeout1 -> ctx.executor().execute(() -> {
-            try {
-                runnable.run();
-            } finally {
-                scheduledFutures.remove(key);
-            }
-        }), delay, unit);
-
-        if (!timeout.isExpired()) {
-            scheduledFutures.put(key, timeout);
+        if (shutdown) {
+            return;
         }
+        Timeout timeout = executorService.newTimeout(timeout1 -> {
+            ChannelHandlerContext currentCtx = this.ctx;
+            if (currentCtx != null && currentCtx.executor() != null && !currentCtx.executor().isShuttingDown()) {
+                currentCtx.executor().execute(() -> {
+                    try {
+                        runnable.run();
+                    } finally {
+                        scheduledFutures.remove(key, timeout1);
+                    }
+                });
+            } else {
+                try {
+                    runnable.run();
+                } finally {
+                    scheduledFutures.remove(key, timeout1);
+                }
+            }
+        }, delay, unit);
+
+        replaceScheduledFuture(key, timeout);
     }
 
     @Override
     public void schedule(final SchedulerKey key, final Runnable runnable, long delay, TimeUnit unit) {
+        if (shutdown) {
+            return;
+        }
         Timeout timeout = executorService.newTimeout(timeout1 -> {
             try {
                 runnable.run();
             } finally {
-                scheduledFutures.remove(key);
+                scheduledFutures.remove(key, timeout1);
             }
         }, delay, unit);
 
-        if (!timeout.isExpired()) {
-            scheduledFutures.put(key, timeout);
-        }
+        replaceScheduledFuture(key, timeout);
     }
 
     @Override
     public void shutdown() {
+        shutdown = true;
+        for (Timeout timeout : scheduledFutures.values()) {
+            timeout.cancel();
+        }
+        scheduledFutures.clear();
         executorService.stop();
+    }
+
+    private void replaceScheduledFuture(final SchedulerKey key, final Timeout newTimeout) {
+        final Timeout oldTimeout;
+        if (newTimeout.isExpired()) {
+            oldTimeout = scheduledFutures.remove(key);
+        } else {
+            oldTimeout = scheduledFutures.put(key, newTimeout);
+        }
+        if (oldTimeout != null) {
+            oldTimeout.cancel();
+        }
     }
 
 }

@@ -66,17 +66,25 @@ public class NettySocketIOConfigurationFactory {
         configuration.setHttpRequestDecoderConfiguration(nettySocketIOHttpRequestDecoderConfigurationProperties);
 
         SocketSslConfig socketSslConfig = new SocketSslConfig();
-        socketSslConfig.setSSLProtocol(nettySocketIOSslConfigProperties.getSslProtocol());
+        if (nettySocketIOSslConfigProperties.isSslProtocolExplicitlySet()) {
+            socketSslConfig.setSSLProtocol(nettySocketIOSslConfigProperties.getSslProtocol());
+        }
         if (nettySocketIOSslConfigProperties.getKeyStore() != null) {
             socketSslConfig.setKeyStore(
-                    this.getClass().getClassLoader().getResourceAsStream(nettySocketIOSslConfigProperties.getKeyStore())
+                    SocketSslConfig.openStoreStream(
+                            nettySocketIOSslConfigProperties.getKeyStore(),
+                            this.getClass().getClassLoader()
+                    )
             );
         }
         socketSslConfig.setKeyStorePassword(nettySocketIOSslConfigProperties.getKeyStorePassword());
         socketSslConfig.setKeyStoreFormat(nettySocketIOSslConfigProperties.getKeyStoreFormat());
         if (nettySocketIOSslConfigProperties.getTrustStore() != null) {
             socketSslConfig.setTrustStore(
-                    this.getClass().getClassLoader().getResourceAsStream(nettySocketIOSslConfigProperties.getTrustStore())
+                    SocketSslConfig.openStoreStream(
+                            nettySocketIOSslConfigProperties.getTrustStore(),
+                            this.getClass().getClassLoader()
+                    )
             );
         }
         socketSslConfig.setTrustStorePassword(nettySocketIOSslConfigProperties.getTrustStorePassword());

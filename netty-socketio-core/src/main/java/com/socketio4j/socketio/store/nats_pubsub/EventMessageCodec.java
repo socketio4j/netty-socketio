@@ -16,45 +16,21 @@
  */
 package com.socketio4j.socketio.store.nats_pubsub;
 
-/**
- * @author https://github.com/sanjomo
- * @date 22/12/25 4:04 pm
- */
-
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
-import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.socketio4j.socketio.store.event.EventMessage;
+import com.socketio4j.socketio.store.event.EventMessageJsonSupport;
 
 public final class EventMessageCodec {
 
-    private static final ObjectMapper MAPPER;
-
-    static {
-        PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
-                .allowIfSubType("com.socketio4j.socketio")
-                .allowIfBaseType("java.util")
-                .allowIfSubType("java.util.Arrays$")
-                .allowIfSubTypeIsArray()
-                .allowIfSubType("java.time")
-                .allowIfSubType("java.math")
-                .build();
-
-        MAPPER = JsonMapper.builder()
-                .polymorphicTypeValidator(ptv)
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .enable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE)
-                .build();
-        MAPPER.activateDefaultTyping(ptv, ObjectMapper.DefaultTyping.NON_FINAL, JsonTypeInfo.As.PROPERTY);
-    }
+    private static final ObjectMapper MAPPER = EventMessageJsonSupport.createObjectMapper();
 
     private EventMessageCodec() {
     }
 
     public static byte[] serialize(EventMessage msg) {
+        if (msg == null) {
+            return new byte[0];
+        }
         try {
             return MAPPER.writeValueAsBytes(msg);
         } catch (Exception e) {
@@ -63,6 +39,9 @@ public final class EventMessageCodec {
     }
 
     public static <T extends EventMessage> T deserialize(byte[] data, Class<T> clazz) {
+        if (data == null || data.length == 0) {
+            return null;
+        }
         try {
             return MAPPER.readValue(data, clazz);
         } catch (Exception e) {

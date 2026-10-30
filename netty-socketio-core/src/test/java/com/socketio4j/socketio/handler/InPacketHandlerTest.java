@@ -29,14 +29,8 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.CharsetUtil;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.UUID;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,6 +41,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
+
 
 import com.socketio4j.socketio.AuthTokenResult;
 import com.socketio4j.socketio.Configuration;
@@ -117,6 +112,7 @@ import static org.mockito.Mockito.when;
  * @see EmbeddedChannel
  * @see Socket.IO Protocol Specification
  */
+
 @TestInstance(Lifecycle.PER_CLASS)
 public class InPacketHandlerTest {
 
@@ -175,6 +171,7 @@ public class InPacketHandlerTest {
         namespacesHub.create(CUSTOM_NAMESPACE);
     }
 
+    
     @Nested
     @DisplayName("Basic Packet Processing Tests")
     class BasicPacketProcessingTests {
@@ -187,23 +184,23 @@ public class InPacketHandlerTest {
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
             // First connect to namespace
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
 
-            ByteBuf connectContent = encodePacket(connectPacket);
+            ByteBuf connectContent = encodePacket(EngineIOVersion.V3, connectPacket);
             PacketsMessage connectMessage = new PacketsMessage(client, connectContent, Transport.POLLING);
             channel.writeInbound(connectMessage);
             channel.runPendingTasks();
 
             // Then send event packet
-            Packet eventPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet eventPacket = new Packet(PacketType.MESSAGE);
             eventPacket.setSubType(PacketType.EVENT);
             eventPacket.setNsp(VALID_NAMESPACE);
             eventPacket.setName("test_event");
             eventPacket.setData(Arrays.asList("test_data"));
 
-            ByteBuf packetContent = encodePacket(eventPacket);
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V3, eventPacket);
             PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
 
             // When: Send the message through the channel
@@ -226,23 +223,30 @@ public class InPacketHandlerTest {
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
             // Create multiple packets
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
 
-            Packet eventPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet eventPacket = new Packet(PacketType.MESSAGE);
             eventPacket.setSubType(PacketType.EVENT);
             eventPacket.setNsp(VALID_NAMESPACE);
             eventPacket.setName("test_event");
             eventPacket.setData(Arrays.asList("test_data"));
 
             // Encode both packets into single ByteBuf
+            Queue<Packet> packets = new ArrayDeque<>();
+            packets.add(connectPacket);
+            packets.add(eventPacket);
+
             ByteBuf combinedContent = Unpooled.buffer();
-            packetEncoder.encodePacket(connectPacket, combinedContent, channel.alloc(), false);
-            packetEncoder.encodePacket(eventPacket, combinedContent, channel.alloc(), false);
+            packetEncoder.encodePackets(EngineIOVersion.V3,
+                    packets,
+                    combinedContent,
+                    channel.alloc(),
+                    Integer.MAX_VALUE
+            );
 
             PacketsMessage message = new PacketsMessage(client, combinedContent, Transport.POLLING);
-
             // When: Send the message through the channel
             channel.writeInbound(message);
             channel.runPendingTasks();
@@ -285,6 +289,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Namespace Management Tests")
     class NamespaceManagementTests {
@@ -296,11 +301,11 @@ public class InPacketHandlerTest {
             UUID sessionId = UUID.randomUUID();
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(INVALID_NAMESPACE);
 
-            ByteBuf packetContent = encodePacket(connectPacket);
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V3, connectPacket);
             PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
 
             // When: Send the message through the embedded channel
@@ -319,11 +324,11 @@ public class InPacketHandlerTest {
             UUID sessionId = UUID.randomUUID();
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
 
-            ByteBuf packetContent = encodePacket(connectPacket);
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V3, connectPacket);
             PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
 
             // When: Send the message through the embedded channel
@@ -351,11 +356,11 @@ public class InPacketHandlerTest {
             UUID sessionId = UUID.randomUUID();
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(CUSTOM_NAMESPACE);
 
-            ByteBuf packetContent = encodePacket(connectPacket);
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V3, connectPacket);
             PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
 
             // When: Send the message
@@ -377,23 +382,23 @@ public class InPacketHandlerTest {
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
             // First connect to a valid namespace
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
 
-            ByteBuf connectContent = encodePacket(connectPacket);
+            ByteBuf connectContent = encodePacket(EngineIOVersion.V3,connectPacket);
             PacketsMessage connectMessage = new PacketsMessage(client, connectContent, Transport.POLLING);
             channel.writeInbound(connectMessage);
             channel.runPendingTasks();
 
             // Then send event packet to invalid namespace
-            Packet eventPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet eventPacket = new Packet(PacketType.MESSAGE);
             eventPacket.setSubType(PacketType.EVENT);
             eventPacket.setNsp(INVALID_NAMESPACE);
             eventPacket.setName("test_event");
             eventPacket.setData(Arrays.asList("test_data")); // Add data to avoid null pointer
 
-            ByteBuf packetContent = encodePacket(eventPacket);
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V3, eventPacket);
             PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
 
             // When: Send the message
@@ -415,6 +420,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Engine.IO Version Tests")
     class EngineIOVersionTests {
@@ -426,11 +432,11 @@ public class InPacketHandlerTest {
             UUID sessionId = UUID.randomUUID();
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
 
-            ByteBuf packetContent = encodePacket(connectPacket);
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V3, connectPacket);
             PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
 
             // When: Send the message
@@ -461,12 +467,12 @@ public class InPacketHandlerTest {
             authData.put("token", AUTH_TOKEN);
             authData.put("type", "jwt");
 
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
             connectPacket.setData(authData);
 
-            ByteBuf connectContent = encodePacket(connectPacket);
+            ByteBuf connectContent = encodePacket(EngineIOVersion.V4, connectPacket);
             PacketsMessage connectMessage = new PacketsMessage(client, connectContent, Transport.POLLING);
 
             // When: Processing the connect packet
@@ -493,12 +499,12 @@ public class InPacketHandlerTest {
             UUID sessionId = UUID.randomUUID();
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V4);
 
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
             // No auth data
 
-            ByteBuf packetContent = encodePacket(connectPacket);
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V4, connectPacket);
             PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
 
             // When: Send the message
@@ -521,8 +527,37 @@ public class InPacketHandlerTest {
             Packet responsePacket = packetQueue.peek();
             assertThat(responsePacket.getType()).isEqualTo(PacketType.MESSAGE);
         }
+
+        @Test
+        @DisplayName("Should reject an EIO v4 event before the namespace CONNECT packet")
+        public void testEngineIOV4EventBeforeConnectIsRejected() throws Exception {
+            UUID sessionId = UUID.randomUUID();
+            ClientHead client = createTestClient(sessionId, EngineIOVersion.V4);
+            Namespace namespace = namespacesHub.get(VALID_NAMESPACE);
+            PacketListener rejectingPacketListener = mock(PacketListener.class);
+            EmbeddedChannel rejectingChannel = new EmbeddedChannel(new InPacketHandler(
+                    rejectingPacketListener, packetDecoder, namespacesHub, exceptionListener));
+
+            Packet eventPacket = new Packet(PacketType.MESSAGE);
+            eventPacket.setSubType(PacketType.EVENT);
+            eventPacket.setNsp(VALID_NAMESPACE);
+            eventPacket.setName("must-not-be-delivered");
+            eventPacket.setData(Arrays.asList("payload"));
+
+            rejectingChannel.writeInbound(new PacketsMessage(client,
+                    encodePacket(EngineIOVersion.V4, eventPacket), Transport.POLLING));
+            rejectingChannel.runPendingTasks();
+
+            verify(rejectingPacketListener, times(0)).onPacket(any(), any(), any());
+            assertThat(client.isConnected()).isFalse();
+            assertThat(client.getNamespaces()).isEmpty();
+            assertThat(client.getChildClient(namespace)).isNull();
+            assertThat(rejectingChannel.isOpen()).isFalse();
+            verify(disconnectableHub).onDisconnect(client);
+        }
     }
 
+    
     @Nested
     @DisplayName("Authentication and Authorization Tests")
     class AuthenticationTests {
@@ -543,12 +578,12 @@ public class InPacketHandlerTest {
             authData.put("token", AUTH_TOKEN);
             authData.put("type", "jwt");
 
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
             connectPacket.setData(authData);
 
-            ByteBuf packetContent = encodePacket(connectPacket);
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V4, connectPacket);
             PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
 
             // When: Send the message
@@ -588,12 +623,12 @@ public class InPacketHandlerTest {
             authData.put("token", INVALID_AUTH_TOKEN);
             authData.put("type", "jwt");
 
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
             connectPacket.setData(authData);
 
-            ByteBuf packetContent = encodePacket(connectPacket);
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V4, connectPacket);
             PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
 
             // When: Send the message
@@ -612,6 +647,8 @@ public class InPacketHandlerTest {
             // The authentication failure should be handled gracefully
             // We verify the handler processes the packet without crashing
             assertThat(client.getSessionId()).isNotNull();
+            assertThat(namespaces).isEmpty();
+            assertThat(client.getChildClient(ns)).isNull();
         }
 
         @Test
@@ -632,12 +669,12 @@ public class InPacketHandlerTest {
             authData.put("token", AUTH_TOKEN);
             authData.put("type", "jwt");
 
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
             connectPacket.setData(authData);
 
-            ByteBuf packetContent = encodePacket(connectPacket);
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V4, connectPacket);
             PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
 
             // When: Send the message
@@ -657,8 +694,131 @@ public class InPacketHandlerTest {
             // We verify the handler processes the packet without crashing
             assertThat(client.getSessionId()).isNotNull();
         }
+
+        @Test
+        @DisplayName("Should reject Engine.IO v4 CONNECT without auth payload when AuthTokenListener requires credentials")
+        public void testV4ConnectWithoutAuthPayloadRejectedWhenAuthListenerDeniesNull() throws Exception {
+            UUID sessionId = UUID.randomUUID();
+            ClientHead client = createTestClient(sessionId, EngineIOVersion.V4);
+
+            AtomicInteger listenerInvocations = new AtomicInteger(0);
+            Namespace ns = namespacesHub.get(VALID_NAMESPACE);
+            ns.addAuthTokenListener((authData, clientParam) -> {
+                listenerInvocations.incrementAndGet();
+                if (authData == null) {
+                    return new AuthTokenResult(false, "Missing authentication payload");
+                }
+                return AuthTokenResult.AUTH_TOKEN_RESULT_SUCCESS;
+            });
+
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
+            connectPacket.setSubType(PacketType.CONNECT);
+            connectPacket.setNsp(VALID_NAMESPACE);
+
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V4, connectPacket);
+            PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
+
+            channel.writeInbound(message);
+            channel.runPendingTasks();
+
+            assertThat(listenerInvocations.get()).isEqualTo(1);
+            assertThat(client.getNamespaces()).isEmpty();
+            assertThat(client.getChildClient(ns)).isNull();
+            ClientPacketTestUtils.assertErrorPacketSent(client, VALID_NAMESPACE, "Missing authentication payload");
+        }
+
+        @Test
+        @DisplayName("Should continue processing subsequent packets in multi-packet payload when first namespace is invalid or fails auth")
+        public void testMultiPacketContinuesAfterInvalidNamespaceOrFailedV4Auth() throws Exception {
+            UUID sessionId = UUID.randomUUID();
+            ClientHead client = createTestClient(sessionId, EngineIOVersion.V4);
+
+            Namespace restrictedNs = namespacesHub.get(VALID_NAMESPACE);
+            restrictedNs.addAuthTokenListener((authData, clientParam) ->
+                    new AuthTokenResult(false, "Denied on default namespace"));
+
+            Namespace allowedNs = namespacesHub.get(CUSTOM_NAMESPACE);
+            allowedNs.addAuthTokenListener((authData, clientParam) ->
+                    AuthTokenResult.AUTH_TOKEN_RESULT_SUCCESS);
+
+            Packet invalidNsConnect = new Packet(PacketType.MESSAGE);
+            invalidNsConnect.setSubType(PacketType.CONNECT);
+            invalidNsConnect.setNsp(INVALID_NAMESPACE);
+
+            Packet failedAuthConnect = new Packet(PacketType.MESSAGE);
+            failedAuthConnect.setSubType(PacketType.CONNECT);
+            failedAuthConnect.setNsp(VALID_NAMESPACE);
+
+            Packet validCustomConnect = new Packet(PacketType.MESSAGE);
+            validCustomConnect.setSubType(PacketType.CONNECT);
+            validCustomConnect.setNsp(CUSTOM_NAMESPACE);
+
+            Queue<Packet> packets = new ArrayDeque<>();
+            packets.add(invalidNsConnect);
+            packets.add(failedAuthConnect);
+            packets.add(validCustomConnect);
+
+            ByteBuf combinedContent = Unpooled.buffer();
+            packetEncoder.encodePackets(
+                    EngineIOVersion.V4,
+                    packets,
+                    combinedContent,
+                    channel.alloc(),
+                    Integer.MAX_VALUE
+            );
+
+            channel.writeInbound(new PacketsMessage(client, combinedContent, Transport.POLLING));
+            channel.runPendingTasks();
+
+            assertThat(client.getChildClient(restrictedNs)).isNull();
+            assertThat(client.getChildClient(allowedNs)).isNotNull();
+            assertThat(client.getNamespaces()).containsExactly(allowedNs);
+        }
+
+        @Test
+        @DisplayName("Should clear previous token from shared HandshakeData before invoking auth listeners on CONNECT with null auth")
+        public void testNullAuthDataClearsPreviousTokenBeforeInvokingListeners() throws Exception {
+            UUID sessionId = UUID.randomUUID();
+            ClientHead client = createTestClient(sessionId, EngineIOVersion.V4);
+
+            Namespace firstNs = namespacesHub.get(CUSTOM_NAMESPACE);
+            Namespace secondNs = namespacesHub.get(VALID_NAMESPACE);
+
+            Map<String, Object> firstAuthData = Collections.singletonMap("token", "secret123");
+            Packet firstConnect = new Packet(PacketType.MESSAGE);
+            firstConnect.setSubType(PacketType.CONNECT);
+            firstConnect.setNsp(CUSTOM_NAMESPACE);
+            firstConnect.setData(firstAuthData);
+
+            ByteBuf firstContent = encodePacket(EngineIOVersion.V4, firstConnect);
+            channel.writeInbound(new PacketsMessage(client, firstContent, Transport.POLLING));
+            channel.runPendingTasks();
+
+            assertThat(client.getChildClient(firstNs)).isNotNull();
+            assertThat(client.getHandshakeData().getAuthToken()).isEqualTo(firstAuthData);
+
+            java.util.concurrent.atomic.AtomicReference<Object> observedTokenInListener = new java.util.concurrent.atomic.AtomicReference<>("not-null");
+            secondNs.addAuthTokenListener((authData, clientParam) -> {
+                observedTokenInListener.set(clientParam.getHandshakeData().getAuthToken());
+                return AuthTokenResult.AUTH_TOKEN_RESULT_SUCCESS;
+            });
+
+            Packet secondConnect = new Packet(PacketType.MESSAGE);
+            secondConnect.setSubType(PacketType.CONNECT);
+            secondConnect.setNsp(VALID_NAMESPACE);
+            secondConnect.setData(null);
+
+            ByteBuf secondContent = encodePacket(EngineIOVersion.V4, secondConnect);
+            channel.writeInbound(new PacketsMessage(client, secondContent, Transport.POLLING));
+            channel.runPendingTasks();
+
+            assertThat(observedTokenInListener.get()).isNull();
+            assertThat(client.getHandshakeData().getAuthToken()).isNull();
+            assertThat(client.getChildClient(secondNs)).isNotNull();
+        }
     }
 
+    
     @Nested
     @DisplayName("Packet Type Handling Tests")
     class PacketTypeHandlingTests {
@@ -671,23 +831,23 @@ public class InPacketHandlerTest {
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
             // First connect to namespace
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
 
-            ByteBuf connectContent = encodePacket(connectPacket);
+            ByteBuf connectContent = encodePacket(EngineIOVersion.V3, connectPacket);
             PacketsMessage connectMessage = new PacketsMessage(client, connectContent, Transport.POLLING);
             channel.writeInbound(connectMessage);
             channel.runPendingTasks();
 
             // Then send event packet
-            Packet eventPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet eventPacket = new Packet(PacketType.MESSAGE);
             eventPacket.setSubType(PacketType.EVENT);
             eventPacket.setNsp(VALID_NAMESPACE);
             eventPacket.setName("user_message");
             eventPacket.setData(Arrays.asList("Hello, World!"));
 
-            ByteBuf eventContent = encodePacket(eventPacket);
+            ByteBuf eventContent = encodePacket(EngineIOVersion.V3, eventPacket);
             PacketsMessage eventMessage = new PacketsMessage(client, eventContent, Transport.POLLING);
 
             // When: Send the event message
@@ -714,20 +874,20 @@ public class InPacketHandlerTest {
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
             // First connect to namespace
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
 
-            ByteBuf connectContent = encodePacket(connectPacket);
+            ByteBuf connectContent = encodePacket(EngineIOVersion.V3, connectPacket);
             PacketsMessage connectMessage = new PacketsMessage(client, connectContent, Transport.POLLING);
             channel.writeInbound(connectMessage);
             channel.runPendingTasks();
 
             // Then send ping packet
-            Packet pingPacket = new Packet(PacketType.PING, client.getEngineIOVersion());
+            Packet pingPacket = new Packet(PacketType.PING);
             pingPacket.setData("probe");
 
-            ByteBuf pingContent = encodePacket(pingPacket);
+            ByteBuf pingContent = encodePacket(EngineIOVersion.V3, pingPacket);
             PacketsMessage pingMessage = new PacketsMessage(client, pingContent, Transport.POLLING);
 
             // When: Send the ping message
@@ -749,11 +909,11 @@ public class InPacketHandlerTest {
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
             // First connect to namespace
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
 
-            ByteBuf connectContent = encodePacket(connectPacket);
+            ByteBuf connectContent = encodePacket(EngineIOVersion.V3, connectPacket);
             PacketsMessage connectMessage = new PacketsMessage(client, connectContent, Transport.POLLING);
             channel.writeInbound(connectMessage);
             channel.runPendingTasks();
@@ -767,11 +927,11 @@ public class InPacketHandlerTest {
             assertThat(namespaces).isNotEmpty();
 
             // Then send disconnect packet
-            Packet disconnectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet disconnectPacket = new Packet(PacketType.MESSAGE);
             disconnectPacket.setSubType(PacketType.DISCONNECT);
             disconnectPacket.setNsp(VALID_NAMESPACE);
 
-            ByteBuf disconnectContent = encodePacket(disconnectPacket);
+            ByteBuf disconnectContent = encodePacket(EngineIOVersion.V3, disconnectPacket);
             PacketsMessage disconnectMessage = new PacketsMessage(client, disconnectContent, Transport.POLLING);
 
             // When: Send the disconnect message
@@ -795,6 +955,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Transport and Channel Tests")
     class TransportTests {
@@ -806,11 +967,11 @@ public class InPacketHandlerTest {
             UUID sessionId = UUID.randomUUID();
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
 
-            ByteBuf packetContent = encodePacket(connectPacket);
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V3, connectPacket);
             PacketsMessage message = new PacketsMessage(client, packetContent, Transport.WEBSOCKET);
 
             // When: Send the message
@@ -836,11 +997,11 @@ public class InPacketHandlerTest {
             UUID sessionId = UUID.randomUUID();
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
 
-            ByteBuf packetContent = encodePacket(connectPacket);
+            ByteBuf packetContent = encodePacket(EngineIOVersion.V3, connectPacket);
 
             // Test with different transports
             Transport[] transports = {Transport.POLLING, Transport.WEBSOCKET};
@@ -869,6 +1030,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Error Handling and Exception Tests")
     class ErrorHandlingTests {
@@ -924,6 +1086,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Attachment Handling Tests")
     class AttachmentTests {
@@ -936,17 +1099,17 @@ public class InPacketHandlerTest {
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
             // First connect to namespace
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
 
-            ByteBuf connectContent = encodePacket(connectPacket);
+            ByteBuf connectContent = encodePacket(EngineIOVersion.V3, connectPacket);
             PacketsMessage connectMessage = new PacketsMessage(client, connectContent, Transport.POLLING);
             channel.writeInbound(connectMessage);
             channel.runPendingTasks();
 
             // Create packet with unloaded attachments
-            Packet attachmentPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet attachmentPacket = new Packet(PacketType.MESSAGE);
             attachmentPacket.setSubType(PacketType.EVENT);
             attachmentPacket.setNsp(VALID_NAMESPACE);
             attachmentPacket.setName("file_upload");
@@ -954,7 +1117,7 @@ public class InPacketHandlerTest {
             attachmentPacket.initAttachments(1); // Initialize with 1 attachment
             // Don't add the attachment, so it remains unloaded
 
-            ByteBuf attachmentContent = encodePacket(attachmentPacket);
+            ByteBuf attachmentContent = encodePacket(EngineIOVersion.V3, attachmentPacket);
             PacketsMessage attachmentMessage = new PacketsMessage(client, attachmentContent, Transport.POLLING);
 
             // When: Send packet with unloaded attachments
@@ -976,6 +1139,7 @@ public class InPacketHandlerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Concurrency and Performance Tests")
     class ConcurrencyTests {
@@ -1001,11 +1165,11 @@ public class InPacketHandlerTest {
             for (int i = 0; i < clientCount; i++) {
                 ClientHead client = clients.get(i);
 
-                Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+                Packet connectPacket = new Packet(PacketType.MESSAGE);
                 connectPacket.setSubType(PacketType.CONNECT);
                 connectPacket.setNsp(VALID_NAMESPACE);
 
-                ByteBuf packetContent = encodePacket(connectPacket);
+                ByteBuf packetContent = encodePacket(EngineIOVersion.V3, connectPacket);
                 PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
 
                 // Send message
@@ -1039,11 +1203,11 @@ public class InPacketHandlerTest {
             ClientHead client = createTestClient(sessionId, EngineIOVersion.V3);
 
             // First connect
-            Packet connectPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet connectPacket = new Packet(PacketType.MESSAGE);
             connectPacket.setSubType(PacketType.CONNECT);
             connectPacket.setNsp(VALID_NAMESPACE);
 
-            ByteBuf connectContent = encodePacket(connectPacket);
+            ByteBuf connectContent = encodePacket(EngineIOVersion.V3, connectPacket);
             PacketsMessage connectMessage = new PacketsMessage(client, connectContent, Transport.POLLING);
             channel.writeInbound(connectMessage);
             channel.runPendingTasks();
@@ -1051,13 +1215,13 @@ public class InPacketHandlerTest {
             // Send many event packets
             int packetCount = 100;
             for (int i = 0; i < packetCount; i++) {
-                Packet eventPacket = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+                Packet eventPacket = new Packet(PacketType.MESSAGE);
                 eventPacket.setSubType(PacketType.EVENT);
                 eventPacket.setNsp(VALID_NAMESPACE);
                 eventPacket.setName("high_volume_event");
                 eventPacket.setData(Arrays.asList("data_" + i));
 
-                ByteBuf packetContent = encodePacket(eventPacket);
+                ByteBuf packetContent = encodePacket(EngineIOVersion.V3, eventPacket);
                 PacketsMessage message = new PacketsMessage(client, packetContent, Transport.POLLING);
 
                 channel.writeInbound(message);
@@ -1140,9 +1304,9 @@ public class InPacketHandlerTest {
     /**
      * Helper method to encode a packet to ByteBuf for testing
      */
-    private ByteBuf encodePacket(Packet packet) throws Exception {
+    private ByteBuf encodePacket(EngineIOVersion engineIOVersion, Packet packet) throws Exception {
         ByteBuf buffer = Unpooled.buffer();
-        packetEncoder.encodePacket(packet, buffer, channel.alloc(), false);
+        packetEncoder.encodePacket(engineIOVersion, packet, buffer, channel.alloc(), false);
         return buffer;
     }
 

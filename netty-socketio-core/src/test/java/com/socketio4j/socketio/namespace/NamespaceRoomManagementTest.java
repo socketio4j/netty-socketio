@@ -48,7 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
-class NamespaceRoomManagementTest extends BaseNamespaceTest {
+public class NamespaceRoomManagementTest extends AbstractNamespaceTestSupport {
 
     private Namespace namespace;
 
@@ -277,16 +277,12 @@ class NamespaceRoomManagementTest extends BaseNamespaceTest {
                 executeConcurrentOperationsWithIndex(
                         taskCount,
                         index -> {
-                            try {
-                                String concurrentRoom = "concurrentRoom" + index;
-                                UUID sessionId = UUID.randomUUID();
+                            String concurrentRoom = "concurrentRoom" + index;
+                            UUID sessionId = UUID.randomUUID();
 
-                                // Simulate concurrent room operations
-                                namespace.joinRoom(concurrentRoom, sessionId);
-                                namespace.leaveRoom(concurrentRoom, sessionId);
-                            } catch (Exception e) {
-                                // Log exception but continue
-                            }
+                            // Simulate concurrent room operations
+                            namespace.joinRoom(concurrentRoom, sessionId);
+                            namespace.leaveRoom(concurrentRoom, sessionId);
                         });
 
         waitForCompletion(latch);
@@ -299,18 +295,14 @@ class NamespaceRoomManagementTest extends BaseNamespaceTest {
                 executeConcurrentOperationsWithIndex(
                         taskCount,
                         index -> {
-                            try {
-                                String bulkRoom = "bulkRoom" + index;
-                                Set<String> rooms =
-                                        Arrays.asList(bulkRoom, "sharedRoom").stream().collect(Collectors.toSet());
-                                UUID sessionId = UUID.randomUUID();
+                            String bulkRoom = "bulkRoom" + index;
+                            Set<String> rooms =
+                                    Arrays.asList(bulkRoom, "sharedRoom").stream().collect(Collectors.toSet());
+                            UUID sessionId = UUID.randomUUID();
 
-                                // Test bulk join and leave operations
-                                namespace.joinRooms(rooms, sessionId);
-                                namespace.leaveRooms(rooms, sessionId);
-                            } catch (Exception e) {
-                                // Log exception but continue
-                            }
+                            // Test bulk join and leave operations
+                            namespace.joinRooms(rooms, sessionId);
+                            namespace.leaveRooms(rooms, sessionId);
                         });
 
         waitForCompletion(bulkLatch);
