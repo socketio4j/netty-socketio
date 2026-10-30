@@ -18,6 +18,7 @@ package com.socketio4j.socketio;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Predicate;
 
@@ -58,27 +59,44 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public Collection<SocketIOClient> getClients() {
+        if (clients == null) {
+            return Collections.emptyList();
+        }
         return new IterableCollection<>(clients);
     }
 
     @Override
     public void send(Packet packet) {
-        for (SocketIOClient client : clients) {
-            client.send(packet);
+        send(packet, (Predicate<SocketIOClient>) null);
+    }
+
+    void send(Packet packet, Predicate<SocketIOClient> excludePredicate) {
+        if (clients != null) {
+            for (SocketIOClient client : clients) {
+                if (excludePredicate != null && excludePredicate.test(client)) {
+                    continue;
+                }
+                client.send(packet);
+            }
         }
         dispatch(packet);
     }
 
     @Override
     public <T> void send(Packet packet, BroadcastAckCallback<T> ackCallback) {
-        for (SocketIOClient client : clients) {
-            client.send(packet, ackCallback.createClientCallback(client));
+        if (clients != null) {
+            for (SocketIOClient client : clients) {
+                client.send(packet, ackCallback.createClientCallback(client));
+            }
         }
         ackCallback.loopFinished();
     }
 
     @Override
     public void disconnect() {
+        if (clients == null) {
+            return;
+        }
         for (SocketIOClient client : clients) {
             client.disconnect();
         }
@@ -86,9 +104,9 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public void sendEvent(String name, SocketIOClient excludedClient, Object... data) {
-        Predicate<SocketIOClient> excludePredicate = socketIOClient -> Objects.equals(
-                socketIOClient.getSessionId(), excludedClient.getSessionId()
-        );
+        Predicate<SocketIOClient> excludePredicate = socketIOClient ->
+                excludedClient != null && socketIOClient != null
+                        && Objects.equals(socketIOClient.getSessionId(), excludedClient.getSessionId());
         sendEvent(name, excludePredicate, data);
     }
 
@@ -99,11 +117,13 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
         packet.setName(name);
         packet.setData(Arrays.asList(data));
 
-        for (SocketIOClient client : clients) {
-            if (excludePredicate.test(client)) {
-                continue;
+        if (clients != null) {
+            for (SocketIOClient client : clients) {
+                if (excludePredicate != null && excludePredicate.test(client)) {
+                    continue;
+                }
+                client.send(packet);
             }
-            client.send(packet);
         }
         dispatch(packet);
     }
@@ -119,27 +139,31 @@ public class SingleRoomBroadcastOperations implements BroadcastOperations {
 
     @Override
     public <T> void sendEvent(String name, Object data, BroadcastAckCallback<T> ackCallback) {
-        for (SocketIOClient client : clients) {
-            client.sendEvent(name, ackCallback.createClientCallback(client), data);
+        if (clients != null) {
+            for (SocketIOClient client : clients) {
+                client.sendEvent(name, ackCallback.createClientCallback(client), data);
+            }
         }
         ackCallback.loopFinished();
     }
 
     @Override
     public <T> void sendEvent(String name, Object data, SocketIOClient excludedClient, BroadcastAckCallback<T> ackCallback) {
-        Predicate<SocketIOClient> excludePredicate = socketIOClient -> Objects.equals(
-                socketIOClient.getSessionId(), excludedClient.getSessionId()
-        );
+        Predicate<SocketIOClient> excludePredicate = socketIOClient ->
+                excludedClient != null && socketIOClient != null
+                        && Objects.equals(socketIOClient.getSessionId(), excludedClient.getSessionId());
         sendEvent(name, data, excludePredicate, ackCallback);
     }
 
     @Override
     public <T> void sendEvent(String name, Object data, Predicate<SocketIOClient> excludePredicate, BroadcastAckCallback<T> ackCallback) {
-        for (SocketIOClient client : clients) {
-            if (excludePredicate.test(client)) {
-                continue;
+        if (clients != null) {
+            for (SocketIOClient client : clients) {
+                if (excludePredicate != null && excludePredicate.test(client)) {
+                    continue;
+                }
+                client.sendEvent(name, ackCallback.createClientCallback(client), data);
             }
-            client.sendEvent(name, ackCallback.createClientCallback(client), data);
         }
         ackCallback.loopFinished();
     }

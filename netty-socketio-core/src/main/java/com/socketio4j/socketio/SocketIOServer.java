@@ -52,7 +52,6 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.DefaultEventLoop;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.IoHandlerFactory;
@@ -61,6 +60,7 @@ import io.netty.channel.ServerChannel;
 import io.netty.channel.WriteBufferWaterMark;
 import io.netty.channel.nio.NioIoHandler;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.util.ResourceLeakDetector;
 import io.netty.util.concurrent.DefaultPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.FutureListener;
@@ -223,6 +223,20 @@ public class SocketIOServer implements ClientListeners {
                 log.error("Exception during beforeStart listener", e);
             }
         });
+    }
+
+    private void applyLeakDetectionLevel() {
+        ResourceLeakDetector.Level configured = configCopy.getLeakDetectionLevel();
+        if (configured != null) {
+            ResourceLeakDetector.setLevel(configured);
+            log.info("Netty ResourceLeakDetector level configured to: {}", configured);
+        } else {
+            ResourceLeakDetector.Level current = ResourceLeakDetector.getLevel();
+            log.debug("Current Netty ResourceLeakDetector level: {}", current);
+            if (current == ResourceLeakDetector.Level.SIMPLE) {
+                log.info("Netty ResourceLeakDetector is at SIMPLE level (1% sampling). In staging or diagnostic environments, consider ADVANCED or PARANOID.");
+            }
+        }
     }
 
     private void fireAfterStart() {
@@ -508,12 +522,13 @@ public class SocketIOServer implements ClientListeners {
         if (!serverStatus.compareAndSet(ServerStatus.INIT, ServerStatus.STARTING)) {
             log.warn("Invalid server state: {}, should be: {}, ignoring start request",
                     serverStatus.get(), ServerStatus.INIT);
-            return new SucceededFuture<>(new DefaultEventLoop(), null);
+            return new SucceededFuture<>(GlobalEventExecutor.INSTANCE, null);
         }
 
         try {
             configCopy.setPort(configuration.getPort());
             fireBeforeStart();
+            applyLeakDetectionLevel();
             log.info("Session store / event store factory: {}", configCopy.getStoreFactory());
             initGroups();
             pipelineFactory.start(configCopy, namespacesHub);
