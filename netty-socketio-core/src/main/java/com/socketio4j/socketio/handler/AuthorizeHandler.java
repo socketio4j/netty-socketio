@@ -119,6 +119,17 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
     }
 
     @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, ctx.channel());
+        scheduler.cancel(key);
+        super.channelInactive(ctx);
+    }
+
+    public boolean isOriginAllowed(String origin) {
+        return origin == null || configuration == null || configuration.isOriginAllowed(origin);
+    }
+
+    @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, ctx.channel());
         scheduler.cancel(key);
@@ -187,6 +198,14 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             } else if (sid != null) {
                 if (log.isDebugEnabled()) {
                     log.debug("Processing existing session request: {} from client: {}", sid, channel.remoteAddress());
+                }
+                String origin = req.headers().get(HttpHeaderNames.ORIGIN);
+                if (origin != null && !configuration.isOriginAllowed(origin)) {
+                    log.warn("Blocked existing session request from disallowed origin: {}, client: {}", origin, channel.remoteAddress());
+                    HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.FORBIDDEN);
+                    channel.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
+                    req.release();
+                    return;
                 }
             }
         }
@@ -432,6 +451,9 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
     }
 
     public void connect(ClientHead client) {
+        if (!client.isConnected()) {
+            return;
+        }
         if (log.isDebugEnabled()) {
             log.debug("Connecting client: {} to default namespace", client.getSessionId());
         }
