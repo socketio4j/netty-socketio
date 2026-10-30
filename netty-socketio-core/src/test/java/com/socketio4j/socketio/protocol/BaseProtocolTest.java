@@ -113,7 +113,7 @@ public abstract class BaseProtocolTest {
      * Create a ByteBuf with test data
      */
     protected ByteBuf createTestByteBuf(String data) {
-        return Unpooled.copiedBuffer(data.getBytes());
+        return Unpooled.copiedBuffer(data.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     /**

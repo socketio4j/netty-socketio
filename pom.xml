@@ -65,22 +65,22 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <testcontainers.version>2.0.5</testcontainers.version>
-    <netty.version>4.2.15.Final</netty.version>
-    <netty.tcnative.version>2.0.78.Final</netty.tcnative.version>
+    <netty.version>4.2.17.Final</netty.version>
+    <netty.tcnative.version>2.0.81.Final</netty.tcnative.version>
     <jmockit.version>1.50</jmockit.version>
-    <byte-buddy.version>1.18.8</byte-buddy.version>
+    <byte-buddy.version>1.18.10</byte-buddy.version>
     <junit.version>6.1.0</junit.version>
-    <junit-platform-launcher.version>6.0.2</junit-platform-launcher.version>
+    <junit-platform-launcher.version>6.1.0</junit-platform-launcher.version>
     <slf4j.version>2.0.17</slf4j.version>
-    <jackson.version>2.22.0</jackson.version>
+    <jackson.version>2.22.1</jackson.version>
     <jackson.annotations.version>2.21</jackson.annotations.version>
     <micronaut.version>4.10.23</micronaut.version>
     <micronaut.test.version>4.10.3</micronaut.test.version>
     <redisson.version>4.5.0</redisson.version>
-    <hazelcast.version>5.2.5</hazelcast.version>
+    <hazelcast.version>5.7.0</hazelcast.version>
     <awaitility.version>4.3.0</awaitility.version>
     <assertj.version>3.27.7</assertj.version>
-    <mockito.version>5.21.0</mockito.version>
+    <mockito.version>5.23.0</mockito.version>
     <logback.version>1.5.26</logback.version>
     <socketio.version>2.1.2</socketio.version>
     <javafaker.version>1.0.2</javafaker.version>
@@ -89,11 +89,43 @@
     <nats.version>2.25.3</nats.version>
     <micrometer-bom.version>1.17.0</micrometer-bom.version>
     <hll.version>1.6.0</hll.version>
-    <lz4.version>1.10.3</lz4.version>
+    <lz4.version>1.11.1</lz4.version>
+    <okhttp.version>3.12.13</okhttp.version>
+    <socketio.test.forkCount>1</socketio.test.forkCount>
+    <revapi-maven-plugin.version>0.15.1</revapi-maven-plugin.version>
+    <revapi-java.version>0.28.4</revapi-java.version>
+    <revapi.oldVersion>4.0.1</revapi.oldVersion>
+    <revapi.skip>false</revapi.skip>
+    <revapi.failOnUnresolvedArtifacts>true</revapi.failOnUnresolvedArtifacts>
+    <revapi.failCriticality>error</revapi.failCriticality>
+    <socketio.skip.docker>false</socketio.skip.docker>
 
   </properties>
 
   <profiles>
+    <profile>
+      <id>verify-eventloop-locks</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <argLine>
+                -Dfile.encoding=UTF-8
+                -Dnet.bytebuddy.experimental=true
+                -javaagent:"${settings.localRepository}"/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
+                -Dio.netty.leakDetection.level=PARANOID
+                -javaagent:${socketio.lockagent}=${socketio.lockreport}
+              </argLine>
+              <classesDirectory>${project.build.directory}/classes</classesDirectory>
+              <forkCount>1</forkCount>
+              <reuseForks>true</reuseForks>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
     <profile>
       <id>release</id>
       <build>
@@ -177,24 +209,28 @@
           <artifactId>netty-transport-native-epoll</artifactId>
           <classifier>linux-x86_64</classifier>
           <version>${netty.version}</version>
+          <optional>true</optional>
         </dependency>
         <dependency>
           <groupId>io.netty</groupId>
           <artifactId>netty-transport-native-epoll</artifactId>
           <classifier>linux-aarch_64</classifier>
           <version>${netty.version}</version>
+          <optional>true</optional>
         </dependency>
           <dependency>
               <groupId>io.netty</groupId>
               <artifactId>netty-transport-native-io_uring</artifactId>
               <classifier>linux-x86_64</classifier>
               <version>${netty.version}</version>
+              <optional>true</optional>
           </dependency>
           <dependency>
               <groupId>io.netty</groupId>
               <artifactId>netty-transport-native-io_uring</artifactId>
               <classifier>linux-aarch_64</classifier>
               <version>${netty.version}</version>
+              <optional>true</optional>
           </dependency>
       </dependencies>
     </profile>
@@ -214,12 +250,14 @@
                   <artifactId>netty-transport-native-kqueue</artifactId>
                   <classifier>osx-x86_64</classifier>
                   <version>${netty.version}</version>
+                  <optional>true</optional>
               </dependency>
               <dependency>
                   <groupId>io.netty</groupId>
                   <artifactId>netty-transport-native-kqueue</artifactId>
                   <classifier>osx-aarch_64</classifier>
                   <version>${netty.version}</version>
+                  <optional>true</optional>
               </dependency>
           </dependencies>
       </profile>
@@ -355,12 +393,6 @@
 
       <!-- Test dependencies -->
       <dependency>
-        <groupId>org.jmockit</groupId>
-        <artifactId>jmockit</artifactId>
-        <version>${jmockit.version}</version>
-        <scope>test</scope>
-      </dependency>
-      <dependency>
         <groupId>net.bytebuddy</groupId>
         <artifactId>byte-buddy-agent</artifactId>
         <version>${byte-buddy.version}</version>
@@ -381,6 +413,18 @@
       <dependency>
         <groupId>org.junit.platform</groupId>
         <artifactId>junit-platform-launcher</artifactId>
+        <version>${junit-platform-launcher.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.platform</groupId>
+        <artifactId>junit-platform-suite-api</artifactId>
+        <version>${junit-platform-launcher.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.platform</groupId>
+        <artifactId>junit-platform-suite-engine</artifactId>
         <version>${junit-platform-launcher.version}</version>
         <scope>test</scope>
       </dependency>
@@ -435,6 +479,12 @@
         <version>${netty.version}</version>
         <scope>test</scope>
       </dependency>
+      <dependency>
+        <groupId>com.squareup.okhttp3</groupId>
+        <artifactId>okhttp</artifactId>
+        <version>${okhttp.version}</version>
+        <scope>test</scope>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -458,6 +508,9 @@
           <doclint>none</doclint>
           <quiet>true</quiet>
           <aggregate>false</aggregate>
+          <sourceFileExcludes>
+            <exclude>**/module-info.java</exclude>
+          </sourceFileExcludes>
         </configuration>
       </plugin>
 
@@ -476,7 +529,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>3.6.2</version>
+        <version>3.6.3</version>
         <executions>
           <execution>
             <id>enforce-maven</id>
@@ -536,9 +589,9 @@
       </plugin>
 
       <plugin>
-        <!-- this trick double-compiles everything so we can have a module-info.class
-      in a JAR compiled for Java 8:
-        https://maven.apache.org/plugins/maven-compiler-plugin/examples/module-info.html-->
+        <!-- Multi-Release JAR (MRJAR / JEP 238) configuration:
+             Base Java 8 source is compiled into root target/classes.
+             Java 11 versioned source (including module-info.java) is compiled into META-INF/versions/11/ -->
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.15.0</version>
@@ -546,22 +599,25 @@
           <execution>
             <id>default-compile</id>
             <configuration>
-              <release>11</release>
-              <!-- no excludes: compile everything to ensure module-info contains right entries -->
+              <release>8</release>
+              <compileSourceRoots>
+                <compileSourceRoot>${project.basedir}/src/main/java</compileSourceRoot>
+              </compileSourceRoots>
+              <excludes>
+                <exclude>**/module-info.java</exclude>
+              </excludes>
             </configuration>
           </execution>
           <execution>
-            <id>base-compile</id>
+            <id>compile-java11</id>
             <goals>
               <goal>compile</goal>
             </goals>
             <configuration>
-              <source>8</source>
-              <target>8</target>
-              <!-- recompile everything for target VM except the module-info.java -->
-              <excludes>
-                <exclude>module-info.java</exclude>
-              </excludes>
+              <release>11</release>
+              <compileSourceRoots>
+                <compileSourceRoot>${project.basedir}/src/main/java11</compileSourceRoot>
+              </compileSourceRoots>
             </configuration>
           </execution>
           <execution>
@@ -574,8 +630,31 @@
         </executions>
         <!-- defaults for compile and testCompile -->
         <configuration>
-          <release>8</release><!-- or 7 or 8 depending on compatibility expectations -->
+          <release>8</release><!-- baseline for Java 8 compatibility -->
         </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>move-module-info-to-mrjar</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <target>
+                <mkdir dir="${project.build.outputDirectory}/META-INF/versions/11" />
+                <move todir="${project.build.outputDirectory}/META-INF/versions/11">
+                  <fileset dir="${project.build.outputDirectory}" includes="module-info.class" />
+                </move>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
 
       <plugin>
@@ -598,24 +677,25 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.5.6</version>
         <configuration>
-          <rerunFailingTestsCount>3</rerunFailingTestsCount>
+          <useModulePath>false</useModulePath>
+          <failIfNoTests>false</failIfNoTests>
+          <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
+          <rerunFailingTestsCount>2</rerunFailingTestsCount>
+          <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+          <forkedProcessTimeoutInSeconds>3600</forkedProcessTimeoutInSeconds>
           <argLine>
-            -javaagent:"${settings.localRepository}"/org/jmockit/jmockit/${jmockit.version}/jmockit-${jmockit.version}.jar
+            -Dfile.encoding=UTF-8
             <!--For Java 25 support of byte-buddy. Byte-buddy is currently only used in mockito on unit tests within this project, so mitigate this problem by enabling this property-->
             -Dnet.bytebuddy.experimental=true
             -javaagent:"${settings.localRepository}"/net/bytebuddy/byte-buddy-agent/${byte-buddy.version}/byte-buddy-agent-${byte-buddy.version}.jar
-            --add-opens netty.socketio/com.socketio4j.socketio.store.pubsub=ALL-UNNAMED
-            --add-opens netty.socketio/com.socketio4j.socketio.store=ALL-UNNAMED
-            --add-opens netty.socketio/com.socketio4j.socketio.store.pubsub=redisson
-            --add-opens netty.socketio/com.socketio4j.socketio.store=redisson
           </argLine>
           <includes>
             <include>**/*Test.java</include>
             <include>**/*Tests.java</include>
+            <include>**/*Suite.java</include>
           </includes>
-            <forkCount>1</forkCount>
-            <reuseForks>false</reuseForks>
-            <forkedProcessTimeoutInSeconds>600</forkedProcessTimeoutInSeconds>
+          <forkCount>${socketio.test.forkCount}</forkCount>
+          <reuseForks>false</reuseForks>
         </configuration>
       </plugin>
 
@@ -627,12 +707,14 @@
         <configuration>
           <instructions>
             <Bundle-Name>${project.artifactId}</Bundle-Name>
+            <Multi-Release>true</Multi-Release>
+            <_fixupmessages>"Split package, multiple jars provide the same package:META-INF/versions/11";is:=ignore</_fixupmessages>
             <Import-Package>
               org.springframework.*;resolution:=optional,com.hazelcast.*;resolution:=optional,org.redisson.*;resolution:=optional,*
             </Import-Package>
-            <Export-Package>
+            <_exportcontents>
               com.socketio4j.socketio.*;version="${project.version}"
-            </Export-Package>
+            </_exportcontents>
           </instructions>
         </configuration>
       </plugin>
@@ -653,6 +735,7 @@
           <excludes>
             <exclude>target/**</exclude>
             <exclude>src/main/java/module-info.java</exclude>
+            <exclude>src/main/java11/module-info.java</exclude>
           </excludes>
           <useDefaultExcludes>true</useDefaultExcludes>
           <mapping>
@@ -664,6 +747,139 @@
         </configuration>
         <executions>
           <execution>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.revapi</groupId>
+        <artifactId>revapi-maven-plugin</artifactId>
+        <version>${revapi-maven-plugin.version}</version>
+        <dependencies>
+          <dependency>
+            <groupId>org.revapi</groupId>
+            <artifactId>revapi-java</artifactId>
+            <version>${revapi-java.version}</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <oldVersion>${revapi.oldVersion}</oldVersion>
+          <skip>${revapi.skip}</skip>
+          <checkDependencies>false</checkDependencies>
+          <failCriticality>${revapi.failCriticality}</failCriticality>
+          <failOnUnresolvedArtifacts>${revapi.failOnUnresolvedArtifacts}</failOnUnresolvedArtifacts>
+          <analysisConfiguration>
+            [
+              {
+                "extension": "revapi.java",
+                "configuration": {
+                  "missing-classes": {
+                    "behavior": "ignore"
+                  }
+                }
+              },
+              {
+                "extension": "revapi.filter",
+                "configuration": {
+                  "elements": {
+                    "exclude": [
+                      {
+                        "matcher": "java",
+                        "match": "@com.socketio4j.socketio.annotation.Internal ^*;"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "extension": "revapi.differences",
+                "configuration": {
+                  "ignore": true,
+                  "differences": [
+                    {
+                      "code": "java.class.removed",
+                      "regex": true,
+                      "old": "(class|interface) com\\.socketio4j\\.socketio\\.(ack\\.(AckManager|AckSchedulerKey)|handler\\.(AuthorizeHandler|ClientHead|ClientsBox|EncoderHandler|InPacketHandler|PacketListener|TransportState|WrongUrlHandler)|messages\\.(HttpErrorMessage|HttpMessage|OutPacketMessage|PacketsMessage|XHROptionsMessage|XHRPostMessage)|metrics\\.NamespaceMeters|misc\\.(CompositeIterable.*|CompositeIterator.*|IterableCollection.*)|namespace\\.(EventEntry.*|Namespace|NamespacesHub)|protocol\\.(AuthPacket|ConnPacket|Event|PacketDecoder|PacketEncoder|UTF8CharsScanner)|scheduler\\.(CancelableScheduler|HashedWheelScheduler|HashedWheelTimeoutScheduler|SchedulerKey)|store\\.event\\.EventMessageJsonSupport|transport\\.(PollingTransport|WebSocketTransport))",
+                      "justification": "Transitioned specific internal implementation classes to @Internal to establish API boundaries"
+                    },
+                    {
+                      "code": "java.class.removed",
+                      "regex": true,
+                      "oldArchive": "com\\.socketio4j:netty-socketio-(spring|spring-boot-starter|micronaut):jar:.*",
+                      "old": "(class|interface|@interface|enum) com\\.socketio4j\\.socketio\\.(?!(spring|micronaut)\\.).*",
+                      "justification": "Core classes are no longer embedded into child bundle module jars after switching from Export-Package to _exportcontents"
+                    },
+                    {
+                      "code": "java.class.removed",
+                      "oldArchive": "com.socketio4j:netty-socketio-spring-boot-starter:jar:4.0.1",
+                      "old": "class com.socketio4j.socketio.spring.SpringAnnotationScanner",
+                      "justification": "SpringAnnotationScanner belongs to netty-socketio-spring and is no longer embedded into netty-socketio-spring-boot-starter"
+                    },
+                    {
+                      "code": "java.missing.newSuperType",
+                      "regex": true,
+                      "superClass": "com\\.socketio4j\\.socketio\\.(BasicConfiguration|HttpRequestDecoderConfiguration|SocketConfig|SocketSslConfig)",
+                      "justification": "Core configuration superclasses live in netty-socketio-core and are no longer embedded into child bundle module jars"
+                    },
+                    {
+                      "code": "java.annotation.added",
+                      "annotation": "@org.jetbrains.annotations.Nullable",
+                      "justification": "Added nullability annotations for enhanced type safety and Kotlin interop"
+                    },
+                    {
+                      "code": "java.annotation.added",
+                      "new": "method io.netty.buffer.ByteBuf com.socketio4j.socketio.protocol.Packet::getDataSource()",
+                      "annotation": "@com.fasterxml.jackson.annotation.JsonIgnore",
+                      "justification": "Exclude legacy dataSource from event-store JSON while preserving the runtime getter"
+                    },
+                    {
+                      "code": "java.method.exception.checkedRemoved",
+                      "old": "method boolean com.socketio4j.socketio.listener.DefaultExceptionListener::exceptionCaught(io.netty.channel.ChannelHandlerContext, java.lang.Throwable) throws java.lang.Exception",
+                      "exception": "java.lang.Exception",
+                      "justification": "DefaultExceptionListener.exceptionCaught no longer declares Exception compared to 4.0.1"
+                    },
+                    {
+                      "code": "java.method.removed",
+                      "old": "method void com.socketio4j.socketio.handler.ClientHead::setLastBinaryPacket(com.socketio4j.socketio.protocol.Packet)",
+                      "justification": "Internal binary packet handling moved to dedicated pipeline handler"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method void com.socketio4j.socketio.listener.ClientListeners::removeConnectListener(com.socketio4j.socketio.listener.ConnectListener)",
+                      "justification": "Added default method to allow dynamic unregistering of connect listeners"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method void com.socketio4j.socketio.listener.ClientListeners::removeDisconnectListener(com.socketio4j.socketio.listener.DisconnectListener)",
+                      "justification": "Added default method to allow dynamic unregistering of disconnect listeners"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method void com.socketio4j.socketio.metrics.SocketIOMetrics::eventPublishFailed(java.lang.String)",
+                      "justification": "Added default method for tracking event publish failure metrics"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method void com.socketio4j.socketio.metrics.SocketIOMetrics::publishFailed(java.lang.String)",
+                      "justification": "Added default method alias for tracking event publish failure metrics"
+                    },
+                    {
+                      "code": "java.field.serialVersionUIDUnchanged",
+                      "old": "field com.socketio4j.socketio.protocol.Packet.serialVersionUID",
+                      "justification": "Packet serialization schema evolved; serialVersionUID maintained for backwards compatibility"
+                    }
+                  ]
+                }
+              }
+            ]
+          </analysisConfiguration>
+        </configuration>
+        <executions>
+          <execution>
+            <id>check-api</id>
             <goals>
               <goal>check</goal>
             </goals>

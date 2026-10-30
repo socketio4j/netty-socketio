@@ -21,10 +21,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -69,6 +71,19 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
     }
 
     /**
+     * Creates a {@code HazelcastStoreFactory} using default Hazelcast-backed event distribution
+     * with metrics tracking.
+     *
+     * @param hazelcastClient non-null Hazelcast instance
+     * @param metrics         metrics instance, or null for no-op metrics
+     */
+    public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient,
+                                 @Nullable SocketIOMetrics metrics) {
+        this(hazelcastClient,
+             new HazelcastPubSubEventStore(hazelcastClient, hazelcastClient, null, null, null, metrics));
+    }
+
+    /**
      * Creates a {@code HazelcastStoreFactory} using default Hazelcast-backed event distribution.
      * <p>
      * Session data remains in Hazelcast, while events are propagated via {@link HazelcastPubSubEventStore}
@@ -79,8 +94,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
      * @param hazelcastClient non-null Hazelcast instance
      */
     public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient) {
-        this(hazelcastClient,
-             new HazelcastPubSubEventStore(hazelcastClient, hazelcastClient, null, null, null));
+        this(hazelcastClient, (SocketIOMetrics) null);
     }
 
     @Override

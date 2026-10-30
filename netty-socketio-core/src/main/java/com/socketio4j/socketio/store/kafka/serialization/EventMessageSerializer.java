@@ -20,27 +20,20 @@ package com.socketio4j.socketio.store.kafka.serialization;
  * @author https://github.com/sanjomo
  * @date 15/12/25 6:21 pm
  */
-
 import org.apache.kafka.common.errors.SerializationException;
 import org.apache.kafka.common.serialization.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.socketio4j.socketio.store.event.EventMessage;
+import com.socketio4j.socketio.store.event.EventMessageJsonSupport;
 
 public final class EventMessageSerializer
         implements Serializer<EventMessage> {
     private static final Logger log = LoggerFactory.getLogger(EventMessageSerializer.class);
 
-    private static final ObjectMapper MAPPER =
-            JsonMapper.builder()
-                    .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
-                    .disable(MapperFeature.DEFAULT_VIEW_INCLUSION)
-                    .build();
+    private static final ObjectMapper MAPPER = EventMessageJsonSupport.createObjectMapper();
 
     @Override
     public byte[] serialize(String topic, EventMessage data) {

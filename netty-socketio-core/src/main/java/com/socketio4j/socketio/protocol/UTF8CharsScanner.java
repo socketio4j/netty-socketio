@@ -16,8 +16,11 @@
  */
 package com.socketio4j.socketio.protocol;
 
+import com.socketio4j.socketio.annotation.Internal;
+
 import io.netty.buffer.ByteBuf;
 
+@Internal
 public class UTF8CharsScanner {
 
     /**
@@ -90,11 +93,24 @@ public class UTF8CharsScanner {
     public int getActualLength(ByteBuf inputBuffer, int length) {
         int len = 0;
         int start = inputBuffer.readerIndex();
-        for (int i = inputBuffer.readerIndex(); i < inputBuffer.readableBytes() + inputBuffer.readerIndex();) {
-            i = getCharTailIndex(inputBuffer, i);
-            len++;
+        int end = start + inputBuffer.readableBytes();
+        for (int i = start; i < end;) {
+            int nextIndex = getCharTailIndex(inputBuffer, i);
+            int charBytes = nextIndex - i;
+            i = nextIndex;
+            if (i > end) {
+                throw new IllegalStateException("Malformed UTF-8 sequence exceeds buffer bounds");
+            }
+            if (charBytes == 4) {
+                len += 2;
+            } else {
+                len++;
+            }
             if (length == len) {
-                return i-start;
+                return i - start;
+            }
+            if (len > length) {
+                throw new IllegalStateException("Invalid length: " + length);
             }
         }
         throw new IllegalStateException();

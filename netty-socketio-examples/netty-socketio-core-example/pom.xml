@@ -17,8 +17,8 @@
     <properties>
         <micrometer.version>1.16.1</micrometer.version>
         <hll.version>1.6.0</hll.version>
-        <netty.version>4.2.9.Final</netty.version>
-        <jackson.version>2.21.1</jackson.version>
+        <netty.version>4.2.16.Final</netty.version>
+        <jackson.version>2.22.0</jackson.version>
     </properties>
 
     <dependencyManagement>
@@ -27,6 +27,13 @@
                 <groupId>io.micrometer</groupId>
                 <artifactId>micrometer-bom</artifactId>
                 <version>${micrometer.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -69,19 +76,19 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>${jackson.version}</version>
+
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>${jackson.version}</version>
+
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-annotations</artifactId>
-            <version>2.20</version>
+
         </dependency>
 
         <!-- Logging -->
@@ -107,7 +114,19 @@
         <dependency>
             <groupId>at.yawk.lz4</groupId>
             <artifactId>lz4-java</artifactId>
-            <version>1.10.1</version>
+            <version>1.11.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jspecify</groupId>
+            <artifactId>jspecify</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.hazelcast</groupId>
+            <artifactId>hazelcast</artifactId>
+            <version>5.7.0</version>
         </dependency>
 
     </dependencies>
