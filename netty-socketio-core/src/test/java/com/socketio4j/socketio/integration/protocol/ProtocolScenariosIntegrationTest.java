@@ -15,23 +15,20 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.protocol;
-import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
-
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-
-import com.socketio4j.socketio.AckRequest;
+import com.socketio4j.socketio.AuthTokenResult;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIONamespace;
 import com.socketio4j.socketio.listener.ConnectListener;
-import com.socketio4j.socketio.listener.DataListener;
 import com.socketio4j.socketio.listener.DisconnectListener;
 
 import io.socket.client.IO;
@@ -234,6 +231,36 @@ public class ProtocolScenariosIntegrationTest extends AbstractSharedSocketIOInte
         client.disconnect();
     }
 
+    @ParameterizedTest(name = "Scenario 6 [{0}]")
+    @ValueSource(strings = {"polling", "websocket"})
+    @DisplayName("Scenario 6: Connect with bracketed JSON array and question mark in auth payload")
+    public void testConnectWithJsonArrayAndQuestionMarkInAuthPayload(String transport) throws Exception {
+        String nsName = "/auth_array_ns_" + transport;
+        SocketIONamespace customNs = getServer().addNamespace(nsName);
+
+        AtomicReference<Object> capturedAuth = new AtomicReference<>();
+        CountDownLatch authLatch = new CountDownLatch(1);
+        customNs.addAuthTokenListener((authToken, client) -> {
+            capturedAuth.set(authToken);
+            authLatch.countDown();
+            return AuthTokenResult.AUTH_TOKEN_RESULT_SUCCESS;
+        });
+
+        IO.Options options = new IO.Options();
+        options.transports = new String[]{transport};
+        options.upgrade = false;
+        options.auth = Collections.singletonMap("rolesQuery", "[\"admin\",\"editor\"]?v=1");
+        Socket client = IO.socket("http://" + getServerHost() + ":" + getServerPort() + nsName, options);
+        connectAndAwait(client, transport);
+
+        assertTrue(authLatch.await(5, TimeUnit.SECONDS), "Auth listener should be invoked over " + transport);
+        assertTrue(capturedAuth.get() instanceof Map, "Captured auth token should be a Map");
+        Map<?, ?> authMap = (Map<?, ?>) capturedAuth.get();
+        assertEquals("[\"admin\",\"editor\"]?v=1", authMap.get("rolesQuery"));
+
+        client.disconnect();
+    }
+
     private void connectAndAwait(Socket client, String transport) throws InterruptedException {
         CountDownLatch clientConnectLatch = new CountDownLatch(1);
         AtomicReference<Object> connectError = new AtomicReference<Object>();
@@ -245,9 +272,12 @@ public class ProtocolScenariosIntegrationTest extends AbstractSharedSocketIOInte
         });
         client.connect();
 
+        String errorSuffix = "";
+        if (connectError.get() != null) {
+            errorSuffix = ": " + connectError.get();
+        }
         assertTrue(clientConnectLatch.await(5, TimeUnit.SECONDS),
-                "Client must complete the Socket.IO handshake over " + transport
-                        + (connectError.get() == null ? "" : ": " + connectError.get()));
+                "Client must complete the Socket.IO handshake over " + transport + errorSuffix);
         assertTrue(client.connected(), "Client must be connected over " + transport);
     }
 }

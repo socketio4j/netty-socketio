@@ -22,6 +22,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -78,7 +79,7 @@ public class RedisPubSubEventStore implements EventStore {
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
         if (nodeId == null) {
-            nodeId = getNodeId();
+            nodeId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
         }
         this.nodeId = nodeId;
         if (eventStoreMode == null) {
@@ -119,6 +120,11 @@ public class RedisPubSubEventStore implements EventStore {
     @Override
     public SocketIOMetrics getMetrics() {
         return this.metrics;
+    }
+
+    @Override
+    public Long getNodeId() {
+        return this.nodeId;
     }
 
     @Override

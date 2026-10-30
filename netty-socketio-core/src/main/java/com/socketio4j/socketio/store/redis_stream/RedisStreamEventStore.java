@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -111,7 +112,7 @@ public class RedisStreamEventStore implements EventStore {
         this.redissonSub = Objects.requireNonNull(redissonSub, "redissonSub");
 
         if (nodeId == null) {
-            nodeId = getNodeId();
+            nodeId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
             log.warn("nodeId is null, loaded default : {}", nodeId);
         }
         this.nodeId = nodeId;
@@ -215,6 +216,11 @@ public class RedisStreamEventStore implements EventStore {
     @Override
     public SocketIOMetrics getMetrics() {
         return this.metrics;
+    }
+
+    @Override
+    public Long getNodeId() {
+        return this.nodeId;
     }
 
     // ---------------------------------------------------------------------

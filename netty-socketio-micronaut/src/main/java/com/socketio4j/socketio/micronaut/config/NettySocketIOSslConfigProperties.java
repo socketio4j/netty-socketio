@@ -31,6 +31,7 @@ public class NettySocketIOSslConfigProperties {
     public static final String PREFIX = "netty-socket-io.ssl";
 
     private String sslProtocol = "TLSv1";
+    private boolean sslProtocolExplicitlySet;
     private String keyStoreFormat = "JKS";
     private String keyStore;
     private String keyStorePassword;
@@ -45,6 +46,11 @@ public class NettySocketIOSslConfigProperties {
 
     public void setSslProtocol(String sslProtocol) {
         this.sslProtocol = sslProtocol;
+        this.sslProtocolExplicitlySet = true;
+    }
+
+    public boolean isSslProtocolExplicitlySet() {
+        return sslProtocolExplicitlySet;
     }
 
     public String getKeyStoreFormat() {
