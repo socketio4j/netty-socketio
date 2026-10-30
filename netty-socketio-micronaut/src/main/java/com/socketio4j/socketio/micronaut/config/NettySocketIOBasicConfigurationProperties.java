@@ -50,6 +50,11 @@ public class NettySocketIOBasicConfigurationProperties extends BasicConfiguratio
         return transports;
     }
 
+    @Override
+    public void setTransports(Transport... transports) {
+        super.setTransports(transports);
+    }
+
     public void setTransports(List<Transport> transports) {
         if (transports == null || transports.isEmpty()) {
             throw new IllegalArgumentException("Transports list can't be empty");
