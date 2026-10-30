@@ -166,10 +166,55 @@ public class EncoderHandlerTest {
         HttpResponse response = channel.readOutbound();
         assertThat(response.status()).isEqualTo(HttpResponseStatus.OK);
         assertThat(response.headers().get("Set-Cookie")).contains("io=" + sessionId);
-        assertThat(response.headers().get("Connection")).isEqualTo("keep-alive");
+        assertThat(response.headers().get("Connection")).isEqualTo("close");
+        assertThat(response.headers().get("Access-Control-Allow-Methods")).isEqualTo("GET, POST, OPTIONS");
         assertThat(response.headers().get("Access-Control-Allow-Headers")).isEqualTo("content-type");
         assertThat(response.headers().get("Access-Control-Allow-Origin")).isEqualTo(TEST_ORIGIN);
+        assertThat(response.headers().get("Access-Control-Allow-Credentials")).isNull();
+        assertThat(response.headers().get("Vary")).isEqualTo("origin");
+    }
+
+    @Test
+    @DisplayName("Should allow credentials only for allow-listed origins")
+    void shouldAllowCredentialsForAllowedOrigin() throws Exception {
+        // Given
+        configuration.setAllowedOrigins(Collections.singleton(TEST_ORIGIN));
+        encoderHandler = new EncoderHandler(configuration, mockEncoder);
+        channel = new EmbeddedChannel(encoderHandler);
+
+        XHROptionsMessage message = new XHROptionsMessage(TEST_ORIGIN, sessionId);
+        channel.attr(EncoderHandler.ORIGIN).set(TEST_ORIGIN);
+        ChannelPromise promise = channel.newPromise();
+
+        // When
+        encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
+
+        // Then
+        HttpResponse response = channel.readOutbound();
+        assertThat(response.headers().get("Access-Control-Allow-Origin")).isEqualTo(TEST_ORIGIN);
         assertThat(response.headers().get("Access-Control-Allow-Credentials")).isEqualTo("true");
+    }
+
+    @Test
+    @DisplayName("Should not emit CORS headers for origins outside the allow list")
+    void shouldRejectOriginOutsideAllowList() throws Exception {
+        // Given
+        configuration.setAllowedOrigins(Collections.singleton(TEST_ORIGIN));
+        encoderHandler = new EncoderHandler(configuration, mockEncoder);
+        channel = new EmbeddedChannel(encoderHandler);
+
+        String evilOrigin = "http://evil.example.com";
+        XHROptionsMessage message = new XHROptionsMessage(evilOrigin, sessionId);
+        channel.attr(EncoderHandler.ORIGIN).set(evilOrigin);
+        ChannelPromise promise = channel.newPromise();
+
+        // When
+        encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
+
+        // Then
+        HttpResponse response = channel.readOutbound();
+        assertThat(response.headers().get("Access-Control-Allow-Origin")).isNull();
+        assertThat(response.headers().get("Access-Control-Allow-Credentials")).isNull();
     }
 
     @Test
@@ -217,7 +262,8 @@ public class EncoderHandlerTest {
         assertThat(response.status()).isEqualTo(HttpResponseStatus.BAD_REQUEST);
         assertThat(response.headers().get("Content-Type")).isEqualTo("application/json");
         assertThat(response.headers().get("Access-Control-Allow-Origin")).isEqualTo(TEST_ORIGIN);
-        assertThat(response.headers().get("Access-Control-Allow-Credentials")).isEqualTo("true");
+        assertThat(response.headers().get("Access-Control-Allow-Credentials")).isNull();
+        assertThat(response.headers().get("Vary")).isEqualTo("origin");
     }
 
     @Test
@@ -910,6 +956,79 @@ public class EncoderHandlerTest {
         // Then
         assertThat(promise.isSuccess()).isTrue();
         assertThat(channel.outboundMessages()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should release allocated buffer when sendError serialization fails")
+    void shouldReleaseBufferWhenSendErrorSerializationFails() throws Exception {
+        ByteBuf trackedBuf = Unpooled.buffer(256);
+        when(mockEncoder.allocateBuffer(any())).thenReturn(trackedBuf);
+        doAnswer(invocation -> {
+            throw new IOException("Simulated error serialization failure");
+        }).when(mockJsonSupport).writeValue(any(), any());
+
+        HttpErrorMessage errorMessage = new HttpErrorMessage(Collections.singletonMap("error", "bad"));
+        ChannelPromise promise = channel.newPromise();
+
+        try {
+            encoderHandler.write(channel.pipeline().context(encoderHandler), errorMessage, promise);
+        } catch (IOException expected) {
+            // expected
+        }
+
+        assertThat(trackedBuf.refCnt()).isZero();
+    }
+
+    @Test
+    @DisplayName("Should release allocated buffer when WebSocket encodePacket fails")
+    void shouldReleaseBufferWhenWebSocketEncodePacketFails() throws Exception {
+        ByteBuf trackedBuf = Unpooled.buffer(256);
+        when(mockEncoder.allocateBuffer(any())).thenReturn(trackedBuf);
+
+        ClientHead clientHead = createMockClientHead(Transport.WEBSOCKET);
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setData("fail");
+        clientHead.getPacketsQueue(Transport.WEBSOCKET).add(packet);
+
+        when(mockEncoder.encodePacket(eq(EngineIOVersion.V4), any(), any(), any(), eq(true)))
+                .thenThrow(new IOException("Simulated WebSocket encode failure"));
+
+        OutPacketMessage message = new OutPacketMessage(clientHead, Transport.WEBSOCKET);
+        ChannelPromise promise = channel.newPromise();
+
+        try {
+            encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
+        } catch (IOException expected) {
+            // expected
+        }
+
+        assertThat(trackedBuf.refCnt()).isZero();
+    }
+
+    @Test
+    @DisplayName("Should release allocated buffer when HTTP polling encodePackets or encodeJsonP fails")
+    void shouldReleaseBufferWhenHttpPollingEncodeFails() throws Exception {
+        ByteBuf trackedHttpBuf = Unpooled.buffer(256);
+        when(mockEncoder.allocateBuffer(any())).thenReturn(trackedHttpBuf);
+
+        ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setData("fail");
+        clientHead.getPacketsQueue(Transport.POLLING).add(packet);
+
+        when(mockEncoder.encodePackets(eq(EngineIOVersion.V4), any(), any(), any(), anyInt()))
+                .thenThrow(new IOException("Simulated HTTP polling encode failure"));
+
+        OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
+        ChannelPromise promise = channel.newPromise();
+
+        try {
+            encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
+        } catch (IOException expected) {
+            // expected
+        }
+
+        assertThat(trackedHttpBuf.refCnt()).isZero();
     }
 
     private ClientHead createMockClientHead(Transport transport) {

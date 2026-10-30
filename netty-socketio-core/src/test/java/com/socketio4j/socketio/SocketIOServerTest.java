@@ -16,13 +16,53 @@
  */
 package com.socketio4j.socketio;
 
-import com.socketio4j.socketio.nativeio.TransportType;
-
 import org.junit.jupiter.api.Test;
 
+import com.socketio4j.socketio.nativeio.TransportType;
+
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.concurrent.Future;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SocketIOServerTest {
+
+    @Test
+    void testConfigurationLeakDetectionLevel() {
+        Configuration config = new Configuration();
+        assertNull(config.getLeakDetectionLevel());
+
+        config.setLeakDetectionLevel(ResourceLeakDetector.Level.ADVANCED);
+        assertEquals(ResourceLeakDetector.Level.ADVANCED, config.getLeakDetectionLevel());
+
+        Configuration copy = new Configuration(config);
+        assertEquals(ResourceLeakDetector.Level.ADVANCED, copy.getLeakDetectionLevel());
+    }
+
+    @Test
+    void testSocketIOServerAppliesLeakDetectionLevel() {
+        ResourceLeakDetector.Level prev = ResourceLeakDetector.getLevel();
+        try {
+            Configuration configuration = new Configuration();
+            configuration.setHostname("127.0.0.1");
+            configuration.setPort(0);
+            configuration.setTransportType(TransportType.NIO);
+            configuration.setLeakDetectionLevel(ResourceLeakDetector.Level.ADVANCED);
+
+            SocketIOServer server = new SocketIOServer(configuration);
+            try {
+                server.start();
+                assertEquals(ResourceLeakDetector.Level.ADVANCED, ResourceLeakDetector.getLevel());
+            } finally {
+                server.stop();
+            }
+        } finally {
+            ResourceLeakDetector.setLevel(prev);
+        }
+    }
 
     @Test
     void startPublishesEphemeralPortBeforeReturning() {
@@ -38,6 +78,48 @@ class SocketIOServerTest {
             assertTrue(server.isStarted());
             assertTrue(configuration.getPort() > 0,
                     "start() must publish the OS-assigned ephemeral port before it returns");
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void startAsyncReturnsSucceededFutureWhenAlreadyStarted() {
+        Configuration configuration = new Configuration();
+        configuration.setHostname("127.0.0.1");
+        configuration.setPort(0);
+        configuration.setTransportType(TransportType.NIO);
+
+        SocketIOServer server = new SocketIOServer(configuration);
+        try {
+            server.start();
+            assertTrue(server.isStarted());
+
+            Future<Void> duplicateStartFuture = server.startAsync();
+            assertNotNull(duplicateStartFuture);
+            assertTrue(duplicateStartFuture.isDone());
+            assertTrue(duplicateStartFuture.isSuccess());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void serverCanBeRestarted() {
+        Configuration configuration = new Configuration();
+        configuration.setHostname("127.0.0.1");
+        configuration.setPort(0);
+        configuration.setTransportType(TransportType.NIO);
+
+        SocketIOServer server = new SocketIOServer(configuration);
+        try {
+            server.start();
+            assertTrue(server.isStarted());
+            server.stop();
+            assertTrue(!server.isStarted());
+
+            server.start();
+            assertTrue(server.isStarted());
         } finally {
             server.stop();
         }

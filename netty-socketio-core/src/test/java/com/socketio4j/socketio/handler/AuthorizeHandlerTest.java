@@ -651,6 +651,59 @@ public class AuthorizeHandlerTest {
         assertThat(channel.isActive()).isTrue();
     }
 
+    @Test
+    @DisplayName("Channel Inactive - Should Cancel Scheduled FirstDataTimeout")
+    void testChannelInactive_ShouldCancelFirstDataTimeout() throws Exception {
+        CancelableScheduler spyScheduler = org.mockito.Mockito.spy(scheduler);
+        AuthorizeHandler handler = new AuthorizeHandler(
+                CONNECT_PATH, spyScheduler, configuration, namespacesHub,
+                storeFactory, disconnectable, ackManager, clientsBox
+        );
+        EmbeddedChannel testChannel = new EmbeddedChannel(handler);
+        try {
+            ChannelHandlerContext ctx = testChannel.pipeline().context(handler);
+            handler.channelActive(ctx);
+            handler.channelInactive(ctx);
+
+            org.mockito.Mockito.verify(spyScheduler).cancel(
+                    new com.socketio4j.socketio.scheduler.SchedulerKey(
+                            com.socketio4j.socketio.scheduler.SchedulerKey.Type.PING_TIMEOUT,
+                            testChannel
+                    )
+            );
+        } finally {
+            testChannel.finishAndReleaseAll();
+        }
+    }
+
+    @Test
+    @DisplayName("Existing Session Request - Should Reject Disallowed Origin With Forbidden")
+    void testExistingSessionRequest_DisallowedOrigin_ShouldReturnForbidden() {
+        configuration.setAllowedOrigins(Collections.singleton("https://allowed.example.com"));
+        FullHttpRequest request = createHttpRequest(
+                CONNECT_PATH + "?EIO=4&transport=polling&sid=00000000-0000-0000-0000-000000000001",
+                "https://evil.example.com"
+        );
+
+        channel.writeInbound(request);
+
+        assertThat(channel.isActive()).isFalse();
+        Object outbound = channel.outboundMessages().poll();
+        assertThat(outbound).isInstanceOf(DefaultHttpResponse.class);
+        assertThat(((DefaultHttpResponse) outbound).status()).isEqualTo(HttpResponseStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("Connect Disconnected Client - Should Ignore Already Disconnected Client")
+    void testConnect_WhenClientAlreadyDisconnected_ShouldBeNoOp() {
+        ClientHead disconnectedClient = org.mockito.Mockito.mock(ClientHead.class);
+        org.mockito.Mockito.when(disconnectedClient.isConnected()).thenReturn(false);
+
+        authorizeHandler.connect(disconnectedClient);
+
+        org.mockito.Mockito.verify(disconnectedClient, org.mockito.Mockito.never()).send(org.mockito.Mockito.any(Packet.class));
+    }
+
 
     /**
      * Creates a test HTTP request with the specified URI and origin.

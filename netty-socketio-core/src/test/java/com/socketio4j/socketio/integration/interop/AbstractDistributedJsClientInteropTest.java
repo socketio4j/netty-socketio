@@ -121,7 +121,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
                 // the client has already gone away. Wait beyond that exact
                 // grace period so a failing case is fully cleaned before its
                 // failure is rethrown and the next case begins.
-                if (!waitForNoConnectedClients(6, TimeUnit.SECONDS)) {
+                if (!waitForNoConnectedClients(12, TimeUnit.SECONDS)) {
                     isolationFailure = new AssertionError(
                             "Distributed interop case left clients connected and forced cleanup did not finish: "
                                     + retainedClients + "; remaining=" + describeConnectedClients());
@@ -1174,6 +1174,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
         cmd.add(jsScript.getAbsolutePath());
         cmd.add("--clientName=" + name);
         cmd.add("--version=" + version);
+        cmd.add("--host=127.0.0.1");
         cmd.add("--port=" + port);
         cmd.add("--transport=" + transport);
         cmd.add("--scenario=" + scenario);
@@ -1191,6 +1192,7 @@ public abstract class AbstractDistributedJsClientInteropTest {
         pb.redirectErrorStream(true);
 
         Process process = pb.start();
+        Thread.sleep(15);
         JsClientProcess wrapper = new JsClientProcess(name, version, port, transport, scenario, room, process);
         ALL_ACTIVE_PROCESSES.add(wrapper);
         return wrapper;

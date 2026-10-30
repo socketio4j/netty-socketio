@@ -16,13 +16,15 @@
  */
 package com.socketio4j.socketio.integration.interop;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.BufferedReader;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
@@ -55,6 +57,7 @@ import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.namespace.NamespaceTestReuseAssertions;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
+import com.sun.net.httpserver.HttpServer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -70,9 +73,10 @@ public class BrowserInteropTest {
     private static final int TRANSPORT_COUNT = 2;
     private static final int NAMESPACE_COUNT = 2;
     private static final int EVENT_TYPE_COUNT = 6;
-    // Individual browser cases retain their 30-second page timeout. This
-    // larger process deadline accommodates cold browser launch overhead.
-    private static final long BROWSER_RUNNER_TIMEOUT_SECONDS = 240;
+    // Budget 30 seconds each for navigation and the result wait per sequential
+    // case, plus time for browser launches and context cleanup.
+    private static final long BROWSER_RUNNER_TIMEOUT_SECONDS = 240
+            + (long) BROWSER_COUNT * CLIENT_VERSION_COUNT * TRANSPORT_COUNT * 60;
     private static final long PROCESS_OUTPUT_DRAIN_TIMEOUT_SECONDS = 5;
     private static final int MAX_CAPTURED_PROCESS_OUTPUT_CHARS = 1_000_000;
 
@@ -96,6 +100,7 @@ public class BrowserInteropTest {
     private static SocketIOServer server;
     private static int serverPort;
     private static int httpPort;
+    private static HttpServer httpServer;
 
     /**
      * Every received event is recorded.
@@ -263,32 +268,6 @@ public class BrowserInteropTest {
         order.add(event);
     }
 
-    /**
-     * Wait until the embedded HTTP server is reachable.
-     * Avoids Thread.sleep().
-     */
-    private static void waitForHttpServer(int port)
-            throws Exception {
-
-        long deadline =
-                System.currentTimeMillis() + 10000;
-        Exception lastConnectionFailure = null;
-
-        while (System.currentTimeMillis() < deadline) {
-
-            try (Socket ignored =
-                         new Socket("127.0.0.1", port)) {
-                return;
-            } catch (Exception error) {
-                lastConnectionFailure = error;
-                Thread.sleep(100);
-            }
-        }
-
-        throw new IllegalStateException(
-                "HTTP server did not start on port " + port,
-                lastConnectionFailure);
-    }
 
     /**
      * SHA-256 helper for binary integrity verification.
@@ -355,6 +334,10 @@ public class BrowserInteropTest {
             return process.waitFor(timeout, unit);
         }
 
+        boolean isAlive() {
+            return process.isAlive();
+        }
+
         int exitValue() {
             return process.exitValue();
         }
@@ -409,19 +392,60 @@ public class BrowserInteropTest {
     static void beforeAll() throws Exception {
 
         serverPort = findAvailablePort();
-        httpPort = findAvailablePort();
+
+        File dir = new File("src/test/resources/js-interop");
+        if (!dir.exists()) {
+            dir = new File("netty-socketio-core/src/test/resources/js-interop");
+        }
+        final File webDir = dir;
+
+        httpServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        httpServer.createContext("/", exchange -> {
+            try {
+                String path = exchange.getRequestURI().getPath();
+                if (path == null || path.isEmpty() || "/".equals(path)) {
+                    path = "/interop.html";
+                }
+                File requestedFile = new File(webDir, path.replaceFirst("^/", ""));
+                if (requestedFile.exists() && !requestedFile.isDirectory()) {
+                    if (path.endsWith(".html")) {
+                        exchange.getResponseHeaders().set("Content-Type", "text/html; charset=UTF-8");
+                    } else if (path.endsWith(".js")) {
+                        exchange.getResponseHeaders().set("Content-Type", "application/javascript; charset=UTF-8");
+                    }
+                    exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+                    byte[] bytes = Files.readAllBytes(requestedFile.toPath());
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    try (OutputStream os = exchange.getResponseBody()) {
+                        os.write(bytes);
+                    }
+                } else {
+                    exchange.sendResponseHeaders(404, -1);
+                }
+            } catch (Exception e) {
+                exchange.sendResponseHeaders(500, -1);
+            } finally {
+                exchange.close();
+            }
+        });
+        httpServer.start();
+        httpPort = httpServer.getAddress().getPort();
 
         Configuration config = new Configuration();
         config.setPort(serverPort);
         config.setOrigin("http://127.0.0.1:" + httpPort);
+        config.setWebsocketCompression(false);
 
         server = new SocketIOServer(config);
 
         for (String namespace : new String[]{"", "/chat"}) {
 
-            SocketIONamespace nsp = namespace.isEmpty()
-                    ? server.getNamespace("")
-                    : server.addNamespace(namespace);
+            SocketIONamespace nsp;
+            if (namespace.isEmpty()) {
+                nsp = server.getNamespace("");
+            } else {
+                nsp = server.addNamespace(namespace);
+            }
 
             register(nsp);
         }
@@ -430,7 +454,11 @@ public class BrowserInteropTest {
     }
 
     @AfterAll
-    static void afterAll() {
+    static void afterAll() throws InterruptedException {
+
+        if (httpServer != null) {
+            httpServer.stop(0);
+        }
 
         if (server != null) {
             server.stop();
@@ -566,23 +594,15 @@ public class BrowserInteropTest {
         resetRecorder();
 
         File dir = new File("src/test/resources/js-interop");
-        CapturedProcess python = null;
+        if (!dir.exists()) {
+            dir = new File("netty-socketio-core/src/test/resources/js-interop");
+        }
         CapturedProcess node = null;
         Map<String, String> env = new java.util.HashMap<>();
         env.put("HTTP_PORT", String.valueOf(httpPort));
         env.put("SOCKETIO_PORT", String.valueOf(serverPort));
         env.put("SOCKETIO_INTEROP_VERSIONS", JsClientInteropMatrix.configuredVersionsCsv());
         try {
-             python = startProcess(
-                    dir,
-                    null,
-                    "python3",
-                    "-m",
-                    "http.server",
-                    String.valueOf(httpPort));
-
-            waitForHttpServer(httpPort);
-
             node = startProcess(
                     dir,
                     env,
@@ -600,10 +620,6 @@ public class BrowserInteropTest {
 
             if (node != null) {
                 node.stop();
-            }
-
-            if (python != null) {
-                python.stop();
             }
         }
 

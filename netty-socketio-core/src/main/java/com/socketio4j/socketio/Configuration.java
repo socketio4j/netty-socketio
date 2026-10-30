@@ -28,6 +28,7 @@ import com.socketio4j.socketio.store.redis_pubsub.RedisStoreFactory;
 
 
 import io.netty.handler.codec.http.HttpDecoderConfig;
+import io.netty.util.ResourceLeakDetector;
 
 public class Configuration extends BasicConfiguration {
 
@@ -44,6 +45,8 @@ public class Configuration extends BasicConfiguration {
     private AuthorizationListener authorizationListener = new SuccessAuthorizationListener();
 
     private HttpRequestDecoderConfiguration httpRequestDecoderConfiguration = new HttpRequestDecoderConfiguration();
+
+    private ResourceLeakDetector.Level leakDetectionLevel;
 
     public Configuration() {
         super();
@@ -85,6 +88,7 @@ public class Configuration extends BasicConfiguration {
         setSocketConfig(conf.getSocketConfig());
 
         setHttpRequestDecoderConfiguration(conf.getHttpRequestDecoderConfiguration());
+        setLeakDetectionLevel(conf.getLeakDetectionLevel());
     }
 
     public JsonSupport getJsonSupport() {
@@ -189,5 +193,35 @@ public class Configuration extends BasicConfiguration {
 
     public void setSocketSslConfig(SocketSslConfig socketSslConfig) {
         this.socketSslConfig = socketSslConfig;
+    }
+
+    /**
+     * Returns the Netty {@link ResourceLeakDetector.Level} configured for the server,
+     * or {@code null} if relying on the JVM system property ({@code -Dio.netty.leakDetection.level})
+     * or Netty's default ({@link ResourceLeakDetector.Level#SIMPLE}).
+     *
+     * @return configured leak detection level, or {@code null}
+     */
+    public ResourceLeakDetector.Level getLeakDetectionLevel() {
+        return leakDetectionLevel;
+    }
+
+    /**
+     * Configures the Netty {@link ResourceLeakDetector.Level}.
+     * <p>
+     * Available levels:
+     * <ul>
+     * <li>{@link ResourceLeakDetector.Level#DISABLED} - Disables leak detection. Lowest overhead.</li>
+     * <li>{@link ResourceLeakDetector.Level#SIMPLE} - Samples ~1% of buffers, reports if leaks occur. Default at runtime.</li>
+     * <li>{@link ResourceLeakDetector.Level#ADVANCED} - Samples ~1% of buffers and captures allocation/access stack traces.
+     *     <b>Recommended for staging environments</b> to diagnose buffer leaks with minimal performance impact.</li>
+     * <li>{@link ResourceLeakDetector.Level#PARANOID} - Samples 100% of buffers with full stack traces. High overhead;
+     *     recommended only for targeted debugging or unit test suites.</li>
+     * </ul>
+     *
+     * @param leakDetectionLevel desired leak detection level, or {@code null} to leave unchanged
+     */
+    public void setLeakDetectionLevel(ResourceLeakDetector.Level leakDetectionLevel) {
+        this.leakDetectionLevel = leakDetectionLevel;
     }
 }

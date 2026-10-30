@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.Transport;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.messages.HttpErrorMessage;
 import com.socketio4j.socketio.messages.HttpMessage;
 import com.socketio4j.socketio.messages.OutPacketMessage;
@@ -71,6 +72,7 @@ import io.netty.util.concurrent.GenericFutureListener;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
+@Internal
 @Sharable
 public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
@@ -124,7 +126,8 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         if (msg.getSessionId() != null) {
             res.headers().add(HttpHeaderNames.SET_COOKIE, "io=" + msg.getSessionId());
         }
-        res.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE)
+        res.headers().add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE)
+                .add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, "GET, POST, OPTIONS")
                 .add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, HttpHeaderNames.CONTENT_TYPE);
 
         String origin = ctx.channel().attr(ORIGIN).get();
@@ -144,7 +147,7 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         HttpResponse res = new DefaultHttpResponse(HTTP_1_1, status);
 
         res.headers().add(HttpHeaderNames.CONTENT_TYPE, type)
-                .add(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+                .add(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
         if (msg.getSessionId() != null) {
             res.headers().add(HttpHeaderNames.SET_COOKIE, "io=" + msg.getSessionId());
         }
@@ -183,6 +186,9 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
         if (msg instanceof OutPacketMessage) {
             OutPacketMessage outMsg = (OutPacketMessage) msg;
+            if (outMsg.getTransport() == Transport.POLLING) {
+                outMsg.getClientHead().releasePollingChannel(channel);
+            }
             if (outMsg.getClientHead().hasPollFlushedListeners()) {
                 promise.addListener(f -> {
                     outMsg.getClientHead().notifyPollFlushed();
@@ -199,10 +205,18 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         }
         
         final ByteBuf encBuf = encoder.allocateBuffer(ctx.alloc());
-        ByteBufOutputStream out = new ByteBufOutputStream(encBuf);
-        encoder.getJsonSupport().writeValue(out, errorMsg.getData());
+        boolean sent = false;
+        try {
+            ByteBufOutputStream out = new ByteBufOutputStream(encBuf);
+            encoder.getJsonSupport().writeValue(out, errorMsg.getData());
 
-        sendMessage(errorMsg, ctx.channel(), encBuf, "application/json", promise, HttpResponseStatus.BAD_REQUEST);
+            sendMessage(errorMsg, ctx.channel(), encBuf, "application/json", promise, HttpResponseStatus.BAD_REQUEST);
+            sent = true;
+        } finally {
+            if (!sent) {
+                encBuf.release();
+            }
+        }
     }
 
     private void addOriginHeaders(String origin, HttpResponse res) {
@@ -214,13 +228,22 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             if (configuration.getOrigin() != null) {
                 res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, configuration.getOrigin());
                 res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, Boolean.TRUE);
-            } else {
-                if (origin != null) {
-                    res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
-                    res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, Boolean.TRUE);
-                } else {
-                    res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+                res.headers().add(HttpHeaderNames.VARY, HttpHeaderNames.ORIGIN);
+            } else if (origin == null) {
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+            } else if (!configuration.getAllowedOrigins().isEmpty()) {
+                if (!configuration.isOriginAllowed(origin)) {
+                    res.headers().add(HttpHeaderNames.VARY, HttpHeaderNames.ORIGIN);
+                    return;
                 }
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_CREDENTIALS, Boolean.TRUE);
+                res.headers().add(HttpHeaderNames.VARY, HttpHeaderNames.ORIGIN);
+            } else {
+                // credentials are not allowed for arbitrary reflected origins,
+                // configure allowedOrigins or origin to enable them
+                res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_ORIGIN, origin);
+                res.headers().add(HttpHeaderNames.VARY, HttpHeaderNames.ORIGIN);
             }
             if (configuration.getAllowHeaders() != null) {
                 res.headers().add(HttpHeaderNames.ACCESS_CONTROL_ALLOW_HEADERS, configuration.getAllowHeaders());
@@ -282,6 +305,15 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
         ChannelFutureList writeFutureList = new ChannelFutureList();
 
         while (true) {
+            if (!ctx.channel().isWritable()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Channel {} unwritable during WebSocket frame write; holding remaining packets in queue, sessionId: {}",
+                            ctx.channel(), msg.getSessionId());
+                }
+                writeFutureList.setChannelPromise(promise);
+                break;
+            }
+
             Queue<Packet> queue = msg.getClientHead().getPacketsQueue(msg.getTransport());
             Packet packet = queue.poll();
             if (packet == null) {
@@ -298,40 +330,62 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
             ByteBuf out = encoder.allocateBuffer(ctx.alloc());
             EngineIOVersion engineIOVersion = msg.getClientHead().getEngineIOVersion();
-            EncodeResult encodeResult = encoder.encodePacket(engineIOVersion, packet, out, ctx.alloc(), true);
+            EncodeResult encodeResult;
+            boolean outTransferred = false;
+            try {
+                encodeResult = encoder.encodePacket(engineIOVersion, packet, out, ctx.alloc(), true);
 
-            if (log.isTraceEnabled()) {
-                log.trace("Out message: {} sessionId: {}", out.toString(CharsetUtil.UTF_8), msg.getSessionId());
-            }
-            
-            if (out.isReadable()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Sending single WebSocket frame, size: {} bytes, sessionId: {}", 
-                        out.readableBytes(), msg.getSessionId());
+                if (log.isTraceEnabled()) {
+                    log.trace("Out message: {} sessionId: {}", out.toString(CharsetUtil.UTF_8), msg.getSessionId());
                 }
-                // Engine.IO requires every packet to occupy exactly one
-                // WebSocket frame. The configured max frame payload applies to
-                // inbound validation; splitting here would alter packet framing.
-                WebSocketFrame res = new TextWebSocketFrame(out);
-                ctx.channel().writeAndFlush(res);
-            } else {
-                if (log.isDebugEnabled()) {
-                    log.debug("Empty packet, releasing buffer, sessionId: {}", msg.getSessionId());
+
+                if (out.isReadable()) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Sending single WebSocket frame, size: {} bytes, sessionId: {}",
+                            out.readableBytes(), msg.getSessionId());
+                    }
+                    // Engine.IO requires every packet to occupy exactly one
+                    // WebSocket frame. The configured max frame payload applies to
+                    // inbound validation; splitting here would alter packet framing.
+                    WebSocketFrame res = new TextWebSocketFrame(out);
+                    outTransferred = true;
+                    ChannelFuture writeFuture = ctx.channel().writeAndFlush(res);
+                    if (writeFuture != null) {
+                        writeFutureList.add(writeFuture);
+                    }
                 }
-                out.release();
+            } finally {
+                if (!outTransferred) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Empty or failed packet, releasing buffer, sessionId: {}", msg.getSessionId());
+                    }
+                    out.release();
+                }
             }
 
             for (ByteBuf buf : encodeResult.getAttachments()) {
                 ByteBuf outBuf = encoder.allocateBuffer(ctx.alloc());
-                if (EngineIOVersion.V3.equals(engineIOVersion)
-                        || EngineIOVersion.V2.equals(engineIOVersion)) {
-                    outBuf.writeByte(4);
+                boolean attachmentTransferred = false;
+                try {
+                    if (EngineIOVersion.V3.equals(engineIOVersion)
+                            || EngineIOVersion.V2.equals(engineIOVersion)) {
+                        outBuf.writeByte(4);
+                    }
+                    outBuf.writeBytes(buf);
+                    if (log.isTraceEnabled()) {
+                        log.trace("Out attachment: {} sessionId: {}", ByteBufUtil.hexDump(outBuf), msg.getSessionId());
+                    }
+                    BinaryWebSocketFrame binaryFrame = new BinaryWebSocketFrame(outBuf);
+                    attachmentTransferred = true;
+                    ChannelFuture writeFuture = ctx.channel().writeAndFlush(binaryFrame);
+                    if (writeFuture != null) {
+                        writeFutureList.add(writeFuture);
+                    }
+                } finally {
+                    if (!attachmentTransferred) {
+                        outBuf.release();
+                    }
                 }
-                outBuf.writeBytes(buf);
-                if (log.isTraceEnabled()) {
-                    log.trace("Out attachment: {} sessionId: {}", ByteBufUtil.hexDump(outBuf), msg.getSessionId());
-                }
-                writeFutureList.add(ctx.channel().writeAndFlush(new BinaryWebSocketFrame(outBuf)));
             }
         }
     }
@@ -357,44 +411,54 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
 
         ClientHead clientHead = msg.getClientHead();
         ByteBuf out = encoder.allocateBuffer(ctx.alloc());
-        EngineIOVersion engineIOVersion = clientHead.getEngineIOVersion();
-        if (engineIOVersion == null) {
-            engineIOVersion = EngineIOVersion.V4;
-        }
-
-        Boolean b64 = ctx.channel().attr(EncoderHandler.B64).get();
-        Integer jsonpIndex = ctx.channel().attr(EncoderHandler.JSONP_INDEX).get();
-        // Engine.IO v3 selects JSONP with j=<index>; b64=1 is a separate
-        // capability flag for base64 polling. Both use the legacy payload
-        // encoder, while only JSONP must be returned as JavaScript.
-        // Socket.IO v3/v4 also sends b64=1 but uses EIOv4 text framing.
-        if (!EngineIOVersion.V4.equals(engineIOVersion)
-                && (Boolean.TRUE.equals(b64) || jsonpIndex != null)) {
-            if (log.isDebugEnabled()) {
-                log.debug("Using JSONP encoding, index: {}, sessionId: {}", jsonpIndex, msg.getSessionId());
-            }
-            encoder.encodeJsonP(engineIOVersion, jsonpIndex, queue, out, ctx.alloc(), 50);
-            String type = "application/javascript";
-            if (jsonpIndex == null) {
-                type = "text/plain";
-            }
-            sendMessage(msg, channel, out, type, promise, HttpResponseStatus.OK);
-        } else {
-            EncodePacketsResult result = encoder.encodePackets(engineIOVersion, queue, out, ctx.alloc(), 50);
-            // Engine.IO v4 polling serializes every binary packet as base64 text
-            // ("b<base64>") in a record-separated text payload. Only the legacy
-            // v2/v3 binary payload format is sent as application/octet-stream.
-            String contentType;
-            if (result.hasBinary() && !EngineIOVersion.V4.equals(engineIOVersion))
-                contentType = "application/octet-stream";
-            else
-                contentType = "text/plain";
-
-            if (log.isDebugEnabled()) {
-                log.debug("Using {} encoding, sessionId: {}", contentType, msg.getSessionId());
+        boolean sent = false;
+        try {
+            EngineIOVersion engineIOVersion = clientHead.getEngineIOVersion();
+            if (engineIOVersion == null) {
+                engineIOVersion = EngineIOVersion.V4;
             }
 
-            sendMessage(msg, channel, out, contentType, promise, HttpResponseStatus.OK);
+            Boolean b64 = ctx.channel().attr(EncoderHandler.B64).get();
+            Integer jsonpIndex = ctx.channel().attr(EncoderHandler.JSONP_INDEX).get();
+            // Engine.IO v3 selects JSONP with j=<index>; b64=1 is a separate
+            // capability flag for base64 polling. Both use the legacy payload
+            // encoder, while only JSONP must be returned as JavaScript.
+            // Socket.IO v3/v4 also sends b64=1 but uses EIOv4 text framing.
+            if (!EngineIOVersion.V4.equals(engineIOVersion)
+                    && (Boolean.TRUE.equals(b64) || jsonpIndex != null)) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Using JSONP encoding, index: {}, sessionId: {}", jsonpIndex, msg.getSessionId());
+                }
+                encoder.encodeJsonP(engineIOVersion, jsonpIndex, queue, out, ctx.alloc(), 50);
+                String type = "application/javascript";
+                if (jsonpIndex == null) {
+                    type = "text/plain";
+                }
+                sendMessage(msg, channel, out, type, promise, HttpResponseStatus.OK);
+                sent = true;
+            } else {
+                EncodePacketsResult result = encoder.encodePackets(engineIOVersion, queue, out, ctx.alloc(), 50);
+                // Engine.IO v4 polling serializes every binary packet as base64 text
+                // ("b<base64>") in a record-separated text payload. Only the legacy
+                // v2/v3 binary payload format is sent as application/octet-stream.
+                String contentType;
+                if (result.hasBinary() && !EngineIOVersion.V4.equals(engineIOVersion)) {
+                    contentType = "application/octet-stream";
+                } else {
+                    contentType = "text/plain";
+                }
+
+                if (log.isDebugEnabled()) {
+                    log.debug("Using {} encoding, sessionId: {}", contentType, msg.getSessionId());
+                }
+
+                sendMessage(msg, channel, out, contentType, promise, HttpResponseStatus.OK);
+                sent = true;
+            }
+        } finally {
+            if (!sent) {
+                out.release();
+            }
         }
     }
 
