@@ -35,6 +35,10 @@ public class RedisStore implements Store {
         this(sessionId, redisson, null, DEFAULT_TTL);
     }
 
+    public RedisStore(UUID sessionId, RedissonClient redisson, Duration ttl) {
+        this(sessionId, redisson, null, ttl);
+    }
+
     public RedisStore(UUID sessionId, RedissonClient redisson, String keyPrefix, Duration ttl) {
         String key;
         if (keyPrefix != null && !keyPrefix.isEmpty()) {
@@ -43,11 +47,7 @@ public class RedisStore implements Store {
             key = sessionId.toString();
         }
         this.map = redisson.getMap(key);
-        if (ttl != null) {
-            this.ttl = ttl;
-        } else {
-            this.ttl = DEFAULT_TTL;
-        }
+        this.ttl = ttl;
         refreshTtl();
     }
 
@@ -82,6 +82,10 @@ public class RedisStore implements Store {
     @Override
     public void destroy() {
         map.delete();
+    }
+
+    public Duration getTtl() {
+        return ttl;
     }
 
 }
