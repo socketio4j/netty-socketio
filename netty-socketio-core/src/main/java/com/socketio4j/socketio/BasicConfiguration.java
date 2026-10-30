@@ -16,9 +16,14 @@
  */
 package com.socketio4j.socketio;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.nativeio.TransportType;
@@ -47,6 +52,7 @@ public abstract class BasicConfiguration {
 
     protected int maxHttpContentLength = 64 * 1024;
     protected int maxFramePayloadLength = 64 * 1024;
+    protected int maxPendingPackets = 10000;
 
     protected String packagePrefix;
     protected String hostname;
@@ -61,6 +67,10 @@ public abstract class BasicConfiguration {
     protected boolean addVersionHeader = true;
 
     protected String origin;
+
+    protected Set<String> allowedOrigins = Collections.emptySet();
+
+    private List<Pattern> allowedOriginPatterns = Collections.emptyList();
 
     protected boolean enableCors = true;
 
@@ -128,10 +138,12 @@ public abstract class BasicConfiguration {
         setPreferDirectBuffer(conf.isPreferDirectBuffer());
         setAckMode(conf.getAckMode());
         setMaxFramePayloadLength(conf.getMaxFramePayloadLength());
+        setMaxPendingPackets(conf.getMaxPendingPackets());
         setUpgradeTimeout(conf.getUpgradeTimeout());
 
         setAddVersionHeader(conf.isAddVersionHeader());
         setOrigin(conf.getOrigin());
+        setAllowedOrigins(conf.getAllowedOrigins());
         setEnableCors(conf.isEnableCors());
         setAllowHeaders(conf.getAllowHeaders());
 
@@ -331,6 +343,21 @@ public abstract class BasicConfiguration {
     }
 
     /**
+     * Set maximum pending packets in the queue for a single client before
+     * backpressure disconnects the slow consumer.
+     * Set to 0 or negative for unbounded queue (not recommended in production).
+     *
+     * @param maxPendingPackets - maximum pending packets limit
+     */
+    public void setMaxPendingPackets(int maxPendingPackets) {
+        this.maxPendingPackets = maxPendingPackets;
+    }
+
+    public int getMaxPendingPackets() {
+        return maxPendingPackets;
+    }
+
+    /**
      * Transport upgrade timeout in milliseconds
      *
      * @param upgradeTimeout - upgrade timeout
@@ -373,6 +400,77 @@ public abstract class BasicConfiguration {
 
     public String getOrigin() {
         return origin;
+    }
+
+    /**
+     * Origins allowed to send credentialed cross-origin requests and to open
+     * cross-origin websocket connections.
+     * <p>
+     * When empty, the request <b>ORIGIN</b> header is still echoed back in the
+     * <b>Access-Control-Allow-Origin</b> header, but without
+     * <b>Access-Control-Allow-Credentials</b>, and cross-origin websocket
+     * handshakes are not restricted.
+     * <p>
+     * Entries are matched against the full origin and may contain <code>*</code>
+     * as a wildcard for any part of the host or port, for example
+     * <code>https://*.example.com</code> or <code>http://localhost:*</code>.
+     *
+     * @param allowedOrigins - allowed origins
+     */
+    public void setAllowedOrigins(Set<String> allowedOrigins) {
+        if (allowedOrigins == null || allowedOrigins.isEmpty()) {
+            this.allowedOrigins = Collections.emptySet();
+            this.allowedOriginPatterns = Collections.emptyList();
+            return;
+        }
+
+        this.allowedOrigins = Collections.unmodifiableSet(new LinkedHashSet<>(allowedOrigins));
+
+        List<Pattern> patterns = new ArrayList<>();
+        for (String allowedOrigin : this.allowedOrigins) {
+            if (allowedOrigin != null && allowedOrigin.indexOf('*') >= 0) {
+                patterns.add(compileOriginPattern(allowedOrigin));
+            }
+        }
+        this.allowedOriginPatterns = Collections.unmodifiableList(patterns);
+    }
+
+    private static Pattern compileOriginPattern(String allowedOrigin) {
+        StringBuilder regex = new StringBuilder();
+        int start = 0;
+        int wildcard;
+        while ((wildcard = allowedOrigin.indexOf('*', start)) >= 0) {
+            regex.append(Pattern.quote(allowedOrigin.substring(start, wildcard)));
+            // a wildcard never spans the scheme separator or a path
+            regex.append("[^/]*");
+            start = wildcard + 1;
+        }
+        regex.append(Pattern.quote(allowedOrigin.substring(start)));
+        return Pattern.compile(regex.toString(), Pattern.CASE_INSENSITIVE);
+    }
+
+    public Set<String> getAllowedOrigins() {
+        return allowedOrigins;
+    }
+
+    public boolean isOriginAllowed(String requestOrigin) {
+        if (allowedOrigins.isEmpty()) {
+            return true;
+        }
+        if (requestOrigin == null) {
+            return false;
+        }
+        for (String allowedOrigin : allowedOrigins) {
+            if (allowedOrigin.equalsIgnoreCase(requestOrigin)) {
+                return true;
+            }
+        }
+        for (Pattern pattern : allowedOriginPatterns) {
+            if (pattern.matcher(requestOrigin).matches()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -463,7 +561,7 @@ public abstract class BasicConfiguration {
      * Set the maximum decompression buffer size for WebSocket compression.
      * Used to limit memory consumption during WebSocket message decompression.
      * <p>
-     * Default is <code>0</code> which means unlimited
+     * Default is <code>65536</code> (64 KB). Set to <code>0</code> for unlimited.
      *
      * `@param` decompressionBufferSize - buffer size in bytes, or 0 for [unlimited/default]
      */

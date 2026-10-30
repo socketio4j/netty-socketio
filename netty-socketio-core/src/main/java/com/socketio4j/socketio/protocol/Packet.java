@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.socketio4j.socketio.namespace.Namespace;
 
 import io.netty.buffer.ByteBuf;
@@ -29,15 +30,21 @@ public class Packet implements Serializable {
 
     private static final long serialVersionUID = 4560159536486711426L;
 
+    private static final int MAX_ATTACHMENTS = 64;
+
     private PacketType type;
-    private EngineIOVersion engineIOVersion;
+    @Deprecated
+    private EngineIOVersion engineIOVersion = EngineIOVersion.V4;
+
     private PacketType subType;
     private Long ackId;
     private String name;
     private String nsp = Namespace.DEFAULT_NAME;
+
     private Object data;
 
-    private ByteBuf dataSource;
+    @Deprecated
+    private transient ByteBuf dataSource;
     private int attachmentsCount;
     private List<ByteBuf> attachments = Collections.emptyList();
 
@@ -49,6 +56,11 @@ public class Packet implements Serializable {
         super();
         this.type = type;
     }
+
+    /**
+     * @deprecated Engine.IO version is now negotiated per-connection. Use {@link #Packet(PacketType)} instead.
+     */
+    @Deprecated
     public Packet(PacketType type, EngineIOVersion engineIOVersion) {
         this(type);
         this.engineIOVersion = engineIOVersion;
@@ -90,9 +102,35 @@ public class Packet implements Serializable {
      * Otherwise, returns original object unchanged
      *
      * @param namespace
+     * @return packet
+     */
+    public Packet withNsp(String namespace) {
+        if (this.nsp.equalsIgnoreCase(namespace)) {
+            return this;
+        } else {
+            Packet newPacket = new Packet(this.type);
+            newPacket.setAckId(this.ackId);
+            newPacket.setData(this.data);
+            newPacket.setDataSource(this.dataSource);
+            newPacket.setName(this.name);
+            newPacket.setSubType(this.subType);
+            newPacket.setNsp(namespace);
+            newPacket.setEngineIOVersion(this.engineIOVersion);
+            newPacket.attachments = this.attachments;
+            newPacket.attachmentsCount = this.attachmentsCount;
+            return newPacket;
+        }
+    }
+
+    /**
+     * Creates a copy of #{@link Packet} with new namespace set.
+     *
+     * @deprecated Engine.IO version is now negotiated per-connection. Use {@link #withNsp(String)} instead.
+     * @param namespace
      * @param engineIOVersion
      * @return packet
      */
+    @Deprecated
     public Packet withNsp(String namespace, EngineIOVersion engineIOVersion) {
         if (this.nsp.equalsIgnoreCase(namespace)) {
             return this;
@@ -109,7 +147,6 @@ public class Packet implements Serializable {
             return newPacket;
         }
     }
-
     public void setNsp(String endpoint) {
         //patch for #903
         if ("{}".equals(endpoint)){
@@ -143,8 +180,11 @@ public class Packet implements Serializable {
     }
 
     public void initAttachments(int attachmentsCount) {
+        if (attachmentsCount < 0 || attachmentsCount > MAX_ATTACHMENTS) {
+            throw new IllegalArgumentException("Invalid attachments count: " + attachmentsCount);
+        }
         this.attachmentsCount = attachmentsCount;
-        this.attachments = new ArrayList<>();
+        this.attachments = new ArrayList<>(attachmentsCount);
     }
     public void addAttachment(ByteBuf attachment) {
         if (this.attachments.size() < attachmentsCount) {
@@ -160,20 +200,37 @@ public class Packet implements Serializable {
     public boolean isAttachmentsLoaded() {
         return this.attachments.size() == attachmentsCount;
     }
-
-    public ByteBuf getDataSource() {
-        return dataSource;
-    }
-    public void setDataSource(ByteBuf dataSource) {
-        this.dataSource = dataSource;
-    }
-
+    /**
+     * @deprecated Engine.IO version is now negotiated per-connection.
+     */
+    @Deprecated
     public EngineIOVersion getEngineIOVersion() {
         return engineIOVersion;
     }
 
+    /**
+     * @deprecated Engine.IO version is now negotiated per-connection.
+     */
+    @Deprecated
     public void setEngineIOVersion(EngineIOVersion engineIOVersion) {
         this.engineIOVersion = engineIOVersion;
+    }
+
+    /**
+     * @deprecated Binary attachments are handled via {@link #getAttachments()}.
+     */
+    @Deprecated
+    @JsonIgnore
+    public ByteBuf getDataSource() {
+        return dataSource;
+    }
+
+    /**
+     * @deprecated Binary attachments are handled via {@link #addAttachment(ByteBuf)}.
+     */
+    @Deprecated
+    public void setDataSource(ByteBuf dataSource) {
+        this.dataSource = dataSource;
     }
 
     @Override

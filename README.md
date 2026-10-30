@@ -18,6 +18,7 @@
 [![Maven](https://img.shields.io/badge/Maven-3.0.5%2B-red.svg?style=flat-square&logo=apache-maven&logoColor=white)](https://maven.apache.org/)
 [![Netty](https://img.shields.io/badge/Netty-4.2.9-green.svg?style=flat-square)](https://netty.io/)
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-1.x--4.x-black.svg?style=flat-square&logo=socket.io&logoColor=white)](https://socket.io/)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/socketio4j/netty-socketio)
 
 </div>
 
@@ -76,6 +77,10 @@ SocketIO4j is a modern, actively maintained Socket.IO server for the Java ecosys
 
 * Long-running stress and stability testing.
 * Focus on production reliability.
+* Configurable Netty `ResourceLeakDetector.Level` via `Configuration.setLeakDetectionLevel(...)` or `-Dio.netty.leakDetection.level`:
+  * **Production Recommendation**: `SIMPLE` (default Netty level, ~1% sampling overhead) or `DISABLED` for maximum throughput.
+  * **Staging / Pre-Production Recommendation**: `ADVANCED` (samples ~1% of ByteBuf allocations and records allocation/access stack traces to pinpoint any leaks before releasing).
+  * **CI / Test Suites**: `PARANOID` (100% buffer allocation checks).
 
 ✅ Active Community
 
