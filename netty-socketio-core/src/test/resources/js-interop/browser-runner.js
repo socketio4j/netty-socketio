@@ -148,9 +148,18 @@ async function runCase(browser, browserInfo, version, transport) {
 async function runBrowser(browserInfo) {
 
     let failures = 0;
-    const browser = await browserInfo.type.launch({
+    const launchOptions = {
         headless: true
-    });
+    };
+    if (browserInfo.name === "Chromium") {
+        launchOptions.args = [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu"
+        ];
+    }
+    const browser = await browserInfo.type.launch(launchOptions);
 
     try {
         for (const version of versions) {
