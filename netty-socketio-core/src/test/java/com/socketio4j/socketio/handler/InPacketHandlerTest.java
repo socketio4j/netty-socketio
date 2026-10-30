@@ -774,6 +774,48 @@ public class InPacketHandlerTest {
             assertThat(client.getChildClient(allowedNs)).isNotNull();
             assertThat(client.getNamespaces()).containsExactly(allowedNs);
         }
+
+        @Test
+        @DisplayName("Should clear previous token from shared HandshakeData before invoking auth listeners on CONNECT with null auth")
+        public void testNullAuthDataClearsPreviousTokenBeforeInvokingListeners() throws Exception {
+            UUID sessionId = UUID.randomUUID();
+            ClientHead client = createTestClient(sessionId, EngineIOVersion.V4);
+
+            Namespace firstNs = namespacesHub.get(CUSTOM_NAMESPACE);
+            Namespace secondNs = namespacesHub.get(VALID_NAMESPACE);
+
+            Map<String, Object> firstAuthData = Collections.singletonMap("token", "secret123");
+            Packet firstConnect = new Packet(PacketType.MESSAGE);
+            firstConnect.setSubType(PacketType.CONNECT);
+            firstConnect.setNsp(CUSTOM_NAMESPACE);
+            firstConnect.setData(firstAuthData);
+
+            ByteBuf firstContent = encodePacket(EngineIOVersion.V4, firstConnect);
+            channel.writeInbound(new PacketsMessage(client, firstContent, Transport.POLLING));
+            channel.runPendingTasks();
+
+            assertThat(client.getChildClient(firstNs)).isNotNull();
+            assertThat(client.getHandshakeData().getAuthToken()).isEqualTo(firstAuthData);
+
+            java.util.concurrent.atomic.AtomicReference<Object> observedTokenInListener = new java.util.concurrent.atomic.AtomicReference<>("not-null");
+            secondNs.addAuthTokenListener((authData, clientParam) -> {
+                observedTokenInListener.set(clientParam.getHandshakeData().getAuthToken());
+                return AuthTokenResult.AUTH_TOKEN_RESULT_SUCCESS;
+            });
+
+            Packet secondConnect = new Packet(PacketType.MESSAGE);
+            secondConnect.setSubType(PacketType.CONNECT);
+            secondConnect.setNsp(VALID_NAMESPACE);
+            secondConnect.setData(null);
+
+            ByteBuf secondContent = encodePacket(EngineIOVersion.V4, secondConnect);
+            channel.writeInbound(new PacketsMessage(client, secondContent, Transport.POLLING));
+            channel.runPendingTasks();
+
+            assertThat(observedTokenInListener.get()).isNull();
+            assertThat(client.getHandshakeData().getAuthToken()).isNull();
+            assertThat(client.getChildClient(secondNs)).isNotNull();
+        }
     }
 
     

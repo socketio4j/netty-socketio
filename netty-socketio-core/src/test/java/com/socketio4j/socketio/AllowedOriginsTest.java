@@ -98,11 +98,11 @@ class AllowedOriginsTest {
     }
 
     @Test
-    @DisplayName("Should bound WebSocket decompression buffer size to 64 KB by default while allowing 0 for unlimited")
-    void shouldDefaultDecompressionBufferSizeTo64KiB() {
-        assertThat(configuration.getDecompressionBufferSize()).isEqualTo(64 * 1024);
-
-        configuration.setDecompressionBufferSize(0);
+    @DisplayName("Should default WebSocket decompression buffer size to 0 while allowing customization")
+    void shouldDefaultDecompressionBufferSizeToZero() {
         assertThat(configuration.getDecompressionBufferSize()).isZero();
+
+        configuration.setDecompressionBufferSize(64 * 1024);
+        assertThat(configuration.getDecompressionBufferSize()).isEqualTo(64 * 1024);
     }
 }
