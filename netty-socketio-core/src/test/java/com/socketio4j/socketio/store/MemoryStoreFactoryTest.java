@@ -16,26 +16,58 @@
  */
 package com.socketio4j.socketio.store;
 
-import com.socketio4j.socketio.TestResourceCleanup;
-
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.UUID;
 
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
+import org.redisson.api.RStream;
+import org.redisson.api.RedissonClient;
+
+import com.hazelcast.core.HazelcastInstance;
+import com.socketio4j.socketio.TestResourceCleanup;
+import com.socketio4j.socketio.handler.AuthorizeHandler;
+import com.socketio4j.socketio.handler.ClientHead;
+import com.socketio4j.socketio.namespace.Namespace;
+import com.socketio4j.socketio.namespace.NamespacesHub;
+import com.socketio4j.socketio.protocol.Packet;
+import com.socketio4j.socketio.protocol.PacketType;
+import com.socketio4j.socketio.store.event.DispatchMessage;
+import com.socketio4j.socketio.store.event.EventListener;
+import com.socketio4j.socketio.store.event.EventMessage;
+import com.socketio4j.socketio.store.event.EventStore;
+import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.hazelcast.HazelcastPubSubEventStore;
+import com.socketio4j.socketio.store.hazelcast_ringbuffer.HazelcastPubSubRingBufferEventStore;
+import com.socketio4j.socketio.store.kafka.KafkaEventStore;
 import com.socketio4j.socketio.store.memory.MemoryEventStore;
 import com.socketio4j.socketio.store.memory.MemoryStore;
 import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
-import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import com.socketio4j.socketio.store.nats_pubsub.NatsEventStore;
+import com.socketio4j.socketio.store.redis_pubsub.RedisPubSubEventStore;
+import com.socketio4j.socketio.store.redis_reliable.RedisPubSubReliableEventStore;
+import com.socketio4j.socketio.store.redis_stream.RedisStreamEventStore;
 
-import com.socketio4j.socketio.handler.ClientHead;
-import com.socketio4j.socketio.store.event.EventStore;
+import io.nats.client.Connection;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -143,5 +175,96 @@ public class MemoryStoreFactoryTest extends AbstractStoreFactoryTestSupport {
         } finally {
             TestResourceCleanup.runAll("Memory store mock cleanup", closeableMocks::close);
         }
+    }
+
+    @Test
+    public void testShutdownDelegatesToEventStoreShutdown() {
+        EventStore mockEventStore = mock(EventStore.class);
+        MemoryStoreFactory factory = new MemoryStoreFactory(mockEventStore);
+        factory.shutdown();
+        verify(mockEventStore, times(1)).shutdown();
+    }
+
+    @Test
+    public void testShutdownHandlesExceptionGracefully() {
+        EventStore mockEventStore = mock(EventStore.class);
+        doThrow(new RuntimeException("shutdown fail")).when(mockEventStore).shutdown();
+        MemoryStoreFactory factory = new MemoryStoreFactory(mockEventStore);
+        // Should not throw
+        factory.shutdown();
+        verify(mockEventStore, times(1)).shutdown();
+    }
+
+    @Test
+    public void testEventStoreNodeIdIsDeterministic() {
+        MemoryEventStore eventStore = new MemoryEventStore();
+        Long id1 = eventStore.getNodeId();
+        Long id2 = eventStore.getNodeId();
+        assertNotNull(id1);
+        assertEquals(id1, id2, "getNodeId() should return the same singleton Long on repeated calls on the same store");
+
+        MemoryEventStore otherStore = new MemoryEventStore();
+        assertNotEquals(id1, otherStore.getNodeId(), "Different event store instances must have distinct node IDs");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testAttachOffsetInMultiChannelMode() {
+        EventStore mockEventStore = mock(EventStore.class);
+        when(mockEventStore.getEventStoreMode()).thenReturn(EventStoreMode.MULTI_CHANNEL);
+
+        MemoryStoreFactory factory = new MemoryStoreFactory(mockEventStore);
+        NamespacesHub hub = mock(NamespacesHub.class);
+        Namespace namespace = mock(Namespace.class);
+        when(hub.get("testNsp")).thenReturn(namespace);
+
+        factory.init(hub, mock(AuthorizeHandler.class), jsonSupport);
+
+        ArgumentCaptor<EventListener<DispatchMessage>> captor = ArgumentCaptor.forClass(EventListener.class);
+        verify(mockEventStore).subscribe(eq(EventType.DISPATCH), captor.capture(), eq(DispatchMessage.class));
+
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setData(Collections.singletonList("payload"));
+        DispatchMessage dispatchMsg = new DispatchMessage("testRoom", packet, "testNsp");
+        dispatchMsg.setOffset("offset-12345");
+
+        captor.getValue().onMessage(dispatchMsg);
+
+        verify(namespace, times(1)).dispatch(eq("testRoom"), eq(packet));
+        List<Object> packetData = packet.getData();
+        assertEquals(2, packetData.size());
+        assertEquals("payload", packetData.get(0));
+        assertEquals("offset-12345", packetData.get(1));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testEventStoreNodeIdIsNonNullWhenConstructedWithNull() {
+        HazelcastInstance hzMock = mock(HazelcastInstance.class);
+        HazelcastPubSubEventStore hzStore = new HazelcastPubSubEventStore(hzMock, hzMock, null, null, "prefix");
+        assertNotNull(hzStore.getNodeId());
+
+        HazelcastPubSubRingBufferEventStore hzRbStore = new HazelcastPubSubRingBufferEventStore(hzMock, hzMock, null, null, "prefix");
+        assertNotNull(hzRbStore.getNodeId());
+
+        RedissonClient redissonMock = mock(RedissonClient.class);
+        when(redissonMock.getStream(Mockito.anyString())).thenReturn(mock(RStream.class));
+        RedisPubSubEventStore redisStore = new RedisPubSubEventStore(redissonMock, redissonMock, null, null, null);
+        assertNotNull(redisStore.getNodeId());
+
+        RedisPubSubReliableEventStore redisReliableStore = new RedisPubSubReliableEventStore(redissonMock, redissonMock, null, null, "prefix", 1000, null, null);
+        assertNotNull(redisReliableStore.getNodeId());
+
+        RedisStreamEventStore redisStreamStore = new RedisStreamEventStore(redissonMock, redissonMock, null, null, "prefix", 1000, null);
+        assertNotNull(redisStreamStore.getNodeId());
+
+        Connection natsMock = mock(Connection.class);
+        NatsEventStore natsStore = new NatsEventStore(natsMock, null, null, null);
+        assertNotNull(natsStore.getNodeId());
+
+        KafkaProducer<String, EventMessage> kafkaProducerMock = mock(KafkaProducer.class);
+        Properties props = new Properties();
+        KafkaEventStore kafkaStore = new KafkaEventStore(kafkaProducerMock, props, null, null, "prefix", null);
+        assertNotNull(kafkaStore.getNodeId());
     }
 }

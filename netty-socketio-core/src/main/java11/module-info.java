@@ -47,6 +47,8 @@ module netty.socketio.core {
   // These packages are part of the public store SPI surface
   // ============================================================
   exports com.socketio4j.socketio.store.hazelcast;
+  exports com.socketio4j.socketio.store.hazelcast_ringbuffer;
+  exports com.socketio4j.socketio.store.nats_pubsub;
   exports com.socketio4j.socketio.store.redis_pubsub;
   exports com.socketio4j.socketio.store.redis_reliable;
   exports com.socketio4j.socketio.store.redis_stream;

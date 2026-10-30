@@ -404,4 +404,56 @@ class AckManagerTest {
         assertThat(timedOut.get()).isTrue();
         assertThat(ackManager.getAckEntriesCount()).isEqualTo(0);
     }
+
+    @Test
+    @DisplayName("Should ignore packet with null ackId")
+    void shouldIgnorePacketWithNullAckId() {
+        Packet packet = new Packet(PacketType.ACK);
+        packet.setAckId(null);
+        ackManager.onAck(client(), packet);
+        assertThat(ackManager.getAckEntriesCount()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("Should handle null packet data safely in onAck")
+    void shouldHandleNullPacketDataInOnAck() {
+        AtomicReference<Object> received = new AtomicReference<>();
+        AckCallback<String> callback = new AckCallback<String>(String.class, 10) {
+            @Override
+            public void onSuccess(String result) {
+                received.set(result);
+            }
+        };
+
+        long index = ackManager.registerAck(sessionId, callback);
+        Packet packet = new Packet(PacketType.ACK);
+        packet.setAckId(index);
+        packet.setData(null);
+
+        ackManager.onAck(client(), packet);
+        assertThat(received.get()).isNull();
+        assertThat(ackManager.getCallback(sessionId, index)).isNull();
+    }
+
+    @Test
+    @DisplayName("Should handle null packet data safely in MultiTypeAckCallback")
+    void shouldHandleNullPacketDataInMultiTypeOnAck() {
+        AtomicReference<MultiTypeArgs> received = new AtomicReference<>();
+        MultiTypeAckCallback callback = new MultiTypeAckCallback(String.class) {
+            @Override
+            public void onSuccess(MultiTypeArgs args) {
+                received.set(args);
+            }
+        };
+
+        long index = ackManager.registerAck(sessionId, callback);
+        Packet packet = new Packet(PacketType.ACK);
+        packet.setAckId(index);
+        packet.setData(null);
+
+        ackManager.onAck(client(), packet);
+        assertThat(received.get()).isNotNull();
+        assertThat(received.get().getArgs()).isEmpty();
+        assertThat(ackManager.getCallback(sessionId, index)).isNull();
+    }
 }

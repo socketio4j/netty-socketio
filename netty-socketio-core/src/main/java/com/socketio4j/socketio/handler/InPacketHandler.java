@@ -108,10 +108,10 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                         p.setNsp(packet.getNsp());
                         p.setData(toConnectErrorPayload(client, "Invalid namespace"));
                         client.send(p);
-                        return;
+                        continue;
                     }
                     log.debug("Can't find namespace for endpoint: {}, sessionId: {} probably it was removed.", packet.getNsp(), client.getSessionId());
-                    return;
+                    continue;
                 }
 
                 if (packet.getSubType() == PacketType.CONNECT) {
@@ -122,7 +122,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                     NamespaceClient nClient = new NamespaceClient(client, ns);
                     if (EngineIOVersion.V4.equals(client.getEngineIOVersion())) {
                         if (!handleV4Connect(packet, client, ns, nClient)) {
-                            return;
+                            continue;
                         }
                     }
                     client.addNamespaceClient(nClient);
@@ -136,9 +136,10 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                         // an unconnected client emit events or ACKs into application code.
                         client.disconnectWithProtocolClose();
                         ctx.close();
+                        return;
                     }
                     log.debug("Can't find namespace client in namespace: {}, sessionId: {} probably it was disconnected.", ns.getName(), client.getSessionId());
-                    return;
+                    continue;
                 }
                 if (packet.hasAttachments() && !packet.isAttachmentsLoaded()) {
                     if (log.isDebugEnabled()) {
@@ -224,42 +225,45 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
     }
 
     private boolean handleV4Connect(Packet packet, ClientHead client, Namespace ns, NamespaceClient nClient) {
+        final Object authData = packet.getData();
         if (log.isDebugEnabled()) {
-            log.debug("Starting Engine.IO v4 connect handling for client: {}, namespace: {}, hasAuthData: {}", 
-                     client.getSessionId(), ns.getName(), packet.getData() != null);
+            log.debug("Starting Engine.IO v4 connect handling for client: {}, namespace: {}, hasAuthData: {}",
+                     client.getSessionId(), ns.getName(), authData != null);
         }
-        
-        // Check for an auth token
-        if (packet.getData() != null) {
-            final Object authData = packet.getData();
-            
+
+        if (authData != null) {
             if (log.isDebugEnabled()) {
-                log.debug("Processing authentication data for client: {}, namespace: {}, authData type: {}", 
+                log.debug("Processing authentication data for client: {}, namespace: {}, authData type: {}",
                          client.getSessionId(), ns.getName(), authData.getClass().getSimpleName());
-            }
-            
-            client.getHandshakeData().setAuthToken(authData);
-            
-            // Call all authTokenListeners to see if one denies it
-            final AuthTokenResult allowAuth = ns.onAuthData(nClient, authData);
-            if (!allowAuth.isSuccess()) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Authentication failed for client: {}, namespace: {}, sending error response", 
-                             client.getSessionId(), ns.getName());
-                }
-                
-                Packet p = new Packet(PacketType.MESSAGE);
-                p.setSubType(PacketType.ERROR);
-                p.setNsp(packet.getNsp());
-                p.setData(toConnectErrorPayload(allowAuth.getErrorData()));
-                client.send(p);
-                return false;
             }
         } else {
             if (log.isDebugEnabled()) {
-                log.debug("No authentication data provided for client: {}, namespace: {}, proceeding with connection", 
+                log.debug("No authentication data provided for client: {}, namespace: {}, evaluating auth listeners",
                          client.getSessionId(), ns.getName());
             }
+        }
+
+        // Clear or update the auth token on the shared HandshakeData before invoking
+        // auth listeners so that listeners observe null rather than another namespace's token.
+        client.getHandshakeData().setAuthToken(authData);
+
+        // Always invoke authTokenListeners even when authData is null so that
+        // namespaces configured with AuthTokenListeners cannot be bypassed by
+        // sending a CONNECT packet without an auth payload (e.g. "40" or "40/nsp").
+        final AuthTokenResult allowAuth = ns.onAuthData(nClient, authData);
+        if (!allowAuth.isSuccess()) {
+            client.getHandshakeData().setAuthToken(null);
+            if (log.isDebugEnabled()) {
+                log.debug("Authentication failed for client: {}, namespace: {}, sending error response",
+                         client.getSessionId(), ns.getName());
+            }
+
+            Packet p = new Packet(PacketType.MESSAGE);
+            p.setSubType(PacketType.ERROR);
+            p.setNsp(packet.getNsp());
+            p.setData(toConnectErrorPayload(allowAuth.getErrorData()));
+            client.send(p);
+            return false;
         }
         Packet p = new Packet(PacketType.MESSAGE);
         p.setSubType(PacketType.CONNECT);
@@ -267,7 +271,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         p.setData(new ConnPacket(client.getSessionId()));
         client.send(p);
         if (log.isDebugEnabled()) {
-            log.debug("Completed Engine.IO v4 connect handling for client: {}, namespace: {}", 
+            log.debug("Completed Engine.IO v4 connect handling for client: {}, namespace: {}",
                      client.getSessionId(), ns.getName());
         }
         return true;

@@ -280,4 +280,36 @@ public class UTF8CharsScannerTest extends BaseProtocolTest {
         
         buffer.release();
     }
+
+    @Test
+    public void testGetActualLengthWithFullFourByteSurrogatePairs() {
+        String utf8String = "Hello\uD83D\uDE00World";
+        ByteBuf buffer = Unpooled.copiedBuffer(utf8String.getBytes(StandardCharsets.UTF_8));
+        try {
+            int actualLength = scanner.getActualLength(buffer, utf8String.length());
+            assertEquals(14, actualLength);
+        } finally {
+            buffer.release();
+        }
+
+        String mixedString = "Hello\u00A0\u20AC\uD83D\uDE00World";
+        ByteBuf mixedBuffer = Unpooled.copiedBuffer(mixedString.getBytes(StandardCharsets.UTF_8));
+        try {
+            int actualMixedLength = scanner.getActualLength(mixedBuffer, mixedString.length());
+            assertEquals(19, actualMixedLength);
+        } finally {
+            mixedBuffer.release();
+        }
+    }
+
+    @Test
+    public void testGetActualLengthRejectsTruncatedMultiByteSequence() {
+        byte[] truncatedFourByte = new byte[]{'A', (byte) 0xF0, (byte) 0x9F};
+        ByteBuf buffer = Unpooled.wrappedBuffer(truncatedFourByte);
+        try {
+            assertThrows(IllegalStateException.class, () -> scanner.getActualLength(buffer, 3));
+        } finally {
+            buffer.release();
+        }
+    }
 }

@@ -24,17 +24,25 @@ import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.HttpRequestDecoderConfiguration;
 import com.socketio4j.socketio.SocketConfig;
 import com.socketio4j.socketio.SocketSslConfig;
+import com.socketio4j.socketio.handler.SuccessAuthorizationListener;
+import com.socketio4j.socketio.listener.DefaultExceptionListener;
 import com.socketio4j.socketio.micronaut.config.NettySocketIOBasicConfigurationProperties;
+import com.socketio4j.socketio.micronaut.config.NettySocketIOConfigurationFactory;
 import com.socketio4j.socketio.micronaut.config.NettySocketIOHttpRequestDecoderConfigurationProperties;
 import com.socketio4j.socketio.micronaut.config.NettySocketIOSocketConfigProperties;
 import com.socketio4j.socketio.micronaut.config.NettySocketIOSslConfigProperties;
+import com.socketio4j.socketio.protocol.JacksonJsonSupport;
+import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 import com.socketio4j.socketio.test.micronaut.BaseMicronautApplicationTest;
 
 import io.micronaut.context.annotation.Property;
 import jakarta.inject.Inject;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 @DisplayName("Test for Socket.IO configuration properties")
@@ -56,6 +64,8 @@ public class SocketIOOriginConfigurationTest extends BaseMicronautApplicationTes
     private NettySocketIOSocketConfigProperties nettySocketIOSocketConfigProperties;
     @Inject
     private NettySocketIOSslConfigProperties nettySocketIOSslConfigProperties;
+    @Inject
+    private Configuration injectedConfiguration;
 
     @Test
     @DisplayName("Test basic configuration properties")
@@ -162,5 +172,52 @@ public class SocketIOOriginConfigurationTest extends BaseMicronautApplicationTes
                 socketSslConfig.getSSLProtocol());
         assertEquals(nettySocketIOSslConfigProperties.getKeyManagerFactoryAlgorithm(),
                 socketSslConfig.getKeyManagerFactoryAlgorithm());
+
+        assertFalse(nettySocketIOSslConfigProperties.isSslProtocolExplicitlySet());
+        assertNotNull(injectedConfiguration.getSocketSslConfig());
+        assertTrue(injectedConfiguration.getSocketSslConfig().hasKeyStore(),
+                "classpath:keystore.jks must be resolved into a valid keystore stream");
+        assertFalse(injectedConfiguration.getSocketSslConfig().isSSLProtocolExplicitlySet(),
+                "Default SSL protocol must not pin TLSv1 unless explicitly configured");
+    }
+
+    @Test
+    @DisplayName("Should fail fast on missing keystore and propagate explicit SSL protocol")
+    public void testSslConfigFactoryPositiveAndNegativeCases() {
+        NettySocketIOConfigurationFactory factory = new NettySocketIOConfigurationFactory();
+
+        NettySocketIOSslConfigProperties missingKeyStoreProps = new NettySocketIOSslConfigProperties();
+        missingKeyStoreProps.setKeyStore("classpath:non-existent-keystore.jks");
+        missingKeyStoreProps.setKeyStorePassword("test123456");
+
+        assertThrows(IllegalStateException.class, () -> factory.nettySocketIOConfiguration(
+                nettySocketIOBasicConfigurationProperties,
+                new DefaultExceptionListener(),
+                nettySocketIOSocketConfigProperties,
+                new MemoryStoreFactory(),
+                new JacksonJsonSupport(),
+                new SuccessAuthorizationListener(),
+                nettySocketIOHttpRequestDecoderConfigurationProperties,
+                missingKeyStoreProps
+        ));
+
+        NettySocketIOSslConfigProperties explicitProtocolProps = new NettySocketIOSslConfigProperties();
+        explicitProtocolProps.setKeyStore("classpath:keystore.jks");
+        explicitProtocolProps.setKeyStorePassword("test123456");
+        explicitProtocolProps.setSslProtocol("TLSv1.3");
+
+        Configuration explicitConfig = factory.nettySocketIOConfiguration(
+                nettySocketIOBasicConfigurationProperties,
+                new DefaultExceptionListener(),
+                nettySocketIOSocketConfigProperties,
+                new MemoryStoreFactory(),
+                new JacksonJsonSupport(),
+                new SuccessAuthorizationListener(),
+                nettySocketIOHttpRequestDecoderConfigurationProperties,
+                explicitProtocolProps
+        );
+        assertTrue(explicitConfig.getSocketSslConfig().isSSLProtocolExplicitlySet());
+        assertEquals("TLSv1.3", explicitConfig.getSocketSslConfig().getSSLProtocol());
+        assertTrue(explicitConfig.getSocketSslConfig().hasKeyStore());
     }
 }

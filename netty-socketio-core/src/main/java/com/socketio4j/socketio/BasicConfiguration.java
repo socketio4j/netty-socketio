@@ -561,7 +561,7 @@ public abstract class BasicConfiguration {
      * Set the maximum decompression buffer size for WebSocket compression.
      * Used to limit memory consumption during WebSocket message decompression.
      * <p>
-     * Default is <code>0</code> which means unlimited
+     * Default is <code>65536</code> (64 KB). Set to <code>0</code> for unlimited.
      *
      * `@param` decompressionBufferSize - buffer size in bytes, or 0 for [unlimited/default]
      */
