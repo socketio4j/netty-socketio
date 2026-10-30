@@ -19,8 +19,14 @@ package com.socketio4j.socketio;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import javax.net.ssl.KeyManagerFactory;
+
+import com.socketio4j.socketio.misc.EventLoopSafety;
 
 public class SocketSslConfig {
     private String sslProtocol = "TLSv1";
@@ -75,12 +81,14 @@ public class SocketSslConfig {
      * Whether a key store is configured (stream not yet consumed or already buffered).
      */
     public boolean hasKeyStore() {
+        EventLoopSafety.requireBlockingAllowed();
         synchronized (sslMaterialLock) {
             return keyStore != null || cachedKeyStoreBytes != null;
         }
     }
 
     byte[] resolveKeyStoreBytes() throws IOException {
+        EventLoopSafety.requireBlockingAllowed();
         synchronized (sslMaterialLock) {
             if (cachedKeyStoreBytes != null) {
                 return cachedKeyStoreBytes;
@@ -141,12 +149,14 @@ public class SocketSslConfig {
      * Whether a trust store is configured (stream not yet consumed or already buffered).
      */
     public boolean hasTrustStore() {
+        EventLoopSafety.requireBlockingAllowed();
         synchronized (sslMaterialLock) {
             return trustStore != null || cachedTrustStoreBytes != null;
         }
     }
 
     byte[] resolveTrustStoreBytes() throws IOException {
+        EventLoopSafety.requireBlockingAllowed();
         synchronized (sslMaterialLock) {
             if (cachedTrustStoreBytes != null) {
                 return cachedTrustStoreBytes;
@@ -210,5 +220,108 @@ public class SocketSslConfig {
      */
     public boolean isSSLProtocolExplicitlySet() {
         return sslProtocolExplicitlySet;
+    }
+
+    /**
+     * Resolves an SSL key store or trust store location from a {@code classpath:} resource,
+     * a {@code file:} URI/path, a classpath resource path, or a filesystem path.
+     *
+     * @param location store location (may be {@code null} or blank if not configured)
+     * @param classLoader class loader to use for classpath lookups
+     * @return an open {@link InputStream} for the store, or {@code null} if {@code location} is {@code null} or blank
+     * @throws IllegalStateException if a non-blank location cannot be found or opened
+     */
+    public static InputStream openStoreStream(String location, ClassLoader classLoader) {
+        EventLoopSafety.requireBlockingAllowed();
+        if (location == null) {
+            return null;
+        }
+        String trimmed = location.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        ClassLoader effectiveLoader = classLoader;
+        if (effectiveLoader == null) {
+            effectiveLoader = Thread.currentThread().getContextClassLoader();
+        }
+        if (effectiveLoader == null) {
+            effectiveLoader = SocketSslConfig.class.getClassLoader();
+        }
+
+        if (trimmed.startsWith("classpath:")) {
+            String resourcePath = stripLeadingSlashes(trimmed.substring("classpath:".length()).trim());
+            InputStream stream = getResourceStream(resourcePath, effectiveLoader);
+            if (stream == null) {
+                throw new IllegalStateException("SSL store resource not found on classpath: " + location);
+            }
+            return stream;
+        }
+
+        if (trimmed.startsWith("file:")) {
+            Path filePath = resolveFileLocation(trimmed);
+            return openFileStream(filePath, location);
+        }
+
+        InputStream classpathStream = getResourceStream(stripLeadingSlashes(trimmed), effectiveLoader);
+        if (classpathStream != null) {
+            return classpathStream;
+        }
+
+        Path path = Paths.get(trimmed);
+        if (Files.isRegularFile(path)) {
+            return openFileStream(path, location);
+        }
+
+        throw new IllegalStateException("SSL store not found on classpath or filesystem: " + location);
+    }
+
+    private static String stripLeadingSlashes(String path) {
+        int index = 0;
+        while (index < path.length() && path.charAt(index) == '/') {
+            index++;
+        }
+        return path.substring(index);
+    }
+
+    private static InputStream getResourceStream(String resourcePath, ClassLoader loader) {
+        if (resourcePath.isEmpty()) {
+            return null;
+        }
+        InputStream stream = null;
+        if (loader != null) {
+            stream = loader.getResourceAsStream(resourcePath);
+        }
+        if (stream == null) {
+            ClassLoader contextLoader = Thread.currentThread().getContextClassLoader();
+            if (contextLoader != null && contextLoader != loader) {
+                stream = contextLoader.getResourceAsStream(resourcePath);
+            }
+        }
+        if (stream == null) {
+            ClassLoader ownLoader = SocketSslConfig.class.getClassLoader();
+            if (ownLoader != null && ownLoader != loader) {
+                stream = ownLoader.getResourceAsStream(resourcePath);
+            }
+        }
+        return stream;
+    }
+
+    private static Path resolveFileLocation(String fileLocation) {
+        if (fileLocation.startsWith("file://")) {
+            try {
+                return Paths.get(URI.create(fileLocation));
+            } catch (IllegalArgumentException ignored) {
+                // Fall back to stripping the prefix when the path contains unescaped characters
+            }
+        }
+        return Paths.get(fileLocation.substring("file:".length()).trim());
+    }
+
+    private static InputStream openFileStream(Path path, String originalLocation) {
+        try {
+            return Files.newInputStream(path);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to open SSL store file: " + originalLocation, e);
+        }
     }
 }

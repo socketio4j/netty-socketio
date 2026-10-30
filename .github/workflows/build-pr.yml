@@ -17,11 +17,12 @@ jobs:
 
   build:
     strategy:
+      fail-fast: false
       matrix:
-        java-version:
-          - 17
-          - 21
-          - 25
+        os: [ubuntu-latest, windows-latest, macos-15-intel]
+        java-version: [17, 21, 25]
     uses: ./.github/workflows/build.yml
     with:
+      os: "${{ matrix.os }}"
       javaVersion: "${{ matrix.java-version }}"
+      interopVersions: "smoke"

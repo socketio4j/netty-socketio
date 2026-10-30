@@ -18,9 +18,12 @@ package com.socketio4j.socketio.handler;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -37,6 +40,7 @@ import com.socketio4j.socketio.HandshakeData;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.ack.AckManager;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.messages.HttpErrorMessage;
 import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.namespace.NamespacesHub;
@@ -61,6 +65,7 @@ import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.QueryStringDecoder;
@@ -69,10 +74,14 @@ import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
+@Internal
 @Sharable
 public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Disconnectable {
 
     private static final Logger log = LoggerFactory.getLogger(AuthorizeHandler.class);
+
+    private static final Set<String> SENSITIVE_HEADERS =
+            new HashSet<>(Arrays.asList("cookie", "authorization", "proxy-authorization", "x-api-key"));
 
     private final CancelableScheduler scheduler;
 
@@ -110,6 +119,17 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
     }
 
     @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, ctx.channel());
+        scheduler.cancel(key);
+        super.channelInactive(ctx);
+    }
+
+    public boolean isOriginAllowed(String origin) {
+        return origin == null || configuration == null || configuration.isOriginAllowed(origin);
+    }
+
+    @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, ctx.channel());
         scheduler.cancel(key);
@@ -134,9 +154,38 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
                 return;
             }
 
+            if (queryDecoder.path().equals(connectPath)
+                    && !hasSupportedEngineIOVersion(queryDecoder.parameters())) {
+                writeAndFlushBadRequest(channel);
+                req.release();
+                return;
+            }
+
+            if (queryDecoder.path().equals(connectPath)
+                    && !hasSupportedTransport(queryDecoder.parameters())) {
+                writeAndFlushTransportError(channel, req.headers().get(HttpHeaderNames.ORIGIN));
+                req.release();
+                return;
+            }
+
+            // A CORS preflight is not an Engine.IO session handshake. In
+            // particular it must not allocate a sid just because it has no sid.
+            if (HttpMethod.OPTIONS.equals(req.method())) {
+                ctx.fireChannelRead(msg);
+                return;
+            }
+
             List<String> sid = queryDecoder.parameters().get("sid");
             if (queryDecoder.path().equals(connectPath)
                     && sid == null) {
+                // An Engine.IO session is opened only by a GET (including the
+                // HTTP GET that upgrades to WebSocket). A POST/PUT without a
+                // sid is never a handshake and must not allocate a session.
+                if (!HttpMethod.GET.equals(req.method())) {
+                    writeAndFlushBadRequest(channel);
+                    req.release();
+                    return;
+                }
                 if (log.isDebugEnabled()) {
                     log.debug("Processing new connection request from client: {}", channel.remoteAddress());
                 }
@@ -146,9 +195,17 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
                     return;
                 }
                 // forward message to polling or websocket handler to bind channel
-            } else if (sid != null) {
+            } else if (sid != null && queryDecoder.path().equals(connectPath)) {
                 if (log.isDebugEnabled()) {
                     log.debug("Processing existing session request: {} from client: {}", sid, channel.remoteAddress());
+                }
+                String origin = req.headers().get(HttpHeaderNames.ORIGIN);
+                if (origin != null && !configuration.isOriginAllowed(origin)) {
+                    log.warn("Blocked existing session request from disallowed origin: {}, client: {}", origin, channel.remoteAddress());
+                    HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.FORBIDDEN);
+                    channel.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
+                    req.release();
+                    return;
                 }
             }
         }
@@ -161,8 +218,19 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             log.debug("Starting authorization for client: {} with origin: {}", channel.remoteAddress(), origin);
         }
         
+        if (origin != null && !configuration.isOriginAllowed(origin)) {
+            log.warn("Blocked handshake from disallowed origin: {}, client: {}", origin, channel.remoteAddress());
+            HttpResponse res = new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.FORBIDDEN);
+            channel.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
+            return false;
+        }
+
         Map<String, List<String>> headers = new HashMap<String, List<String>>(req.headers().names().size());
         for (String name : req.headers().names()) {
+            if (SENSITIVE_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
+                headers.put(name, Collections.singletonList("[redacted]"));
+                continue;
+            }
             List<String> values = req.headers().getAll(name);
             headers.put(name, values);
         }
@@ -204,6 +272,10 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
             }
         } else {
             sessionId = this.generateOrGetSessionIdFromRequest(req.headers());
+            if (clientsBox.get(sessionId) != null) {
+                log.warn("Client supplied an already used session id, generating a new one");
+                sessionId = UUID.randomUUID();
+            }
             if (log.isDebugEnabled()) {
                 log.debug("Retrieved existing session ID: {} for client: {}", sessionId, channel.remoteAddress());
             }
@@ -256,8 +328,8 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
         //:TODO lyjnew   Current WEBSOCKET retrun upgrade[] engine-io protocol
         // the test case line
         // https://github.com/socketio/engine.io-protocol/blob/de247df875ddcd4778d1165829c8644301750e9f/test-suite/test-suite.js#L131C43-L131C43
-        if (configuration.getTransports().contains(Transport.WEBSOCKET)
-                && !(EngineIOVersion.V4.equals(client.getEngineIOVersion()) && Transport.WEBSOCKET.equals(client.getCurrentTransport())))  {
+        if (Transport.POLLING.equals(client.getCurrentTransport())
+                && configuration.getTransports().contains(Transport.WEBSOCKET)) {
             transports = new String[]{"websocket"};
             if (log.isDebugEnabled()) {
                 log.debug("WebSocket upgrade available for client: {}", channel.remoteAddress());
@@ -265,8 +337,8 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
         }
 
         AuthPacket authPacket = new AuthPacket(sessionId, transports, configuration.getPingInterval(),
-                configuration.getPingTimeout());
-        Packet packet = new Packet(PacketType.OPEN, client.getEngineIOVersion());
+                configuration.getPingTimeout(), configuration.getMaxHttpContentLength());
+        Packet packet = new Packet(PacketType.OPEN);
         packet.setData(authPacket);
         
         if (log.isDebugEnabled()) {
@@ -279,6 +351,29 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
         client.schedulePingTimeout();
         log.debug("Handshake authorized for sessionId: {}, query params: {} headers: {}", sessionId, params, headers);
         return true;
+    }
+
+    private boolean hasSupportedEngineIOVersion(Map<String, List<String>> params) {
+        List<String> versions = params.get(EngineIOVersion.EIO);
+        return versions != null && versions.size() == 1 && EngineIOVersion.isSupported(versions.get(0));
+    }
+
+    private boolean hasSupportedTransport(Map<String, List<String>> params) {
+        List<String> transports = params.get("transport");
+        if (transports == null || transports.size() != 1) {
+            return false;
+        }
+        for (Transport transport : Transport.values()) {
+            if (transport.getValue().equals(transports.get(0))) {
+                return configuration.getTransports().contains(transport);
+            }
+        }
+        return false;
+    }
+
+    private void writeAndFlushBadRequest(Channel channel) {
+        channel.writeAndFlush(new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.BAD_REQUEST))
+                .addListener(ChannelFutureListener.CLOSE);
     }
 
     private void writeAndFlushTransportError(Channel channel, String origin) {
@@ -331,22 +426,30 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
     }
 
     public void connect(ClientHead client) {
+        if (!client.isConnected()) {
+            return;
+        }
         if (log.isDebugEnabled()) {
             log.debug("Connecting client: {} to default namespace", client.getSessionId());
         }
         
+        if (EngineIOVersion.V4.equals(client.getEngineIOVersion())) {
+            // Socket.IO protocol v5 requires the client to explicitly send its CONNECT
+            // packet. Registering the default namespace here would invoke application
+            // connect listeners before authentication and make the later "40" a second
+            // connection attempt.
+            return;
+        }
+
         Namespace ns = namespacesHub.get(Namespace.DEFAULT_NAME);
 
         if (!client.getNamespaces().contains(ns)) {
-            Packet packet = new Packet(PacketType.MESSAGE, client.getEngineIOVersion());
+            Packet packet = new Packet(PacketType.MESSAGE);
             packet.setSubType(PacketType.CONNECT);
-            //::TODO lyjnew V4 delay send connect packet  ON client add Namecapse
-            if (!EngineIOVersion.V4.equals(client.getEngineIOVersion())) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Sending CONNECT packet to client: {}", client.getSessionId());
-                }
-                client.send(packet);
+            if (log.isDebugEnabled()) {
+                log.debug("Sending CONNECT packet to client: {}", client.getSessionId());
             }
+            client.send(packet);
 
             configuration.getStoreFactory().eventStore().publish(EventType.CONNECT, new ConnectMessage(client.getSessionId()));
 

@@ -20,25 +20,19 @@ package com.socketio4j.socketio.store.kafka.serialization;
  * @author https://github.com/sanjomo
  * @date 15/12/25 6:21 pm
  */
-
 import org.apache.kafka.common.serialization.Deserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.socketio4j.socketio.store.event.EventMessage;
+import com.socketio4j.socketio.store.event.EventMessageJsonSupport;
 
 public final class EventMessageDeserializer
         implements Deserializer<EventMessage> {
     private static final Logger log = LoggerFactory.getLogger(EventMessageDeserializer.class);
 
-    private static final ObjectMapper MAPPER =
-            JsonMapper.builder()
-                    .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                    .enable(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE)
-                    .build();
+    private static final ObjectMapper MAPPER = EventMessageJsonSupport.createObjectMapper();
 
     @Override
     public EventMessage deserialize(String topic, byte[] data) {

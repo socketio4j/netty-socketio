@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOChannelInitializer;
 import com.socketio4j.socketio.Transport;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.handler.AuthorizeHandler;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.handler.ClientsBox;
@@ -43,10 +44,12 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
@@ -60,6 +63,9 @@ import io.netty.handler.codec.http.websocketx.WebSocketFrameAggregator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory;
 
+import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+
+@Internal
 @Sharable
 public class WebSocketTransport extends ChannelInboundHandlerAdapter {
 
@@ -131,23 +137,38 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
             List<String> transport = queryDecoder.parameters().get("transport");
             List<String> sid = queryDecoder.parameters().get("sid");
 
-            if (transport != null && NAME.equals(transport.get(0))) {
+            if (transport != null && transport.size() == 1 && NAME.equals(transport.get(0))) {
                 try {
+                    String origin = req.headers().get(HttpHeaderNames.ORIGIN);
+                    if (origin != null && !configuration.isOriginAllowed(origin)) {
+                        log.warn("Blocked websocket request from disallowed origin: {}, client: {}", origin, ctx.channel().remoteAddress());
+                        writeForbidden(ctx);
+                        return;
+                    }
                     if (!configuration.getTransports().contains(Transport.WEBSOCKET)) {
                         log.debug("{} transport not supported by configuration.", Transport.WEBSOCKET);
                         ctx.channel().close();
                         return;
                     }
-                    if (sid != null && sid.get(0) != null) {
+                    if (sid != null && sid.size() == 1 && sid.get(0) != null) {
                         final UUID sessionId = UUID.fromString(sid.get(0));
+                        if (clientsBox.get(sessionId) == null) {
+                            writeBadRequest(ctx);
+                            return;
+                        }
                         handshake(ctx, sessionId, path, req);
-                    } else {
+                    } else if (sid == null) {
                         ClientHead client = ctx.channel().attr(ClientHead.CLIENT).get();
                         // first connection
                         if (client != null) {
                             handshake(ctx, client.getSessionId(), path, req);
                         }
+                    } else {
+                        writeBadRequest(ctx);
                     }
+                } catch (IllegalArgumentException e) {
+                    log.debug("Malformed WebSocket sid in {}", req.uri(), e);
+                    writeBadRequest(ctx);
                 } finally {
                     req.release();
                 }
@@ -166,6 +187,17 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
             ctx.flush();
         }
         super.channelReadComplete(ctx);
+    }
+
+    @Override
+    public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
+        if (ctx.channel().isWritable()) {
+            ClientHead client = clientsBox.get(ctx.channel());
+            if (client != null && client.isTransportChannel(ctx.channel(), Transport.WEBSOCKET)) {
+                client.flush(Transport.WEBSOCKET);
+            }
+        }
+        super.channelWritabilityChanged(ctx);
     }
 
     /**
@@ -193,7 +225,7 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         final  Channel channel = ctx.channel();
         ClientHead client = clientsBox.get(channel);
-        Packet packet = new Packet(PacketType.MESSAGE, getEngineIOVersion(client));
+        Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.DISCONNECT);
         if (client != null && client.isTransportChannel(ctx.channel(), Transport.WEBSOCKET)) {
             log.debug("channel inactive {}", client.getSessionId());
@@ -254,7 +286,7 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
         log.info("Client with sessionId: {} was disconnected", sessionId);
     }
 
-    private void connectClient(final Channel channel, final UUID sessionId) {
+    void connectClient(final Channel channel, final UUID sessionId) {
         ClientHead client = clientsBox.get(sessionId);
         if (client == null) {
             log.warn("Unauthorized client with sessionId: {} with ip: {}. Channel closed!",
@@ -263,7 +295,13 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        client.bindChannel(channel, Transport.WEBSOCKET);
+        if (!client.tryBindWebSocketChannel(channel)) {
+            log.debug("Rejecting a second WebSocket for session {}", sessionId);
+            // Engine.IO requires the new WebSocket to be closed. It must not
+            // tear down the session or the WebSocket that is already bound to it.
+            channel.close();
+            return;
+        }
 
         authorizeHandler.connect(client);
 
@@ -294,11 +332,21 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
         return protocol + req.headers().get(HttpHeaderNames.HOST) + req.uri();
     }
 
+    private void writeBadRequest(ChannelHandlerContext ctx) {
+        ctx.channel().writeAndFlush(new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.BAD_REQUEST))
+                .addListener(ChannelFutureListener.CLOSE);
+    }
+
+    private void writeForbidden(ChannelHandlerContext ctx) {
+        ctx.channel().writeAndFlush(new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.FORBIDDEN))
+                .addListener(ChannelFutureListener.CLOSE);
+    }
+
     private EngineIOVersion getEngineIOVersion(ClientHead client) {
         if (client != null) {
             return client.getEngineIOVersion();
         }
-        return EngineIOVersion.UNKNOWN;
+        return EngineIOVersion.V4;
     }
 
 }

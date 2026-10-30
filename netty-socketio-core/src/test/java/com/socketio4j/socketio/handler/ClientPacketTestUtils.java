@@ -16,8 +16,12 @@
  */
 package com.socketio4j.socketio.handler;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Queue;
 
+import com.socketio4j.socketio.protocol.EngineIOVersion;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketType;
 
@@ -104,16 +108,55 @@ public class ClientPacketTestUtils {
      * @param expectedErrorMessage The expected error message
      * @throws AssertionError if the error packet doesn't match expectations
      */
-    public static void assertErrorPacketSent(ClientHead client, String expectedNamespace, String expectedErrorMessage) {
+    public static void assertErrorPacketSent(ClientHead client,
+                                             String expectedNamespace,
+                                             Object expectedErrorData) {
+
         // Verify the basic packet structure
         assertClientSentPacket(client, PacketType.MESSAGE, PacketType.ERROR);
 
-        // Get the packet and verify error-specific details
-        Queue<Packet> packetQueue = client.getPacketsQueue(client.getCurrentTransport());
+        Queue<Packet> packetQueue =
+                client.getPacketsQueue(client.getCurrentTransport());
+
         Packet errorPacket = packetQueue.peek();
 
-        assertEquals(expectedNamespace, errorPacket.getNsp(), "Error packet namespace should match expected");
-        assertEquals(expectedErrorMessage, errorPacket.getData(), "Error packet message should match expected");
+        assertEquals(expectedNamespace,
+                errorPacket.getNsp(),
+                "Error packet namespace should match expected");
+
+        Object expectedPayload = getExpectedPayload(client, expectedErrorData);
+
+        assertEquals(expectedPayload,
+                errorPacket.getData(),
+                "Error packet payload should match expected");
+    }
+
+    private static Object getExpectedPayload(ClientHead client, Object expectedErrorData) {
+        Object expectedPayload;
+
+        if (client.getEngineIOVersion() == EngineIOVersion.V4) {
+
+            if (expectedErrorData instanceof Map) {
+                expectedPayload = expectedErrorData;
+            } else if (expectedErrorData != null) {
+                expectedPayload = Collections.singletonMap(
+                        "message",
+                        String.valueOf(expectedErrorData));
+            } else {
+                expectedPayload = Collections.singletonMap(
+                        "message",
+                        "Authentication failed");
+            }
+
+        } else {
+
+            if (expectedErrorData != null) {
+                expectedPayload = String.valueOf(expectedErrorData);
+            } else {
+                expectedPayload = "Authentication failed";
+            }
+        }
+        return expectedPayload;
     }
 
     /**

@@ -18,10 +18,11 @@ package com.socketio4j.socketio.metrics;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -35,11 +36,16 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
     private final boolean histogramEnabled;
     private static final XXHash64 XX_HASH =
             XXHashFactory.fastestInstance().hash64();
-    private final ExecutorService executorService = Executors.newSingleThreadExecutor(r -> {
-        Thread t = new Thread(r);
-        t.setDaemon(true);
-        return t;
-    });
+    private final ExecutorService executorService = new ThreadPoolExecutor(
+            1, 1, 0L, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(4096),
+            r -> {
+                Thread t = new Thread(r);
+                t.setDaemon(true);
+                return t;
+            },
+            new ThreadPoolExecutor.DiscardPolicy()
+    );
     private static long hashToLong(String key) {
         byte[] bytes = key.getBytes(StandardCharsets.UTF_8);
         return XX_HASH.hash(bytes, 0, bytes.length, 0);
@@ -68,9 +74,16 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     private final ConcurrentMap<String, NamespaceMeters> namespaces = new ConcurrentHashMap<>();
 
+    private static String normalizeNs(String ns) {
+        if (ns == null || ns.isEmpty()) {
+            return "default";
+        }
+        return ns;
+    }
+
     private NamespaceMeters ns(String namespace) {
         return namespaces.computeIfAbsent(
-                namespace,
+                normalizeNs(namespace),
                 n -> new NamespaceMeters(registry, n, histogramEnabled)
         );
     }
@@ -80,17 +93,11 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void eventReceived(String ns) {
-        if (ns.isEmpty()) {
-            ns = "default";
-        }
         ns(ns).getEventReceived().increment();
     }
 
     @Override
     public void eventHandled(String ns, long durationNanos) {
-        if (ns.isEmpty()) {
-            ns = "default";
-        }
         NamespaceMeters m = ns(ns);
         if (durationNanos > 0) {
             m.getEventProcessing().record(durationNanos, TimeUnit.NANOSECONDS);
@@ -100,17 +107,16 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void eventFailed(String ns) {
-        if (ns.isEmpty()) {
-            ns = "default";
-        }
         ns(ns).getEventFailed().increment();
     }
 
     @Override
+    public void eventPublishFailed(String ns) {
+        ns(ns).getEventPublishFailed().increment();
+    }
+
+    @Override
     public void eventSent(String ns, int recipients) {
-        if (ns.isEmpty()) {
-            ns = "default";
-        }
         NamespaceMeters m = ns(ns);
 
         if (recipients > 0) {
@@ -120,24 +126,17 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void unknownEventReceived(String ns) {
-        if (ns.isEmpty()) {
-            ns = "default";
-        }
         ns(ns).getEventUnknown().increment();
     }
 
     @Override
     public void unknownEventNames(String ns, String eventName) {
-        if (ns.isEmpty()) {
-            ns = "default";
-        }
         if (eventName == null) {
             return;
         }
-        final String finalNs = ns;
+        final String resolvedNs = normalizeNs(ns);
         executorService.execute(() -> {
-            ns(finalNs).recordUnknownEvent(hashToLong(finalNs + ":" + eventName));
-
+            ns(resolvedNs).recordUnknownEvent(hashToLong(resolvedNs + ":" + eventName));
         });
     }
 
@@ -145,9 +144,6 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void ackSent(String ns, long latencyNanos) {
-        if (ns.isEmpty()) {
-            ns = "default";
-        }
         NamespaceMeters m = ns(ns);
         if (latencyNanos > 0) {
             m.getAckLatency().record(latencyNanos, TimeUnit.NANOSECONDS);
@@ -157,9 +153,6 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void ackMissing(String ns) {
-        if (ns.isEmpty()) {
-            ns = "default";
-        }
         ns(ns).getAckMissing().increment();
     }
 
@@ -167,9 +160,6 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void connect(String ns) {
-        if (ns.isEmpty()) {
-            ns = "default";
-        }
         NamespaceMeters m = ns(ns);
         m.getConnect().increment();
         m.getConnected().incrementAndGet();
@@ -177,21 +167,15 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void disconnect(String ns) {
-        if (ns.isEmpty()) {
-            ns = "default";
-        }
         NamespaceMeters m = ns(ns);
         m.getDisconnect().increment();
-        m.getConnected().decrementAndGet();
+        m.getConnected().getAndUpdate(v -> Math.max(0, v - 1));
     }
 
     /* ===================== Rooms ===================== */
 
     @Override
     public void roomJoin(String ns) {
-        if (ns.isEmpty()) {
-            ns = "default";
-        }
         NamespaceMeters m = ns(ns);
         m.getRoomJoin().increment();
         m.getRoomMembers().incrementAndGet();
@@ -199,9 +183,6 @@ public final class MicrometerSocketIOMetrics implements SocketIOMetrics {
 
     @Override
     public void roomLeave(String ns) {
-        if (ns.isEmpty()) {
-            ns = "default";
-        }
         NamespaceMeters m = ns(ns);
         m.getRoomLeave().increment();
         m.getRoomMembers().getAndUpdate(v -> Math.max(0, v - 1));

@@ -17,8 +17,10 @@
 package com.socketio4j.socketio.messages;
 
 import com.socketio4j.socketio.Transport;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.handler.ClientHead;
 
+@Internal
 public class OutPacketMessage extends HttpMessage {
 
     private final ClientHead clientHead;

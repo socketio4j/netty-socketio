@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Queue;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -29,6 +30,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -48,12 +50,21 @@ import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
+import com.socketio4j.socketio.misc.EventLoopSafety;
+import com.socketio4j.socketio.store.event.BulkJoinMessage;
+import com.socketio4j.socketio.store.event.BulkLeaveMessage;
+import com.socketio4j.socketio.store.event.ConnectMessage;
+import com.socketio4j.socketio.store.event.DisconnectMessage;
+import com.socketio4j.socketio.store.event.DispatchMessage;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
 import com.socketio4j.socketio.store.event.EventStoreMode;
 import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
+import com.socketio4j.socketio.store.event.JoinMessage;
+import com.socketio4j.socketio.store.event.LeaveMessage;
 import com.socketio4j.socketio.store.event.ListenerRegistration;
 
 /**
@@ -100,6 +111,8 @@ public final class KafkaEventStore implements EventStore {
     private final ConcurrentMap<EventType, CompletableFuture<Void>> consumerBootstrapped =
             new ConcurrentHashMap<>();
 
+    private final SocketIOMetrics metrics;
+
     // ---------------------------------------------------------------------
     // Constructor
     // ---------------------------------------------------------------------
@@ -109,14 +122,15 @@ public final class KafkaEventStore implements EventStore {
             @NotNull Properties consumerProps,
             @Nullable Long nodeId,
             @Nullable EventStoreMode mode,
-            @Nullable String topicPrefix
+            @Nullable String topicPrefix,
+            @Nullable SocketIOMetrics metrics
     ) {
 
         this.producer = Objects.requireNonNull(producer);
         this.consumerProps = Objects.requireNonNull(consumerProps);
 
-        if (nodeId == null){
-            nodeId = getNodeId();
+        if (nodeId == null) {
+            nodeId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
         }
         this.nodeId = Objects.requireNonNull(nodeId);
         if (mode == null) {
@@ -127,6 +141,21 @@ public final class KafkaEventStore implements EventStore {
             topicPrefix = "SOCKETIO4J-";
         }
         this.topicPrefix = Objects.requireNonNull(topicPrefix);
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    public KafkaEventStore(
+            @NotNull KafkaProducer<String, EventMessage> producer,
+            @NotNull Properties consumerProps,
+            @Nullable Long nodeId,
+            @Nullable EventStoreMode mode,
+            @Nullable String topicPrefix
+    ) {
+        this(producer, consumerProps, nodeId, mode, topicPrefix, SocketIOMetrics.noop());
     }
 
     // ---------------------------------------------------------------------
@@ -165,25 +194,84 @@ public final class KafkaEventStore implements EventStore {
      */
     @Override
     public void publish0(EventType type, EventMessage msg) {
+        if (msg == null) {
+            return;
+        }
 
         msg.setNodeId(nodeId);
 
         String topic = topic(resolve(type));
         ProducerRecord<String, EventMessage> record =
-                new ProducerRecord<>(topic, type.name(), msg);
+                new ProducerRecord<>(topic, resolveRecordKey(type, msg), msg);
 
-        producer.send(record, (metadata, ex) -> {
-            if (ex != null) {
-                log.error("Kafka publish failed {}", type, ex);
-            } else {
-                log.debug(
-                        "Kafka published topic={} partition={} offset={}",
-                        metadata.topic(),
-                        metadata.partition(),
-                        metadata.offset()
-                );
+        try {
+            producer.send(record, (metadata, ex) -> {
+                if (ex != null) {
+                    log.error("Kafka publish failed {}", type, ex);
+                    metrics.eventPublishFailed(extractNamespace(msg));
+                } else {
+                    log.debug(
+                            "Kafka published topic={} partition={} offset={}",
+                            metadata.topic(),
+                            metadata.partition(),
+                            metadata.offset()
+                    );
+                }
+            });
+        } catch (Exception ex) {
+            log.error("Kafka initiate publish failed for {}", type, ex);
+            metrics.eventPublishFailed(extractNamespace(msg));
+        }
+    }
+
+    private String resolveRecordKey(EventType type, EventMessage msg) {
+        if (msg instanceof DispatchMessage) {
+            String room = ((DispatchMessage) msg).getRoom();
+            if (room != null && !room.isEmpty()) {
+                return room;
             }
-        });
+        } else if (msg instanceof JoinMessage) {
+            String room = ((JoinMessage) msg).getRoom();
+            if (room != null && !room.isEmpty()) {
+                return room;
+            }
+        } else if (msg instanceof LeaveMessage) {
+            String room = ((LeaveMessage) msg).getRoom();
+            if (room != null && !room.isEmpty()) {
+                return room;
+            }
+        } else if (msg instanceof BulkJoinMessage) {
+            UUID sessionId = ((BulkJoinMessage) msg).getSessionId();
+            if (sessionId != null) {
+                return sessionId.toString();
+            }
+        } else if (msg instanceof BulkLeaveMessage) {
+            UUID sessionId = ((BulkLeaveMessage) msg).getSessionId();
+            if (sessionId != null) {
+                return sessionId.toString();
+            }
+        } else if (msg instanceof DisconnectMessage) {
+            UUID sessionId = ((DisconnectMessage) msg).getSessionId();
+            if (sessionId != null) {
+                return sessionId.toString();
+            }
+        } else if (msg instanceof ConnectMessage) {
+            UUID sessionId = ((ConnectMessage) msg).getSessionId();
+            if (sessionId != null) {
+                return sessionId.toString();
+            }
+        }
+        return type.name();
+    }
+
+    @Override
+    public SocketIOMetrics getMetrics() {
+        return this.metrics;
+    }
+
+    @Override
+    public Long getNodeId() {
+        return this.nodeId;
     }
 
     // ---------------------------------------------------------------------
@@ -219,6 +307,7 @@ public final class KafkaEventStore implements EventStore {
     }
 
     private void awaitPollerBootstrap(EventType type) {
+        EventLoopSafety.requireBlockingAllowed();
         CompletableFuture<Void> signal = consumerBootstrapped.get(type);
         if (signal == null) {
             return;
@@ -307,6 +396,7 @@ public final class KafkaEventStore implements EventStore {
      * @throws IllegalStateException if topic partitions cannot be discovered after retries
      */
     private KafkaConsumer<String, EventMessage> createConsumer(EventType type) {
+        EventLoopSafety.requireBlockingAllowed();
 
         Properties props = new Properties();
         props.putAll(consumerProps);
@@ -412,7 +502,7 @@ public final class KafkaEventStore implements EventStore {
 
                         EventMessage msg = rec.value();
                         // Skip null messages and messages from this node (already processed locally)
-                        if (msg == null || nodeId.equals(msg.getNodeId())) {
+                        if (msg == null || Objects.equals(this.nodeId, msg.getNodeId())) {
                             continue;
                         }
 
@@ -423,7 +513,11 @@ public final class KafkaEventStore implements EventStore {
                                         rec.offset()
                         );
 
-                        dispatch(type, msg);
+                        try {
+                            dispatch(type, msg);
+                        } catch (Exception t) {
+                            log.error("Unhandled error dispatching event {} for type {}", msg, type, t);
+                        }
                     }
 
                 } catch (RecordDeserializationException e) {
@@ -441,7 +535,12 @@ public final class KafkaEventStore implements EventStore {
 
                     // Continue loop → next poll()
                 } catch (WakeupException e) {
-                    // Expected during shutdown - consumer.wakeup() was called
+                    // Expected during shutdown or unsubscribe - consumer.wakeup() was called
+                    if (running.get() && consumers.get(type) == consumer) {
+                        log.error("Unexpected Kafka consumer wakeup for type {}", type, e);
+                        throw e;
+                    }
+                    log.debug("Kafka consumer wakeup for type {}", type);
                     break;
                 }
             }
@@ -450,6 +549,7 @@ public final class KafkaEventStore implements EventStore {
         } finally {
             try {
                 consumer.close();
+                consumers.remove(type, consumer);
             } catch (Exception e) {
                 log.warn("Error closing Kafka consumer {}", type, e);
             }
@@ -476,9 +576,13 @@ public final class KafkaEventStore implements EventStore {
 
         for (ListenerRegistration<? extends EventMessage> reg : regs) {
             if (reg.getClazz().isInstance(msg)) {
-                ((ListenerRegistration<T>) reg)
-                        .getListener()
-                        .onMessage((T) msg);
+                try {
+                    ((ListenerRegistration<T>) reg)
+                            .getListener()
+                            .onMessage((T) msg);
+                } catch (Exception t) {
+                    log.error("Unhandled error in event listener for type {}: {}", type, msg, t);
+                }
             }
         }
     }
@@ -489,43 +593,78 @@ public final class KafkaEventStore implements EventStore {
 
     @Override
     public void unsubscribe0(EventType type) {
+        EventLoopSafety.requireBlockingAllowed();
 
         listeners.remove(type);
         consumerBootstrapped.remove(type);
 
         KafkaConsumer<?, ?> consumer = consumers.remove(type);
         if (consumer != null) {
-            consumer.wakeup(); // primary shutdown signal
+            consumer.wakeup();
         }
 
-        ExecutorService exec = pollers.remove(type);
-        if (exec != null) {
-            exec.shutdown(); // graceful
+        ExecutorService executor = pollers.remove(type);
+        if (executor != null) {
+            executor.shutdown();
 
-            if (exec.isTerminated()) {
-                log.info("exec {} terminated", type);
+            try {
+                if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
+                    log.warn("Kafka poller for {} did not terminate within 30 seconds; forcing shutdown", type);
+
+                    executor.shutdownNow();
+
+                    if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                        log.warn("Kafka poller for {} did not terminate after forced shutdown", type);
+                    }
+                }
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
             }
         }
     }
 
-
     @Override
     public void shutdown0() {
+        EventLoopSafety.requireBlockingAllowed();
+        if (!running.compareAndSet(true, false)) {
+            return;
+        }
         running.set(false);
 
-        listeners.clear();
-        consumerBootstrapped.clear();
-
+        // Interrupt any blocking poll()
         consumers.values().forEach(KafkaConsumer::wakeup);
-        consumers.clear();
 
-        pollers.values().forEach(ExecutorService::shutdownNow);
-        pollers.clear();
+        // Stop accepting new polling tasks
+        pollers.values().forEach(ExecutorService::shutdown);
+
+        // Wait for pollers to close their consumers
+        for (ExecutorService executor : pollers.values()) {
+            try {
+                if (!executor.awaitTermination(30, TimeUnit.SECONDS)) {
+                    log.warn("Kafka poller did not terminate within 30 seconds; forcing shutdown");
+                    executor.shutdownNow();
+
+                    if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                        log.warn("Kafka poller did not terminate after forced shutdown");
+                    }
+                }
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
 
         try {
-            producer.flush();
+            producer.close(); // flushes before closing
+        } catch (Exception e) {
+            log.warn("Error closing Kafka producer", e);
         } finally {
-            producer.close();
+            consumers.clear();
+            pollers.clear();
+            listeners.clear();
+            consumerBootstrapped.clear();
         }
     }
 
