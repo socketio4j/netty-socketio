@@ -1947,4 +1947,189 @@ public class PacketDecoderTest extends BaseProtocolTest {
                 )
         );
     }
+
+    @Test
+    void testDecodeConnectAndErrorWithJsonArrayInPayload() throws IOException {
+        JacksonJsonSupport realJson = new JacksonJsonSupport();
+        PacketDecoder realDecoder = new PacketDecoder(realJson, ackManager);
+
+        ByteBuf defaultNspBuf = Unpooled.copiedBuffer(
+                "40{\"roles\":[\"admin\",\"editor\"],\"q\":\"why?\"}", CharsetUtil.UTF_8);
+        try {
+            Packet pkt1 = realDecoder.decodePackets(defaultNspBuf, clientHead);
+            assertNotNull(pkt1);
+            assertEquals(PacketType.MESSAGE, pkt1.getType());
+            assertEquals(PacketType.CONNECT, pkt1.getSubType());
+            assertEquals("", pkt1.getNsp());
+            Map<?, ?> data1 = (Map<?, ?>) pkt1.getData();
+            assertNotNull(data1);
+            assertEquals(Arrays.asList("admin", "editor"), data1.get("roles"));
+            assertEquals("why?", data1.get("q"));
+        } finally {
+            defaultNspBuf.release();
+        }
+
+        ByteBuf customNspBuf = Unpooled.copiedBuffer(
+                "40/admin?token=1,{\"roles\":[\"admin\"],\"q\":\"why?\"}", CharsetUtil.UTF_8);
+        try {
+            Packet pkt2 = realDecoder.decodePackets(customNspBuf, clientHead);
+            assertNotNull(pkt2);
+            assertEquals(PacketType.MESSAGE, pkt2.getType());
+            assertEquals(PacketType.CONNECT, pkt2.getSubType());
+            assertEquals("/admin", pkt2.getNsp());
+            Map<?, ?> data2 = (Map<?, ?>) pkt2.getData();
+            assertNotNull(data2);
+            assertEquals(Collections.singletonList("admin"), data2.get("roles"));
+            assertEquals("why?", data2.get("q"));
+        } finally {
+            customNspBuf.release();
+        }
+
+        ByteBuf errorBuf = Unpooled.copiedBuffer(
+                "44/admin,{\"errors\":[\"expired\",\"invalid\"]}", CharsetUtil.UTF_8);
+        try {
+            Packet errPkt = realDecoder.decodePackets(errorBuf, clientHead);
+            assertNotNull(errPkt);
+            assertEquals(PacketType.MESSAGE, errPkt.getType());
+            assertEquals(PacketType.ERROR, errPkt.getSubType());
+            assertEquals("/admin", errPkt.getNsp());
+            Map<?, ?> errData = (Map<?, ?>) errPkt.getData();
+            assertNotNull(errData);
+            assertEquals(Arrays.asList("expired", "invalid"), errData.get("errors"));
+        } finally {
+            errorBuf.release();
+        }
+    }
+
+    @Test
+    void testDecodeDisconnectWithQueryAndNoComma() throws IOException {
+        ByteBuf buf = Unpooled.copiedBuffer("41/admin?token=123", CharsetUtil.UTF_8);
+        try {
+            Packet pkt = decoder.decodePackets(buf, clientHead);
+            assertNotNull(pkt);
+            assertEquals(PacketType.MESSAGE, pkt.getType());
+            assertEquals(PacketType.DISCONNECT, pkt.getSubType());
+            assertEquals("/admin", pkt.getNsp());
+            assertEquals(0, buf.readableBytes());
+        } finally {
+            buf.release();
+        }
+    }
+
+    @Test
+    void testDecodeAckWithoutAckIdDoesNotThrowNpe() throws IOException {
+        ByteBuf buf1 = Unpooled.copiedBuffer("43[]", CharsetUtil.UTF_8);
+        try {
+            Packet pkt1 = decoder.decodePackets(buf1, clientHead);
+            assertNotNull(pkt1);
+            assertEquals(PacketType.ACK, pkt1.getSubType());
+            assertNull(pkt1.getAckId());
+            assertNull(pkt1.getData());
+        } finally {
+            buf1.release();
+        }
+
+        ByteBuf buf2 = Unpooled.copiedBuffer("43/admin,[]", CharsetUtil.UTF_8);
+        try {
+            Packet pkt2 = decoder.decodePackets(buf2, clientHead);
+            assertNotNull(pkt2);
+            assertEquals(PacketType.ACK, pkt2.getSubType());
+            assertEquals("/admin", pkt2.getNsp());
+            assertNull(pkt2.getAckId());
+            assertNull(pkt2.getData());
+        } finally {
+            buf2.release();
+        }
+    }
+
+    @Test
+    void testDecodeBinaryEventRejectsExcessiveOrOverflowAttachmentCount() {
+        ByteBuf excessiveAttachments = Unpooled.copiedBuffer("4565-[\"bin\"]", CharsetUtil.UTF_8);
+        try {
+            assertThrows(IllegalArgumentException.class, () -> decoder.decodePackets(excessiveAttachments, clientHead));
+        } finally {
+            excessiveAttachments.release();
+        }
+
+        ByteBuf overflowAttachments = Unpooled.copiedBuffer("452147483648-[\"bin\"]", CharsetUtil.UTF_8);
+        try {
+            assertThrows(IllegalArgumentException.class, () -> decoder.decodePackets(overflowAttachments, clientHead));
+        } finally {
+            overflowAttachments.release();
+        }
+    }
+
+    @Test
+    void testCompleteAttachmentClearsPendingBinaryPacketWhenPlaceholderMissing() throws IOException {
+        AtomicReference<Packet> pendingPacket = new AtomicReference<>();
+        AtomicReference<ByteBuf> pendingSource = new AtomicReference<>();
+
+        doAnswer(inv -> {
+            pendingPacket.set(inv.getArgument(0));
+            pendingSource.set(inv.getArgument(1));
+            return null;
+        }).when(clientHead).setPendingBinaryPacket(any(), any());
+        when(clientHead.getLastBinaryPacket()).thenAnswer(inv -> pendingPacket.get());
+        when(clientHead.getLastBinaryPacketSource()).thenAnswer(inv -> pendingSource.get());
+        doAnswer(inv -> {
+            ByteBuf src = pendingSource.getAndSet(null);
+            if (src != null) {
+                src.release();
+            }
+            pendingPacket.set(null);
+            return null;
+        }).when(clientHead).clearPendingBinaryPacket();
+
+        ByteBuf hdr = Unpooled.copiedBuffer("451-[\"bin\",{\"invalid_placeholder\":true}]", CharsetUtil.UTF_8);
+        ByteBuf rawPayload = Unpooled.copiedBuffer(new byte[]{1, 2, 3});
+        try {
+            decoder.decodePackets(hdr, clientHead, Transport.WEBSOCKET);
+            assertNotNull(pendingPacket.get());
+            assertNotNull(pendingSource.get());
+
+            assertThrows(IllegalStateException.class,
+                    () -> decoder.decodePackets(rawPayload, clientHead, Transport.WEBSOCKET));
+            assertNull(pendingPacket.get(), "Pending binary packet should be cleared on exception");
+            assertNull(pendingSource.get(), "Pending binary packet source should be released on exception");
+        } finally {
+            hdr.release();
+            rawPayload.release();
+        }
+    }
+
+    @Test
+    void testDecodeWithLengthHeaderAndMultiByteUtf8AndEmoji() throws IOException {
+        JacksonJsonSupport realJson = new JacksonJsonSupport();
+        realJson.addEventMapping("", "chat", String.class);
+        PacketDecoder realDecoder = new PacketDecoder(realJson, ackManager);
+
+        String packetFrame = "42[\"chat\",\"\uD83D\uDE00\u20AC\"]";
+        String framed = packetFrame.length() + ":" + packetFrame;
+        ByteBuf buf = Unpooled.copiedBuffer(framed, CharsetUtil.UTF_8);
+        try {
+            Packet pkt = realDecoder.decodePackets(buf, clientHead);
+            assertNotNull(pkt);
+            assertEquals(PacketType.MESSAGE, pkt.getType());
+            assertEquals(PacketType.EVENT, pkt.getSubType());
+            assertEquals("chat", pkt.getName());
+            assertEquals(Collections.singletonList("\uD83D\uDE00\u20AC"), pkt.getData());
+            assertEquals(0, buf.readableBytes());
+        } finally {
+            buf.release();
+        }
+    }
+
+    @Test
+    void testDecodeWithStringHeaderValid() throws IOException {
+        byte[] bytes = new byte[]{0x00, 0x02, (byte) 0xFF, '4', '0'};
+        ByteBuf buf = Unpooled.wrappedBuffer(bytes);
+        try {
+            Packet pkt = decoder.decodePackets(buf, clientHead, Transport.WEBSOCKET);
+            assertNotNull(pkt);
+            assertEquals(PacketType.MESSAGE, pkt.getType());
+            assertEquals(PacketType.CONNECT, pkt.getSubType());
+        } finally {
+            buf.release();
+        }
+    }
 }

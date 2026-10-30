@@ -52,7 +52,6 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.DefaultEventLoop;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.IoHandlerFactory;
@@ -523,7 +522,7 @@ public class SocketIOServer implements ClientListeners {
         if (!serverStatus.compareAndSet(ServerStatus.INIT, ServerStatus.STARTING)) {
             log.warn("Invalid server state: {}, should be: {}, ignoring start request",
                     serverStatus.get(), ServerStatus.INIT);
-            return new SucceededFuture<>(new DefaultEventLoop(), null);
+            return new SucceededFuture<>(GlobalEventExecutor.INSTANCE, null);
         }
 
         try {

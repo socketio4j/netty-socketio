@@ -8,6 +8,13 @@ AUDIT_DIR=${RUNNER_TEMP:-$(mktemp -d "${TMPDIR:-/tmp}/socketio-lock-audit.XXXXXX
 mkdir -p "$AUDIT_DIR"
 echo "Event-loop safety evidence: $AUDIT_DIR"
 
+cleanup() {
+    if [ -z "${RUNNER_TEMP:-}" ] && [ -d "$AUDIT_DIR" ]; then
+        rm -rf "$AUDIT_DIR"
+    fi
+}
+trap cleanup EXIT INT TERM
+
 # Copy git files to a clean worktree so build outputs or IDE state do not contaminate
 AUDIT_WORKTREE=$(mktemp -d "$AUDIT_DIR/worktree.XXXXXX")
 git ls-files -z --cached --others --exclude-standard | \

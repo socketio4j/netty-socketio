@@ -83,7 +83,13 @@ public class JacksonJsonSupport implements JsonSupport {
 
             ObjectMapper mapper = (ObjectMapper) jp.getCodec();
             JsonNode root = mapper.readTree(jp);
+            if (root == null || !root.isArray()) {
+                return result;
+            }
             AckCallback<?> callback = currentAckClass.get();
+            if (callback == null) {
+                return result;
+            }
             Iterator<JsonNode> iter = root.iterator();
             int i = 0;
             while (iter.hasNext()) {
@@ -92,7 +98,14 @@ public class JacksonJsonSupport implements JsonSupport {
                 Class<?> clazz = callback.getResultClass();
                 if (callback instanceof MultiTypeAckCallback) {
                     MultiTypeAckCallback multiTypeAckCallback = (MultiTypeAckCallback) callback;
-                    clazz = multiTypeAckCallback.getResultClasses()[i];
+                    Class<?>[] resultClasses = multiTypeAckCallback.getResultClasses();
+                    if (resultClasses == null || i >= resultClasses.length) {
+                        break;
+                    }
+                    clazz = resultClasses[i];
+                }
+                if (clazz == null) {
+                    clazz = Object.class;
                 }
 
                 JsonNode arg = iter.next();
@@ -184,7 +197,13 @@ public class JacksonJsonSupport implements JsonSupport {
         public Event deserialize(JsonParser jp, DeserializationContext ctxt) throws IOException,
                 JsonProcessingException {
             ObjectMapper mapper = (ObjectMapper) jp.getCodec();
+            if (jp.currentToken() != JsonToken.START_ARRAY) {
+                throw JsonMappingException.from(jp, "Event payload must be a JSON array");
+            }
             String eventName = jp.nextTextValue();
+            if (eventName == null) {
+                throw JsonMappingException.from(jp, "Event name must be a non-null string");
+            }
 
             EventKey ek = new EventKey(namespaceClass.get(), eventName);
             if (!eventMapping.containsKey(ek)) {
@@ -284,7 +303,7 @@ public class JacksonJsonSupport implements JsonSupport {
         }
 
         public void clear() {
-            arrays.set(new ArrayList<>());
+            arrays.get().clear();
         }
 
     }
@@ -356,19 +375,35 @@ public class JacksonJsonSupport implements JsonSupport {
     @Override
     public <T> T readValue(String namespaceName, ByteBufInputStream src, Class<T> valueType) throws IOException {
         namespaceClass.set(namespaceName);
-        return objectMapper.readValue((InputStream) src, valueType);
+        try {
+            return objectMapper.readValue((InputStream) src, valueType);
+        } finally {
+            namespaceClass.remove();
+        }
     }
 
     @Override
     public AckArgs readAckArgs(ByteBufInputStream src, AckCallback<?> callback) throws IOException {
         currentAckClass.set(callback);
-        return objectMapper.readValue((InputStream) src, AckArgs.class);
+        try {
+            return objectMapper.readValue((InputStream) src, AckArgs.class);
+        } finally {
+            currentAckClass.remove();
+        }
     }
 
     @Override
     public void writeValue(ByteBufOutputStream out, Object value) throws IOException {
         modifier.getSerializer().clear();
-        objectMapper.writeValue((OutputStream) out, value);
+        boolean completed = false;
+        try {
+            objectMapper.writeValue((OutputStream) out, value);
+            completed = true;
+        } finally {
+            if (!completed) {
+                modifier.getSerializer().clear();
+            }
+        }
     }
 
     @Override

@@ -17,6 +17,8 @@
 package com.socketio4j.socketio.protocol;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 
@@ -27,13 +29,18 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import com.socketio4j.socketio.AckCallback;
+import com.socketio4j.socketio.MultiTypeAckCallback;
+import com.socketio4j.socketio.MultiTypeArgs;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.Unpooled;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doNothing;
@@ -362,5 +369,101 @@ public class JsonSupportTest extends BaseProtocolTest {
         // Verify
         verify(jsonSupport).removeEventMapping(namespace1, event1);
         verify(jsonSupport).removeEventMapping(namespace2, event2);
+    }
+
+    private static class InspectableJacksonJsonSupport extends JacksonJsonSupport {
+        String getNamespaceThreadLocal() {
+            return namespaceClass.get();
+        }
+
+        AckCallback<?> getAckCallbackThreadLocal() {
+            return currentAckClass.get();
+        }
+    }
+
+    @Test
+    public void testJacksonMultiTypeAckCallbackWithExtraClientArguments() throws IOException {
+        InspectableJacksonJsonSupport realSupport = new InspectableJacksonJsonSupport();
+        MultiTypeAckCallback callback = new MultiTypeAckCallback(new Class<?>[] {String.class, Integer.class}) {
+            @Override
+            public void onSuccess(MultiTypeArgs result) {
+                // no-op
+            }
+        };
+
+        ByteBuf buf = Unpooled.copiedBuffer("[\"hello\",42,\"extraArg\",999,true]", StandardCharsets.UTF_8);
+        try (ByteBufInputStream in = new ByteBufInputStream(buf)) {
+            AckArgs ackArgs = realSupport.readAckArgs(in, callback);
+            assertNotNull(ackArgs);
+            assertEquals(2, ackArgs.getArgs().size());
+            assertEquals("hello", ackArgs.getArgs().get(0));
+            assertEquals(Integer.valueOf(42), ackArgs.getArgs().get(1));
+            assertNull(realSupport.getAckCallbackThreadLocal(), "currentAckClass ThreadLocal must be cleared after readAckArgs");
+        } finally {
+            buf.release();
+        }
+    }
+
+    @Test
+    public void testJacksonAckArgsDeserializerWithNonArrayPayloadReturnsEmptyArgs() throws IOException {
+        InspectableJacksonJsonSupport realSupport = new InspectableJacksonJsonSupport();
+        AckCallback<String> callback = new AckCallback<String>(String.class) {
+            @Override
+            public void onSuccess(String result) {
+                // no-op
+            }
+        };
+
+        ByteBuf objBuf = Unpooled.copiedBuffer("{\"not\":\"an_array\"}", StandardCharsets.UTF_8);
+        try (ByteBufInputStream in = new ByteBufInputStream(objBuf)) {
+            AckArgs ackArgs = realSupport.readAckArgs(in, callback);
+            assertNotNull(ackArgs);
+            assertTrue(ackArgs.getArgs().isEmpty());
+            assertNull(realSupport.getAckCallbackThreadLocal());
+        } finally {
+            objBuf.release();
+        }
+    }
+
+    @Test
+    public void testJacksonEventDeserializerRejectsNullAndNonStringEventNames() {
+        InspectableJacksonJsonSupport realSupport = new InspectableJacksonJsonSupport();
+        realSupport.addEventMapping("/chat", "msg", String.class);
+
+        String[] invalidPayloads = new String[] {
+            "[null,\"hello\"]",
+            "[123,\"hello\"]",
+            "[]",
+            "{\"event\":\"msg\"}"
+        };
+
+        for (String payload : invalidPayloads) {
+            ByteBuf buf = Unpooled.copiedBuffer(payload, StandardCharsets.UTF_8);
+            try (ByteBufInputStream in = new ByteBufInputStream(buf)) {
+                assertThrows(IOException.class, () -> realSupport.readValue("/chat", in, Event.class));
+                assertNull(realSupport.getNamespaceThreadLocal(),
+                        "namespaceClass ThreadLocal must be cleared even when Event deserialization fails");
+            } catch (IOException closeEx) {
+                // ignore stream close
+            } finally {
+                buf.release();
+            }
+        }
+    }
+
+    @Test
+    public void testJsonSupportWrapperDoesNotMaskExceptionWhenCallbackNullOrStreamUnmarked() throws Exception {
+        Class<?> wrapperClass = Class.forName("com.socketio4j.socketio.JsonSupportWrapper");
+        Constructor<?> ctor = wrapperClass.getDeclaredConstructor(JsonSupport.class);
+        ctor.setAccessible(true);
+        JsonSupport wrapper = (JsonSupport) ctor.newInstance(new JacksonJsonSupport());
+
+        ByteBuf badBuf = Unpooled.copiedBuffer("{malformed_json", StandardCharsets.UTF_8);
+        try (ByteBufInputStream in = new ByteBufInputStream(badBuf)) {
+            IOException ex = assertThrows(IOException.class, () -> wrapper.readAckArgs(in, null));
+            assertNotNull(ex.getCause());
+        } finally {
+            badBuf.release();
+        }
     }
 }
