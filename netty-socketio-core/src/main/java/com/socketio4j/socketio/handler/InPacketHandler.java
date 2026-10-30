@@ -243,6 +243,8 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
             }
         }
 
+        // Clear or update the auth token on the shared HandshakeData before invoking
+        // auth listeners so that listeners observe null rather than another namespace's token.
         client.getHandshakeData().setAuthToken(authData);
 
         // Always invoke authTokenListeners even when authData is null so that
@@ -250,6 +252,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         // sending a CONNECT packet without an auth payload (e.g. "40" or "40/nsp").
         final AuthTokenResult allowAuth = ns.onAuthData(nClient, authData);
         if (!allowAuth.isSuccess()) {
+            client.getHandshakeData().setAuthToken(null);
             if (log.isDebugEnabled()) {
                 log.debug("Authentication failed for client: {}, namespace: {}, sending error response",
                          client.getSessionId(), ns.getName());

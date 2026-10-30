@@ -195,7 +195,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
                     return;
                 }
                 // forward message to polling or websocket handler to bind channel
-            } else if (sid != null) {
+            } else if (sid != null && queryDecoder.path().equals(connectPath)) {
                 if (log.isDebugEnabled()) {
                     log.debug("Processing existing session request: {} from client: {}", sid, channel.remoteAddress());
                 }
