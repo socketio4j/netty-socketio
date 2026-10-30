@@ -41,14 +41,22 @@ public class BroadcastAckCallback<T> {
         return new AckCallback<T>(resultClass, timeout) {
             @Override
             public void onSuccess(T result) {
-                counter.getAndDecrement();
-                onClientSuccess(client, result);
-                executeSuccess();
+                try {
+                    onClientSuccess(client, result);
+                } finally {
+                    counter.getAndDecrement();
+                    executeSuccess();
+                }
             }
 
             @Override
             public void onTimeout() {
-                onClientTimeout(client);
+                try {
+                    onClientTimeout(client);
+                } finally {
+                    counter.getAndDecrement();
+                    executeSuccess();
+                }
             }
 
         };

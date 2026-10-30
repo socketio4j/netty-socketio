@@ -16,9 +16,15 @@
  */
 package com.socketio4j.socketio.spring.boot.starter.config;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import com.socketio4j.socketio.BasicConfiguration;
+import com.socketio4j.socketio.Transport;
+
+import io.netty.util.ResourceLeakDetector;
 
 import static com.socketio4j.socketio.spring.boot.starter.config.NettySocketIOBasicConfigurationProperties.PREFIX;
 
@@ -40,11 +46,43 @@ public class NettySocketIOBasicConfigurationProperties extends BasicConfiguratio
      */
     private int serverLifeCyclePhase = 0;
 
+    private ResourceLeakDetector.Level leakDetectionLevel;
+
+    public NettySocketIOBasicConfigurationProperties() {
+        super();
+        this.transports = new ArrayList<>(this.transports);
+    }
+
     public int getServerLifeCyclePhase() {
         return serverLifeCyclePhase;
     }
 
     public void setServerLifeCyclePhase(int serverLifeCyclePhase) {
         this.serverLifeCyclePhase = serverLifeCyclePhase;
+    }
+
+    @Override
+    public List<Transport> getTransports() {
+        return transports;
+    }
+
+    @Override
+    public void setTransports(Transport... transports) {
+        super.setTransports(transports);
+    }
+
+    public void setTransports(List<Transport> transports) {
+        if (transports == null || transports.isEmpty()) {
+            throw new IllegalArgumentException("Transports list can't be empty");
+        }
+        this.transports = new ArrayList<>(transports);
+    }
+
+    public ResourceLeakDetector.Level getLeakDetectionLevel() {
+        return leakDetectionLevel;
+    }
+
+    public void setLeakDetectionLevel(ResourceLeakDetector.Level leakDetectionLevel) {
+        this.leakDetectionLevel = leakDetectionLevel;
     }
 }

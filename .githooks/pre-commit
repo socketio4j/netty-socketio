@@ -18,6 +18,20 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m' # No Color
 
+# Bootstrap PATH for GUI environments (e.g. GitHub Desktop, VS Code, Finder launches)
+if [ -d "$HOME/.sdkman/candidates/maven/current/bin" ]; then
+    export PATH="$HOME/.sdkman/candidates/maven/current/bin:$PATH"
+fi
+if [ -d "$HOME/.sdkman/candidates/java/current/bin" ]; then
+    export PATH="$HOME/.sdkman/candidates/java/current/bin:$PATH"
+fi
+if [ -d "/opt/homebrew/bin" ]; then
+    export PATH="/opt/homebrew/bin:$PATH"
+fi
+if [ -d "/usr/local/bin" ]; then
+    export PATH="/usr/local/bin:$PATH"
+fi
+
 # ------------------------------------------------------------------------------
 # 0. Optional Delegation to Python pre-commit framework
 # Set PRE_COMMIT_USE_FRAMEWORK=1 to delegate directly to pre-commit CLI.
