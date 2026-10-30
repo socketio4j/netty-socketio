@@ -48,6 +48,7 @@ public final class NamespaceMeters {
     private final Counter eventReceived;
     private final Counter eventHandled;
     private final Counter eventFailed;
+    private final Counter eventPublishFailed;
     private final Counter eventSent;
     private final Counter eventUnknown;
 
@@ -94,6 +95,9 @@ public final class NamespaceMeters {
     }
     public Counter getEventFailed() {
         return eventFailed;
+    }
+    public Counter getEventPublishFailed() {
+        return eventPublishFailed;
     }
     public Counter getEventSent() {
         return eventSent;
@@ -179,6 +183,10 @@ public final class NamespaceMeters {
                 .tag("namespace", ns)
                 .register(registry);
 
+        this.eventPublishFailed = Counter.builder("socketio.event.publish.failed")
+                .tag("namespace", ns)
+                .register(registry);
+
         this.eventSent = Counter.builder("socketio.event.sent")
                 .tag("namespace", ns)
                 .register(registry);
@@ -224,7 +232,7 @@ public final class NamespaceMeters {
         Gauge.builder(
                 "socketio.clients.connected",
                 connected,
-                AtomicInteger::get
+                ref -> Math.max(0, ref.get())
         ).tag("namespace", ns).register(registry);
 
         /* ---------- Rooms ---------- */
@@ -241,7 +249,7 @@ public final class NamespaceMeters {
         Gauge.builder(
                 "socketio.room.members",
                 roomMembers,
-                AtomicInteger::get
+                ref -> Math.max(0, ref.get())
         ).tag("namespace", ns).register(registry);
 
         /* ---------- Timers (CRITICAL) ---------- */

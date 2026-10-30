@@ -173,6 +173,36 @@ class MicrometerSocketIOMetricsTest {
     }
 
     @Test
+    @DisplayName("Should report null namespace as 'default'")
+    void shouldMapNullNamespaceToDefault() {
+        metrics.eventReceived(null);
+        metrics.eventHandled(null, 1);
+        metrics.eventFailed(null);
+        metrics.eventSent(null, 1);
+        metrics.unknownEventReceived(null);
+        metrics.ackSent(null, 1);
+        metrics.ackMissing(null);
+        metrics.connect(null);
+        metrics.disconnect(null);
+        metrics.roomJoin(null);
+        metrics.roomLeave(null);
+
+        assertThat(counter("socketio.event.received", "default").count()).isEqualTo(1);
+        assertThat(counter("socketio.connect.total", "default").count()).isEqualTo(1);
+        assertThat(counter("socketio.room.join.total", "default").count()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Should never drop connected clients gauge below zero")
+    void shouldNeverDropConnectedBelowZero() {
+        metrics.disconnect(NS);
+        metrics.disconnect(NS);
+
+        assertThat(counter("socketio.disconnect.total", NS).count()).isEqualTo(2);
+        assertThat(gauge("socketio.clients.connected", NS).value()).isZero();
+    }
+
+    @Test
     @DisplayName("Should keep separate meters per namespace")
     void shouldKeepSeparateMetersPerNamespace() {
         metrics.eventReceived(NS);
@@ -214,6 +244,18 @@ class MicrometerSocketIOMetricsTest {
     }
 
     @Test
+    @DisplayName("Should track publish failures counter for namespace")
+    void shouldTrackEventPublishFailed() {
+        metrics.eventPublishFailed(NS);
+        metrics.publishFailed(NS);
+        metrics.eventPublishFailed(null);
+        metrics.eventPublishFailed("");
+
+        assertThat(counter("socketio.event.publish.failed", NS).count()).isEqualTo(2);
+        assertThat(counter("socketio.event.publish.failed", "default").count()).isEqualTo(2);
+    }
+
+    @Test
     @DisplayName("Should ignore every call on the noop implementation")
     void shouldIgnoreCallsOnNoopMetrics() {
         SocketIOMetrics noop = SocketIOMetrics.noop();
@@ -221,6 +263,8 @@ class MicrometerSocketIOMetricsTest {
         noop.eventReceived(NS);
         noop.eventHandled(NS, 1);
         noop.eventFailed(NS);
+        noop.eventPublishFailed(NS);
+        noop.publishFailed(NS);
         noop.eventSent(NS, 1);
         noop.unknownEventReceived(NS);
         noop.unknownEventNames(NS, "name");
