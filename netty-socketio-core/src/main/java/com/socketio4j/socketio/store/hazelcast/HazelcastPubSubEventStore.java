@@ -103,16 +103,23 @@ public class HazelcastPubSubEventStore implements EventStore {
 
     @Override
     public void publish0(EventType type, EventMessage msg) {
+        if (msg == null) {
+            return;
+        }
         msg.setNodeId(nodeId);
         String topicName = getTopicName(type);
-        ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> hazelcastPub.getTopic(topicName));
-
-        topic.publishAsync(msg).whenComplete((res, ex) -> {
-            if (ex != null) {
-                log.error("Failed to publish event {} on topic {}", msg, topicName, ex);
-                metrics.eventPublishFailed(extractNamespace(msg));
-            }
-        });
+        try {
+            ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> hazelcastPub.getTopic(topicName));
+            topic.publishAsync(msg).whenComplete((res, ex) -> {
+                if (ex != null) {
+                    log.error("Failed to publish event {} on topic {}", msg, topicName, ex);
+                    metrics.eventPublishFailed(extractNamespace(msg));
+                }
+            });
+        } catch (Exception ex) {
+            log.error("Failed to initiate publish of event {} on topic {}", msg, topicName, ex);
+            metrics.eventPublishFailed(extractNamespace(msg));
+        }
     }
 
     @Override
@@ -141,10 +148,17 @@ public class HazelcastPubSubEventStore implements EventStore {
         ITopic<T> topic = hazelcastSub.getTopic(getTopicName(type));
 
         UUID regId = topic.addMessageListener(msg -> {
+            if (msg == null) {
+                return;
+            }
             T eventMsg = msg.getMessageObject();
             if (eventMsg != null && !Objects.equals(this.nodeId, eventMsg.getNodeId())) {
                 log.debug("[HZ-PUBSUB] Received event type {} from node {} (my nodeId={})", type, eventMsg.getNodeId(), nodeId);
-                listener.onMessage(eventMsg);
+                try {
+                    listener.onMessage(eventMsg);
+                } catch (Exception e) {
+                    log.error("Failed to process event {} on topic {}", eventMsg, getTopicName(type), e);
+                }
             }
         });
         activeSubTopics.put(regId, topic);

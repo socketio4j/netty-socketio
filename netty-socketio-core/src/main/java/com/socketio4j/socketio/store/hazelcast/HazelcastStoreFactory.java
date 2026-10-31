@@ -53,6 +53,24 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
 
     private final HazelcastInstance hazelcastClient;
     private final EventStore eventStore;
+    private final String keyPrefix;
+
+    /**
+     * Creates a {@code HazelcastStoreFactory} using the provided Hazelcast instance,
+     * a caller-supplied {@link EventStore}, and session map prefix.
+     *
+     * @param hazelcastClient non-null Hazelcast instance
+     * @param eventStore      non-null event store implementation
+     * @param keyPrefix       optional prefix for session store maps
+     * @throws NullPointerException if either client or store argument is {@code null}
+     */
+    public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient,
+                                 @NotNull EventStore eventStore,
+                                 @Nullable String keyPrefix) {
+        this.hazelcastClient = Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
+        this.eventStore = Objects.requireNonNull(eventStore, "eventStore cannot be null");
+        this.keyPrefix = keyPrefix;
+    }
 
     /**
      * Creates a {@code HazelcastStoreFactory} using the provided Hazelcast instance and
@@ -66,8 +84,7 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
      */
     public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient,
                                  @NotNull EventStore eventStore) {
-        this.hazelcastClient = Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
-        this.eventStore = Objects.requireNonNull(eventStore, "eventStore cannot be null");
+        this(hazelcastClient, eventStore, null);
     }
 
     /**
@@ -99,6 +116,9 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
 
     @Override
     public Store createStore(UUID sessionId) {
+        if (keyPrefix != null && !keyPrefix.isEmpty()) {
+            return new HazelcastStore(sessionId, hazelcastClient, keyPrefix);
+        }
         return new HazelcastStore(sessionId, hazelcastClient);
     }
 
