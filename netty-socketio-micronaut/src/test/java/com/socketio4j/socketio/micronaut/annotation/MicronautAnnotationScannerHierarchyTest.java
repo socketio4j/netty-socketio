@@ -23,7 +23,6 @@ import org.junit.jupiter.api.Test;
 
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.annotation.OnConnect;
-import com.socketio4j.socketio.annotation.OnDisconnect;
 import com.socketio4j.socketio.annotation.OnEvent;
 import com.socketio4j.socketio.micronaut.config.NettySocketIOBasicConfigurationProperties;
 
@@ -79,9 +78,6 @@ public class MicronautAnnotationScannerHierarchyTest {
     }
 
     public static class SubclassListener extends BaseListener {
-        @OnDisconnect
-        public void onDisconnect() {
-        }
     }
 
     public interface ListenerInterface {

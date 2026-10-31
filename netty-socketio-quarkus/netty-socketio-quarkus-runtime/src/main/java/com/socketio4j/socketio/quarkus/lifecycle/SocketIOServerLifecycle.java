@@ -61,7 +61,7 @@ public class SocketIOServerLifecycle {
                 if (hasSocketIOAnnotations(bean.getBeanClass())) {
                     Object instance = beanManager.getReference(bean, Object.class,
                             beanManager.createCreationalContext(bean));
-                    socketIOServer.addListeners(instance, bean.getBeanClass());
+                    registerListeners(instance, bean.getBeanClass());
                     log.info("SocketIO listeners registered for: " + bean.getBeanClass().getSimpleName());
                 }
             } catch (Exception e) {
@@ -77,6 +77,10 @@ public class SocketIOServerLifecycle {
                 log.error("Failed to start SocketIO server", future.cause());
             }
         });
+    }
+
+    void registerListeners(Object instance, Class<?> beanClass) {
+        socketIOServer.addListenersWithInterfaces(instance, beanClass);
     }
 
     void onStop(@Observes ShutdownEvent ev) {

@@ -487,6 +487,10 @@ public class Namespace implements SocketIONamespace {
         engine.scan(this, listeners, listenersClass);
     }
 
+    public void addListenersWithInterfaces(Object listeners, Class<?> listenersClass) {
+        engine.scanWithInterfaces(this, listeners, listenersClass);
+    }
+
     public void joinRoom(String room, UUID sessionId) {
         join(room, sessionId);
         storeFactory.eventStore().publish(EventType.JOIN, new JoinMessage(sessionId, room, getName()));

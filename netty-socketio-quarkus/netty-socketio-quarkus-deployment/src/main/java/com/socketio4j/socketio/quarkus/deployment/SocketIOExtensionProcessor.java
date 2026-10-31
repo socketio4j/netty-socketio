@@ -16,7 +16,10 @@
  */
 package com.socketio4j.socketio.quarkus.deployment;
 
+import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
+import org.jboss.jandex.IndexView;
+import org.jboss.jandex.MethodInfo;
 
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.annotation.OnConnect;
@@ -33,6 +36,7 @@ import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
+import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.runtime.RuntimeValue;
@@ -44,6 +48,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 class SocketIOExtensionProcessor {
 
     private static final String FEATURE = "socketio-auto-registration";
+    private static final DotName ON_CONNECT = DotName.createSimple(OnConnect.class.getName());
+    private static final DotName ON_DISCONNECT = DotName.createSimple(OnDisconnect.class.getName());
+    private static final DotName ON_EVENT = DotName.createSimple(OnEvent.class.getName());
 
     @BuildStep
     FeatureBuildItem feature() {
@@ -78,14 +85,33 @@ class SocketIOExtensionProcessor {
     }
 
     /**
-     * Ensure beans containing Socket.IO annotations are not stripped by ArC dead code elimination.
+     * Ensure class beans with listener methods are not removed by ArC.
+     * @param index combined index for resolving the class hierarchy
      * @param producer build producer for unremovable beans
      */
     @BuildStep
-    void unremovableBeans(BuildProducer<UnremovableBeanBuildItem> producer) {
-        producer.produce(UnremovableBeanBuildItem.targetWithAnnotation(DotName.createSimple(OnConnect.class.getName())));
-        producer.produce(UnremovableBeanBuildItem.targetWithAnnotation(DotName.createSimple(OnDisconnect.class.getName())));
-        producer.produce(UnremovableBeanBuildItem.targetWithAnnotation(DotName.createSimple(OnEvent.class.getName())));
+    void unremovableBeans(CombinedIndexBuildItem index, BuildProducer<UnremovableBeanBuildItem> producer) {
+        IndexView classes = index.getComputingIndex();
+        producer.produce(new UnremovableBeanBuildItem(bean -> bean.isClassBean()
+                && hasListenerMethods(bean.getImplClazz(), classes)));
+    }
+
+    static boolean hasListenerMethods(ClassInfo clazz, IndexView index) {
+        if (clazz == null) {
+            return false;
+        }
+        for (MethodInfo method : clazz.methods()) {
+            if (method.hasAnnotation(ON_CONNECT) || method.hasAnnotation(ON_DISCONNECT)
+                    || method.hasAnnotation(ON_EVENT)) {
+                return true;
+            }
+        }
+        for (DotName iface : clazz.interfaceNames()) {
+            if (hasListenerMethods(index.getClassByName(iface), index)) {
+                return true;
+            }
+        }
+        return clazz.superName() != null && hasListenerMethods(index.getClassByName(clazz.superName()), index);
     }
 
     /**
