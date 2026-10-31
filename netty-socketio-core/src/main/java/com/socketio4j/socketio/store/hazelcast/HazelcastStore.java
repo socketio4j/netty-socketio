@@ -43,14 +43,11 @@ public class HazelcastStore implements Store {
 
     @Override
     public void set(String key, Object val) {
+        Objects.requireNonNull(val, "value cannot be null");
         if (key == null) {
             return;
         }
-        if (val != null) {
-            map.put(key, val);
-        } else {
-            map.delete(key);
-        }
+        map.put(key, val);
     }
 
     @Override

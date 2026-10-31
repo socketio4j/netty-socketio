@@ -79,9 +79,12 @@ class HazelcastStoreResilienceTest {
         prefixedStore.set("key1", "val1");
         verify(map).put("key1", "val1");
 
-        // Null value deletes key
-        prefixedStore.set("key1", null);
-        verify(map).delete("key1");
+        // Null values are rejected without deleting existing entries, even with a null key
+        assertThatThrownBy(() -> prefixedStore.set("key1", null))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> prefixedStore.set(null, null))
+                .isInstanceOf(NullPointerException.class);
+        verify(map, never()).delete("key1");
 
         // Null key does nothing
         assertThatCode(() -> prefixedStore.set(null, "val")).doesNotThrowAnyException();
