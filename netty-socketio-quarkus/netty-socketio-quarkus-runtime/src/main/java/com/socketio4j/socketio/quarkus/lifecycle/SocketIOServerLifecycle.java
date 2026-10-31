@@ -61,8 +61,8 @@ public class SocketIOServerLifecycle {
                 if (hasSocketIOAnnotations(bean.getBeanClass())) {
                     Object instance = beanManager.getReference(bean, Object.class,
                             beanManager.createCreationalContext(bean));
-                    socketIOServer.addListeners(instance, instance.getClass());
-                    log.info("SocketIO listeners registered for: " + instance.getClass().getSimpleName());
+                    registerListeners(instance, bean.getBeanClass());
+                    log.info("SocketIO listeners registered for: " + bean.getBeanClass().getSimpleName());
                 }
             } catch (Exception e) {
                 log.warn("Failed to process bean: " + bean.getBeanClass().getName(), e);
@@ -79,13 +79,20 @@ public class SocketIOServerLifecycle {
         });
     }
 
+    void registerListeners(Object instance, Class<?> beanClass) {
+        socketIOServer.addListenersWithInterfaces(instance, beanClass);
+    }
+
     void onStop(@Observes ShutdownEvent ev) {
         log.info("Stopping SocketIO server...");
         socketIOServer.stop();
         log.info("SocketIO server stopped");
     }
 
-    private boolean hasSocketIOAnnotations(Class<?> clazz) {
+    boolean hasSocketIOAnnotations(Class<?> clazz) {
+        if (clazz == null || clazz.equals(Object.class)) {
+            return false;
+        }
         Method[] methods = clazz.getDeclaredMethods();
         for (Method method : methods) {
             for (Class<? extends Annotation> annotationClass : ALL_NETTY_SOCKET_IO_ANNOTATIONS) {
@@ -99,6 +106,6 @@ public class SocketIOServerLifecycle {
                 return true;
             }
         }
-        return false;
+        return hasSocketIOAnnotations(clazz.getSuperclass());
     }
 }

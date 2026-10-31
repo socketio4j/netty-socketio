@@ -16,6 +16,11 @@
  */
 package com.socketio4j.socketio.quarkus.deployment;
 
+import org.jboss.jandex.ClassInfo;
+import org.jboss.jandex.DotName;
+import org.jboss.jandex.IndexView;
+import org.jboss.jandex.MethodInfo;
+
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.annotation.OnConnect;
 import com.socketio4j.socketio.annotation.OnDisconnect;
@@ -26,10 +31,12 @@ import com.socketio4j.socketio.quarkus.recorder.NettySocketIOConfigRecorder;
 
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
 import io.quarkus.arc.deployment.SyntheticBeanBuildItem;
+import io.quarkus.arc.deployment.UnremovableBeanBuildItem;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
+import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.runtime.RuntimeValue;
@@ -41,6 +48,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 class SocketIOExtensionProcessor {
 
     private static final String FEATURE = "socketio-auto-registration";
+    private static final DotName ON_CONNECT = DotName.createSimple(OnConnect.class.getName());
+    private static final DotName ON_DISCONNECT = DotName.createSimple(OnDisconnect.class.getName());
+    private static final DotName ON_EVENT = DotName.createSimple(OnEvent.class.getName());
 
     @BuildStep
     FeatureBuildItem feature() {
@@ -49,7 +59,7 @@ class SocketIOExtensionProcessor {
 
     /**
      * Register default Socket.IO beans.
-     * @return
+     * @return additional bean build item
      */
     @BuildStep
     AdditionalBeanBuildItem defaultSocketIOBeans() {
@@ -63,7 +73,7 @@ class SocketIOExtensionProcessor {
 
     /**
      * Register Socket.IO annotations for reflection.
-     * @return
+     * @return reflective class build item
      */
     @BuildStep
     ReflectiveClassBuildItem reflection() {
@@ -71,14 +81,43 @@ class SocketIOExtensionProcessor {
                 OnConnect.class,
                 OnDisconnect.class,
                 OnEvent.class
-        ).methods().build();
+        ).methods().fields().build();
     }
 
+    /**
+     * Ensure class beans with listener methods are not removed by ArC.
+     * @param index combined index for resolving the class hierarchy
+     * @param producer build producer for unremovable beans
+     */
+    @BuildStep
+    void unremovableBeans(CombinedIndexBuildItem index, BuildProducer<UnremovableBeanBuildItem> producer) {
+        IndexView classes = index.getComputingIndex();
+        producer.produce(new UnremovableBeanBuildItem(bean -> bean.isClassBean()
+                && hasListenerMethods(bean.getImplClazz(), classes)));
+    }
+
+    static boolean hasListenerMethods(ClassInfo clazz, IndexView index) {
+        if (clazz == null) {
+            return false;
+        }
+        for (MethodInfo method : clazz.methods()) {
+            if (method.hasAnnotation(ON_CONNECT) || method.hasAnnotation(ON_DISCONNECT)
+                    || method.hasAnnotation(ON_EVENT)) {
+                return true;
+            }
+        }
+        for (DotName iface : clazz.interfaceNames()) {
+            if (hasListenerMethods(index.getClassByName(iface), index)) {
+                return true;
+            }
+        }
+        return clazz.superName() != null && hasListenerMethods(index.getClassByName(clazz.superName()), index);
+    }
 
     /**
      * Create SocketIOServer bean.
-     * @param nettySocketIOConfigRecorder
-     * @param syntheticBeanBuildItemProducer
+     * @param nettySocketIOConfigRecorder config recorder
+     * @param syntheticBeanBuildItemProducer synthetic bean producer
      */
     @BuildStep
     @Record(ExecutionTime.RUNTIME_INIT)
@@ -99,7 +138,7 @@ class SocketIOExtensionProcessor {
 
     /**
      * Register SocketIOServerLifecycle bean.
-     * @return
+     * @return additional bean build item
      */
     @BuildStep
     AdditionalBeanBuildItem socketIOServerLifecycle() {

@@ -1183,4 +1183,14 @@ public class SocketIOServer implements ClientListeners {
         mainNamespace.addListeners(listeners, clazz);
     }
 
+    /**
+     * Registers listener methods from the class hierarchy and its interfaces.
+     *
+     * @param listeners the listener object
+     * @param clazz the class whose hierarchy is scanned
+     */
+    public void addListenersWithInterfaces(Object listeners, Class<?> clazz) {
+        ((Namespace) mainNamespace).addListenersWithInterfaces(listeners, clazz);
+    }
+
 }
