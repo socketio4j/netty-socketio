@@ -93,6 +93,24 @@ public class RedisStoreResilienceTest {
     }
 
     @Test
+    void disabledTtlClearsExistingExpirationOnWrites() {
+        for (Duration ttl : new Duration[] {Duration.ZERO, Duration.ofSeconds(-1)}) {
+            RedissonClient client = mock(RedissonClient.class);
+            @SuppressWarnings("unchecked")
+            RMap<String, Object> map = mock(RMap.class);
+            UUID id = UUID.randomUUID();
+            when(client.<String, Object>getMap(id.toString())).thenReturn(map);
+
+            RedisStore store = new RedisStore(id, client, ttl);
+            store.set("key", "value");
+            store.del("key");
+
+            verify(map, times(3)).clearExpire();
+            verify(map, never()).expire(any(Duration.class));
+        }
+    }
+
+    @Test
     @DisplayName("Should preserve no-expiry contract by default for factory-created stores")
     void shouldPreserveNoExpiryByDefaultInRedisStoreFactory() {
         RedissonClient redissonClient = mock(RedissonClient.class);

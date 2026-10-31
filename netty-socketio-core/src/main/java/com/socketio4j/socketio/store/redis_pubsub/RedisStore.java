@@ -54,6 +54,8 @@ public class RedisStore implements Store {
     private void refreshTtl() {
         if (ttl != null && !ttl.isZero() && !ttl.isNegative()) {
             map.expire(ttl);
+        } else if (ttl != null) {
+            map.clearExpire();
         }
     }
 

@@ -46,6 +46,12 @@ import com.socketio4j.socketio.store.event.EventStoreType;
 import com.socketio4j.socketio.store.event.EventType;
 import com.socketio4j.socketio.store.event.PublishMode;
 
+/**
+ * Reliable topic event store. Length-based trimming does not account for subscriber
+ * progress: unread entries beyond {@code streamMaxLength} may be discarded.
+ * A failed listener is retried once immediately; a second failure is logged and
+ * the message may be acknowledged by Redisson.
+ */
 public class RedisPubSubReliableEventStore implements EventStore {
 
     private final RedissonClient redissonPub;
@@ -265,7 +271,12 @@ public class RedisPubSubReliableEventStore implements EventStore {
                     try {
                         listener.onMessage(msg);
                     } catch (Exception e) {
-                        log.error("Error dispatching reliable topic message for type {}", type, e);
+                        log.warn("Retrying reliable topic message for type {} after listener failure", type, e);
+                        try {
+                            listener.onMessage(msg);
+                        } catch (Exception retryError) {
+                            log.error("Reliable topic listener retry failed for type {}", type, retryError);
+                        }
                     }
                 }
             });
