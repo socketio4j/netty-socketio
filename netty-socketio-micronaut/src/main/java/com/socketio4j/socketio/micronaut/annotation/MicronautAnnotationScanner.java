@@ -61,7 +61,7 @@ public class MicronautAnnotationScanner {
             if (hasSocketIOAnnotations(beanType)) {
                 log.info("Found Socket.IO annotated bean: {}", beanType.getName());
                 try {
-                    Object bean = beanContext.getBean(beanType);
+                    Object bean = beanContext.getBean(beanDefinition);
                     socketIOServer.addListeners(bean, beanType);
                     log.info("Added Socket.IO annotated bean: {}", beanType.getName());
                 } catch (Exception e) {
@@ -75,17 +75,19 @@ public class MicronautAnnotationScanner {
      * Checks if the given class has any Socket.IO event listener annotations.
      *
      * @param beanClass the class to check for Socket.IO event listener annotations
-     * @return {@code true} if any method in the class is annotated with {@link OnConnect}, {@link OnDisconnect}, or {@link OnEvent}; {@code false} otherwise
+     * @return {@code true} if any method in the class or its hierarchy is annotated with
+     *         {@link OnConnect}, {@link OnDisconnect}, or {@link OnEvent}; {@code false} otherwise
      */
-    private boolean hasSocketIOAnnotations(Class<?> beanClass) {
+    boolean hasSocketIOAnnotations(Class<?> beanClass) {
+        if (beanClass == null || beanClass.equals(Object.class)) {
+            return false;
+        }
         Method[] methods = beanClass.getDeclaredMethods();
 
         for (Method method : methods) {
-            if (
-                    method.isAnnotationPresent(OnConnect.class)
-                            || method.isAnnotationPresent(OnDisconnect.class)
-                            || method.isAnnotationPresent(OnEvent.class)
-            ) {
+            if (method.isAnnotationPresent(OnConnect.class)
+                    || method.isAnnotationPresent(OnDisconnect.class)
+                    || method.isAnnotationPresent(OnEvent.class)) {
                 return true;
             }
         }
@@ -96,6 +98,6 @@ public class MicronautAnnotationScanner {
             }
         }
 
-        return false;
+        return hasSocketIOAnnotations(beanClass.getSuperclass());
     }
 }
