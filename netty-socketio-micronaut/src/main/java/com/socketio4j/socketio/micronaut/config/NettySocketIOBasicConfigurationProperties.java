@@ -16,9 +16,14 @@
  */
 package com.socketio4j.socketio.micronaut.config;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.socketio4j.socketio.BasicConfiguration;
+import com.socketio4j.socketio.Transport;
 
 import io.micronaut.context.annotation.ConfigurationProperties;
+import io.netty.util.ResourceLeakDetector;
 
 import static com.socketio4j.socketio.micronaut.config.NettySocketIOBasicConfigurationProperties.PREFIX;
 
@@ -32,4 +37,36 @@ import static com.socketio4j.socketio.micronaut.config.NettySocketIOBasicConfigu
 @ConfigurationProperties(PREFIX)
 public class NettySocketIOBasicConfigurationProperties extends BasicConfiguration {
     public static final String PREFIX = "netty-socket-io";
+
+    private ResourceLeakDetector.Level leakDetectionLevel;
+
+    public NettySocketIOBasicConfigurationProperties() {
+        super();
+        this.transports = new ArrayList<>(this.transports);
+    }
+
+    @Override
+    public List<Transport> getTransports() {
+        return transports;
+    }
+
+    @Override
+    public void setTransports(Transport... transports) {
+        super.setTransports(transports);
+    }
+
+    public void setTransports(List<Transport> transports) {
+        if (transports == null || transports.isEmpty()) {
+            throw new IllegalArgumentException("Transports list can't be empty");
+        }
+        this.transports = new ArrayList<>(transports);
+    }
+
+    public ResourceLeakDetector.Level getLeakDetectionLevel() {
+        return leakDetectionLevel;
+    }
+
+    public void setLeakDetectionLevel(ResourceLeakDetector.Level leakDetectionLevel) {
+        this.leakDetectionLevel = leakDetectionLevel;
+    }
 }
