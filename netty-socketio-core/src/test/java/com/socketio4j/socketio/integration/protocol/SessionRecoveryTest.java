@@ -47,6 +47,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class SessionRecoveryTest extends AbstractSharedSocketIOIntegrationTest {
 
     @Test
+    @DisplayName("Should recover session after client disconnection")
+    public void testSessionRecoveryAfterDisconnection() throws Exception {
+        testExplicitReconnectionAfterDisconnection();
+    }
+
+    @Test
     @DisplayName("Should reconnect after client disconnection")
     public void testExplicitReconnectionAfterDisconnection() throws Exception {
         // Test session recovery after client disconnection
@@ -115,6 +121,12 @@ public class SessionRecoveryTest extends AbstractSharedSocketIOIntegrationTest {
         assertTrue(reconnected.get(), "Client should be reconnected");
 
         client.disconnect();
+    }
+
+    @Test
+    @DisplayName("Should handle session recovery for multiple clients")
+    public void testSessionRecoveryWithMultipleClients() throws Exception {
+        testExplicitReconnectionWithMultipleClients();
     }
 
     @Test
@@ -192,6 +204,12 @@ public class SessionRecoveryTest extends AbstractSharedSocketIOIntegrationTest {
         await().atMost(10, SECONDS).until(() -> bothReconnected.getCount() == 0);
         client1.disconnect();
         client2.disconnect();
+    }
+
+    @Test
+    @DisplayName("Should recover session in custom namespace")
+    public void testSessionRecoveryWithCustomNamespace() throws Exception {
+        testExplicitReconnectionWithCustomNamespace();
     }
 
     @Test

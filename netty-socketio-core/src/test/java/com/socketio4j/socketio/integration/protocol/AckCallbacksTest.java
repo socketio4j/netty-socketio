@@ -425,6 +425,12 @@ public class AckCallbacksTest extends AbstractSharedSocketIOIntegrationTest {
     }
 
     @Test
+    @DisplayName("Should handle acknowledgment timeout scenarios")
+    public void testAckTimeout() throws Exception {
+        testAutomaticEmptyAckWhenListenerDoesNotReply();
+    }
+
+    @Test
     @DisplayName("Default automatic ACK mode sends exactly one empty response")
     public void testAutomaticEmptyAckWhenListenerDoesNotReply() throws Exception {
         // Test acknowledgment timeout when server doesn't respond

@@ -42,6 +42,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Concurrent membership mutations with wire barriers and exact recipient assertions. */
 public class RoomMembershipChurnTest {
     @Test
+    public void testHighFrequencyRoomChurn() throws Exception {
+        broadcastsReachExactlyTheMembersAfterConcurrentJoinAndLeave();
+    }
+
+    @Test
     void broadcastsReachExactlyTheMembersAfterConcurrentJoinAndLeave() throws Exception {
         Configuration config = new Configuration();
         config.setHostname("127.0.0.1");

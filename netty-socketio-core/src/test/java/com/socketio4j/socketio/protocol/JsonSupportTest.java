@@ -20,8 +20,11 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import com.socketio4j.socketio.AckCallback;
 import com.socketio4j.socketio.MultiTypeAckCallback;
@@ -32,6 +35,7 @@ import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.Unpooled;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -62,6 +66,196 @@ public class JsonSupportTest extends BaseProtocolTest {
         } finally {
             buffer.release();
         }
+    }
+
+    @Test
+    public void testReadAckArgs() throws IOException {
+        ByteBuf buf = Unpooled.copiedBuffer("[\"arg1\",\"arg2\"]", StandardCharsets.UTF_8);
+        try (ByteBufInputStream inputStream = new ByteBufInputStream(buf)) {
+            AckCallback<String> ackCallback = new AckCallback<String>(String.class) {
+                @Override
+                public void onSuccess(String result) {
+                }
+            };
+            AckArgs result = jsonSupport.readAckArgs(inputStream, ackCallback);
+            assertNotNull(result);
+            assertEquals(Arrays.asList("arg1", "arg2"), result.getArgs());
+        } finally {
+            buf.release();
+        }
+    }
+
+    @Test
+    public void testReadValue() throws IOException {
+        ByteBuf buf = Unpooled.copiedBuffer("\"testValue\"", StandardCharsets.UTF_8);
+        try (ByteBufInputStream inputStream = new ByteBufInputStream(buf)) {
+            String result = jsonSupport.readValue("testNamespace", inputStream, String.class);
+            assertEquals("testValue", result);
+        } finally {
+            buf.release();
+        }
+    }
+
+    @Test
+    public void testWriteValue() throws IOException {
+        ByteBuf buf = Unpooled.buffer();
+        try (ByteBufOutputStream outputStream = new ByteBufOutputStream(buf)) {
+            jsonSupport.writeValue(outputStream, "testValue");
+            assertEquals("\"testValue\"", buf.toString(StandardCharsets.UTF_8));
+        } finally {
+            buf.release();
+        }
+    }
+
+    @Test
+    public void testAddEventMapping() throws IOException {
+        String namespaceName = "/testNamespace";
+        String eventName = "testEvent";
+        jsonSupport.addEventMapping(namespaceName, eventName, String.class);
+        Event event = read(namespaceName, "[\"testEvent\",\"payloadData\"]", Event.class);
+        assertNotNull(event);
+        assertEquals(eventName, event.getName());
+        assertEquals(Arrays.asList("payloadData"), event.getArgs());
+    }
+
+    @Test
+    public void testAddEventMappingWithMultipleClasses() throws IOException {
+        String namespaceName = "/testNamespace";
+        String eventName = "testEvent";
+        jsonSupport.addEventMapping(namespaceName, eventName, String.class, Integer.class);
+        Event event = read(namespaceName, "[\"testEvent\",\"payloadData\",123]", Event.class);
+        assertNotNull(event);
+        assertEquals(eventName, event.getName());
+        assertEquals(Arrays.asList("payloadData", 123), event.getArgs());
+    }
+
+    @Test
+    public void testRemoveEventMapping() throws IOException {
+        String namespaceName = "/testNamespace";
+        String eventName = "testEvent";
+        jsonSupport.addEventMapping(namespaceName, eventName, Integer.class);
+        Event before = read(namespaceName, "[\"testEvent\",42]", Event.class);
+        assertEquals(Arrays.asList(42), before.getArgs());
+
+        jsonSupport.removeEventMapping(namespaceName, eventName);
+        Event after = read(namespaceName, "[\"testEvent\",\"genericValue\"]", Event.class);
+        assertEquals(eventName, after.getName());
+        assertEquals(Arrays.asList("genericValue"), after.getArgs());
+    }
+
+    @Test
+    public void testGetArrays() throws IOException {
+        byte[] array1 = "array1".getBytes(StandardCharsets.UTF_8);
+        byte[] array2 = "array2".getBytes(StandardCharsets.UTF_8);
+        write(Arrays.asList(array1, array2));
+
+        List<byte[]> result = jsonSupport.getArrays();
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertArrayEquals(array1, result.get(0));
+        assertArrayEquals(array2, result.get(1));
+    }
+
+    @Test
+    public void testGetArraysReturnsEmptyList() throws IOException {
+        write("nonBinaryPayload");
+        List<byte[]> result = jsonSupport.getArrays();
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    public void testReadValueWithDifferentTypes() throws IOException {
+        String str = read("ns", "\"stringValue\"", String.class);
+        assertEquals("stringValue", str);
+
+        Integer num = read("ns", "42", Integer.class);
+        assertEquals(Integer.valueOf(42), num);
+
+        Boolean bool = read("ns", "true", Boolean.class);
+        assertEquals(Boolean.TRUE, bool);
+
+        Map<?, ?> map = read("ns", "{\"key\":\"val\"}", Map.class);
+        assertNotNull(map);
+        assertEquals("val", map.get("key"));
+    }
+
+    @Test
+    public void testWriteValueWithDifferentTypes() throws IOException {
+        assertEquals("\"stringValue\"", write("stringValue"));
+        assertEquals("42", write(42));
+        assertEquals("true", write(true));
+        assertEquals("[\"a\",\"b\"]", write(Arrays.asList("a", "b")));
+    }
+
+    @Test
+    public void testAddEventMappingWithNullParameters() {
+        jsonSupport.addEventMapping(null, null, (Class<?>) null);
+        jsonSupport.addEventMapping(null, "eventWithNullNs", String.class);
+        jsonSupport.addEventMapping("/ns", null, Integer.class);
+    }
+
+    @Test
+    public void testRemoveEventMappingWithNullParameters() {
+        jsonSupport.removeEventMapping(null, null);
+        jsonSupport.removeEventMapping(null, "event");
+        jsonSupport.removeEventMapping("/ns", null);
+    }
+
+    @Test
+    public void testReadValueWithNullNamespace() throws IOException {
+        String result = read(null, "\"testValue\"", String.class);
+        assertEquals("testValue", result);
+    }
+
+    @Test
+    public void testWriteValueWithNullValue() throws IOException {
+        assertEquals("null", write(null));
+    }
+
+    @Test
+    public void testGetArraysReturnsNull() {
+        assertNotNull(jsonSupport.getArrays(), "JacksonJsonSupport returns non-null list");
+        JsonSupport customJson = Mockito.mock(JsonSupport.class);
+        Mockito.when(customJson.getArrays()).thenReturn(null);
+        assertNull(customJson.getArrays(), "Custom JsonSupport contract permits returning null");
+    }
+
+    @Test
+    public void testMultipleEventMappings() throws IOException {
+        String namespace1 = "/ns1";
+        String namespace2 = "/ns2";
+        String event1 = "event1";
+        String event2 = "event2";
+
+        jsonSupport.addEventMapping(namespace1, event1, String.class);
+        jsonSupport.addEventMapping(namespace2, event2, Integer.class);
+
+        Event e1 = read(namespace1, "[\"event1\",\"hello\"]", Event.class);
+        assertEquals(Arrays.asList("hello"), e1.getArgs());
+
+        Event e2 = read(namespace2, "[\"event2\",42]", Event.class);
+        assertEquals(Arrays.asList(42), e2.getArgs());
+    }
+
+    @Test
+    public void testMultipleEventRemovals() throws IOException {
+        String namespace1 = "/ns1";
+        String namespace2 = "/ns2";
+        String event1 = "event1";
+        String event2 = "event2";
+
+        jsonSupport.addEventMapping(namespace1, event1, String.class);
+        jsonSupport.addEventMapping(namespace2, event2, Integer.class);
+
+        jsonSupport.removeEventMapping(namespace1, event1);
+        jsonSupport.removeEventMapping(namespace2, event2);
+
+        Event e1 = read(namespace1, "[\"event1\",\"untyped1\"]", Event.class);
+        assertEquals(Arrays.asList("untyped1"), e1.getArgs());
+
+        Event e2 = read(namespace2, "[\"event2\",\"untyped2\"]", Event.class);
+        assertEquals(Arrays.asList("untyped2"), e2.getArgs());
     }
 
     @Test
@@ -107,7 +301,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         String encoded = write(Arrays.asList("binary", bytes));
         assertEquals("[\"binary\",{\"_placeholder\":true,\"num\":0}]", encoded);
         assertEquals(1, jsonSupport.getArrays().size());
-        org.junit.jupiter.api.Assertions.assertArrayEquals(bytes, jsonSupport.getArrays().get(0));
+        assertArrayEquals(bytes, jsonSupport.getArrays().get(0));
         assertEquals("\"next\"", write("next"));
         assertTrue(jsonSupport.getArrays().isEmpty());
     }
@@ -139,7 +333,8 @@ public class JsonSupportTest extends BaseProtocolTest {
             assertEquals(2, ackArgs.getArgs().size());
             assertEquals("hello", ackArgs.getArgs().get(0));
             assertEquals(Integer.valueOf(42), ackArgs.getArgs().get(1));
-            assertNull(realSupport.getAckCallbackThreadLocal(), "currentAckClass ThreadLocal must be cleared after readAckArgs");
+            assertNull(realSupport.getAckCallbackThreadLocal(),
+                    "currentAckClass ThreadLocal must be cleared after readAckArgs");
         } finally {
             buf.release();
         }

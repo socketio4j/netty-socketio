@@ -126,6 +126,11 @@ public class MemoryStoreTest extends AbstractStoreTest {
     }
 
     @Test
+    public void testMemoryStoreSessionExpirationAndCleanup() {
+        testMemoryStoreExplicitDeletion();
+    }
+
+    @Test
     public void testMemoryStoreExplicitDeletion() {
         store.set("sessionData", "userData");
         assertTrue(store.has("sessionData"));

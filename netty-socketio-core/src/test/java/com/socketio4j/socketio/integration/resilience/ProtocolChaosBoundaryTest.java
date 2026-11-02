@@ -21,6 +21,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -38,6 +39,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /** Each malformed stimulus must reach the parser and trigger an observed rejection. */
 public class ProtocolChaosBoundaryTest {
+    @Test
+    public void testMalformedProtocolFramesHandledGracefully() throws Exception {
+        rejectsMalformedFramesAndServesAFreshClient("99999invalid_packet_type");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"99999invalid_packet_type", "40{invalid_json_auth_payload",
             "459999999999999999999999-[\"bad\"]"})
