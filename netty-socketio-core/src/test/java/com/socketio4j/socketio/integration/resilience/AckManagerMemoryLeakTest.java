@@ -101,11 +101,14 @@ public class AckManagerMemoryLeakTest {
 
         CountDownLatch connectLatch = new CountDownLatch(1);
         CountDownLatch timeoutLatch = new CountDownLatch(5);
+        java.util.concurrent.atomic.AtomicReference<SocketIOClient> serverClient = new java.util.concurrent.atomic.AtomicReference<>();
+        AtomicInteger successCount = new AtomicInteger();
         AtomicInteger timeoutCount = new AtomicInteger(0);
 
         server.addConnectListener(new ConnectListener() {
             @Override
             public void onConnect(SocketIOClient client) {
+                serverClient.set(client);
                 connectLatch.countDown();
 
                 // Send 5 events requiring ACKs with short 1-second timeout
@@ -113,7 +116,7 @@ public class AckManagerMemoryLeakTest {
                     client.sendEvent("ack-leak-test", new AckCallback<String>(String.class, 1) {
                         @Override
                         public void onSuccess(String result) {
-                            // Should not be called because client ignores event
+                            successCount.incrementAndGet();
                         }
 
                         @Override
@@ -144,5 +147,13 @@ public class AckManagerMemoryLeakTest {
         assertTrue(timeoutLatch.await(TIMEOUT_SECS, TimeUnit.SECONDS), "Server ACK timeouts failed to trigger");
 
         assertEquals(5, timeoutCount.get(), "All 5 expired ACK callbacks must trigger onTimeout()");
+        assertEquals(0, successCount.get());
+        com.socketio4j.socketio.ack.AckManager manager =
+                ((com.socketio4j.socketio.transport.NamespaceClient) serverClient.get()).getBaseClient().getAckManager();
+        assertEquals(0, manager.getAckCallbacksCount(serverClient.get().getSessionId()),
+                "Timeout callbacks must be removed, not merely invoked");
+        clientSocket.disconnect();
+        org.awaitility.Awaitility.await().atMost(5, TimeUnit.SECONDS)
+                .until(() -> manager.getAckEntriesCount() == 0 && server.getAllClients().isEmpty());
     }
 }

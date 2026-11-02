@@ -148,18 +148,16 @@ public class ConnPacketTest extends BaseProtocolTest {
         ConnPacket connPacket = new ConnPacket(sid);
         
         int hashCode = connPacket.hashCode();
-        assertTrue(hashCode != 0);
+        assertEquals(hashCode, connPacket.hashCode(), "Hash code must remain stable for the same instance");
     }
 
     @Test
-    public void testConnPacketSerialization() {
+    public void testConnPacketSerialization() throws Exception {
         UUID sid = UUID.randomUUID();
         ConnPacket connPacket = new ConnPacket(sid);
         
-        // Test that the object can be serialized/deserialized
-        // This is a basic test - in a real scenario you might use ObjectOutputStream
-        assertNotNull(connPacket);
-        assertEquals(sid, connPacket.getSid());
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        assertEquals("{\"sid\":\"" + sid + "\"}", mapper.writeValueAsString(connPacket));
     }
 
     @Test

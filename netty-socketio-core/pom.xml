@@ -263,6 +263,7 @@
           <!-- Suites are manual aggregation entry points. Running them during
                normal discovery duplicates the classes they select. -->
           <excludes>
+            <exclude>**/*$*</exclude>
             <exclude>**/*Suite.java</exclude>
             <!-- These four classes run together in the execution below so
                  they can share one rigorously-reset single-node fixture. -->

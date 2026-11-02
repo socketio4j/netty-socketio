@@ -260,6 +260,9 @@ public class ClientHead {
     }
 
     public @Nullable ChannelFuture send(Packet packet, Transport transport) {
+        if (!isConnected() && packet.getSubType() != PacketType.DISCONNECT) {
+            return null;
+        }
         TransportState state = channels.get(transport);
         if (state == null) {
             return null;
@@ -270,11 +273,28 @@ public class ClientHead {
         if (maxPending > 0 && queue.size() >= maxPending) {
             log.warn("Session {} exceeded max pending packets ({}) on transport {}; disconnecting slow consumer",
                     sessionId, maxPending, transport);
-            disconnect();
+            List<Channel> openChannels = new ArrayList<>();
+            for (TransportState transportState : channels.values()) {
+                Channel openChannel = transportState.getChannel();
+                if (openChannel != null) {
+                    openChannels.add(openChannel);
+                }
+            }
+            onChannelDisconnect();
+            for (TransportState transportState : channels.values()) {
+                transportState.getPacketsQueue().clear();
+            }
+            for (Channel openChannel : openChannels) {
+                openChannel.close();
+            }
             return null;
         }
 
         queue.add(packet);
+        if (!isConnected() && packet.getSubType() != PacketType.DISCONNECT) {
+            queue.clear();
+            return null;
+        }
 
         Channel channel = state.getChannel();
         if (channel == null

@@ -20,13 +20,8 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.List;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import com.socketio4j.socketio.AckCallback;
 import com.socketio4j.socketio.MultiTypeAckCallback;
@@ -42,333 +37,79 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
- * Comprehensive test suite for JsonSupport interface using Mockito
+ * Real JSON serialization, event mapping and failure cleanup contracts
  */
 public class JsonSupportTest extends BaseProtocolTest {
 
-    @Mock
-    private JsonSupport jsonSupport;
+    private final JacksonJsonSupport jsonSupport = new JacksonJsonSupport();
 
-    @Mock
-    private AckCallback<String> ackCallback;
-
-    private AutoCloseable closeableMocks;
-
-    @BeforeEach
-    public void setUp() {
-        closeableMocks = MockitoAnnotations.openMocks(this);
+    private <T> T read(String namespace, String json, Class<T> type) throws IOException {
+        ByteBuf buffer = Unpooled.copiedBuffer(json, StandardCharsets.UTF_8);
+        try (ByteBufInputStream in = new ByteBufInputStream(buffer)) {
+            return jsonSupport.readValue(namespace, in, type);
+        } finally {
+            buffer.release();
+        }
     }
 
-    @AfterEach
-    public void tearDown() throws Exception {
-        closeableMocks.close();
-    }
-
-    @Test
-    public void testReadAckArgs() throws IOException {
-        // Setup
-        ByteBufInputStream inputStream = new ByteBufInputStream(Unpooled.wrappedBuffer("test".getBytes()));
-        AckArgs expectedAckArgs = new AckArgs(Arrays.asList("arg1", "arg2"));
-        
-        when(jsonSupport.readAckArgs(inputStream, ackCallback)).thenReturn(expectedAckArgs);
-        
-        // Execute
-        AckArgs result = jsonSupport.readAckArgs(inputStream, ackCallback);
-        
-        // Verify
-        assertEquals(expectedAckArgs, result);
-        verify(jsonSupport).readAckArgs(inputStream, ackCallback);
-        
-        inputStream.close();
+    private String write(Object value) throws IOException {
+        ByteBuf buffer = Unpooled.buffer();
+        try (ByteBufOutputStream out = new ByteBufOutputStream(buffer)) {
+            jsonSupport.writeValue(out, value);
+            return buffer.toString(StandardCharsets.UTF_8);
+        } finally {
+            buffer.release();
+        }
     }
 
     @Test
-    public void testReadValue() throws IOException {
-        // Setup
-        ByteBufInputStream inputStream = new ByteBufInputStream(Unpooled.wrappedBuffer("test".getBytes()));
-        String expectedValue = "testValue";
-        String namespaceName = "testNamespace";
-        Class<String> valueType = String.class;
-        
-        when(jsonSupport.readValue(namespaceName, inputStream, valueType)).thenReturn(expectedValue);
-        
-        // Execute
-        String result = jsonSupport.readValue(namespaceName, inputStream, valueType);
-        
-        // Verify
-        assertEquals(expectedValue, result);
-        verify(jsonSupport).readValue(namespaceName, inputStream, valueType);
-        
-        inputStream.close();
+    void scalarAndNullValuesUseRealJsonEncoding() throws IOException {
+        assertEquals("\"hello\\nதமிழ்\"", write("hello\nதமிழ்"));
+        assertEquals("42", write(42));
+        assertEquals("true", write(true));
+        assertEquals("null", write(null));
+        assertEquals("hello\nதமிழ்", read(null, "\"hello\\nதமிழ்\"", String.class));
+        assertEquals(Integer.valueOf(42), read("/chat", "42", Integer.class));
+        assertEquals(Boolean.TRUE, read("/chat", "true", Boolean.class));
+        assertNull(read("/chat", "null", String.class));
     }
 
     @Test
-    public void testWriteValue() throws IOException {
-        // Setup
-        ByteBufOutputStream outputStream = new ByteBufOutputStream(Unpooled.buffer());
-        Object value = "testValue";
-        
-        doNothing().when(jsonSupport).writeValue(outputStream, value);
-        
-        // Execute
-        jsonSupport.writeValue(outputStream, value);
-        
-        // Verify
-        verify(jsonSupport).writeValue(outputStream, value);
-        
-        outputStream.close();
+    void mappingsAreScopedByNamespaceAndRemovalRestoresUntypedDecoding() throws IOException {
+        jsonSupport.addEventMapping("/a", "value", Integer.class);
+        jsonSupport.addEventMapping("/b", "value", String.class);
+        assertEquals(Arrays.asList(42), read("/a", "[\"value\",42]", Event.class).getArgs());
+        assertEquals(Arrays.asList("text"), read("/b", "[\"value\",\"text\"]", Event.class).getArgs());
+        jsonSupport.removeEventMapping("/a", "value");
+        assertEquals(Arrays.asList("now untyped"),
+                read("/a", "[\"value\",\"now untyped\"]", Event.class).getArgs());
+        assertEquals(Arrays.asList("still scoped"),
+                read("/b", "[\"value\",\"still scoped\"]", Event.class).getArgs());
     }
 
     @Test
-    public void testAddEventMapping() {
-        // Setup
-        String namespaceName = "testNamespace";
-        String eventName = "testEvent";
-        Class<?> eventClass = String.class;
-        
-        doNothing().when(jsonSupport).addEventMapping(namespaceName, eventName, eventClass);
-        
-        // Execute
-        jsonSupport.addEventMapping(namespaceName, eventName, eventClass);
-        
-        // Verify
-        verify(jsonSupport).addEventMapping(namespaceName, eventName, eventClass);
+    void mapsMultipleArgumentsAndRejectsWrongMappedShape() throws IOException {
+        jsonSupport.addEventMapping("/chat", "pair", String.class, Integer.class);
+        Event event = read("/chat", "[\"pair\",\"one\",2]", Event.class);
+        assertEquals("pair", event.getName());
+        assertEquals(Arrays.asList("one", 2), event.getArgs());
+        assertThrows(IOException.class,
+                () -> read("/chat", "[\"pair\",\"one\",{\"bad\":true}]", Event.class));
+        assertEquals(Arrays.asList("valid", 3),
+                read("/chat", "[\"pair\",\"valid\",3]", Event.class).getArgs());
     }
 
     @Test
-    public void testAddEventMappingWithMultipleClasses() {
-        // Setup
-        String namespaceName = "testNamespace";
-        String eventName = "testEvent";
-        Class<?> eventClass1 = String.class;
-        Class<?> eventClass2 = Integer.class;
-        
-        doNothing().when(jsonSupport).addEventMapping(namespaceName, eventName, eventClass1, eventClass2);
-        
-        // Execute
-        jsonSupport.addEventMapping(namespaceName, eventName, eventClass1, eventClass2);
-        
-        // Verify
-        verify(jsonSupport).addEventMapping(namespaceName, eventName, eventClass1, eventClass2);
-    }
-
-    @Test
-    public void testRemoveEventMapping() {
-        // Setup
-        String namespaceName = "testNamespace";
-        String eventName = "testEvent";
-        
-        doNothing().when(jsonSupport).removeEventMapping(namespaceName, eventName);
-        
-        // Execute
-        jsonSupport.removeEventMapping(namespaceName, eventName);
-        
-        // Verify
-        verify(jsonSupport).removeEventMapping(namespaceName, eventName);
-    }
-
-    @Test
-    public void testGetArrays() {
-        // Setup
-        List<byte[]> expectedArrays = Arrays.asList(
-            "array1".getBytes(),
-            "array2".getBytes()
-        );
-        
-        when(jsonSupport.getArrays()).thenReturn(expectedArrays);
-        
-        // Execute
-        List<byte[]> result = jsonSupport.getArrays();
-        
-        // Verify
-        assertEquals(expectedArrays, result);
-        verify(jsonSupport).getArrays();
-    }
-
-    @Test
-    public void testGetArraysReturnsEmptyList() {
-        // Setup
-        List<byte[]> emptyArrays = Arrays.asList();
-        
-        when(jsonSupport.getArrays()).thenReturn(emptyArrays);
-        
-        // Execute
-        List<byte[]> result = jsonSupport.getArrays();
-        
-        // Verify
-        assertTrue(result.isEmpty());
-        verify(jsonSupport).getArrays();
-    }
-
-    @Test
-    public void testReadValueWithDifferentTypes() throws IOException {
-        // Setup
-        ByteBufInputStream inputStream = new ByteBufInputStream(Unpooled.wrappedBuffer("test".getBytes()));
-        String namespaceName = "testNamespace";
-        
-        // Test with String
-        when(jsonSupport.readValue(namespaceName, inputStream, String.class)).thenReturn("stringValue");
-        String stringResult = jsonSupport.readValue(namespaceName, inputStream, String.class);
-        assertEquals("stringValue", stringResult);
-        
-        // Test with Integer
-        when(jsonSupport.readValue(namespaceName, inputStream, Integer.class)).thenReturn(42);
-        Integer intResult = jsonSupport.readValue(namespaceName, inputStream, Integer.class);
-        assertEquals(Integer.valueOf(42), intResult);
-        
-        // Test with Boolean
-        when(jsonSupport.readValue(namespaceName, inputStream, Boolean.class)).thenReturn(true);
-        Boolean boolResult = jsonSupport.readValue(namespaceName, inputStream, Boolean.class);
-        assertEquals(Boolean.TRUE, boolResult);
-        
-        verify(jsonSupport, times(3)).readValue(eq(namespaceName), eq(inputStream), any());
-        
-        inputStream.close();
-    }
-
-    @Test
-    public void testWriteValueWithDifferentTypes() throws IOException {
-        // Setup
-        ByteBufOutputStream outputStream = new ByteBufOutputStream(Unpooled.buffer());
-        
-        // Test with String
-        doNothing().when(jsonSupport).writeValue(outputStream, "stringValue");
-        jsonSupport.writeValue(outputStream, "stringValue");
-        
-        // Test with Integer
-        doNothing().when(jsonSupport).writeValue(outputStream, 42);
-        jsonSupport.writeValue(outputStream, 42);
-        
-        // Test with Boolean
-        doNothing().when(jsonSupport).writeValue(outputStream, true);
-        jsonSupport.writeValue(outputStream, true);
-        
-        verify(jsonSupport).writeValue(outputStream, "stringValue");
-        verify(jsonSupport).writeValue(outputStream, 42);
-        verify(jsonSupport).writeValue(outputStream, true);
-        
-        outputStream.close();
-    }
-
-    @Test
-    public void testAddEventMappingWithNullParameters() {
-        // Setup
-        doNothing().when(jsonSupport).addEventMapping(null, null, (Class<?>) null);
-        
-        // Execute
-        jsonSupport.addEventMapping(null, null, (Class<?>) null);
-        
-        // Verify
-        verify(jsonSupport).addEventMapping(null, null, (Class<?>) null);
-    }
-
-    @Test
-    public void testRemoveEventMappingWithNullParameters() {
-        // Setup
-        doNothing().when(jsonSupport).removeEventMapping(null, null);
-        
-        // Execute
-        jsonSupport.removeEventMapping(null, null);
-        
-        // Verify
-        verify(jsonSupport).removeEventMapping(null, null);
-    }
-
-    @Test
-    public void testReadValueWithNullNamespace() throws IOException {
-        // Setup
-        ByteBufInputStream inputStream = new ByteBufInputStream(Unpooled.wrappedBuffer("test".getBytes()));
-        String expectedValue = "testValue";
-        
-        when(jsonSupport.readValue(null, inputStream, String.class)).thenReturn(expectedValue);
-        
-        // Execute
-        String result = jsonSupport.readValue(null, inputStream, String.class);
-        
-        // Verify
-        assertEquals(expectedValue, result);
-        verify(jsonSupport).readValue(null, inputStream, String.class);
-        
-        inputStream.close();
-    }
-
-    @Test
-    public void testWriteValueWithNullValue() throws IOException {
-        // Setup
-        ByteBufOutputStream outputStream = new ByteBufOutputStream(Unpooled.buffer());
-        
-        doNothing().when(jsonSupport).writeValue(outputStream, null);
-        
-        // Execute
-        jsonSupport.writeValue(outputStream, null);
-        
-        // Verify
-        verify(jsonSupport).writeValue(outputStream, null);
-        
-        outputStream.close();
-    }
-
-    @Test
-    public void testGetArraysReturnsNull() {
-        // Setup
-        when(jsonSupport.getArrays()).thenReturn(null);
-        
-        // Execute
-        List<byte[]> result = jsonSupport.getArrays();
-        
-        // Verify
-        assertNull(result);
-        verify(jsonSupport).getArrays();
-    }
-
-    @Test
-    public void testMultipleEventMappings() {
-        // Setup
-        String namespace1 = "namespace1";
-        String namespace2 = "namespace2";
-        String event1 = "event1";
-        String event2 = "event2";
-        Class<?> class1 = String.class;
-        Class<?> class2 = Integer.class;
-        
-        doNothing().when(jsonSupport).addEventMapping(namespace1, event1, class1);
-        doNothing().when(jsonSupport).addEventMapping(namespace2, event2, class2);
-        
-        // Execute
-        jsonSupport.addEventMapping(namespace1, event1, class1);
-        jsonSupport.addEventMapping(namespace2, event2, class2);
-        
-        // Verify
-        verify(jsonSupport).addEventMapping(namespace1, event1, class1);
-        verify(jsonSupport).addEventMapping(namespace2, event2, class2);
-    }
-
-    @Test
-    public void testMultipleEventRemovals() {
-        // Setup
-        String namespace1 = "namespace1";
-        String namespace2 = "namespace2";
-        String event1 = "event1";
-        String event2 = "event2";
-        
-        doNothing().when(jsonSupport).removeEventMapping(namespace1, event1);
-        doNothing().when(jsonSupport).removeEventMapping(namespace2, event2);
-        
-        // Execute
-        jsonSupport.removeEventMapping(namespace1, event1);
-        jsonSupport.removeEventMapping(namespace2, event2);
-        
-        // Verify
-        verify(jsonSupport).removeEventMapping(namespace1, event1);
-        verify(jsonSupport).removeEventMapping(namespace2, event2);
+    void binarySerializationExtractsExactBytesAndResetsBetweenWrites() throws IOException {
+        byte[] bytes = new byte[] {0, 1, -1, 4};
+        String encoded = write(Arrays.asList("binary", bytes));
+        assertEquals("[\"binary\",{\"_placeholder\":true,\"num\":0}]", encoded);
+        assertEquals(1, jsonSupport.getArrays().size());
+        org.junit.jupiter.api.Assertions.assertArrayEquals(bytes, jsonSupport.getArrays().get(0));
+        assertEquals("\"next\"", write("next"));
+        assertTrue(jsonSupport.getArrays().isEmpty());
     }
 
     private static class InspectableJacksonJsonSupport extends JacksonJsonSupport {
@@ -444,7 +185,7 @@ public class JsonSupportTest extends BaseProtocolTest {
                 assertNull(realSupport.getNamespaceThreadLocal(),
                         "namespaceClass ThreadLocal must be cleared even when Event deserialization fails");
             } catch (IOException closeEx) {
-                // ignore stream close
+                throw new java.io.UncheckedIOException(closeEx);
             } finally {
                 buf.release();
             }

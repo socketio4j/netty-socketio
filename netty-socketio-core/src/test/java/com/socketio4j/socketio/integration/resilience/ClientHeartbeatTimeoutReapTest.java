@@ -16,124 +16,62 @@
  */
 package com.socketio4j.socketio.integration.resilience;
 
-import java.io.IOException;
-import java.net.ServerSocket;
-import java.util.concurrent.CountDownLatch;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.Transport;
-import com.socketio4j.socketio.listener.ConnectListener;
-import com.socketio4j.socketio.listener.DisconnectListener;
+import com.socketio4j.socketio.integration.RawWebSocketClient;
 
-import io.socket.client.IO;
-import io.socket.client.Socket;
-
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Production-readiness test: Client Heartbeat Timeout Reaping.
- *
- * <p>Verifies that when a connected client stops responding to PING/PONG heartbeats (dead tab / process),
- * Netty `PingTimeoutHandler` automatically reaps the dead session, cleans up `clientsBox`, and fires `onDisconnect`.
- */
+/** A connected raw peer withholds PONG; no client disconnect API is called. */
 public class ClientHeartbeatTimeoutReapTest {
-
-    private static final Logger log = LoggerFactory.getLogger(ClientHeartbeatTimeoutReapTest.class);
-
-    private static final long TIMEOUT_SECS = 20L;
-
-    private SocketIOServer server;
-    private int port;
-    private Socket clientSocket;
-
-    @AfterEach
-    public void tearDown() {
-        if (clientSocket != null) {
-            try {
-                clientSocket.off();
-                clientSocket.disconnect();
-            } catch (Exception e) {
-                log.warn("Error disconnecting client: {}", e.getMessage());
-            }
-        }
-
-        if (server != null) {
-            try {
-                server.stop();
-            } catch (Exception e) {
-                log.warn("Error stopping server: {}", e.getMessage());
-            }
-        }
-    }
-
-    private static int findAvailablePort() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            socket.setReuseAddress(true);
-            return socket.getLocalPort();
-        } catch (IOException e) {
-            throw new RuntimeException("Could not find available TCP port", e);
-        }
-    }
-
     @Test
-    @DisplayName("Heartbeat Timeout Reap Test: Dead Session Reaped on Ping Timeout")
-    public void testDeadSessionReapedOnPingTimeout() throws Exception {
-        port = findAvailablePort();
-
+    void reapsOnlyThePeerThatWithholdsPong() throws Exception {
         Configuration config = new Configuration();
         config.setHostname("127.0.0.1");
-        config.setPort(port);
+        config.setPort(0);
         config.setTransports(Transport.WEBSOCKET);
-        // Short ping intervals for fast test execution
-        config.setPingInterval(1000); // Send PING every 1s
-        config.setPingTimeout(1500);  // Reap if no PONG within 1.5s
-
-        server = new SocketIOServer(config);
-
-        CountDownLatch connectLatch = new CountDownLatch(1);
-        CountDownLatch disconnectLatch = new CountDownLatch(1);
-        AtomicBoolean disconnectFired = new AtomicBoolean(false);
-
-        server.addConnectListener(new ConnectListener() {
-            @Override
-            public void onConnect(SocketIOClient client) {
-                connectLatch.countDown();
+        config.setPingInterval(200);
+        config.setPingTimeout(600);
+        SocketIOServer server = new SocketIOServer(config);
+        java.util.concurrent.CountDownLatch reaped = new java.util.concurrent.CountDownLatch(1);
+        AtomicReference<UUID> disconnected = new AtomicReference<>();
+        server.addDisconnectListener(client -> { disconnected.set(client.getSessionId()); reaped.countDown(); });
+        server.addConnectListener(client -> client.joinRoom("heartbeat-room"));
+        server.addEventListener("health", String.class, (client, data, ack) -> ack.sendAckData(data));
+        try {
+            server.start();
+            try (RawWebSocketClient healthy = new RawWebSocketClient(config.getPort(), true);
+                    RawWebSocketClient stalled = new RawWebSocketClient(config.getPort(), false)) {
+                UUID stalledId = UUID.fromString(stalled.sessionId());
+                SocketIOClient stalledClient = server.getClient(stalledId);
+                assertTrue(stalledClient.getAllRooms().contains("heartbeat-room"));
+                healthy.assertHealthExchange("before-timeout");
+                stalled.awaitFrame("2"::equals);
+                long pingObserved = System.nanoTime();
+                assertTrue(reaped.await(5, TimeUnit.SECONDS), "Unresponsive live peer must be reaped by the heartbeat deadline");
+                assertEquals(stalledId, disconnected.get());
+                assertTrue(System.nanoTime() - pingObserved >= TimeUnit.MILLISECONDS.toNanos(400),
+                        "Peer must remain connected until the heartbeat deadline, not close immediately");
+                assertNull(server.getClient(stalledId));
+                assertTrue(stalledClient.getAllRooms().isEmpty());
+                assertEquals(1, server.getAllClients().size(), "Healthy peer must survive the stalled peer timeout");
+                healthy.assertHealthExchange("after-timeout");
             }
-        });
-
-        server.addDisconnectListener(new DisconnectListener() {
-            @Override
-            public void onDisconnect(SocketIOClient client) {
-                disconnectFired.set(true);
-                disconnectLatch.countDown();
-            }
-        });
-
-        server.start();
-
-        IO.Options opts = new IO.Options();
-        opts.forceNew = true;
-        opts.transports = new String[]{ "websocket" };
-
-        clientSocket = IO.socket("http://127.0.0.1:" + port, opts);
-        clientSocket.connect();
-
-        assertTrue(connectLatch.await(TIMEOUT_SECS, TimeUnit.SECONDS), "Client failed to connect");
-
-        // Disconnect client without sending DISCONNECT frame to simulate frozen/dead process
-        clientSocket.disconnect();
-
-        assertTrue(disconnectLatch.await(TIMEOUT_SECS, TimeUnit.SECONDS), "Server failed to reap dead session on Ping Timeout");
-        assertTrue(disconnectFired.get(), "Server DisconnectListener must fire when session is reaped");
+            await().atMost(5, TimeUnit.SECONDS).until(() -> server.getAllClients().isEmpty());
+        } finally {
+            server.stop();
+        }
     }
 }
