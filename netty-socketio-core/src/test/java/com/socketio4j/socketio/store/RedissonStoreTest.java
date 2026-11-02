@@ -78,11 +78,6 @@ public class RedissonStoreTest extends AbstractStoreTest {
     }
 
     @Test
-    public void testRedisDataPersistence() {
-        testRedisValueRemainsUntilExplicitDeletion();
-    }
-
-    @Test
     public void testRedisValueRemainsUntilExplicitDeletion() {
         // Test that data persists across operations
         store.set("persistentKey", "persistentValue");

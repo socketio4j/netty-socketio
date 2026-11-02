@@ -37,11 +37,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** A connected raw peer withholds PONG; no client disconnect API is called. */
 public class ClientHeartbeatTimeoutReapTest {
     @Test
-    public void testDeadSessionReapedOnPingTimeout() throws Exception {
-        reapsOnlyThePeerThatWithholdsPong();
-    }
-
-    @Test
     void reapsOnlyThePeerThatWithholdsPong() throws Exception {
         Configuration config = new Configuration();
         config.setHostname("127.0.0.1");

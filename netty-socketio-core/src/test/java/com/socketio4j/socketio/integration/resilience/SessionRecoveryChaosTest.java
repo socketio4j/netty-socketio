@@ -119,12 +119,6 @@ public class SessionRecoveryChaosTest {
     }
 
     @Test
-    @DisplayName("Session Recovery Chaos Test: Abrupt Network Blip Recovery")
-    public void testAbruptNetworkBlipRecovery() throws Exception {
-        testExplicitReconnectBetweenAcknowledgedBatches();
-    }
-
-    @Test
     @DisplayName("Explicit reconnect between acknowledged traffic batches")
     public void testExplicitReconnectBetweenAcknowledgedBatches() throws Exception {
         port = findAvailablePort();

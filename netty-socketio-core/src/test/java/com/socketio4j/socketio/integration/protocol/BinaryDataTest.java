@@ -30,11 +30,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class BinaryDataTest extends AbstractSharedSocketIOIntegrationTest {
     @Test
-    public void testBinaryEventTransmission() throws Exception {
-        binaryEventAndAckPreserveAllByteValues();
-    }
-
-    @Test
     void binaryEventAndAckPreserveAllByteValues() throws Exception {
         String event = generateEventName("binary");
         byte[] payload = new byte[256];
