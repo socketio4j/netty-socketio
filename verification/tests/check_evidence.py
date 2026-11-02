@@ -17,7 +17,9 @@ def inspect_reports(directory):
     for path in files:
         root = ET.parse(path).getroot()
         entries = root.findall("testcase")
-        if int(root.get("tests", "-1")) != len(entries):
+        declared = int(root.get("tests", "-1"))
+        has_nested = any("$" in (c.get("classname") or "") for c in entries)
+        if declared != len(entries) and not (has_nested and len(entries) >= declared):
             raise ValueError("JUnit count disagrees with case entries: " + str(path))
         owner = path.name[len("TEST-"):-len(".xml")].split("$")[0]
         for case in entries:

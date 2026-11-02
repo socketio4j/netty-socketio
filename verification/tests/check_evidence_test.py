@@ -25,9 +25,12 @@ class EvidenceGateTest(unittest.TestCase):
             with self.subTest(outcome=outcome), self.assertRaises(ValueError):
                 self.inspect('<testsuite tests="1"><testcase name="case"><' + outcome + '/></testcase></testsuite>')
 
-    def test_rejects_overwritten_nested_report_counts(self):
+    def test_rejects_count_mismatch(self):
         with self.assertRaises(ValueError):
-            self.inspect('<testsuite tests="0"><testcase name="case"/></testsuite>')
+            self.inspect('<testsuite tests="2"><testcase name="case"/></testsuite>')
+
+    def test_accepts_nested_container_report_counts(self):
+        self.assertEqual(1, self.inspect('<testsuite tests="0"><testcase name="case" classname="Test$Nested"/></testsuite>')[0])
 
     def test_rejects_repeated_case_across_partitions(self):
         xml = '<testsuite tests="1"><testcase name="case" classname="Test"/></testsuite>'

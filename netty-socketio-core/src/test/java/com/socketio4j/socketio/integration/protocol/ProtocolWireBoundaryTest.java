@@ -110,7 +110,7 @@ public class ProtocolWireBoundaryTest {
             ClientHead head = ((NamespaceClient) server.getClient(UUID.fromString(sid))).getBaseClient();
             assertEquals("ok", request(config.getPort(), sid,
                     "451-8[\"upload\",{\"_placeholder\":true,\"num\":0}]", 200));
-            assertNotNull(head.getLastBinaryPacket());
+            await().atMost(5, TimeUnit.SECONDS).until(() -> head.getLastBinaryPacket() != null);
             assertEquals(0, delivered.get());
             try (RawWebSocketClient peer = new RawWebSocketClient(config.getPort(), true, sid)) {
                 peer.send("2probe");

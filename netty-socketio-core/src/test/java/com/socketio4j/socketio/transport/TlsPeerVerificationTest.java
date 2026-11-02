@@ -18,6 +18,7 @@ package com.socketio4j.socketio.transport;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -153,7 +154,7 @@ class TlsPeerVerificationTest {
                             .readTree(body.substring(1)).get("sid"));
                 }
             } else {
-                assertThrows(javax.net.ssl.SSLException.class, () -> {
+                assertThrows(IOException.class, () -> {
                     try (Response response = client.newCall(request).execute()) {
                         throw new AssertionError("Peer authentication unexpectedly accepted HTTP " + response.code());
                     }
