@@ -169,7 +169,7 @@ jobs:
 
       # --- Fast-fail Code Quality Gates ---
       - name: Code Quality & Style Check
-        run: mvn --batch-mode --no-transfer-progress checkstyle:check
+        run: mvn --batch-mode --no-transfer-progress -T 1C checkstyle:check
 
       # --- Event-Loop Lock Safety Gate ---
       - name: Event-Loop Lock Safety Gate
@@ -180,7 +180,9 @@ jobs:
       - name: Build Project
         timeout-minutes: 120
         run: |
-          export MAVEN_OPTS="-Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN \
+          export MAVEN_OPTS="-Xms256m -Xmx512m \
+                             -XX:+UseG1GC \
+                             -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN \
                              -Dorg.slf4j.simpleLogger.defaultLogLevel=WARN \
                              -Dcom.socketio4j.socketio.level=WARN \
                              -Dio.netty.leakDetection.level=PARANOID"
@@ -191,5 +193,7 @@ jobs:
           else
             echo "Docker daemon is active and reachable. Running full test suite including Testcontainers."
           fi
-          mvn --batch-mode --errors --fail-at-end -Dsocketio.test.forkCount=1C \
+          mvn --batch-mode --errors --fail-at-end -T 1C \
+            -Dsocketio.test.forkCount=1C \
+            -Dsocketio.test.reuseForks=true \
             -Dsocketio.interop.versions=${{ inputs.interopVersions }} $DOCKER_FLAG verify

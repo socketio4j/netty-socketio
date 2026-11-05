@@ -36,6 +36,8 @@ import com.hazelcast.config.RingbufferConfig;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.ringbuffer.Ringbuffer;
 import com.hazelcast.topic.ITopic;
+import com.hazelcast.topic.Message;
+import com.hazelcast.topic.ReliableMessageListener;
 import com.hazelcast.topic.TopicOverloadPolicy;
 import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.event.EventListener;
@@ -160,14 +162,15 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
         try {
             Config config = hazelcastPub.getConfig();
             if (config != null) {
-                RingbufferConfig rbConfig = config.getRingbufferConfig(topicName);
+                String ringBufferName = "_hz_rb_" + topicName;
+                RingbufferConfig rbConfig = config.getRingbufferConfig(ringBufferName);
                 rbConfig.setCapacity(ringBufferCapacity);
                 rbConfig.setTimeToLiveSeconds(ringBufferTimeToLiveSeconds);
 
                 ReliableTopicConfig topicConfig = config.getReliableTopicConfig(topicName);
                 topicConfig.setTopicOverloadPolicy(topicOverloadPolicy);
                 log.debug("Configured Hazelcast ringbuffer '{}' with capacity={}, ttl={}, overloadPolicy={}",
-                        topicName, ringBufferCapacity, ringBufferTimeToLiveSeconds, topicOverloadPolicy);
+                        ringBufferName, ringBufferCapacity, ringBufferTimeToLiveSeconds, topicOverloadPolicy);
             }
         } catch (UnsupportedOperationException e) {
             verifyClientRingBufferCapacity(topicName);
@@ -178,12 +181,16 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
 
     private void verifyClientRingBufferCapacity(String topicName) {
         try {
-            Ringbuffer<?> rb = hazelcastPub.getRingbuffer(topicName);
+            String ringBufferName = "_hz_rb_" + topicName;
+            Ringbuffer<?> rb = hazelcastPub.getRingbuffer(ringBufferName);
+            if (rb == null) {
+                rb = hazelcastPub.getRingbuffer(topicName);
+            }
             if (rb != null) {
                 long clusterCapacity = rb.capacity();
                 if (clusterCapacity != ringBufferCapacity) {
                     log.info("Hazelcast ring buffer '{}' cluster capacity is {} (configured client target: {}).",
-                            topicName, clusterCapacity, ringBufferCapacity);
+                            ringBufferName, clusterCapacity, ringBufferCapacity);
                 }
             }
         } catch (Exception e) {
@@ -194,16 +201,23 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
 
     @Override
     public void publish0(EventType type, EventMessage msg) {
+        if (msg == null) {
+            return;
+        }
         msg.setNodeId(nodeId);
         String topicName = getRingBufferName(type);
-        ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> hazelcastPub.getReliableTopic(topicName));
-
-        topic.publishAsync(msg).whenComplete((res, ex) -> {
-            if (ex != null) {
-                log.error("Failed to publish event {} on reliable topic {}", msg, topicName, ex);
-                metrics.eventPublishFailed(extractNamespace(msg));
-            }
-        });
+        try {
+            ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> hazelcastPub.getReliableTopic(topicName));
+            topic.publishAsync(msg).whenComplete((res, ex) -> {
+                if (ex != null) {
+                    log.error("Failed to publish event {} on reliable topic {}", msg, topicName, ex);
+                    metrics.eventPublishFailed(extractNamespace(msg));
+                }
+            });
+        } catch (Exception ex) {
+            log.error("Failed to initiate publish of event {} on reliable topic {}", msg, topicName, ex);
+            metrics.eventPublishFailed(extractNamespace(msg));
+        }
     }
 
     @Override
@@ -237,9 +251,40 @@ public class HazelcastPubSubRingBufferEventStore implements EventStore {
 
         ITopic<T> topic = hazelcastSub.getReliableTopic(getRingBufferName(type));
 
-        UUID regId = topic.addMessageListener(msg -> {
-            if (!Objects.equals(this.nodeId, msg.getMessageObject().getNodeId())) {
-                listener.onMessage(msg.getMessageObject());
+        UUID regId = topic.addMessageListener(new ReliableMessageListener<T>() {
+            @Override
+            public void onMessage(Message<T> msg) {
+                if (msg == null) {
+                    return;
+                }
+                T eventMsg = msg.getMessageObject();
+                if (eventMsg != null && !nodeId.equals(eventMsg.getNodeId())) {
+                    try {
+                        listener.onMessage(eventMsg);
+                    } catch (Exception e) {
+                        log.error("Failed to process event {} on reliable topic {}", eventMsg, getRingBufferName(type), e);
+                    }
+                }
+            }
+
+            @Override
+            public long retrieveInitialSequence() {
+                return -1L;
+            }
+
+            @Override
+            public void storeSequence(long sequence) {
+                // In-memory reliable topic listener; sequence maintained by Hazelcast runner
+            }
+
+            @Override
+            public boolean isLossTolerant() {
+                return true;
+            }
+
+            @Override
+            public boolean isTerminal(Throwable failure) {
+                return false;
             }
         });
 

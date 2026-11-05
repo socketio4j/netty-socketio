@@ -16,21 +16,38 @@
  */
 package com.socketio4j.socketio.store.hazelcast_ringbuffer;
 
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.hazelcast.config.Config;
 import com.hazelcast.config.ReliableTopicConfig;
 import com.hazelcast.config.RingbufferConfig;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.ringbuffer.Ringbuffer;
+import com.hazelcast.topic.ITopic;
+import com.hazelcast.topic.Message;
+import com.hazelcast.topic.ReliableMessageListener;
 import com.hazelcast.topic.TopicOverloadPolicy;
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
+import com.socketio4j.socketio.protocol.Packet;
+import com.socketio4j.socketio.protocol.PacketType;
+import com.socketio4j.socketio.store.event.DispatchMessage;
+import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventStoreMode;
+import com.socketio4j.socketio.store.event.EventType;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -106,7 +123,7 @@ class HazelcastPubSubRingBufferEventStoreTest {
                 .topicOverloadPolicy(TopicOverloadPolicy.DISCARD_NEWEST)
                 .build();
 
-        verify(config).getRingbufferConfig("SOCKETIO4J:ALL_SINGLE_CHANNEL");
+        verify(config).getRingbufferConfig("_hz_rb_SOCKETIO4J:ALL_SINGLE_CHANNEL");
         verify(rbConfig).setCapacity(25000);
         verify(rbConfig).setTimeToLiveSeconds(300);
         verify(topicConfig).setTopicOverloadPolicy(TopicOverloadPolicy.DISCARD_NEWEST);
@@ -129,5 +146,112 @@ class HazelcastPubSubRingBufferEventStoreTest {
                 .build();
 
         assertThat(store.getRingBufferCapacity()).isEqualTo(10000);
+    }
+
+    @Test
+    @DisplayName("subscribe0 registers a ReliableMessageListener that is loss-tolerant and non-terminal")
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void testReliableMessageListenerProperties() {
+        HazelcastInstance pub = mock(HazelcastInstance.class);
+        HazelcastInstance sub = mock(HazelcastInstance.class);
+        when(pub.getConfig()).thenThrow(new UnsupportedOperationException());
+
+        ITopic topic = mock(ITopic.class);
+        when(sub.getReliableTopic(anyString())).thenReturn(topic);
+        when(topic.addMessageListener(any())).thenReturn(UUID.randomUUID());
+
+        HazelcastPubSubRingBufferEventStore store = new HazelcastPubSubRingBufferEventStore.Builder(pub, sub)
+                .nodeId(100L)
+                .build();
+
+        EventListener<DispatchMessage> listener = mock(EventListener.class);
+        store.subscribe0(EventType.DISPATCH, listener, DispatchMessage.class);
+
+        ArgumentCaptor<ReliableMessageListener> captor = ArgumentCaptor.forClass(ReliableMessageListener.class);
+        verify(topic).addMessageListener(captor.capture());
+
+        ReliableMessageListener<DispatchMessage> reliableListener = captor.getValue();
+        assertThat(reliableListener.isLossTolerant()).isTrue();
+        assertThat(reliableListener.isTerminal(new RuntimeException("transient failure"))).isFalse();
+        assertThat(reliableListener.retrieveInitialSequence()).isEqualTo(-1L);
+    }
+
+    @Test
+    @DisplayName("ReliableMessageListener forwards remote events and ignores self events")
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void testReliableMessageListenerMessageHandling() {
+        HazelcastInstance pub = mock(HazelcastInstance.class);
+        HazelcastInstance sub = mock(HazelcastInstance.class);
+        when(pub.getConfig()).thenThrow(new UnsupportedOperationException());
+
+        ITopic topic = mock(ITopic.class);
+        when(sub.getReliableTopic(anyString())).thenReturn(topic);
+        when(topic.addMessageListener(any())).thenReturn(UUID.randomUUID());
+
+        HazelcastPubSubRingBufferEventStore store = new HazelcastPubSubRingBufferEventStore.Builder(pub, sub)
+                .nodeId(100L)
+                .build();
+
+        EventListener<DispatchMessage> listener = mock(EventListener.class);
+        store.subscribe0(EventType.DISPATCH, listener, DispatchMessage.class);
+
+        ArgumentCaptor<ReliableMessageListener> captor = ArgumentCaptor.forClass(ReliableMessageListener.class);
+        verify(topic).addMessageListener(captor.capture());
+        ReliableMessageListener<DispatchMessage> reliableListener = captor.getValue();
+
+        // 1. Remote message from nodeId 200 -> forwarded to listener
+        DispatchMessage remoteMsg = new DispatchMessage("room1", new Packet(PacketType.MESSAGE), "/chat");
+        remoteMsg.setNodeId(200L);
+        Message<DispatchMessage> hzMessage = mock(Message.class);
+        when(hzMessage.getMessageObject()).thenReturn(remoteMsg);
+        reliableListener.onMessage(hzMessage);
+        verify(listener).onMessage(remoteMsg);
+
+        // 2. Local message from nodeId 100 -> ignored
+        DispatchMessage localMsg = new DispatchMessage("room1", new Packet(PacketType.MESSAGE), "/chat");
+        localMsg.setNodeId(100L);
+        Message<DispatchMessage> localHzMessage = mock(Message.class);
+        when(localHzMessage.getMessageObject()).thenReturn(localMsg);
+        reliableListener.onMessage(localHzMessage);
+        verify(listener, never()).onMessage(localMsg);
+
+        // 3. Null message or null message object -> safely ignored
+        assertThatCode(() -> reliableListener.onMessage(null)).doesNotThrowAnyException();
+        Message<DispatchMessage> nullObjMessage = mock(Message.class);
+        when(nullObjMessage.getMessageObject()).thenReturn(null);
+        assertThatCode(() -> reliableListener.onMessage(nullObjMessage)).doesNotThrowAnyException();
+
+        // 4. Exception in listener -> swallowed, not thrown
+        doThrow(new RuntimeException("User handler exploded")).when(listener).onMessage(remoteMsg);
+        assertThatCode(() -> reliableListener.onMessage(hzMessage)).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("publish0 guards null messages and records metrics on failure")
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void testPublishNullGuardAndFailureMetrics() {
+        HazelcastInstance pub = mock(HazelcastInstance.class);
+        HazelcastInstance sub = mock(HazelcastInstance.class);
+        when(pub.getConfig()).thenThrow(new UnsupportedOperationException());
+
+        SocketIOMetrics metrics = mock(SocketIOMetrics.class);
+        ITopic topic = mock(ITopic.class);
+        when(pub.getReliableTopic(anyString())).thenReturn(topic);
+
+        CompletableFuture<Void> failedFuture = new CompletableFuture<>();
+        failedFuture.completeExceptionally(new RuntimeException("publish error"));
+        when(topic.publishAsync(any())).thenReturn(failedFuture);
+
+        HazelcastPubSubRingBufferEventStore store = new HazelcastPubSubRingBufferEventStore.Builder(pub, sub)
+                .metrics(metrics)
+                .build();
+
+        // Null message does nothing
+        assertThatCode(() -> store.publish0(EventType.DISPATCH, null)).doesNotThrowAnyException();
+
+        // Failed publication records metric
+        DispatchMessage msg = new DispatchMessage("room1", new Packet(PacketType.MESSAGE), "/chat");
+        store.publish0(EventType.DISPATCH, msg);
+        verify(metrics).eventPublishFailed(any());
     }
 }
