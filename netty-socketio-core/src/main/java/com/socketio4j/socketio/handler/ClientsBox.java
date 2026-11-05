@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.socketio4j.socketio.HandshakeData;
@@ -103,6 +104,22 @@ public class ClientsBox {
             clientsCount.decrementAndGet();
         }
         return removed;
+    }
+
+    public boolean removeClient(UUID sessionId, ClientHead client) {
+        AtomicBoolean removed = new AtomicBoolean();
+        uuid2clients.computeIfPresent(sessionId, (id, current) -> {
+            if (current == client) {
+                removed.set(true);
+                return null;
+            }
+            return current;
+        });
+        if (removed.get()) {
+            clientsCount.decrementAndGet();
+            return true;
+        }
+        return false;
     }
 
     public ClientHead get(UUID sessionId) {

@@ -40,15 +40,18 @@ import com.socketio4j.socketio.handler.ClientsBox;
 import com.socketio4j.socketio.protocol.EngineIOVersion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.UUID;
+import java.util.Collections;
 
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
@@ -111,7 +114,55 @@ public class WebSocketTransportTest {
 
     assertTrue(!secondChannel.isOpen(), "The newly opened duplicate WebSocket must be closed");
     verify(clientHead, never()).disconnect();
-    verify(clientsBox, never()).removeClient(eq(sessionId));
+    verify(clientsBox, never()).removeClient(eq(sessionId), any(ClientHead.class));
+  }
+
+  @Test
+  public void shouldPreserveReplacementWhenClosingOldClient() throws Exception {
+    UUID sessionId = UUID.randomUUID();
+    ClientsBox clientsBox = new ClientsBox();
+    ClientHead oldClient = mock(ClientHead.class);
+    ClientHead replacement = mock(ClientHead.class);
+    when(oldClient.getSessionId()).thenReturn(sessionId);
+    when(replacement.getSessionId()).thenReturn(sessionId);
+    clientsBox.addClient(oldClient);
+    doAnswer(invocation -> {
+      clientsBox.removeClient(sessionId);
+      clientsBox.addClient(replacement);
+      return Collections.emptySet();
+    }).when(oldClient).getNamespaces();
+    EmbeddedChannel channel = new EmbeddedChannel();
+    WebSocketTransport transport = new WebSocketTransport(false, null, null, null, clientsBox);
+
+    java.lang.reflect.Method close = WebSocketTransport.class.getDeclaredMethod("closeClient", UUID.class, io.netty.channel.Channel.class);
+    close.setAccessible(true);
+    close.invoke(transport, sessionId, channel);
+
+    assertTrue(!channel.isOpen());
+    verify(oldClient).disconnect();
+    assertSame(replacement, clientsBox.get(sessionId));
+    assertEquals(1, clientsBox.getClientsCount());
+  }
+
+  @Test
+  public void shouldKeepClientWithNamespacesWhenClosingChannel() throws Exception {
+    UUID sessionId = UUID.randomUUID();
+    ClientsBox clientsBox = new ClientsBox();
+    ClientHead client = mock(ClientHead.class);
+    when(client.getSessionId()).thenReturn(sessionId);
+    when(client.getNamespaces()).thenReturn(Collections.singleton(mock(com.socketio4j.socketio.namespace.Namespace.class)));
+    clientsBox.addClient(client);
+    EmbeddedChannel channel = new EmbeddedChannel();
+    WebSocketTransport transport = new WebSocketTransport(false, null, null, null, clientsBox);
+
+    java.lang.reflect.Method close = WebSocketTransport.class.getDeclaredMethod("closeClient", UUID.class, io.netty.channel.Channel.class);
+    close.setAccessible(true);
+    close.invoke(transport, sessionId, channel);
+
+    assertTrue(!channel.isOpen());
+    verify(client, never()).disconnect();
+    assertSame(client, clientsBox.get(sessionId));
+    assertEquals(1, clientsBox.getClientsCount());
   }
 
   @Test

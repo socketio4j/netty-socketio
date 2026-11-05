@@ -492,7 +492,7 @@ public class AuthorizeHandler extends ChannelInboundHandlerAdapter implements Di
         if (log.isDebugEnabled()) {
             log.debug("Client disconnected: {}", client.getSessionId());
         }
-        clientsBox.removeClient(client.getSessionId());
+        clientsBox.removeClient(client.getSessionId(), client);
     }
 
 }

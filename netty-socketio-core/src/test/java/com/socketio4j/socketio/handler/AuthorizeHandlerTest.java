@@ -31,6 +31,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import java.util.Collections;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -674,6 +675,7 @@ public class AuthorizeHandlerTest {
         secondChannel.finishAndReleaseAll();
     }
   
+    @Test
     @DisplayName("Channel Inactive - Should Cancel Scheduled FirstDataTimeout")
     void testChannelInactive_ShouldCancelFirstDataTimeout() throws Exception {
         CancelableScheduler spyScheduler = org.mockito.Mockito.spy(scheduler);
@@ -696,6 +698,26 @@ public class AuthorizeHandlerTest {
         } finally {
             testChannel.finishAndReleaseAll();
         }
+    }
+
+    @Test
+    void testDisconnectOfOldClientPreservesReplacement() {
+        UUID sessionId = UUID.randomUUID();
+        ClientHead oldClient = org.mockito.Mockito.mock(ClientHead.class);
+        ClientHead replacement = org.mockito.Mockito.mock(ClientHead.class);
+        org.mockito.Mockito.when(oldClient.getSessionId()).thenReturn(sessionId);
+        org.mockito.Mockito.when(replacement.getSessionId()).thenReturn(sessionId);
+        clientsBox.addClient(oldClient);
+        clientsBox.removeClient(sessionId);
+        clientsBox.addClient(replacement);
+
+        authorizeHandler.onDisconnect(oldClient);
+
+        assertThat(clientsBox.get(sessionId)).isSameAs(replacement);
+        assertThat(clientsBox.getClientsCount()).isEqualTo(1);
+        authorizeHandler.onDisconnect(replacement);
+        assertThat(clientsBox.get(sessionId)).isNull();
+        assertThat(clientsBox.getClientsCount()).isZero();
     }
 
     @Test

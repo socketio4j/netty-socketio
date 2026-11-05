@@ -61,6 +61,25 @@ class ClientsBoxTest {
     }
 
     @Test
+    void testConditionalRemovalPreservesReplacementAndCount() {
+        UUID sessionId = UUID.randomUUID();
+        ClientHead oldClient = mock(ClientHead.class);
+        ClientHead replacement = mock(ClientHead.class);
+        when(oldClient.getSessionId()).thenReturn(sessionId);
+        when(replacement.getSessionId()).thenReturn(sessionId);
+
+        clientsBox.addClient(oldClient);
+        assertThat(clientsBox.removeClient(sessionId, oldClient)).isTrue();
+        clientsBox.addClient(replacement);
+        assertThat(clientsBox.removeClient(sessionId, oldClient)).isFalse();
+        assertThat(clientsBox.get(sessionId)).isSameAs(replacement);
+        assertThat(clientsBox.getClientsCount()).isEqualTo(1);
+        assertThat(clientsBox.removeClient(sessionId, replacement)).isTrue();
+        assertThat(clientsBox.removeClient(sessionId, replacement)).isFalse();
+        assertThat(clientsBox.getClientsCount()).isZero();
+    }
+
+    @Test
     @DisplayName("canAcceptClient checks capacity against limit")
     void testCanAcceptClient() {
         assertThat(clientsBox.canAcceptClient(0)).isTrue();
