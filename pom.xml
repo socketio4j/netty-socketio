@@ -70,13 +70,13 @@
     <jmockit.version>1.50</jmockit.version>
     <byte-buddy.version>1.18.10</byte-buddy.version>
     <junit.version>6.1.0</junit.version>
-    <junit-platform-launcher.version>6.1.0</junit-platform-launcher.version>
+    <junit-platform-launcher.version>6.1.3</junit-platform-launcher.version>
     <slf4j.version>2.0.17</slf4j.version>
     <jackson.version>2.22.1</jackson.version>
     <jackson.annotations.version>2.21</jackson.annotations.version>
     <micronaut.version>4.10.23</micronaut.version>
     <micronaut.test.version>4.10.3</micronaut.test.version>
-    <redisson.version>4.5.0</redisson.version>
+    <redisson.version>4.8.0</redisson.version>
     <hazelcast.version>5.7.0</hazelcast.version>
     <awaitility.version>4.3.0</awaitility.version>
     <assertj.version>3.27.7</assertj.version>
@@ -92,6 +92,7 @@
     <lz4.version>1.11.1</lz4.version>
     <okhttp.version>3.12.13</okhttp.version>
     <socketio.test.forkCount>1</socketio.test.forkCount>
+    <socketio.test.reuseForks>true</socketio.test.reuseForks>
     <revapi-maven-plugin.version>0.15.1</revapi-maven-plugin.version>
     <revapi-java.version>0.28.4</revapi-java.version>
     <revapi.oldVersion>4.0.1</revapi.oldVersion>
@@ -675,7 +676,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.5.4</version>
+        <version>3.5.6</version>
         <configuration>
           <useModulePath>false</useModulePath>
           <failIfNoTests>false</failIfNoTests>
@@ -684,6 +685,12 @@
           <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
           <forkedProcessTimeoutInSeconds>3600</forkedProcessTimeoutInSeconds>
           <argLine>
+            -Xms512m
+            -Xmx1024m
+            -XX:MaxDirectMemorySize=512m
+            -XX:+UseParallelGC
+            -XX:ParallelGCThreads=2
+            -XX:CICompilerCount=2
             -Dfile.encoding=UTF-8
             <!--For Java 25 support of byte-buddy. Byte-buddy is currently only used in mockito on unit tests within this project, so mitigate this problem by enabling this property-->
             -Dnet.bytebuddy.experimental=true
@@ -695,14 +702,14 @@
             <include>**/*Suite.java</include>
           </includes>
           <forkCount>${socketio.test.forkCount}</forkCount>
-          <reuseForks>false</reuseForks>
+          <reuseForks>${socketio.test.reuseForks}</reuseForks>
         </configuration>
       </plugin>
 
       <plugin>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
-        <version>6.0.0</version>
+        <version>6.0.2</version>
         <extensions>true</extensions>
         <configuration>
           <instructions>

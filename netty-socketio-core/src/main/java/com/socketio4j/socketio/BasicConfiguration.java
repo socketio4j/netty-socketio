@@ -78,7 +78,7 @@ public abstract class BasicConfiguration {
     protected boolean httpCompression = true;
 
     protected boolean websocketCompression = true;
-    protected int decompressionBufferSize = 64 * 1024;
+    protected int decompressionBufferSize = 0;
 
 
     protected boolean randomSession = false;

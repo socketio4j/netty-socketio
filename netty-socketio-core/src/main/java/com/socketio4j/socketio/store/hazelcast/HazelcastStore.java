@@ -16,38 +16,62 @@
  */
 package com.socketio4j.socketio.store.hazelcast;
 
+import java.util.Objects;
 import java.util.UUID;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import com.socketio4j.socketio.store.Store;
 
-
 public class HazelcastStore implements Store {
 
     private final IMap<String, Object> map;
 
     public HazelcastStore(UUID sessionId, HazelcastInstance hazelcastInstance) {
-        map = hazelcastInstance.getMap(sessionId.toString());
+        this(sessionId, hazelcastInstance, "");
+    }
+
+    public HazelcastStore(UUID sessionId, HazelcastInstance hazelcastInstance, String keyPrefix) {
+        Objects.requireNonNull(sessionId, "sessionId cannot be null");
+        Objects.requireNonNull(hazelcastInstance, "hazelcastInstance cannot be null");
+        String mapName = sessionId.toString();
+        if (keyPrefix != null && !keyPrefix.isEmpty()) {
+            mapName = keyPrefix + sessionId.toString();
+        }
+        this.map = hazelcastInstance.getMap(mapName);
     }
 
     @Override
     public void set(String key, Object val) {
+        Objects.requireNonNull(val, "value cannot be null");
+        if (key == null) {
+            return;
+        }
         map.put(key, val);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> T get(String key) {
+        if (key == null) {
+            return null;
+        }
         return (T) map.get(key);
     }
 
     @Override
     public boolean has(String key) {
+        if (key == null) {
+            return false;
+        }
         return map.containsKey(key);
     }
 
     @Override
     public void del(String key) {
+        if (key == null) {
+            return;
+        }
         map.delete(key);
     }
 
