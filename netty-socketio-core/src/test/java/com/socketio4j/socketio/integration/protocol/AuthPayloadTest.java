@@ -167,4 +167,48 @@ public class AuthPayloadTest extends AbstractSharedSocketIOIntegrationTest {
 
         client.disconnect();
     }
+
+    @Test
+    @DisplayName("Should reject connection when client omits authentication payload entirely")
+    public void testConnectionWithoutAuthPayloadRejected() throws Exception {
+        AtomicBoolean receivedEvent = new AtomicBoolean(false);
+        AtomicBoolean connectErrorReceived = new AtomicBoolean(false);
+
+        String testEventName = generateEventName();
+
+        getServer().addEventListener(
+                testEventName, String.class,
+                (client, data, ackSender) -> receivedEvent.set(true)
+        );
+
+        Socket client;
+        try {
+            IO.Options options = new IO.Options();
+            configureAuthTestClient(options);
+            options.auth = null;
+            client = IO.socket("http://localhost:" + getServerPort(), options);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create socket client", e);
+        }
+
+        CountDownLatch handshakeLatch = new CountDownLatch(1);
+        client.on(Socket.EVENT_CONNECT, args -> handshakeLatch.countDown());
+        client.on(Socket.EVENT_CONNECT_ERROR, args -> {
+            connectErrorReceived.set(true);
+            handshakeLatch.countDown();
+        });
+        client.connect();
+        assertTrue(
+                handshakeLatch.await(15, SECONDS),
+                "Socket.IO handshake should settle with connect_error when auth payload is omitted");
+
+        client.emit(testEventName, generateTestData());
+
+        await().atMost(15, SECONDS).until(() -> !client.connected());
+        assertTrue(connectErrorReceived.get(), "Should receive connect_error when auth payload is omitted");
+        assertFalse(receivedEvent.get(), "Should not receive event when auth payload is omitted");
+        assertFalse(client.connected());
+
+        client.disconnect();
+    }
 }

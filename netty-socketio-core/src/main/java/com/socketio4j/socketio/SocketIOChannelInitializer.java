@@ -211,13 +211,19 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         if (keyMaterial == null) {
             throw new IllegalStateException("SocketSslConfig key store material is missing");
         }
+        char[] keyStorePassword;
+        if (socketSslConfig.getKeyStorePassword() != null) {
+            keyStorePassword = socketSslConfig.getKeyStorePassword().toCharArray();
+        } else {
+            keyStorePassword = new char[0];
+        }
         KeyStore ks = KeyStore.getInstance(socketSslConfig.getKeyStoreFormat());
         try (InputStream keyStoreStream = new ByteArrayInputStream(keyMaterial)) {
-            ks.load(keyStoreStream, socketSslConfig.getKeyStorePassword().toCharArray());
+            ks.load(keyStoreStream, keyStorePassword);
         }
 
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(socketSslConfig.getKeyManagerFactoryAlgorithm());
-        kmf.init(ks, socketSslConfig.getKeyStorePassword().toCharArray());
+        kmf.init(ks, keyStorePassword);
 
         SslProvider sslProvider;
         if (OpenSsl.isAvailable()) {
@@ -244,10 +250,14 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
             if (trustMaterial == null) {
                 throw new IllegalStateException("SocketSslConfig trust store material is missing");
             }
+            char[] trustStorePassword = null;
+            if (socketSslConfig.getTrustStorePassword() != null) {
+                trustStorePassword = socketSslConfig.getTrustStorePassword().toCharArray();
+            }
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             KeyStore ts = KeyStore.getInstance(socketSslConfig.getTrustStoreFormat());
             try (InputStream trustStoreStream = new ByteArrayInputStream(trustMaterial)) {
-                ts.load(trustStoreStream, socketSslConfig.getTrustStorePassword().toCharArray());
+                ts.load(trustStoreStream, trustStorePassword);
             }
             tmf.init(ts);
             builder.trustManager(tmf);

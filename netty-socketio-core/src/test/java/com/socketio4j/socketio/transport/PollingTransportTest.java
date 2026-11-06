@@ -363,4 +363,84 @@ class PollingTransportTest {
         verify(clientHead, never()).tryBindPollingChannel(any());
         channel.finishAndReleaseAll();
     }
+
+    @Test
+    void shouldReleaseBufferAndPostLockWithoutSendingOkWhenJsonpPreprocessFails() throws Exception {
+        UUID sessionId = UUID.randomUUID();
+        PacketDecoder decoder = new PacketDecoder(new JacksonJsonSupport(), mock(AckManager.class));
+        ClientsBox clientsBox = mock(ClientsBox.class);
+        ClientHead clientHead = mock(ClientHead.class);
+        when(clientsBox.get(sessionId)).thenReturn(clientHead);
+        when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V3);
+        when(clientHead.getCurrentTransport()).thenReturn(Transport.POLLING);
+        when(clientHead.tryAcquirePollingPost()).thenReturn(true);
+
+        EmbeddedChannel channel = new EmbeddedChannel(new PollingTransport(decoder, null, clientsBox));
+        ByteBuf payload = Unpooled.copiedBuffer("malformed_without_d_prefix", StandardCharsets.UTF_8);
+        FullHttpRequest request = new DefaultFullHttpRequest(
+                HttpVersion.HTTP_1_1,
+                HttpMethod.POST,
+                "/socket.io/?EIO=3&transport=polling&sid=" + sessionId + "&j=1",
+                payload);
+        try {
+            channel.writeInbound(request);
+
+            Object outbound = channel.readOutbound();
+            assertThat(outbound).isInstanceOf(HttpErrorMessage.class);
+            assertThat((Object) channel.readOutbound()).isNull();
+            assertThat((Object) channel.readInbound()).isNull();
+            assertThat(payload.refCnt()).isZero();
+            verify(clientHead).tryAcquirePollingPost();
+            verify(clientHead).releasePollingPost();
+        } finally {
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    @Test
+    void shouldRejectDisallowedOriginAndAllowValidOriginOnExistingSession() {
+        UUID sessionId = UUID.randomUUID();
+        ClientsBox clientsBox = mock(ClientsBox.class);
+        ClientHead clientHead = mock(ClientHead.class);
+        AuthorizeHandler authorizeHandler = mock(AuthorizeHandler.class);
+        when(clientsBox.get(sessionId)).thenReturn(clientHead);
+        when(clientHead.getCurrentTransport()).thenReturn(Transport.POLLING);
+        when(clientHead.tryBindPollingChannel(any())).thenReturn(true);
+        when(authorizeHandler.isOriginAllowed("https://evil.example")).thenReturn(false);
+        when(authorizeHandler.isOriginAllowed("https://allowed.example")).thenReturn(true);
+
+        EmbeddedChannel rejectedChannel = new EmbeddedChannel(new PollingTransport(null, authorizeHandler, clientsBox));
+        try {
+            FullHttpRequest disallowedReq = new DefaultFullHttpRequest(
+                    HttpVersion.HTTP_1_1,
+                    HttpMethod.GET,
+                    "/socket.io/?EIO=4&transport=polling&sid=" + sessionId);
+            disallowedReq.headers().set("Origin", "https://evil.example");
+            rejectedChannel.writeInbound(disallowedReq);
+
+            HttpResponse forbidden = rejectedChannel.readOutbound();
+            assertThat(forbidden).isNotNull();
+            assertThat(forbidden.status()).isEqualTo(HttpResponseStatus.FORBIDDEN);
+            assertThat(rejectedChannel.isActive()).isFalse();
+            verify(clientHead, never()).tryBindPollingChannel(any());
+        } finally {
+            rejectedChannel.finishAndReleaseAll();
+        }
+
+        EmbeddedChannel allowedChannel = new EmbeddedChannel(new PollingTransport(null, authorizeHandler, clientsBox));
+        try {
+            FullHttpRequest allowedReq = new DefaultFullHttpRequest(
+                    HttpVersion.HTTP_1_1,
+                    HttpMethod.GET,
+                    "/socket.io/?EIO=4&transport=polling&sid=" + sessionId);
+            allowedReq.headers().set("Origin", "https://allowed.example");
+            allowedChannel.writeInbound(allowedReq);
+
+            assertThat((Object) allowedChannel.readOutbound()).isNull();
+            verify(clientHead).tryBindPollingChannel(allowedChannel);
+            verify(authorizeHandler).connect(clientHead);
+        } finally {
+            allowedChannel.finishAndReleaseAll();
+        }
+    }
 }

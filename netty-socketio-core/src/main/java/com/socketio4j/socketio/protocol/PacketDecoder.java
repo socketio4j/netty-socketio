@@ -41,6 +41,7 @@ import io.netty.util.CharsetUtil;
 @Internal
 public class PacketDecoder {
 
+    private static final int MAX_ATTACHMENTS = 64;
     private static final Logger log = LoggerFactory.getLogger(PacketDecoder.class);
     private final UTF8CharsScanner utf8scanner = new UTF8CharsScanner();
 
@@ -390,12 +391,20 @@ public class PacketDecoder {
      * Handles packets that start with 0x0 byte
      */
     private Packet decodeWithStringHeader(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
+        buffer.readByte(); // skip 0x00 string frame marker
         int maxLength = Math.min(buffer.readableBytes(), 10);
         int headEndIndex = buffer.bytesBefore(maxLength, (byte) -1);
         if (headEndIndex == -1) {
             headEndIndex = buffer.bytesBefore(maxLength, (byte) 0x3f);
         }
-        int len = (int) readLong(buffer, headEndIndex);
+        if (headEndIndex <= 0) {
+            throw new IllegalArgumentException("Invalid string packet length header");
+        }
+        long rawLen = readLegacyBinaryLength(buffer, headEndIndex);
+        if (rawLen < 0 || rawLen > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("String packet length overflow: " + rawLen);
+        }
+        int len = (int) rawLen;
         return decodeFrame(buffer, client, len, transport);
     }
 
@@ -405,8 +414,16 @@ public class PacketDecoder {
      */
     private Packet decodeWithLengthHeader(ByteBuf buffer, ClientHead client, Transport transport) throws IOException {
         int lengthEndIndex = buffer.bytesBefore((byte) ':');
-        int lenHeader = (int) readLong(buffer, lengthEndIndex);
-        int len = utf8scanner.getActualLength(buffer, lenHeader);
+        long rawLenHeader = readLong(buffer, lengthEndIndex);
+        if (rawLenHeader <= 0 || rawLenHeader > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Invalid packet length header: " + rawLenHeader);
+        }
+        int lenHeader = (int) rawLenHeader;
+        if (buffer.readableBytes() < 1) {
+            throw new IllegalArgumentException("Missing ':' separator after length header");
+        }
+        ByteBuf payloadView = buffer.slice(buffer.readerIndex() + 1, buffer.readableBytes() - 1);
+        int len = utf8scanner.getActualLength(payloadView, lenHeader);
         return decodeFrame(buffer, client, len, transport);
     }
 
@@ -415,6 +432,9 @@ public class PacketDecoder {
      * Extracts frame data and advances buffer position
      */
     private Packet decodeFrame(ByteBuf buffer, ClientHead client, int len, Transport transport) throws IOException {
+        if (len < 0 || buffer.readerIndex() + 1 + len > buffer.writerIndex()) {
+            throw new IllegalArgumentException("Frame length exceeds readable bytes: " + len);
+        }
         ByteBuf frame = buffer.slice(buffer.readerIndex() + 1, len);
         buffer.readerIndex(buffer.readerIndex() + 1 + len);
         return decode(client, frame, transport);
@@ -484,6 +504,11 @@ public class PacketDecoder {
     }
 
     private void parseHeader(ByteBuf frame, Packet packet, PacketType innerType) {
+        if (innerType == PacketType.CONNECT
+                || innerType == PacketType.DISCONNECT
+                || innerType == PacketType.ERROR) {
+            return;
+        }
         int endIndex = frame.bytesBefore((byte) '[');
         if (endIndex <= 0) {
             return;
@@ -493,8 +518,11 @@ public class PacketDecoder {
         boolean hasAttachments = attachmentsDividerIndex != -1;
         if (hasAttachments && (PacketType.BINARY_EVENT.equals(innerType)
                 || PacketType.BINARY_ACK.equals(innerType))) {
-            int attachments = (int) readLong(frame, attachmentsDividerIndex);
-            packet.initAttachments(attachments);
+            long attachments = readLong(frame, attachmentsDividerIndex);
+            if (attachments < 0 || attachments > MAX_ATTACHMENTS) {
+                throw new IllegalArgumentException("Invalid binary attachment count: " + attachments);
+            }
+            packet.initAttachments((int) attachments);
             frame.readerIndex(frame.readerIndex() + 1);
 
             endIndex -= attachmentsDividerIndex + 1;
@@ -654,8 +682,11 @@ public class PacketDecoder {
                         payload.readerIndex(payloadRi + 1);
                     }
                     ByteBuf attachBuf = Base64.encode(payload);
-                    binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
-                    attachBuf.release();
+                    try {
+                        binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
+                    } finally {
+                        attachBuf.release();
+                    }
                 } else {
                     throw new IOException("Malformed polling wrapper: missing or invalid 0xFF separator");
                 }
@@ -690,8 +721,11 @@ public class PacketDecoder {
             } else {
                 // 3. Fallback polling binary payload
                 ByteBuf attachBuf = Base64.encode(frame);
-                binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
-                attachBuf.release();
+                try {
+                    binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
+                } finally {
+                    attachBuf.release();
+                }
                 frame.skipBytes(frame.readableBytes());
             }
 
@@ -708,8 +742,11 @@ public class PacketDecoder {
                 frame.readerIndex(ri + 1); // skip 0x04 type prefix for V2/V3
             }
             ByteBuf attachBuf = Base64.encode(frame);
-            binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
-            attachBuf.release();
+            try {
+                binaryPacket.addAttachment(Unpooled.copiedBuffer(attachBuf));
+            } finally {
+                attachBuf.release();
+            }
             frame.skipBytes(frame.readableBytes());
         }
 
@@ -738,35 +775,39 @@ public class PacketDecoder {
 
         LinkedList<ByteBuf> slices = new LinkedList<>();
         ByteBuf source = head.getLastBinaryPacketSource();
-        for (int i = 0; i < binaryPacket.getAttachments().size(); i++) {
-            ByteBuf attachment = binaryPacket.getAttachments().get(i);
-            ByteBuf scanValue = Unpooled.copiedBuffer("{\"_placeholder\":true,\"num\":" + i + "}", CharsetUtil.UTF_8);
-            int pos = PacketEncoder.find(source, scanValue);
-            if (pos == -1) {
-                scanValue = Unpooled.copiedBuffer("{\"num\":" + i + ",\"_placeholder\":true}", CharsetUtil.UTF_8);
-                pos = PacketEncoder.find(source, scanValue);
-                if (pos == -1) {
-                    throw new IllegalStateException("Can't find attachment by index: " + i + " in packet source");
-                }
-            }
-
-            ByteBuf prefixBuf = source.slice(source.readerIndex(), pos - source.readerIndex());
-            slices.add(prefixBuf);
-            slices.add(quotes);
-            slices.add(attachment);
-            slices.add(quotes);
-
-            source.readerIndex(pos + scanValue.readableBytes());
+        if (source == null) {
+            head.clearPendingBinaryPacket();
+            throw new IllegalStateException("Missing binary packet source for session: " + head.getSessionId());
         }
-        slices.add(source.slice());
-
-        ByteBuf compositeBuf = Unpooled.wrappedBuffer(slices.toArray(new ByteBuf[0]));
         try {
+            for (int i = 0; i < binaryPacket.getAttachments().size(); i++) {
+                ByteBuf attachment = binaryPacket.getAttachments().get(i);
+                ByteBuf scanValue = Unpooled.copiedBuffer("{\"_placeholder\":true,\"num\":" + i + "}", CharsetUtil.UTF_8);
+                int pos = PacketEncoder.find(source, scanValue);
+                if (pos == -1) {
+                    scanValue = Unpooled.copiedBuffer("{\"num\":" + i + ",\"_placeholder\":true}", CharsetUtil.UTF_8);
+                    pos = PacketEncoder.find(source, scanValue);
+                    if (pos == -1) {
+                        throw new IllegalStateException("Can't find attachment by index: " + i + " in packet source");
+                    }
+                }
+
+                ByteBuf prefixBuf = source.slice(source.readerIndex(), pos - source.readerIndex());
+                slices.add(prefixBuf);
+                slices.add(quotes);
+                slices.add(attachment);
+                slices.add(quotes);
+
+                source.readerIndex(pos + scanValue.readableBytes());
+            }
+            slices.add(source.slice());
+
+            ByteBuf compositeBuf = Unpooled.wrappedBuffer(slices.toArray(new ByteBuf[0]));
             parseBody(head, compositeBuf, binaryPacket);
+            return binaryPacket;
         } finally {
             head.clearPendingBinaryPacket();
         }
-        return binaryPacket;
     }
 
     private void parseBody(ClientHead head, ByteBuf frame, Packet packet) throws IOException {
@@ -849,8 +890,13 @@ public class PacketDecoder {
      * Parse ACK packet bodies
      */
     private void parseAckBody(ClientHead head, ByteBuf frame, Packet packet) throws IOException {
-        AckCallback<?> callback = ackManager.getCallback(head.getSessionId(), packet.getAckId());
-        
+        Long ackId = packet.getAckId();
+        if (ackId == null) {
+            frame.clear();
+            return;
+        }
+        AckCallback<?> callback = ackManager.getCallback(head.getSessionId(), ackId);
+
         if (callback != null) {
             ByteBufInputStream in = new ByteBufInputStream(frame);
             AckArgs args = jsonSupport.readAckArgs(in, callback);
@@ -890,25 +936,23 @@ public class PacketDecoder {
          */
         ByteBuf buffer = frame.slice();
 
-        boolean withSpecialChar = false;
+        boolean hasComma = false;
 
         int namespaceFieldEndIndex = buffer.bytesBefore((byte) ',');
         if (namespaceFieldEndIndex > 0) {
-            withSpecialChar = true;
+            hasComma = true;
         } else {
             namespaceFieldEndIndex = buffer.readableBytes();
         }
 
-        int namespaceEndIndex = buffer.bytesBefore((byte) '?');
-        if (namespaceEndIndex > 0) {
-            withSpecialChar = true;
-        } else {
+        int namespaceEndIndex = buffer.bytesBefore(namespaceFieldEndIndex, (byte) '?');
+        if (namespaceEndIndex <= 0) {
             namespaceEndIndex = namespaceFieldEndIndex;
         }
 
         String namespace = readString(buffer, namespaceEndIndex);
         if (namespace.startsWith("/")) {
-            if (withSpecialChar) {
+            if (hasComma) {
                 frame.skipBytes(namespaceFieldEndIndex + 1);
             } else {
                 frame.skipBytes(namespaceFieldEndIndex);

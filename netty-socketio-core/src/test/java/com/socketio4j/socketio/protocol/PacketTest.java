@@ -288,4 +288,17 @@ public class PacketTest extends BaseProtocolTest {
         assertEquals(EngineIOVersion.V3, copiedPacket.getEngineIOVersion());
         assertSame(originalPacket.getDataSource(), copiedPacket.getDataSource());
     }
+
+    @Test
+    public void testInitAttachmentsBounds() {
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.initAttachments(0);
+        assertFalse(packet.hasAttachments());
+
+        packet.initAttachments(64);
+        assertTrue(packet.hasAttachments());
+
+        assertThrows(IllegalArgumentException.class, () -> packet.initAttachments(-1));
+        assertThrows(IllegalArgumentException.class, () -> packet.initAttachments(65));
+    }
 }

@@ -43,16 +43,21 @@ import com.socketio4j.socketio.protocol.PacketType;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequestDecoder;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.handler.codec.http.websocketx.WebSocket13FrameDecoder;
+
+import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 @Internal
 @Sharable
@@ -141,6 +146,12 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
     private void handleMessage(FullHttpRequest req, UUID sessionId, QueryStringDecoder queryDecoder, ChannelHandlerContext ctx)
                                                                                 throws IOException {
             String origin = req.headers().get(HttpHeaderNames.ORIGIN);
+            if (origin != null && authorizeHandler != null && !authorizeHandler.isOriginAllowed(origin)) {
+                log.warn("Blocked polling request from disallowed origin: {}, session: {}", origin, sessionId);
+                ctx.channel().writeAndFlush(new DefaultHttpResponse(HTTP_1_1, HttpResponseStatus.FORBIDDEN))
+                        .addListener(ChannelFutureListener.CLOSE);
+                return;
+            }
             ClientHead client = clientsBox.get(sessionId);
             if (client == null) {
                 sendUnknownSessionError(ctx);
@@ -214,17 +225,26 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         // Retain the content since we pass it further down the pipeline.
         ByteBuf content = req.content().retain();
 
-        // release POST response before message processing
-        ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId))
-                .addListener(future -> client.releasePollingPost());
-
         Integer jsonIndex = ctx.channel().attr(EncoderHandler.JSONP_INDEX).get();
         // JSONP POSTs use the d=<escaped payload> form and must be unwrapped.
         // Do not URL-decode a b64=1 payload: '+' is valid Base64 and must stay
         // intact. JSONP is a legacy (EIO v2/v3) transport only.
-        if (!EngineIOVersion.V4.equals(client.getEngineIOVersion()) && jsonIndex != null) {
-            content = decoder.preprocessJson(jsonIndex, content);
+        if (!isV4 && jsonIndex != null) {
+            boolean success = false;
+            try {
+                content = decoder.preprocessJson(jsonIndex, content);
+                success = true;
+            } finally {
+                if (!success) {
+                    content.release();
+                    client.releasePollingPost();
+                }
+            }
         }
+
+        // release POST response before message processing
+        ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId))
+                .addListener(future -> client.releasePollingPost());
 
         ChannelHandlerContext codecCtx = ctx.pipeline().context(HttpRequestDecoder.class);
         if (codecCtx == null) {

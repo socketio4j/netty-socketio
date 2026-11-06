@@ -236,17 +236,24 @@ public class PacketEncoder {
                     }
 
                     ByteBuf packetBuf = allocator.buffer();
+                    boolean added = false;
+                    try {
+                        EncodeResult result =
+                                encodePacket(engineIOVersion,
+                                        packet,
+                                        packetBuf,
+                                        allocator,
+                                        false);
 
-                    EncodeResult result =
-                            encodePacket(engineIOVersion,
-                                    packet,
-                                    packetBuf,
-                                    allocator,
-                                    false);
+                        hasBinary |= result.hasAttachments();
 
-                    hasBinary |= result.hasAttachments();
-
-                    encodedPackets.add(new EncodedPacket(packetBuf, result));
+                        encodedPackets.add(new EncodedPacket(packetBuf, result));
+                        added = true;
+                    } finally {
+                        if (!added) {
+                            packetBuf.release();
+                        }
+                    }
 
                     count++;
                 }
@@ -326,16 +333,32 @@ public class PacketEncoder {
     static final int[] SIZE_TABLE = {9, 99, 999, 9999, 99999, 999999, 9999999, 99999999, 999999999,
             Integer.MAX_VALUE};
 
-    // Requires positive x
+    private static final byte[] MIN_LONG_BYTES = "-9223372036854775808".getBytes(CharsetUtil.US_ASCII);
+
+    // Requires positive x (handles full 64-bit long range)
     static int stringSize(long x) {
-        for (int i = 0;; i++) {
-            if (x <= SIZE_TABLE[i]) {
-                return i + 1;
-            }
+        if (x == Long.MIN_VALUE) {
+            return 19;
         }
+        long val = x;
+        if (val < 0) {
+            val = -val;
+        }
+        long p = 10L;
+        for (int i = 1; i < 19; i++) {
+            if (val < p) {
+                return i;
+            }
+            p = 10L * p;
+        }
+        return 19;
     }
 
     static void getChars(long i, int index, byte[] buf) {
+        if (i == Long.MIN_VALUE) {
+            System.arraycopy(MIN_LONG_BYTES, 0, buf, index - MIN_LONG_BYTES.length, MIN_LONG_BYTES.length);
+            return;
+        }
         long q;
         long r;
         int charPos = index;
@@ -370,6 +393,9 @@ public class PacketEncoder {
     }
 
     public static byte[] toChars(long i) {
+        if (i == Long.MIN_VALUE) {
+            return MIN_LONG_BYTES.clone();
+        }
         int size;
         if (i < 0) {
             size = stringSize(-i) + 1;
@@ -418,9 +444,10 @@ public class PacketEncoder {
             buf = allocateBuffer(allocator);
         }
         List<ByteBuf> attachments = Collections.emptyList();
-        buf.writeByte(toChar(packet.getType().getValue()));
+        boolean encoded = false;
 
         try {
+            buf.writeByte(toChar(packet.getType().getValue()));
             switch (packet.getType()) {
 
                 case PONG:
@@ -436,107 +463,121 @@ public class PacketEncoder {
                 case MESSAGE: {
 
                     ByteBuf encBuf = null;
-                    PacketType subType = packet.getSubType();
+                    try {
+                        PacketType subType = packet.getSubType();
 
-                    if (subType == PacketType.ERROR) {
-                        encBuf = allocateBuffer(allocator);
-                        ByteBufOutputStream out = new ByteBufOutputStream(encBuf);
-                        jsonSupport.writeValue(out, packet.getData());
-                    }
-
-                    if (subType == PacketType.EVENT || subType == PacketType.ACK) {
-
-                        List<Object> values = new ArrayList<>();
-                        if (subType == PacketType.EVENT) {
-                            values.add(packet.getName());
-                        }
-
-                        values.addAll(packet.getData());
-
-                        encBuf = allocateBuffer(allocator);
-                        ByteBufOutputStream out = new ByteBufOutputStream(encBuf);
-                        jsonSupport.writeValue(out, values);
-
-                        if (!jsonSupport.getArrays().isEmpty()) {
-
-                            attachments = new ArrayList<>(jsonSupport.getArrays().size());
-
-                            for (byte[] array : jsonSupport.getArrays()) {
-                                attachments.add(Unpooled.wrappedBuffer(array));
-                            }
-
-                            if (subType == PacketType.ACK) {
-                                subType = PacketType.BINARY_ACK;
-                            } else {
-                                subType = PacketType.BINARY_EVENT;
-                            }
-                        }
-                    }
-
-                    buf.writeByte(toChar(subType.getValue()));
-
-                    if (!attachments.isEmpty()) {
-                        buf.writeBytes(toChars(attachments.size()));
-                        buf.writeByte('-');
-                    }
-
-                    if (subType == PacketType.CONNECT) {
-
-                        if (!packet.getNsp().isEmpty()) {
-                            buf.writeBytes(packet.getNsp().getBytes(CharsetUtil.UTF_8));
-                        }
-
-                        if (EngineIOVersion.V4.equals(version)
-                                && packet.getData() != null) {
-
-                            if (!packet.getNsp().isEmpty()) {
-                                buf.writeByte(',');
-                            }
-
-                            ByteBufOutputStream out = new ByteBufOutputStream(buf);
+                        if (subType == PacketType.ERROR) {
+                            encBuf = allocateBuffer(allocator);
+                            ByteBufOutputStream out = new ByteBufOutputStream(encBuf);
                             jsonSupport.writeValue(out, packet.getData());
                         }
 
-                    } else {
+                        if (subType == PacketType.EVENT || subType == PacketType.ACK) {
 
-                        if (!packet.getNsp().isEmpty()) {
-                            buf.writeBytes(packet.getNsp().getBytes(CharsetUtil.UTF_8));
-                            buf.writeByte(',');
+                            List<Object> values = new ArrayList<>();
+                            if (subType == PacketType.EVENT) {
+                                values.add(packet.getName());
+                            }
+
+                            values.addAll(packet.getData());
+
+                            encBuf = allocateBuffer(allocator);
+                            ByteBufOutputStream out = new ByteBufOutputStream(encBuf);
+                            jsonSupport.writeValue(out, values);
+
+                            if (!jsonSupport.getArrays().isEmpty()) {
+
+                                attachments = new ArrayList<>(jsonSupport.getArrays().size());
+
+                                for (byte[] array : jsonSupport.getArrays()) {
+                                    attachments.add(Unpooled.wrappedBuffer(array));
+                                }
+
+                                if (subType == PacketType.ACK) {
+                                    subType = PacketType.BINARY_ACK;
+                                } else {
+                                    subType = PacketType.BINARY_EVENT;
+                                }
+                            }
                         }
-                    }
 
-                    if (packet.getAckId() != null) {
-                        buf.writeBytes(toChars(packet.getAckId()));
-                    }
+                        buf.writeByte(toChar(subType.getValue()));
 
-                    if (encBuf != null) {
-                        buf.writeBytes(encBuf);
-                        encBuf.release();
+                        if (!attachments.isEmpty()) {
+                            buf.writeBytes(toChars(attachments.size()));
+                            buf.writeByte('-');
+                        }
+
+                        if (subType == PacketType.CONNECT) {
+
+                            if (!packet.getNsp().isEmpty()) {
+                                buf.writeBytes(packet.getNsp().getBytes(CharsetUtil.UTF_8));
+                            }
+
+                            if (EngineIOVersion.V4.equals(version)
+                                    && packet.getData() != null) {
+
+                                if (!packet.getNsp().isEmpty()) {
+                                    buf.writeByte(',');
+                                }
+
+                                ByteBufOutputStream out = new ByteBufOutputStream(buf);
+                                jsonSupport.writeValue(out, packet.getData());
+                            }
+
+                        } else {
+
+                            if (!packet.getNsp().isEmpty()) {
+                                buf.writeBytes(packet.getNsp().getBytes(CharsetUtil.UTF_8));
+                                buf.writeByte(',');
+                            }
+                        }
+
+                        if (packet.getAckId() != null) {
+                            buf.writeBytes(toChars(packet.getAckId()));
+                        }
+
+                        if (encBuf != null) {
+                            buf.writeBytes(encBuf);
+                        }
+                    } finally {
+                        if (encBuf != null) {
+                            encBuf.release();
+                        }
                     }
 
                     break;
                 }
             }
+            encoded = true;
 
         } finally {
 
             if (!binary) {
+                try {
+                    if (encoded) {
+                        if (EngineIOVersion.V2.equals(version)) {
+                            buffer.writeByte(0);
+                            buffer.writeBytes(longToBytes(buf.writerIndex()));
+                            buffer.writeByte(0xff);
+                        }
 
-                if (EngineIOVersion.V2.equals(version)) {
-                    buffer.writeByte(0);
-                    buffer.writeBytes(longToBytes(buf.writerIndex()));
-                    buffer.writeByte(0xff);
+                        buffer.writeBytes(buf);
+                    }
+                } finally {
+                    buf.release();
                 }
-
-                buffer.writeBytes(buf);
-                buf.release();
             }
         }
         return new EncodeResult(buffer, attachments);
     }
 
     public static int find(ByteBuf buffer, ByteBuf searchValue) {
-        for (int i = buffer.readerIndex(); i < buffer.readerIndex() + buffer.readableBytes(); i++) {
+        if (searchValue.readableBytes() > buffer.readableBytes()) {
+            return -1;
+        }
+        int maxIndex = buffer.readerIndex() + buffer.readableBytes() - searchValue.readableBytes();
+        for (int i = buffer.readerIndex(); i <= maxIndex; i++) {
             if (isValueFound(buffer, i, searchValue)) {
                 return i;
             }
@@ -545,8 +586,9 @@ public class PacketEncoder {
     }
 
     private static boolean isValueFound(ByteBuf buffer, int index, ByteBuf search) {
+        int searchReaderIndex = search.readerIndex();
         for (int i = 0; i < search.readableBytes(); i++) {
-            if (buffer.getByte(index + i) != search.getByte(i)) {
+            if (buffer.getByte(index + i) != search.getByte(searchReaderIndex + i)) {
                 return false;
             }
         }

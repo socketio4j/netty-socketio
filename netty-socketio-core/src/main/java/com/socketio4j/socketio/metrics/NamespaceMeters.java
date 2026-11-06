@@ -232,7 +232,7 @@ public final class NamespaceMeters {
         Gauge.builder(
                 "socketio.clients.connected",
                 connected,
-                AtomicInteger::get
+                ref -> Math.max(0, ref.get())
         ).tag("namespace", ns).register(registry);
 
         /* ---------- Rooms ---------- */
@@ -249,7 +249,7 @@ public final class NamespaceMeters {
         Gauge.builder(
                 "socketio.room.members",
                 roomMembers,
-                AtomicInteger::get
+                ref -> Math.max(0, ref.get())
         ).tag("namespace", ns).register(registry);
 
         /* ---------- Timers (CRITICAL) ---------- */

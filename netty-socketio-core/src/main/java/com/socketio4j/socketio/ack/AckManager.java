@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.ack;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -102,33 +103,37 @@ public class AckManager implements Disconnectable {
 
     @SuppressWarnings("unchecked")
     public void onAck(SocketIOClient client, Packet packet) {
-        if (client == null || packet == null) {
+        if (client == null || packet == null || packet.getAckId() == null) {
             return;
         }
-        AckSchedulerKey key = new AckSchedulerKey(Type.ACK_TIMEOUT, client.getSessionId(), packet.getAckId());
+        long ackId = packet.getAckId();
+        AckSchedulerKey key = new AckSchedulerKey(Type.ACK_TIMEOUT, client.getSessionId(), ackId);
         scheduler.cancel(key);
 
-        AckCallback callback = removeCallback(client.getSessionId(), packet.getAckId());
+        AckCallback callback = removeCallback(client.getSessionId(), ackId);
         if (callback == null) {
             return;
         }
         try {
+            List<Object> args = packet.getData();
+            if (args == null) {
+                args = Collections.emptyList();
+            }
             if (callback instanceof MultiTypeAckCallback) {
-                callback.onSuccess(new MultiTypeArgs(packet.getData()));
+                callback.onSuccess(new MultiTypeArgs(args));
             } else {
                 Object param = null;
-                List<Object> args = packet.getData();
                 if (!args.isEmpty()) {
                     param = args.get(0);
                 }
                 if (args.size() > 1) {
                     log.error("Wrong ack args amount. Should be only one argument, but current amount is: {}. Ack id: {}, sessionId: {}",
-                            args.size(), packet.getAckId(), client.getSessionId());
+                            args.size(), ackId, client.getSessionId());
                 }
                 callback.onSuccess(param);
             }
         } catch (Exception e) {
-            log.error("Error executing onSuccess for ack id: {}, sessionId: {}", packet.getAckId(), client.getSessionId(), e);
+            log.error("Error executing onSuccess for ack id: {}, sessionId: {}", ackId, client.getSessionId(), e);
         }
     }
 

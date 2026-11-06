@@ -41,6 +41,7 @@ import com.socketio4j.socketio.Configuration;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.ByteBufOutputStream;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledByteBufAllocator;
@@ -1514,6 +1515,137 @@ public class PacketEncoderTest extends BaseProtocolTest {
             assertTrue(body.contains(ancientTamiliWord) || body.contains("\\uD804"), "Body must contain Brahmi script or surrogate escapes: " + body);
         } finally {
             bufV3.release();
+        }
+    }
+
+    @Test
+    public void testToCharsFull64BitLongRange() {
+        long[] values = new long[] {
+            0L,
+            1L,
+            -1L,
+            (long) Integer.MAX_VALUE,
+            (long) Integer.MAX_VALUE + 1L,
+            (long) Integer.MIN_VALUE,
+            (long) Integer.MIN_VALUE - 1L,
+            5_000_000_000L,
+            -5_000_000_000L,
+            Long.MAX_VALUE,
+            Long.MIN_VALUE
+        };
+        for (long val : values) {
+            byte[] encoded = PacketEncoder.toChars(val);
+            assertEquals(Long.toString(val), new String(encoded, StandardCharsets.US_ASCII));
+        }
+    }
+
+    @Test
+    public void testEncodeEventAndAckWith64BitAckIdAboveIntegerMax() throws IOException {
+        long largeAckId = (long) Integer.MAX_VALUE + 987654321L;
+
+        Packet eventPacket = new Packet(PacketType.MESSAGE);
+        eventPacket.setSubType(PacketType.EVENT);
+        eventPacket.setNsp("/admin");
+        eventPacket.setName("largeAck");
+        eventPacket.setAckId(largeAckId);
+        eventPacket.setData(Collections.singletonList("payload"));
+
+        ByteBuf eventBuf = Unpooled.buffer();
+        try {
+            encoder.encodePacket(EngineIOVersion.V4, eventPacket, eventBuf, allocator, false);
+            assertEquals("42/admin," + largeAckId + "[\"largeAck\",\"payload\"]",
+                    eventBuf.toString(CharsetUtil.UTF_8));
+        } finally {
+            eventBuf.release();
+        }
+
+        Packet ackPacket = new Packet(PacketType.MESSAGE);
+        ackPacket.setSubType(PacketType.ACK);
+        ackPacket.setNsp("");
+        ackPacket.setAckId(Long.MAX_VALUE);
+        ackPacket.setData(Collections.singletonList("ok"));
+
+        ByteBuf ackBuf = Unpooled.buffer();
+        try {
+            encoder.encodePacket(EngineIOVersion.V4, ackPacket, ackBuf, allocator, false);
+            assertEquals("43" + Long.MAX_VALUE + "[\"ok\"]",
+                    ackBuf.toString(CharsetUtil.UTF_8));
+        } finally {
+            ackBuf.release();
+        }
+    }
+
+    @Test
+    public void testFindWithPartialPrefixAtEndAndNonZeroReaderIndex() {
+        ByteBuf buffer = Unpooled.copiedBuffer("abcde", CharsetUtil.UTF_8);
+        ByteBuf partialSuffixSearch = Unpooled.copiedBuffer("def", CharsetUtil.UTF_8);
+        ByteBuf longerSearch = Unpooled.copiedBuffer("abcdefgh", CharsetUtil.UTF_8);
+        ByteBuf offsetSearch = Unpooled.copiedBuffer("XXcde", CharsetUtil.UTF_8);
+        offsetSearch.readBytes(2); // readerIndex = 2, readable = "cde"
+
+        try {
+            assertEquals(-1, PacketEncoder.find(buffer, partialSuffixSearch));
+            assertEquals(-1, PacketEncoder.find(buffer, longerSearch));
+            assertEquals(2, PacketEncoder.find(buffer, offsetSearch));
+        } finally {
+            buffer.release();
+            partialSuffixSearch.release();
+            longerSearch.release();
+            offsetSearch.release();
+        }
+    }
+
+    @Test
+    public void testEncodePacketAndPacketsReleaseAllocatedBuffersOnSerializationFailure() {
+        final ArrayList<ByteBuf> allocatedBuffers = new ArrayList<>();
+        JsonSupport failingJsonSupport = new JacksonJsonSupport() {
+            @Override
+            public void writeValue(ByteBufOutputStream out, Object value) throws IOException {
+                throw new IOException("Simulated serialization failure");
+            }
+        };
+        PacketEncoder failingEncoder = new PacketEncoder(configuration, failingJsonSupport) {
+            @Override
+            public ByteBuf allocateBuffer(ByteBufAllocator alloc) {
+                ByteBuf b = super.allocateBuffer(alloc);
+                allocatedBuffers.add(b);
+                return b;
+            }
+        };
+
+        Packet eventPacket = new Packet(PacketType.MESSAGE);
+        eventPacket.setSubType(PacketType.EVENT);
+        eventPacket.setNsp("");
+        eventPacket.setName("failEvent");
+        eventPacket.setData(Collections.singletonList("data"));
+
+        ByteBuf dest = Unpooled.buffer();
+        try {
+            try {
+                failingEncoder.encodePacket(EngineIOVersion.V4, eventPacket, dest, allocator, false);
+                fail("Expected IOException");
+            } catch (IOException expected) {
+                // expected
+            }
+            assertEquals(0, dest.readableBytes(), "Failed non-binary encodePacket must not write partial bytes to destination");
+            for (ByteBuf b : allocatedBuffers) {
+                assertEquals(0, b.refCnt(), "Internal allocated buffer must be released on failure");
+            }
+
+            allocatedBuffers.clear();
+            Queue<Packet> v3Queue = new LinkedList<>();
+            v3Queue.add(eventPacket);
+            try {
+                failingEncoder.encodePackets(EngineIOVersion.V3, v3Queue, dest, allocator, 10);
+                fail("Expected IOException");
+            } catch (IOException expected) {
+                // expected
+            }
+            for (ByteBuf b : allocatedBuffers) {
+                assertEquals(0, b.refCnt(), "Internal allocated buffer in V3 encodePackets must be released on failure");
+            }
+        } finally {
+            dest.release();
         }
     }
 }

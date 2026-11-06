@@ -33,7 +33,6 @@ import com.socketio4j.socketio.spring.boot.starter.lifecycle.NettySocketIOLifecy
 import com.socketio4j.socketio.store.StoreFactory;
 import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
 
-
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({
         NettySocketIOBasicConfigurationProperties.class,
@@ -42,6 +41,7 @@ import com.socketio4j.socketio.store.memory.MemoryStoreFactory;
         NettySocketIOSslConfigProperties.class
 })
 public class NettySocketIODefaultConfiguration {
+
     @Bean
     public com.socketio4j.socketio.Configuration nettySocketIOConfiguration(
             NettySocketIOBasicConfigurationProperties properties,
@@ -61,6 +61,9 @@ public class NettySocketIODefaultConfiguration {
         configuration.setAuthorizationListener(authorizationListener);
         configuration.setHttpRequestDecoderConfiguration(nettySocketIOHttpRequestDecoderConfigurationProperties);
         configuration.setSocketSslConfig(nettySocketIOSslConfigProperties);
+        if (properties.getLeakDetectionLevel() != null) {
+            configuration.setLeakDetectionLevel(properties.getLeakDetectionLevel());
+        }
         return configuration;
     }
 

@@ -79,10 +79,18 @@ public class HashedWheelTimeoutScheduler implements CancelableScheduler {
         if (shutdown) {
             return;
         }
-        Timeout timeout = executorService.newTimeout(timeout1 -> ctx.executor().execute(() -> {
-            scheduledFutures.remove(key);
-            runnable.run();
-        }), delay, unit);
+        Timeout timeout = executorService.newTimeout(timeout1 -> {
+            ChannelHandlerContext currentCtx = this.ctx;
+            if (currentCtx != null && currentCtx.executor() != null && !currentCtx.executor().isShuttingDown()) {
+                currentCtx.executor().execute(() -> {
+                    scheduledFutures.remove(key, timeout1);
+                    runnable.run();
+                });
+            } else {
+                scheduledFutures.remove(key, timeout1);
+                runnable.run();
+            }
+        }, delay, unit);
 
         replaceScheduledFuture(key, timeout);
     }
@@ -93,7 +101,7 @@ public class HashedWheelTimeoutScheduler implements CancelableScheduler {
             return;
         }
         Timeout timeout = executorService.newTimeout(timeout1 -> {
-            scheduledFutures.remove(key);
+            scheduledFutures.remove(key, timeout1);
             runnable.run();
         }, delay, unit);
 

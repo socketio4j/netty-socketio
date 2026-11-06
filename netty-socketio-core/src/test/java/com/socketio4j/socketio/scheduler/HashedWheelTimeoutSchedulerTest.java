@@ -857,5 +857,22 @@ public class HashedWheelTimeoutSchedulerTest {
                 thread.join(1000);
             }
         }
+
+        @Test
+        @DisplayName("Should execute callback directly when ctx is null")
+        void shouldExecuteCallbackDirectlyWhenCtxIsNull() throws InterruptedException {
+            HashedWheelTimeoutScheduler uninitializedScheduler = new HashedWheelTimeoutScheduler();
+            try {
+                CountDownLatch latch = new CountDownLatch(1);
+                SchedulerKey key = new SchedulerKey(SchedulerKey.Type.PING, "null-ctx-session");
+
+                uninitializedScheduler.scheduleCallback(key, latch::countDown, 10, TimeUnit.MILLISECONDS);
+
+                boolean completed = latch.await(2, TimeUnit.SECONDS);
+                assertThat(completed).isTrue();
+            } finally {
+                uninitializedScheduler.shutdown();
+            }
+        }
     }
 }

@@ -13,19 +13,29 @@ import org.objectweb.asm.tree.analysis.*;
 public final class LockAudit {
 
   public static boolean blockingCall(String owner, String name, String descriptor) {
-    if (owner.equals("java/lang/Thread")) return name.equals("sleep") || name.equals("join");
-    if (owner.equals("java/lang/Object")) return name.equals("wait");
-    if (owner.equals("java/util/concurrent/locks/LockSupport")) return name.startsWith("park");
-    if (owner.startsWith("java/util/concurrent/locks/"))
+    if (owner.equals("java/lang/Thread")) {
+      return name.equals("sleep") || name.equals("join");
+    }
+    if (name.equals("wait") && (descriptor.equals("()V") || descriptor.equals("(J)V") || descriptor.equals("(JI)V"))) {
+      return true;
+    }
+    if (owner.equals("java/util/concurrent/locks/LockSupport")) {
+      return name.startsWith("park");
+    }
+    if (owner.startsWith("java/util/concurrent/locks/")) {
       return name.equals("lock") || name.equals("lockInterruptibly") || name.startsWith("await");
-    if (owner.equals("java/util/concurrent/Semaphore"))
+    }
+    if (owner.equals("java/util/concurrent/Semaphore")) {
       return name.equals("acquire")
           || (name.equals("tryAcquire") && descriptor.contains("TimeUnit"));
+    }
     if (owner.startsWith("io/netty/")
-        && (name.equals("sync") || name.equals("syncUninterruptibly") || name.startsWith("await")))
+        && (name.equals("sync") || name.equals("syncUninterruptibly") || name.startsWith("await"))) {
       return true;
-    if (name.equals("awaitTermination") && owner.startsWith("java/util/concurrent/"))
+    }
+    if (name.equals("awaitTermination") && owner.startsWith("java/util/concurrent/")) {
       return true;
+    }
     return (owner.equals("java/util/concurrent/CountDownLatch") && name.equals("await"))
         || ((owner.equals("java/util/concurrent/Future")
                 || owner.equals("java/util/concurrent/CompletableFuture"))

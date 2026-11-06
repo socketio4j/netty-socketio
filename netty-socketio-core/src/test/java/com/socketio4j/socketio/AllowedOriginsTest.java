@@ -96,4 +96,13 @@ class AllowedOriginsTest {
         configuration.setAllowedOrigins(Collections.singleton("https://*.example.com"));
         assertThat(configuration.isOriginAllowed("HTTPS://APP.EXAMPLE.COM")).isTrue();
     }
+
+    @Test
+    @DisplayName("Should default WebSocket decompression buffer size to 0 while allowing customization")
+    void shouldDefaultDecompressionBufferSizeToZero() {
+        assertThat(configuration.getDecompressionBufferSize()).isZero();
+
+        configuration.setDecompressionBufferSize(64 * 1024);
+        assertThat(configuration.getDecompressionBufferSize()).isEqualTo(64 * 1024);
+    }
 }

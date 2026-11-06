@@ -86,6 +86,7 @@ public class HttpTransportTest {
     config.setTransports(Transport.POLLING);
     config.setPort(port);
     config.setOrigin(TEST_ORIGIN);
+    config.setAllowedOrigins(java.util.Collections.singleton(TEST_ORIGIN));
     config.setExceptionListener(new ExceptionListener() {
       @Override
       public void onEventException(Exception e, List<Object> args, SocketIOClient client) {
@@ -427,6 +428,38 @@ public class HttpTransportTest {
         "EIO=4&transport=polling&sid=" + sessionId).toURL().openConnection();
     subsequentPoll.connect();
     assertEquals(400, subsequentPoll.getResponseCode());
+  }
+
+  @Test
+  public void testExistingPollingSessionEnforcesAllowedOrigins() throws Exception {
+    final String sessionId = connectForSessionId(null);
+
+    String disallowedStatusLine = sendRawPollingPostWithOrigin(sessionId, "http://evil.example.com", "40");
+    assertTrue(disallowedStatusLine.contains("403"), "Disallowed origin must be rejected with 403 Forbidden: " + disallowedStatusLine);
+
+    String allowedStatusLine = sendRawPollingPostWithOrigin(sessionId, TEST_ORIGIN, "40");
+    assertTrue(allowedStatusLine.contains("200"), "Allowed origin must succeed with 200 OK: " + allowedStatusLine);
+  }
+
+  private String sendRawPollingPostWithOrigin(String sessionId, String origin, String payload) throws IOException {
+    byte[] bodyBytes = payload.getBytes(StandardCharsets.UTF_8);
+    String path = server.getConfiguration().getContext() + "/?EIO=4&transport=polling&sid=" + sessionId;
+    String rawRequest = "POST " + path + " HTTP/1.1\r\n"
+        + "Host: localhost:" + server.getConfiguration().getPort() + "\r\n"
+        + "Origin: " + origin + "\r\n"
+        + "Content-Type: text/plain;charset=UTF-8\r\n"
+        + "Content-Length: " + bodyBytes.length + "\r\n"
+        + "Connection: close\r\n\r\n"
+        + payload;
+    try (java.net.Socket rawSocket = new java.net.Socket("localhost", server.getConfiguration().getPort())) {
+      rawSocket.setSoTimeout(5000);
+      OutputStream out = rawSocket.getOutputStream();
+      out.write(rawRequest.getBytes(StandardCharsets.UTF_8));
+      out.flush();
+      try (BufferedReader reader = new BufferedReader(new InputStreamReader(rawSocket.getInputStream(), StandardCharsets.UTF_8))) {
+        return reader.readLine();
+      }
+    }
   }
 
   /**

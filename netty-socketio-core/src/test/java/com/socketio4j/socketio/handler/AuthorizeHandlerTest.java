@@ -31,6 +31,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import java.util.Collections;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -649,6 +650,102 @@ public class AuthorizeHandlerTest {
 
         // The channel should still be active because the timeout was cancelled
         assertThat(channel.isActive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Max connection count reached - Should reject handshake with Service Unavailable")
+    void testChannelRead_WhenMaxConnectionCountReached_ShouldRejectWithServiceUnavailable() {
+        configuration.setMaxConnectionCount(1);
+
+        FullHttpRequest request1 = createHttpRequest(CONNECT_PATH + "?transport=polling&EIO=4", TEST_ORIGIN);
+        channel.writeInbound(request1);
+        assertThat(channel.isActive()).isTrue();
+        assertThat(clientsBox.getClientsCount()).isEqualTo(1);
+
+        // Second client attempts to connect when limit is reached
+        EmbeddedChannel secondChannel = new EmbeddedChannel(authorizeHandler);
+        FullHttpRequest request2 = createHttpRequest(CONNECT_PATH + "?transport=polling&EIO=4", TEST_ORIGIN);
+        secondChannel.writeInbound(request2);
+
+        assertThat(secondChannel.isActive()).isFalse();
+        Object outboundMessage = secondChannel.outboundMessages().poll();
+        assertThat(outboundMessage).isInstanceOf(DefaultHttpResponse.class);
+        DefaultHttpResponse response = (DefaultHttpResponse) outboundMessage;
+        assertThat(response.status()).isEqualTo(HttpResponseStatus.SERVICE_UNAVAILABLE);
+        secondChannel.finishAndReleaseAll();
+    }
+  
+    @Test
+    @DisplayName("Channel Inactive - Should Cancel Scheduled FirstDataTimeout")
+    void testChannelInactive_ShouldCancelFirstDataTimeout() throws Exception {
+        CancelableScheduler spyScheduler = org.mockito.Mockito.spy(scheduler);
+        AuthorizeHandler handler = new AuthorizeHandler(
+                CONNECT_PATH, spyScheduler, configuration, namespacesHub,
+                storeFactory, disconnectable, ackManager, clientsBox
+        );
+        EmbeddedChannel testChannel = new EmbeddedChannel(handler);
+        try {
+            ChannelHandlerContext ctx = testChannel.pipeline().context(handler);
+            handler.channelActive(ctx);
+            handler.channelInactive(ctx);
+
+            org.mockito.Mockito.verify(spyScheduler).cancel(
+                    new com.socketio4j.socketio.scheduler.SchedulerKey(
+                            com.socketio4j.socketio.scheduler.SchedulerKey.Type.PING_TIMEOUT,
+                            testChannel
+                    )
+            );
+        } finally {
+            testChannel.finishAndReleaseAll();
+        }
+    }
+
+    @Test
+    void testDisconnectOfOldClientPreservesReplacement() {
+        UUID sessionId = UUID.randomUUID();
+        ClientHead oldClient = org.mockito.Mockito.mock(ClientHead.class);
+        ClientHead replacement = org.mockito.Mockito.mock(ClientHead.class);
+        org.mockito.Mockito.when(oldClient.getSessionId()).thenReturn(sessionId);
+        org.mockito.Mockito.when(replacement.getSessionId()).thenReturn(sessionId);
+        clientsBox.addClient(oldClient);
+        clientsBox.removeClient(sessionId);
+        clientsBox.addClient(replacement);
+
+        authorizeHandler.onDisconnect(oldClient);
+
+        assertThat(clientsBox.get(sessionId)).isSameAs(replacement);
+        assertThat(clientsBox.getClientsCount()).isEqualTo(1);
+        authorizeHandler.onDisconnect(replacement);
+        assertThat(clientsBox.get(sessionId)).isNull();
+        assertThat(clientsBox.getClientsCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("Existing Session Request - Should Reject Disallowed Origin With Forbidden")
+    void testExistingSessionRequest_DisallowedOrigin_ShouldReturnForbidden() {
+        configuration.setAllowedOrigins(Collections.singleton("https://allowed.example.com"));
+        FullHttpRequest request = createHttpRequest(
+                CONNECT_PATH + "?EIO=4&transport=polling&sid=00000000-0000-0000-0000-000000000001",
+                "https://evil.example.com"
+        );
+
+        channel.writeInbound(request);
+
+        assertThat(channel.isActive()).isFalse();
+        Object outbound = channel.outboundMessages().poll();
+        assertThat(outbound).isInstanceOf(DefaultHttpResponse.class);
+        assertThat(((DefaultHttpResponse) outbound).status()).isEqualTo(HttpResponseStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("Connect Disconnected Client - Should Ignore Already Disconnected Client")
+    void testConnect_WhenClientAlreadyDisconnected_ShouldBeNoOp() {
+        ClientHead disconnectedClient = org.mockito.Mockito.mock(ClientHead.class);
+        org.mockito.Mockito.when(disconnectedClient.isConnected()).thenReturn(false);
+
+        authorizeHandler.connect(disconnectedClient);
+
+        org.mockito.Mockito.verify(disconnectedClient, org.mockito.Mockito.never()).send(org.mockito.Mockito.any(Packet.class));
     }
 
 

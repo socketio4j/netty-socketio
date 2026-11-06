@@ -23,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.Store;
@@ -43,6 +45,8 @@ import com.socketio4j.socketio.store.event.EventStore;
  * If no {@link EventStore} is supplied, {@link MemoryEventStore} is used by default.
  */
 public class MemoryStoreFactory extends BaseStoreFactory {
+
+    private static final Logger log = LoggerFactory.getLogger(MemoryStoreFactory.class);
 
     private final EventStore eventStore;
 
@@ -91,7 +95,13 @@ public class MemoryStoreFactory extends BaseStoreFactory {
 
     @Override
     public void shutdown() {
-        // no-op
+        if (eventStore != null) {
+            try {
+                eventStore.shutdown();
+            } catch (Exception e) {
+                log.warn("Error shutting down event store", e);
+            }
+        }
     }
 
     @Override

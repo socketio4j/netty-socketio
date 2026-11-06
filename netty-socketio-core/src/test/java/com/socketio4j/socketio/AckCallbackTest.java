@@ -17,15 +17,31 @@
 package com.socketio4j.socketio;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import com.socketio4j.socketio.protocol.Packet;
+import com.socketio4j.socketio.protocol.PacketType;
+import com.socketio4j.socketio.store.StoreFactory;
+import com.socketio4j.socketio.store.event.DispatchMessage;
+import com.socketio4j.socketio.store.event.EventStore;
+import com.socketio4j.socketio.store.event.EventType;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @DisplayName("Ack callback Tests")
 class AckCallbackTest {
@@ -245,6 +261,111 @@ class AckCallbackTest {
             callback.loopFinished();
 
             assertThat(allSuccessInvocations.get()).isZero();
+        }
+
+        @Test
+        @DisplayName("Should fire onAllSuccess after remaining clients complete when one client times out")
+        void shouldFireOnAllSuccessWhenOneClientTimesOutAndOthersSucceed() {
+            AtomicInteger allSuccessInvocations = new AtomicInteger();
+            List<SocketIOClient> timedOutClients = new ArrayList<>();
+            List<SocketIOClient> succeededClients = new ArrayList<>();
+
+            BroadcastAckCallback<String> callback = new BroadcastAckCallback<String>(String.class, 10) {
+                @Override
+                protected void onClientTimeout(SocketIOClient client) {
+                    timedOutClients.add(client);
+                }
+
+                @Override
+                protected void onClientSuccess(SocketIOClient client, String result) {
+                    succeededClients.add(client);
+                }
+
+                @Override
+                protected void onAllSuccess() {
+                    allSuccessInvocations.incrementAndGet();
+                }
+            };
+
+            SocketIOClient c1 = mock(SocketIOClient.class);
+            SocketIOClient c2 = mock(SocketIOClient.class);
+            AckCallback<String> cb1 = callback.createClientCallback(c1);
+            AckCallback<String> cb2 = callback.createClientCallback(c2);
+            callback.loopFinished();
+
+            cb1.onTimeout();
+            assertThat(allSuccessInvocations.get()).isZero();
+
+            cb2.onSuccess("ok");
+            assertThat(timedOutClients).containsExactly(c1);
+            assertThat(succeededClients).containsExactly(c2);
+            assertThat(allSuccessInvocations.get()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("MultiRoomBroadcastOperations should deduplicate overlapping clients and finish ACK loop only once")
+        void multiRoomBroadcastShouldDeduplicateClientsAndFinishAckLoopOnce() {
+            StoreFactory storeFactory = mock(StoreFactory.class);
+            EventStore eventStore = mock(EventStore.class);
+            when(storeFactory.eventStore()).thenReturn(eventStore);
+
+            SocketIOClient sharedClient = mock(SocketIOClient.class);
+            UUID sharedId = UUID.randomUUID();
+            when(sharedClient.getSessionId()).thenReturn(sharedId);
+
+            SocketIOClient roomBOnlyClient = mock(SocketIOClient.class);
+            UUID roomBId = UUID.randomUUID();
+            when(roomBOnlyClient.getSessionId()).thenReturn(roomBId);
+
+            SingleRoomBroadcastOperations roomA = new SingleRoomBroadcastOperations(
+                    "/chat", "roomA", Collections.singletonList(sharedClient), storeFactory);
+            SingleRoomBroadcastOperations roomB = new SingleRoomBroadcastOperations(
+                    "/chat", "roomB", Arrays.asList(sharedClient, roomBOnlyClient), storeFactory);
+
+            MultiRoomBroadcastOperations multiRoom = new MultiRoomBroadcastOperations(Arrays.asList(roomA, roomB));
+
+            multiRoom.sendEvent("msg", "hello");
+            verify(sharedClient, times(1)).send(any(Packet.class));
+            verify(roomBOnlyClient, times(1)).send(any(Packet.class));
+            verify(eventStore, times(2)).publish(eq(EventType.DISPATCH), any(DispatchMessage.class));
+
+            List<AckCallback<?>> registeredCallbacks = new ArrayList<>();
+            doAnswer(inv -> {
+                AckCallback<String> cb = inv.getArgument(1);
+                registeredCallbacks.add(cb);
+                // First room client acks synchronously during sendEvent; should NOT trigger onAllSuccess before roomB
+                cb.onSuccess("ack-shared");
+                return null;
+            }).when(sharedClient).sendEvent(eq("ackEvt"), any(AckCallback.class), eq("payload"));
+
+            doAnswer(inv -> {
+                AckCallback<String> cb = inv.getArgument(1);
+                registeredCallbacks.add(cb);
+                return null;
+            }).when(roomBOnlyClient).sendEvent(eq("ackEvt"), any(AckCallback.class), eq("payload"));
+
+            AtomicInteger allSuccessCount = new AtomicInteger();
+            BroadcastAckCallback<String> broadcastAck = new BroadcastAckCallback<String>(String.class) {
+                @Override
+                protected void onAllSuccess() {
+                    allSuccessCount.incrementAndGet();
+                }
+            };
+
+            multiRoom.sendEvent("ackEvt", "payload", broadcastAck);
+
+            verify(sharedClient, times(1)).sendEvent(eq("ackEvt"), any(AckCallback.class), eq("payload"));
+            verify(roomBOnlyClient, times(1)).sendEvent(eq("ackEvt"), any(AckCallback.class), eq("payload"));
+            assertThat(allSuccessCount.get()).isZero();
+
+            @SuppressWarnings("unchecked")
+            AckCallback<String> roomBCallback = (AckCallback<String>) registeredCallbacks.get(1);
+            roomBCallback.onSuccess("ack-b");
+            assertThat(allSuccessCount.get()).isEqualTo(1);
+
+            // Null excludedClient should not throw NPE
+            multiRoom.sendEvent("nullExcluded", (SocketIOClient) null, "data");
+            roomA.sendEvent("nullExcludedSingle", (SocketIOClient) null, "data");
         }
     }
 }

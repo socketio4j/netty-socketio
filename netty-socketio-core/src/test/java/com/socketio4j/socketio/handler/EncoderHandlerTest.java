@@ -958,6 +958,79 @@ public class EncoderHandlerTest {
         assertThat(channel.outboundMessages()).isEmpty();
     }
 
+    @Test
+    @DisplayName("Should release allocated buffer when sendError serialization fails")
+    void shouldReleaseBufferWhenSendErrorSerializationFails() throws Exception {
+        ByteBuf trackedBuf = Unpooled.buffer(256);
+        when(mockEncoder.allocateBuffer(any())).thenReturn(trackedBuf);
+        doAnswer(invocation -> {
+            throw new IOException("Simulated error serialization failure");
+        }).when(mockJsonSupport).writeValue(any(), any());
+
+        HttpErrorMessage errorMessage = new HttpErrorMessage(Collections.singletonMap("error", "bad"));
+        ChannelPromise promise = channel.newPromise();
+
+        try {
+            encoderHandler.write(channel.pipeline().context(encoderHandler), errorMessage, promise);
+        } catch (IOException expected) {
+            // expected
+        }
+
+        assertThat(trackedBuf.refCnt()).isZero();
+    }
+
+    @Test
+    @DisplayName("Should release allocated buffer when WebSocket encodePacket fails")
+    void shouldReleaseBufferWhenWebSocketEncodePacketFails() throws Exception {
+        ByteBuf trackedBuf = Unpooled.buffer(256);
+        when(mockEncoder.allocateBuffer(any())).thenReturn(trackedBuf);
+
+        ClientHead clientHead = createMockClientHead(Transport.WEBSOCKET);
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setData("fail");
+        clientHead.getPacketsQueue(Transport.WEBSOCKET).add(packet);
+
+        when(mockEncoder.encodePacket(eq(EngineIOVersion.V4), any(), any(), any(), eq(true)))
+                .thenThrow(new IOException("Simulated WebSocket encode failure"));
+
+        OutPacketMessage message = new OutPacketMessage(clientHead, Transport.WEBSOCKET);
+        ChannelPromise promise = channel.newPromise();
+
+        try {
+            encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
+        } catch (IOException expected) {
+            // expected
+        }
+
+        assertThat(trackedBuf.refCnt()).isZero();
+    }
+
+    @Test
+    @DisplayName("Should release allocated buffer when HTTP polling encodePackets or encodeJsonP fails")
+    void shouldReleaseBufferWhenHttpPollingEncodeFails() throws Exception {
+        ByteBuf trackedHttpBuf = Unpooled.buffer(256);
+        when(mockEncoder.allocateBuffer(any())).thenReturn(trackedHttpBuf);
+
+        ClientHead clientHead = createMockClientHead(Transport.POLLING);
+        Packet packet = new Packet(PacketType.MESSAGE);
+        packet.setData("fail");
+        clientHead.getPacketsQueue(Transport.POLLING).add(packet);
+
+        when(mockEncoder.encodePackets(eq(EngineIOVersion.V4), any(), any(), any(), anyInt()))
+                .thenThrow(new IOException("Simulated HTTP polling encode failure"));
+
+        OutPacketMessage message = new OutPacketMessage(clientHead, Transport.POLLING);
+        ChannelPromise promise = channel.newPromise();
+
+        try {
+            encoderHandler.write(channel.pipeline().context(encoderHandler), message, promise);
+        } catch (IOException expected) {
+            // expected
+        }
+
+        assertThat(trackedHttpBuf.refCnt()).isZero();
+    }
+
     private ClientHead createMockClientHead(Transport transport) {
         ClientHead clientHead = mock(ClientHead.class);
         ConcurrentLinkedQueue<Packet> queue = new ConcurrentLinkedQueue<>();
