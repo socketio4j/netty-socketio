@@ -443,7 +443,10 @@ else
                         echo -e "    ${DIM}ℹ Docker is not running: container-backed tests will be skipped.${NC}"
                     fi
 
-                    if TEST_OUTPUT=$($MVN_CMD --batch-mode test -Dsocketio.test.forkCount=1C -Dsocketio.test.reuseForks=true $DOCKER_FLAG 2>&1); then
+                    if ! bash .githooks/check-test-prerequisites.sh; then
+                        GATE8_STATUS="FAILED"
+                        FAILED_GATES=$(( FAILED_GATES + 1 ))
+                    elif TEST_OUTPUT=$($MVN_CMD --batch-mode test -Dsocketio.test.forkCount=1 -Dsocketio.test.reuseForks=true $DOCKER_FLAG 2>&1); then
                         TEST_TIME=$(( SECONDS - TEST_START ))
                         echo -e "    ${GREEN}✔ [PASS]${NC} All reactor tests passed (${TEST_TIME}s)."
                     else
