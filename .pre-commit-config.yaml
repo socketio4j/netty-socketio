@@ -63,3 +63,11 @@ repos:
         pass_filenames: false
         require_serial: true
         files: '(\.java$|(^|/)pom\.xml$|^verification/locking/|^\.github/workflows/eventloop-locks\.yml$|^\.githooks/|^\.pre-commit-config\.yaml$)'
+
+      # Mandatory Full Reactor Test Execution Gate
+      - id: maven-test
+        name: Maven Full Reactor Test Suite Gate
+        entry: bash -c 'DOCKER_FLAG=""; docker info >/dev/null 2>&1 || DOCKER_FLAG="-Dsocketio.skip.docker=true"; mvn --batch-mode test -Dsocketio.test.forkCount=1C -Dsocketio.test.reuseForks=true $DOCKER_FLAG'
+        language: system
+        pass_filenames: false
+        files: '(\.java$|pom\.xml$)'
