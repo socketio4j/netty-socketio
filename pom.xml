@@ -65,18 +65,18 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <testcontainers.version>2.0.5</testcontainers.version>
-    <netty.version>4.2.17.Final</netty.version>
+    <netty.version>4.2.19.Final</netty.version>
     <netty.tcnative.version>2.0.81.Final</netty.tcnative.version>
     <jmockit.version>1.50</jmockit.version>
     <byte-buddy.version>1.18.10</byte-buddy.version>
     <junit.version>6.1.0</junit.version>
-    <junit-platform-launcher.version>6.1.0</junit-platform-launcher.version>
+    <junit-platform-launcher.version>6.1.3</junit-platform-launcher.version>
     <slf4j.version>2.0.17</slf4j.version>
-    <jackson.version>2.22.1</jackson.version>
+    <jackson.version>2.22.4</jackson.version>
     <jackson.annotations.version>2.21</jackson.annotations.version>
     <micronaut.version>4.10.23</micronaut.version>
     <micronaut.test.version>4.10.3</micronaut.test.version>
-    <redisson.version>4.5.0</redisson.version>
+    <redisson.version>4.8.0</redisson.version>
     <hazelcast.version>5.7.0</hazelcast.version>
     <awaitility.version>4.3.0</awaitility.version>
     <assertj.version>3.27.7</assertj.version>
@@ -89,8 +89,8 @@
     <nats.version>2.25.3</nats.version>
     <micrometer-bom.version>1.17.0</micrometer-bom.version>
     <hll.version>1.6.0</hll.version>
-    <lz4.version>1.11.1</lz4.version>
-    <okhttp.version>3.12.13</okhttp.version>
+    <lz4.version>1.11.4</lz4.version>
+    <okhttp.version>4.9.2</okhttp.version>
     <socketio.test.forkCount>1</socketio.test.forkCount>
     <socketio.test.reuseForks>true</socketio.test.reuseForks>
     <revapi-maven-plugin.version>0.15.1</revapi-maven-plugin.version>
@@ -709,7 +709,7 @@
       <plugin>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-bundle-plugin</artifactId>
-        <version>6.0.0</version>
+        <version>6.0.2</version>
         <extensions>true</extensions>
         <configuration>
           <instructions>
@@ -872,6 +872,11 @@
                       "code": "java.method.addedToInterface",
                       "new": "method void com.socketio4j.socketio.metrics.SocketIOMetrics::publishFailed(java.lang.String)",
                       "justification": "Added default method alias for tracking event publish failure metrics"
+                    },
+                    {
+                      "code": "java.method.addedToInterface",
+                      "new": "method int com.socketio4j.socketio.quarkus.config.NettySocketIOBasicConfigMapping::maxConnectionCount()",
+                      "justification": "Added maxConnectionCount configuration property mapping for Quarkus"
                     },
                     {
                       "code": "java.field.serialVersionUIDUnchanged",

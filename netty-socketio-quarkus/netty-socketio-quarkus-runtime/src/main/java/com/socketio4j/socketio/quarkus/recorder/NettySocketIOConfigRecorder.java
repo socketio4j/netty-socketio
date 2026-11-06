@@ -83,6 +83,7 @@ public class NettySocketIOConfigRecorder {
         configuration.setFirstDataTimeout(nettySocketIOBasicConfigMapping.firstDataTimeout());
         configuration.setMaxHttpContentLength(nettySocketIOBasicConfigMapping.maxHttpContentLength());
         configuration.setMaxFramePayloadLength(nettySocketIOBasicConfigMapping.maxFramePayloadLength());
+        configuration.setMaxConnectionCount(nettySocketIOBasicConfigMapping.maxConnectionCount());
         configuration.setPackagePrefix(nettySocketIOBasicConfigMapping.packagePrefix().orElse(null));
         configuration.setHostname(nettySocketIOBasicConfigMapping.hostname().orElse(null));
         configuration.setPort(nettySocketIOBasicConfigMapping.port());
