@@ -344,6 +344,54 @@ public class ClientHeadTest {
     }
 
     @Test
+    void shouldCountOnlySuccessfulRemoveIfRemovals() {
+        java.util.Queue<Packet> queue = new TransportState().getPacketsQueue();
+        Packet packet = new Packet(PacketType.NOOP);
+        queue.add(packet);
+        assertFalse(queue.removeIf(candidate -> {
+            assertEquals(packet, queue.poll());
+            return true;
+        }));
+        queue.add(new Packet(PacketType.PING));
+        assertEquals(1, queue.size());
+        assertFalse(queue.removeIf(candidate -> false));
+        assertEquals(1, queue.size());
+    }
+
+    @Test
+    void shouldTrackProbePongSeparatelyFromUpgrade() {
+        clientHead.beginUpgrade();
+        assertTrue(clientHead.isUpgradeInProgress());
+        assertFalse(clientHead.isProbePongComplete());
+        clientHead.completeProbePong();
+        assertTrue(clientHead.isProbePongComplete());
+        clientHead.failUpgrade();
+        assertFalse(clientHead.isUpgradeInProgress());
+        assertFalse(clientHead.isProbePongComplete());
+    }
+
+    @Test
+    void shouldPreserveSharedQueueUntilDeferredCloseCompletes() {
+        Channel channel = mock(Channel.class);
+        EmbeddedChannel promiseChannel = new EmbeddedChannel();
+        io.netty.channel.DefaultChannelPromise closeWrite =
+                new io.netty.channel.DefaultChannelPromise(promiseChannel);
+        when(channel.isWritable()).thenReturn(true);
+        when(channel.isActive()).thenReturn(true);
+        when(channel.writeAndFlush(any(OutPacketMessage.class))).thenReturn(closeWrite);
+        clientHead.bindChannel(channel, Transport.WEBSOCKET);
+        clientHead.upgradeCurrentTransport(Transport.WEBSOCKET);
+
+        clientHead.disconnectWithProtocolClose();
+
+        assertEquals(PacketType.CLOSE, clientHead.getPacketsQueue(Transport.WEBSOCKET).peek().getType());
+        closeWrite.setSuccess();
+        promiseChannel.runPendingTasks();
+        assertTrue(clientHead.getPacketsQueue(Transport.WEBSOCKET).isEmpty());
+        promiseChannel.finishAndReleaseAll();
+    }
+
+    @Test
     void testTransportStateCountingQueueOperationsMaintainExactSize() {
         TransportState state = new TransportState();
         Packet p1 = new Packet(PacketType.PING);

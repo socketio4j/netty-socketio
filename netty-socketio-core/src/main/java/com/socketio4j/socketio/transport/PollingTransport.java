@@ -307,7 +307,7 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
         // A legacy Engine.IO client pauses polling only after it receives the
         // WebSocket probe PONG. Send NOOP on whichever polling GET is current
         // while that pause is in progress, so a rebinding race cannot strand it.
-        if (client.isUpgradeInProgress()) {
+        if (client.isProbePongComplete()) {
             client.send(new Packet(PacketType.NOOP), Transport.POLLING);
         }
 

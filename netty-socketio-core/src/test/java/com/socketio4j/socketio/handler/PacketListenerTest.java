@@ -299,9 +299,11 @@ public class PacketListenerTest {
             assertEquals("probe", packetCaptor.getValue().getData());
             verify(baseClient, never()).send(any(Packet.class), eq(Transport.POLLING));
 
+            verify(baseClient, never()).completeProbePong();
             pongWrite.setSuccess();
             channel.runPendingTasks();
 
+            verify(baseClient).completeProbePong();
             verify(baseClient).send(packetCaptor.capture(), eq(Transport.POLLING));
             assertEquals(PacketType.NOOP, packetCaptor.getValue().getType());
             verify(baseClient, never()).schedulePingTimeout();
@@ -322,6 +324,8 @@ public class PacketListenerTest {
             pongWrite.setFailure(new IllegalStateException("simulated WebSocket write failure"));
             channel.runPendingTasks();
 
+            verify(baseClient).failUpgrade();
+            verify(baseClient, never()).completeProbePong();
             verify(baseClient).send(any(Packet.class), eq(Transport.WEBSOCKET));
             verify(baseClient, never()).send(any(Packet.class), eq(Transport.POLLING));
             verify(baseClient, never()).schedulePingTimeout();
@@ -329,10 +333,9 @@ public class PacketListenerTest {
         }
 
         @Test
-        @DisplayName("Should mark upgrade in progress and queue NOOP when WebSocket is temporarily unwritable during probe PING")
-        void shouldBeginUpgradeWhenWebSocketTemporarilyUnwritableOnProbePing() {
+        @DisplayName("Should fail upgrade without releasing polling when probe PONG cannot be sent")
+        void shouldFailUpgradeWhenProbePongCannotBeSent() {
             when(baseClient.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
-            when(baseClient.isConnected()).thenReturn(true);
             when(baseClient.send(any(Packet.class), eq(Transport.WEBSOCKET))).thenReturn(null);
 
             Packet packet = createPacket(PacketType.PING);
@@ -342,8 +345,8 @@ public class PacketListenerTest {
 
             verify(baseClient).beginUpgrade();
             verify(baseClient).send(any(Packet.class), eq(Transport.WEBSOCKET));
-            verify(baseClient).send(packetCaptor.capture(), eq(Transport.POLLING));
-            assertEquals(PacketType.NOOP, packetCaptor.getValue().getType());
+            verify(baseClient).failUpgrade();
+            verify(baseClient, never()).send(any(Packet.class), eq(Transport.POLLING));
         }
     }
 

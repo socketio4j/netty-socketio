@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.handler;
 
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -70,13 +71,14 @@ public class TransportState {
 
         @Override
         public boolean removeIf(Predicate<? super Packet> filter) {
-            return super.removeIf(packet -> {
-                if (filter.test(packet)) {
-                    count.decrementAndGet();
-                    return true;
+            Objects.requireNonNull(filter);
+            boolean removed = false;
+            for (Packet packet : this) {
+                if (filter.test(packet) && remove(packet)) {
+                    removed = true;
                 }
-                return false;
-            });
+            }
+            return removed;
         }
 
         @Override

@@ -72,6 +72,7 @@ public class ClientHead {
     private final AtomicBoolean disconnected = new AtomicBoolean();
     private final AtomicBoolean pollingPostActive = new AtomicBoolean();
     private final AtomicBoolean upgradeInProgress = new AtomicBoolean();
+    private final AtomicBoolean probePongComplete = new AtomicBoolean();
     private final Map<Namespace, NamespaceClient> namespaceClients = new ConcurrentHashMap<>();
     private final Map<Transport, TransportState> channels = new HashMap<Transport, TransportState>(2);
     private final HandshakeData handshakeData;
@@ -431,9 +432,13 @@ public class ClientHead {
     }
 
     private void cleanupDisconnectedSession(Transport deferredCloseTransport) {
+        Queue<Packet> deferredQueue = null;
+        if (deferredCloseTransport != null) {
+            deferredQueue = channels.get(deferredCloseTransport).getPacketsQueue();
+        }
         for (Transport transport : Transport.values()) {
             TransportState state = channels.get(transport);
-            if (transport != deferredCloseTransport) {
+            if (state.getPacketsQueue() != deferredQueue) {
                 state.clearPacketsQueue();
             }
             Channel channel = state.getChannel();
@@ -570,7 +575,21 @@ public class ClientHead {
     }
 
     public void beginUpgrade() {
+        probePongComplete.set(false);
         upgradeInProgress.set(true);
+    }
+
+    public void completeProbePong() {
+        probePongComplete.set(true);
+    }
+
+    public boolean isProbePongComplete() {
+        return upgradeInProgress.get() && probePongComplete.get();
+    }
+
+    public void failUpgrade() {
+        upgradeInProgress.set(false);
+        probePongComplete.set(false);
     }
 
     public boolean isUpgradeInProgress() {
@@ -578,7 +597,7 @@ public class ClientHead {
     }
 
     public void upgradeCurrentTransport(Transport currentTransport) {
-        upgradeInProgress.set(false);
+        failUpgrade();
         TransportState state = channels.get(currentTransport);
         for (Entry<Transport, TransportState> entry : channels.entrySet()) {
             if (!entry.getKey().equals(currentTransport)) {

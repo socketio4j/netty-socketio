@@ -76,11 +76,14 @@ public class PacketListener {
                 if (pongFuture != null) {
                     pongFuture.addListener(future -> {
                         if (future.isSuccess()) {
+                            client.completeProbePong();
                             client.send(new Packet(PacketType.NOOP), Transport.POLLING);
+                        } else {
+                            client.failUpgrade();
                         }
                     });
-                } else if (client.isConnected()) {
-                    client.send(new Packet(PacketType.NOOP), Transport.POLLING);
+                } else {
+                    client.failUpgrade();
                 }
             } else {
                 client.send(outPacket, transport);
