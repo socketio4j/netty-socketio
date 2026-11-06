@@ -17,6 +17,7 @@
 package com.socketio4j.socketio.handler;
 
 import java.util.HashMap;
+import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -57,6 +58,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.doAnswer;
@@ -279,6 +282,26 @@ public class ClientHeadTest {
 
         assertTrue(bindRejected.get());
         lateChannel.finishAndReleaseAll();
+    }
+
+    @Test
+    void testDisconnectDuringEnqueuePreservesOtherPackets() {
+        ClientHead sendingClient = spy(clientHead);
+        Queue<Packet> queue = sendingClient.getPacketsQueue(Transport.WEBSOCKET);
+        Packet pending = new Packet(PacketType.PING);
+        Packet disconnect = new Packet(PacketType.MESSAGE);
+        disconnect.setSubType(PacketType.DISCONNECT);
+        queue.add(pending);
+        doReturn(true).doAnswer(invocation -> {
+            // A concurrent disconnect enqueues its packet before the second check.
+            queue.add(disconnect);
+            return false;
+        }).when(sendingClient).isConnected();
+
+        assertNull(sendingClient.send(new Packet(PacketType.MESSAGE), Transport.WEBSOCKET));
+        assertEquals(2, queue.size());
+        assertEquals(pending, queue.poll());
+        assertEquals(disconnect, queue.poll());
     }
 
     @Test

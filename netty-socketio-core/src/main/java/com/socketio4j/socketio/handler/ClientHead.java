@@ -292,7 +292,7 @@ public class ClientHead {
 
         queue.add(packet);
         if (!isConnected() && packet.getSubType() != PacketType.DISCONNECT) {
-            queue.clear();
+            queue.remove(packet);
             return null;
         }
 

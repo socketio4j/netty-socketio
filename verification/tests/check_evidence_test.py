@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from check_evidence import inspect_reports
+from check_evidence import expected_core_classes, inspect_reports
 
 
 class EvidenceGateTest(unittest.TestCase):
@@ -16,6 +16,22 @@ class EvidenceGateTest(unittest.TestCase):
                 nested.mkdir()
                 (nested / "TEST-example.Test.xml").write_text(second)
             return inspect_reports(directory)
+
+    def test_expected_classes_only_excludes_top_level_abstract_classes(self):
+        fixtures = {
+            "AbstractTest": "public abstract class AbstractTest { @Test void test() {} }",
+            "MultilineTest": "abstract\npublic class MultilineTest { @Test void test() {} }",
+            "NestedTest": "public class NestedTest { abstract class Helper {} @Test void test() {} }",
+            "CommentTest": "/** abstract class Example {} */ public class CommentTest { @Test void test() {} }",
+            "SiblingTest": "abstract class Helper {} public class SiblingTest { @Test void test() {} }",
+            "LiteralTest": 'public class LiteralTest { String s = "abstract class Example {"; @Test void test() {} }',
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            for name, body in fixtures.items():
+                (directory / (name + ".java")).write_text("package example;\n" + body)
+            self.assertEqual({"example.NestedTest", "example.CommentTest", "example.LiteralTest", "example.SiblingTest"},
+                             expected_core_classes(directory))
 
     def test_accepts_nonempty_consistent_success(self):
         self.assertEqual(1, self.inspect('<testsuite tests="1"><testcase name="case" classname="Test"/></testsuite>')[0])

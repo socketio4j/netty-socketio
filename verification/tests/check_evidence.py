@@ -43,7 +43,16 @@ def expected_core_classes(source):
     expected = set()
     for path in source.rglob("*Test.java"):
         text = path.read_text()
-        if re.search(r"\babstract\s+class\b", text):
+        # Ignore comments and literals before checking declaration scope.
+        declarations = re.sub(
+            r"""/\*.*?\*/|//[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'""",
+            " ", text, flags=re.DOTALL)
+        abstract_classes = re.finditer(
+            r"\babstract\s+(?:(?:public|strictfp|sealed|non-sealed)\s+)*class\s+"
+            + re.escape(path.stem) + r"\b",
+            declarations)
+        if any(declarations[:match.start()].count("{") ==
+               declarations[:match.start()].count("}") for match in abstract_classes):
             continue
         if not re.search(r"@(?:Test|ParameterizedTest|Nested)\b|extends\s+\w*(?:Test|Support)\b", text):
             continue
