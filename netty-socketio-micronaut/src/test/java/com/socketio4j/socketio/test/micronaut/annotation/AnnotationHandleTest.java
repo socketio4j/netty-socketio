@@ -235,7 +235,10 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
                 : PORT;
         socket = IO.socket(
                 String.format("http://localhost:%d", boundPort),
-                IO.Options.builder().setForceNew(true).build()
+                IO.Options.builder()
+                        .setTransports(new String[]{"websocket"})
+                        .setForceNew(true)
+                        .build()
         );
         socket.connect();
         // wait for connection
@@ -244,8 +247,13 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
 
     @AfterEach
     public void tearDown() throws Exception {
-        if (socket != null && socket.connected()) {
+        if (socket != null) {
             socket.disconnect();
+            socket.close();
+            socket = null;
+        }
+        if (socketIOServer != null) {
+            await().atMost(10, TimeUnit.SECONDS).until(() -> socketIOServer.getAllClients().isEmpty());
         }
     }
 

@@ -37,6 +37,9 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import okhttp3.Dispatcher;
+import okhttp3.OkHttpClient;
+
 import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOClient;
@@ -73,11 +76,12 @@ public class SingleServerMultiClientIsolationTest {
     private static final int CLIENT_COUNT = 25;
     private static final int MESSAGES_PER_CLIENT = 100;
     private static final int TOTAL_EXPECTED_MESSAGES = CLIENT_COUNT * MESSAGES_PER_CLIENT;
-    private static final long TIMEOUT_SECS = 120L;
+    private static final long TIMEOUT_SECS = 180L;
 
     private SocketIOServer server;
     private int port;
     private final List<Socket> clients = new CopyOnWriteArrayList<>();
+    private OkHttpClient sharedOkHttpClient;
 
     // ── DTO Data Structures ───────────────────────────────────────────────────
 
@@ -144,6 +148,17 @@ public class SingleServerMultiClientIsolationTest {
             }
         }
         clients.clear();
+
+        if (sharedOkHttpClient != null) {
+            try {
+                sharedOkHttpClient.dispatcher().cancelAll();
+                sharedOkHttpClient.connectionPool().evictAll();
+                sharedOkHttpClient.dispatcher().executorService().shutdownNow();
+            } catch (Exception e) {
+                log.warn("Error shutting down OkHttpClient: {}", e.getMessage());
+            }
+            sharedOkHttpClient = null;
+        }
 
         if (server != null) {
             try {
@@ -243,6 +258,17 @@ public class SingleServerMultiClientIsolationTest {
 
         server.start();
 
+        // Dedicated HTTP client with expanded concurrency capacity for 25 simultaneous polling connections
+        Dispatcher dispatcher = new Dispatcher();
+        dispatcher.setMaxRequests(CLIENT_COUNT * 4);
+        dispatcher.setMaxRequestsPerHost(CLIENT_COUNT * 4);
+        sharedOkHttpClient = new OkHttpClient.Builder()
+                .dispatcher(dispatcher)
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
+                .writeTimeout(60, TimeUnit.SECONDS)
+                .build();
+
         // Connect 10 Java clients
         CountDownLatch connectLatch = new CountDownLatch(CLIENT_COUNT);
         CountDownLatch registerLatch = new CountDownLatch(CLIENT_COUNT);
@@ -259,6 +285,9 @@ public class SingleServerMultiClientIsolationTest {
             opts.reconnectionDelay = 100;
             opts.transports = new String[]{ transportName };
             opts.upgrade = false; // Disable transport upgrade explicitly
+            opts.callFactory = sharedOkHttpClient;
+            opts.webSocketFactory = sharedOkHttpClient;
+            opts.timeout = 60000L;
 
             Socket socket = IO.socket("http://127.0.0.1:" + port, opts);
             clients.add(socket);
