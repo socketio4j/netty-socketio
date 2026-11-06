@@ -21,10 +21,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -128,6 +130,19 @@ public class RedisStoreFactory extends BaseStoreFactory {
     }
 
     /**
+     * Creates a {@code RedisStoreFactory} using default Redis-backed event distribution
+     * with metrics tracking.
+     *
+     * @param redisClient non-null Redis client
+     * @param metrics     metrics instance, or null for no-op metrics
+     */
+    public RedisStoreFactory(@NotNull RedissonClient redisClient,
+                             @Nullable SocketIOMetrics metrics) {
+        this(redisClient,
+             new RedisPubSubEventStore(redisClient, redisClient, EventStoreMode.MULTI_CHANNEL, null, metrics));
+    }
+
+    /**
      * Creates a {@code RedisStoreFactory} using default Redis-backed event distribution.
      * Session data is stored in Redis, and events are propagated using {@link RedisPubSubEventStore}
      * in {@link EventStoreMode#MULTI_CHANNEL} mode.
@@ -137,8 +152,7 @@ public class RedisStoreFactory extends BaseStoreFactory {
      * @param redisClient non-null Redis client
      */
     public RedisStoreFactory(@NotNull RedissonClient redisClient) {
-        this(redisClient,
-             new RedisPubSubEventStore(redisClient, redisClient, EventStoreMode.MULTI_CHANNEL, null));
+        this(redisClient, (SocketIOMetrics) null);
     }
 
     @Override

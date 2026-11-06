@@ -88,7 +88,7 @@ public abstract class BaseStoreFactory implements StoreFactory {
             } else if (msg instanceof DispatchMessage) {
                 DispatchMessage m = (DispatchMessage) msg;
                 Namespace n = hub.get(m.getNamespace());
-                if (msg.getOffset() != null && !msg.getOffset().isEmpty()) {
+                if (m.getOffset() != null && !m.getOffset().isEmpty()) {
                     attachOffset(m.getPacket(), m.getOffset());
                 }
                 if (n != null) {
@@ -118,6 +118,9 @@ public abstract class BaseStoreFactory implements StoreFactory {
     }
 
     private void attachOffset(Packet packet, String offset) {
+        if (packet == null || offset == null || offset.isEmpty()) {
+            return;
+        }
         List<Object> args = packet.getData();
         if (args == null) {
             args = new ArrayList<>();
@@ -162,6 +165,9 @@ public abstract class BaseStoreFactory implements StoreFactory {
         subscribe(EventType.DISPATCH, DispatchMessage.class,
                 m -> {
                     Namespace n = hub.get(m.getNamespace());
+                    if (m.getOffset() != null && !m.getOffset().isEmpty()) {
+                        attachOffset(m.getPacket(), m.getOffset());
+                    }
                     if (n != null) {
                         n.dispatch(m.getRoom(), m.getPacket());
                     }

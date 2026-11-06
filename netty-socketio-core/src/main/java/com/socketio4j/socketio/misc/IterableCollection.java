@@ -19,6 +19,9 @@ package com.socketio4j.socketio.misc;
 import java.util.AbstractCollection;
 import java.util.Iterator;
 
+import com.socketio4j.socketio.annotation.Internal;
+
+@Internal
 public class IterableCollection<T> extends AbstractCollection<T> {
 
     private final CompositeIterable<T> iterable;

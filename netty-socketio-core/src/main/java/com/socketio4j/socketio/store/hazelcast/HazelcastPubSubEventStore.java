@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -31,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.topic.ITopic;
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -51,6 +53,8 @@ public class HazelcastPubSubEventStore implements EventStore {
     private final ConcurrentMap<EventType, ITopic<EventMessage>> activePubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<UUID, ITopic<?>> activeSubTopics = new ConcurrentHashMap<>();
 
+    private final SocketIOMetrics metrics;
+
     private static final Logger log = LoggerFactory.getLogger(HazelcastPubSubEventStore.class);
 
     public HazelcastPubSubEventStore(
@@ -58,7 +62,8 @@ public class HazelcastPubSubEventStore implements EventStore {
             @NotNull HazelcastInstance hazelcastSub,
             @Nullable Long nodeId,
             @Nullable EventStoreMode eventStoreMode,
-            @Nullable String topicPrefix
+            @Nullable String topicPrefix,
+            @Nullable SocketIOMetrics metrics
     ) {
         Objects.requireNonNull(hazelcastPub, "hazelcastPub cannot be null");
         Objects.requireNonNull(hazelcastSub, "hazelcastSub cannot be null");
@@ -76,22 +81,55 @@ public class HazelcastPubSubEventStore implements EventStore {
         this.hazelcastPub = hazelcastPub;
         this.hazelcastSub = hazelcastSub;
         if (nodeId == null) {
-            nodeId = getNodeId();
+            nodeId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
         }
         this.nodeId = nodeId;
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
 
+    public HazelcastPubSubEventStore(
+            @NotNull HazelcastInstance hazelcastPub,
+            @NotNull HazelcastInstance hazelcastSub,
+            @Nullable Long nodeId,
+            @Nullable EventStoreMode eventStoreMode,
+            @Nullable String topicPrefix
+    ) {
+        this(hazelcastPub, hazelcastSub, nodeId, eventStoreMode, topicPrefix, SocketIOMetrics.noop());
     }
 
     @Override
     public void publish0(EventType type, EventMessage msg) {
+        if (msg == null) {
+            return;
+        }
         msg.setNodeId(nodeId);
+        String topicName = getTopicName(type);
+        try {
+            ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> hazelcastPub.getTopic(topicName));
+            topic.publishAsync(msg).whenComplete((res, ex) -> {
+                if (ex != null) {
+                    log.error("Failed to publish event {} on topic {}", msg, topicName, ex);
+                    metrics.eventPublishFailed(extractNamespace(msg));
+                }
+            });
+        } catch (Exception ex) {
+            log.error("Failed to initiate publish of event {} on topic {}", msg, topicName, ex);
+            metrics.eventPublishFailed(extractNamespace(msg));
+        }
+    }
 
-        ITopic<EventMessage> topic = activePubTopics.computeIfAbsent(type, k -> {
-            String topicName = getTopicName(k);
-            return hazelcastPub.getTopic(topicName);
-        });
+    @Override
+    public SocketIOMetrics getMetrics() {
+        return this.metrics;
+    }
 
-        topic.publish(msg);
+    @Override
+    public Long getNodeId() {
+        return this.nodeId;
     }
     private String getTopicName(EventType type) {
         if (EventStoreMode.SINGLE_CHANNEL.equals(eventStoreMode)) {
@@ -110,8 +148,17 @@ public class HazelcastPubSubEventStore implements EventStore {
         ITopic<T> topic = hazelcastSub.getTopic(getTopicName(type));
 
         UUID regId = topic.addMessageListener(msg -> {
-            if (!nodeId.equals(msg.getMessageObject().getNodeId())) {
-                listener.onMessage(msg.getMessageObject());
+            if (msg == null) {
+                return;
+            }
+            T eventMsg = msg.getMessageObject();
+            if (eventMsg != null && !Objects.equals(this.nodeId, eventMsg.getNodeId())) {
+                log.debug("[HZ-PUBSUB] Received event type {} from node {} (my nodeId={})", type, eventMsg.getNodeId(), nodeId);
+                try {
+                    listener.onMessage(eventMsg);
+                } catch (Exception e) {
+                    log.error("Failed to process event {} on topic {}", eventMsg, getTopicName(type), e);
+                }
             }
         });
         activeSubTopics.put(regId, topic);
@@ -159,6 +206,7 @@ public class HazelcastPubSubEventStore implements EventStore {
         private Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         private String topicNamePrefix = DEFAULT_TOPIC_NAME_PREFIX;
+        private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
         // --------------------------------------------------
         // Constructors
@@ -196,6 +244,15 @@ public class HazelcastPubSubEventStore implements EventStore {
             return this;
         }
 
+        public HazelcastPubSubEventStore.Builder metrics(@Nullable SocketIOMetrics metrics) {
+            if (metrics != null) {
+                this.metrics = metrics;
+            } else {
+                this.metrics = SocketIOMetrics.noop();
+            }
+            return this;
+        }
+
         // --------------------------------------------------
         // Build
         // --------------------------------------------------
@@ -206,7 +263,8 @@ public class HazelcastPubSubEventStore implements EventStore {
                     hazelcastSub,
                     nodeId,
                     eventStoreMode,
-                    topicNamePrefix
+                    topicNamePrefix,
+                    metrics
             );
         }
     }

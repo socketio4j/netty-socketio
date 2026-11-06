@@ -23,6 +23,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -44,7 +45,8 @@ import static org.mockito.Mockito.when;
  * Unit tests for OnConnectScanner class.
  * Tests the functionality of scanning and registering OnConnect annotation handlers.
  */
-class OnConnectScannerTest extends AnnotationTestBase {
+
+public class OnConnectScannerTest extends AnnotationTestBase {
 
     private OnConnectScanner scanner;
     private Configuration config;

@@ -19,8 +19,10 @@ package com.socketio4j.socketio.namespace;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.listener.DataListener;
 
+@Internal
 public class EventEntry<T> {
 
     private final Queue<DataListener<T>> listeners = new ConcurrentLinkedQueue<DataListener<T>>();

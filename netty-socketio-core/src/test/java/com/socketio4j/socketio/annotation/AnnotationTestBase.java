@@ -16,10 +16,13 @@
  */
 package com.socketio4j.socketio.annotation;
 
+
+
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.protocol.JacksonJsonSupport;
 import com.github.javafaker.Faker;
+
 
 public abstract class AnnotationTestBase {
 

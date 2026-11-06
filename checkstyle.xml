@@ -191,7 +191,9 @@
         <module name="NestedIfDepth">
            <property name="max" value="3"/>
         </module>
-        <module name="NestedTryDepth"/>
+        <module name="NestedTryDepth">
+              <property name="max" value="2"/>
+        </module>
         <module name="NoClone"/>
         <module name="NoFinalizer"/>
         <module name="OneStatementPerLine"/>
@@ -267,15 +269,15 @@
         <!-- See http://checkstyle.sf.net/config_misc.html -->
         <module name="ArrayTypeStyle"/>
         <module name="Regexp">
-            <property name="format" value="System\.(out)|(err)\.print(ln)?\("/>
+            <property name="format" value="System\.(out|err)\.print(ln)?\("/>
             <property name="illegalPattern" value="true"/>
         </module>
         <module name="Regexp">
-            <property name="format" value="System\.exit"/>
+            <property name="format" value="System\.exit\("/>
             <property name="illegalPattern" value="true"/>
         </module>
         <module name="Regexp">
-            <property name="format" value="\.printStacktrace"/>
+            <property name="format" value="\.printStackTrace\("/>
             <property name="illegalPattern" value="true"/>
         </module>
 

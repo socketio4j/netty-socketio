@@ -83,6 +83,7 @@ public class NettySocketIOConfigRecorder {
         configuration.setFirstDataTimeout(nettySocketIOBasicConfigMapping.firstDataTimeout());
         configuration.setMaxHttpContentLength(nettySocketIOBasicConfigMapping.maxHttpContentLength());
         configuration.setMaxFramePayloadLength(nettySocketIOBasicConfigMapping.maxFramePayloadLength());
+        configuration.setMaxConnectionCount(nettySocketIOBasicConfigMapping.maxConnectionCount());
         configuration.setPackagePrefix(nettySocketIOBasicConfigMapping.packagePrefix().orElse(null));
         configuration.setHostname(nettySocketIOBasicConfigMapping.hostname().orElse(null));
         configuration.setPort(nettySocketIOBasicConfigMapping.port());
@@ -116,18 +117,27 @@ public class NettySocketIOConfigRecorder {
         configuration.setSocketConfig(socketConfig);
 
         SocketSslConfig sslConfig = new SocketSslConfig();
-        sslConfig.setSSLProtocol(nettySocketIOSslConfigMapping.sslProtocol());
+        String configuredSslProtocol = nettySocketIOSslConfigMapping.sslProtocol();
+        if (configuredSslProtocol != null
+                && !configuredSslProtocol.isEmpty()
+                && !"TLSv1".equals(configuredSslProtocol)) {
+            sslConfig.setSSLProtocol(configuredSslProtocol);
+        }
         sslConfig.setKeyStoreFormat(nettySocketIOSslConfigMapping.keyStoreFormat());
         if (nettySocketIOSslConfigMapping.keyStore() != null && nettySocketIOSslConfigMapping.keyStore().isPresent()) {
-            InputStream keyStoreStream = getClass().getClassLoader()
-                    .getResourceAsStream(nettySocketIOSslConfigMapping.keyStore().get());
+            InputStream keyStoreStream = SocketSslConfig.openStoreStream(
+                    nettySocketIOSslConfigMapping.keyStore().get(),
+                    getClass().getClassLoader()
+            );
             sslConfig.setKeyStore(keyStoreStream);
         }
         sslConfig.setKeyStorePassword(nettySocketIOSslConfigMapping.keyStorePassword().orElse(null));
         sslConfig.setTrustStoreFormat(nettySocketIOSslConfigMapping.trustStoreFormat());
         if (nettySocketIOSslConfigMapping.trustStore() != null && nettySocketIOSslConfigMapping.trustStore().isPresent()) {
-            InputStream trustStoreStream = getClass().getClassLoader()
-                    .getResourceAsStream(nettySocketIOSslConfigMapping.trustStore().get());
+            InputStream trustStoreStream = SocketSslConfig.openStoreStream(
+                    nettySocketIOSslConfigMapping.trustStore().get(),
+                    getClass().getClassLoader()
+            );
             sslConfig.setTrustStore(trustStoreStream);
         }
         sslConfig.setTrustStorePassword(nettySocketIOSslConfigMapping.trustStorePassword().orElse(null));

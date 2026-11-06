@@ -77,6 +77,10 @@ SocketIO4j is a modern, actively maintained Socket.IO server for the Java ecosys
 
 * Long-running stress and stability testing.
 * Focus on production reliability.
+* Configurable Netty `ResourceLeakDetector.Level` via `Configuration.setLeakDetectionLevel(...)` or `-Dio.netty.leakDetection.level`:
+  * **Production Recommendation**: `SIMPLE` (default Netty level, ~1% sampling overhead) or `DISABLED` for maximum throughput.
+  * **Staging / Pre-Production Recommendation**: `ADVANCED` (samples ~1% of ByteBuf allocations and records allocation/access stack traces to pinpoint any leaks before releasing).
+  * **CI / Test Suites**: `PARANOID` (100% buffer allocation checks).
 
 ✅ Active Community
 

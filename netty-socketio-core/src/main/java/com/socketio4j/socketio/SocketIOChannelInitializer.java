@@ -97,6 +97,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
     private InPacketHandler packetHandler;
     private SslContext sslContext;
     private Configuration configuration;
+    private boolean needClientAuth;
 
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) {
@@ -123,6 +124,9 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
                 throw new IllegalStateException(e);
             }
         }
+        this.needClientAuth = configuration.isNeedClientAuth()
+                && socketSslConfig != null
+                && socketSslConfig.hasTrustStore();
 
         StoreFactory factory = configuration.getStoreFactory();
         authorizeHandler = new AuthorizeHandler(connectPath, scheduler, configuration, namespacesHub, factory, this, ackManager, clientsBox);
@@ -160,9 +164,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         if (sslContext != null) {
             SSLEngine engine = sslContext.newEngine(pipeline.channel().alloc());
             engine.setUseClientMode(false);
-            if (configuration.isNeedClientAuth()
-                    && configuration.getSocketSslConfig() != null
-                    && configuration.getSocketSslConfig().hasTrustStore()) {
+            if (needClientAuth) {
                 engine.setNeedClientAuth(true);
             }
             pipeline.addLast(SSL_HANDLER, new SslHandler(engine));
@@ -209,13 +211,19 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
         if (keyMaterial == null) {
             throw new IllegalStateException("SocketSslConfig key store material is missing");
         }
+        char[] keyStorePassword;
+        if (socketSslConfig.getKeyStorePassword() != null) {
+            keyStorePassword = socketSslConfig.getKeyStorePassword().toCharArray();
+        } else {
+            keyStorePassword = new char[0];
+        }
         KeyStore ks = KeyStore.getInstance(socketSslConfig.getKeyStoreFormat());
         try (InputStream keyStoreStream = new ByteArrayInputStream(keyMaterial)) {
-            ks.load(keyStoreStream, socketSslConfig.getKeyStorePassword().toCharArray());
+            ks.load(keyStoreStream, keyStorePassword);
         }
 
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(socketSslConfig.getKeyManagerFactoryAlgorithm());
-        kmf.init(ks, socketSslConfig.getKeyStorePassword().toCharArray());
+        kmf.init(ks, keyStorePassword);
 
         SslProvider sslProvider;
         if (OpenSsl.isAvailable()) {
@@ -242,10 +250,14 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
             if (trustMaterial == null) {
                 throw new IllegalStateException("SocketSslConfig trust store material is missing");
             }
+            char[] trustStorePassword = null;
+            if (socketSslConfig.getTrustStorePassword() != null) {
+                trustStorePassword = socketSslConfig.getTrustStorePassword().toCharArray();
+            }
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             KeyStore ts = KeyStore.getInstance(socketSslConfig.getTrustStoreFormat());
             try (InputStream trustStoreStream = new ByteArrayInputStream(trustMaterial)) {
-                ts.load(trustStoreStream, socketSslConfig.getTrustStorePassword().toCharArray());
+                ts.load(trustStoreStream, trustStorePassword);
             }
             tmf.init(ts);
             builder.trustManager(tmf);
@@ -274,6 +286,7 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
     }
 
     public void stop() {
+        ackManager.clear();
         StoreFactory factory = configuration.getStoreFactory();
         factory.shutdown();
         scheduler.shutdown();

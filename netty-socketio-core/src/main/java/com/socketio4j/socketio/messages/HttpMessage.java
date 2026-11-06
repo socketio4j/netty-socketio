@@ -18,6 +18,9 @@ package com.socketio4j.socketio.messages;
 
 import java.util.UUID;
 
+import com.socketio4j.socketio.annotation.Internal;
+
+@Internal
 public abstract class HttpMessage {
 
     private final String origin;

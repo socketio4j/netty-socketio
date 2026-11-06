@@ -18,15 +18,18 @@ package com.socketio4j.socketio.handler;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicReference;
 
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.protocol.Packet;
 
 import io.netty.channel.Channel;
 
+@Internal
 public class TransportState {
 
     private Queue<Packet> packetsQueue = new ConcurrentLinkedQueue<>();
-    private Channel channel;
+    private final AtomicReference<Channel> channel = new AtomicReference<>();
 
     public void setPacketsQueue(Queue<Packet> packetsQueue) {
         this.packetsQueue = packetsQueue;
@@ -37,13 +40,15 @@ public class TransportState {
     }
 
     public Channel getChannel() {
-        return channel;
+        return channel.get();
     }
 
     public Channel update(Channel channel) {
-        Channel prevChannel = this.channel;
-        this.channel = channel;
-        return prevChannel;
+        return this.channel.getAndSet(channel);
+    }
+
+    public boolean compareAndSet(Channel expected, Channel updated) {
+        return channel.compareAndSet(expected, updated);
     }
 
 }

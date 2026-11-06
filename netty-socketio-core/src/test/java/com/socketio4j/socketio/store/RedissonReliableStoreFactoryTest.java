@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.store;
+import com.socketio4j.socketio.TestResourceCleanup;
+import com.socketio4j.socketio.store.container.CustomizedRedisContainer;
 
 import java.util.Map;
 import java.util.UUID;
@@ -24,7 +26,10 @@ import com.socketio4j.socketio.store.redis_pubsub.RedisStore;
 import com.socketio4j.socketio.store.redis_pubsub.RedisStoreFactory;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.redisson.Redisson;
@@ -44,17 +49,21 @@ import static org.mockito.Mockito.when;
 /**
  * Test class for RedissonReliableStoreFactory using testcontainers
  */
-public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
+@ResourceLock("EMBEDDED_REDIS")
+public class RedissonReliableStoreFactoryTest extends AbstractStoreFactoryTestSupport {
 
     private static GenericContainer<?> container;
     private RedissonClient redissonClient;
     private AutoCloseable closeableMocks;
 
-    @Override
-    protected StoreFactory createStoreFactory() throws Exception {
+    @BeforeAll
+    public static void startContainer() {
         container = new CustomizedRedisContainer().withReuse(false);
         container.start();
-        
+    }
+
+    @Override
+    protected StoreFactory createStoreFactory() throws Exception {
         CustomizedRedisContainer customizedRedisContainer = (CustomizedRedisContainer) container;
         Config config = new Config();
         config.useSingleServer()
@@ -67,23 +76,16 @@ public class RedissonReliableStoreFactoryTest extends StoreFactoryTest {
 
     @AfterEach
     public void tearDown() throws Exception {
-        if (closeableMocks != null) {
-            closeableMocks.close();
-        }
-        if (storeFactory != null) {
-            storeFactory.shutdown();
-        }
-        if (redissonClient != null) {
-            redissonClient.shutdown();
-        }
-
+        TestResourceCleanup.runAll("Redisson store test cleanup",
+                () -> { if (closeableMocks != null) closeableMocks.close(); },
+                () -> { if (storeFactory != null) storeFactory.shutdown(); },
+                () -> { if (redissonClient != null) redissonClient.shutdown(); });
     }
 
     @AfterAll
     public static void afterAll() throws Exception {
-        if (container != null && container.isRunning()) {
-            container.stop();
-        }
+        TestResourceCleanup.runAll("Redis test container cleanup",
+                () -> { if (container != null && container.isRunning()) container.stop(); });
     }
 
     @Test

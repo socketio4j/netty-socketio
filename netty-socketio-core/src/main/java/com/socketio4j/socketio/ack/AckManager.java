@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.ack;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,12 +34,14 @@ import com.socketio4j.socketio.Disconnectable;
 import com.socketio4j.socketio.MultiTypeAckCallback;
 import com.socketio4j.socketio.MultiTypeArgs;
 import com.socketio4j.socketio.SocketIOClient;
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.handler.ClientHead;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.scheduler.CancelableScheduler;
 import com.socketio4j.socketio.scheduler.SchedulerKey;
 import com.socketio4j.socketio.scheduler.SchedulerKey.Type;
 
+@Internal
 public class AckManager implements Disconnectable {
 
     static class AckEntry {
@@ -100,30 +103,44 @@ public class AckManager implements Disconnectable {
 
     @SuppressWarnings("unchecked")
     public void onAck(SocketIOClient client, Packet packet) {
-        AckSchedulerKey key = new AckSchedulerKey(Type.ACK_TIMEOUT, client.getSessionId(), packet.getAckId());
+        if (client == null || packet == null || packet.getAckId() == null) {
+            return;
+        }
+        long ackId = packet.getAckId();
+        AckSchedulerKey key = new AckSchedulerKey(Type.ACK_TIMEOUT, client.getSessionId(), ackId);
         scheduler.cancel(key);
 
-        AckCallback callback = removeCallback(client.getSessionId(), packet.getAckId());
+        AckCallback callback = removeCallback(client.getSessionId(), ackId);
         if (callback == null) {
             return;
         }
-        if (callback instanceof MultiTypeAckCallback) {
-            callback.onSuccess(new MultiTypeArgs(packet.getData()));
-        } else {
-            Object param = null;
+        try {
             List<Object> args = packet.getData();
-            if (!args.isEmpty()) {
-                param = args.get(0);
+            if (args == null) {
+                args = Collections.emptyList();
             }
-            if (args.size() > 1) {
-                log.error("Wrong ack args amount. Should be only one argument, but current amount is: {}. Ack id: {}, sessionId: {}",
-                        args.size(), packet.getAckId(), client.getSessionId());
+            if (callback instanceof MultiTypeAckCallback) {
+                callback.onSuccess(new MultiTypeArgs(args));
+            } else {
+                Object param = null;
+                if (!args.isEmpty()) {
+                    param = args.get(0);
+                }
+                if (args.size() > 1) {
+                    log.error("Wrong ack args amount. Should be only one argument, but current amount is: {}. Ack id: {}, sessionId: {}",
+                            args.size(), ackId, client.getSessionId());
+                }
+                callback.onSuccess(param);
             }
-            callback.onSuccess(param);
+        } catch (Exception e) {
+            log.error("Error executing onSuccess for ack id: {}, sessionId: {}", ackId, client.getSessionId(), e);
         }
     }
 
     private AckCallback<?> removeCallback(UUID sessionId, long index) {
+        if (sessionId == null) {
+            return null;
+        }
         AckEntry ackEntry = ackEntries.get(sessionId);
         // may be null if client disconnected
         // before timeout occurs
@@ -134,8 +151,14 @@ public class AckManager implements Disconnectable {
     }
 
     public AckCallback<?> getCallback(UUID sessionId, long index) {
-        AckEntry ackEntry = getAckEntry(sessionId);
-        return ackEntry.getAckCallback(index);
+        if (sessionId == null) {
+            return null;
+        }
+        AckEntry ackEntry = ackEntries.get(sessionId);
+        if (ackEntry != null) {
+            return ackEntry.getAckCallback(index);
+        }
+        return null;
     }
 
     public long registerAck(UUID sessionId, AckCallback<?> callback) {
@@ -160,27 +183,67 @@ public class AckManager implements Disconnectable {
         scheduler.scheduleCallback(key, () -> {
             AckCallback<?> cb = removeCallback(sessionId, index);
             if (cb != null) {
-                cb.onTimeout();
+                try {
+                    cb.onTimeout();
+                } catch (Exception e) {
+                    log.error("Error executing onTimeout for scheduled ack id: {}, sessionId: {}", index, sessionId, e);
+                }
             }
         }, callback.getTimeout(), TimeUnit.SECONDS);
     }
 
-    @Override
-    public void onDisconnect(ClientHead client) {
-        AckEntry e = ackEntries.remove(client.getSessionId());
+    public void onDisconnect(UUID sessionId) {
+        if (sessionId == null) {
+            return;
+        }
+        AckEntry e = ackEntries.remove(sessionId);
         if (e == null) {
             return;
         }
 
         Set<Long> indexes = e.getAckIndexes();
         for (Long index : indexes) {
-            AckCallback<?> callback = e.getAckCallback(index);
+            AckCallback<?> callback = e.removeCallback(index);
             if (callback != null) {
-                callback.onTimeout();
+                try {
+                    callback.onTimeout();
+                } catch (Exception ex) {
+                    log.error("Error executing onTimeout during disconnect for ack id: {}, sessionId: {}", index, sessionId, ex);
+                }
             }
-            SchedulerKey key = new AckSchedulerKey(Type.ACK_TIMEOUT, client.getSessionId(), index);
+            SchedulerKey key = new AckSchedulerKey(Type.ACK_TIMEOUT, sessionId, index);
             scheduler.cancel(key);
         }
+    }
+
+    @Override
+    public void onDisconnect(ClientHead client) {
+        if (client == null) {
+            return;
+        }
+        onDisconnect(client.getSessionId());
+    }
+
+    public int getAckEntriesCount() {
+        return ackEntries.size();
+    }
+
+    public int getAckCallbacksCount(UUID sessionId) {
+        if (sessionId == null) {
+            return 0;
+        }
+        AckEntry entry = ackEntries.get(sessionId);
+        if (entry != null) {
+            return entry.ackCallbacks.size();
+        }
+        return 0;
+    }
+
+    public void clear() {
+        for (UUID sessionId : ackEntries.keySet()) {
+            onDisconnect(sessionId);
+        }
+        ackEntries.clear();
     }
 
 }

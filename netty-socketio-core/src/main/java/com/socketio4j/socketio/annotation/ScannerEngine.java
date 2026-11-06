@@ -20,7 +20,9 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +48,18 @@ public class ScannerEngine {
 
     public void scan(Namespace namespace, Object object, Class<?> clazz)
             throws IllegalArgumentException {
+        scan(namespace, object, clazz, false, new HashSet<Class<?>>());
+    }
+
+    public void scanWithInterfaces(Namespace namespace, Object object, Class<?> clazz) {
+        scan(namespace, object, clazz, true, new HashSet<Class<?>>());
+    }
+
+    private void scan(Namespace namespace, Object object, Class<?> clazz, boolean includeInterfaces,
+                      Set<Class<?>> visitedInterfaces) {
+        if (includeInterfaces && clazz.isInterface() && !visitedInterfaces.add(clazz)) {
+            return;
+        }
         Method[] methods = clazz.getDeclaredMethods();
 
         if (!clazz.isAssignableFrom(object.getClass())) {
@@ -77,14 +91,14 @@ public class ScannerEngine {
             }
 
             if (clazz.getSuperclass() != null) {
-                scan(namespace, object, clazz.getSuperclass());
-            } else if (clazz.isInterface()) {
-                for (Class<?> superIfc : clazz.getInterfaces()) {
-                    scan(namespace, object, superIfc);
-                }
+                scan(namespace, object, clazz.getSuperclass(), includeInterfaces, visitedInterfaces);
             }
         }
-
+        if (includeInterfaces || (clazz.isInterface() && clazz.isAssignableFrom(object.getClass()))) {
+            for (Class<?> iface : clazz.getInterfaces()) {
+                scan(namespace, object, iface, includeInterfaces, visitedInterfaces);
+            }
+        }
     }
 
     private boolean isEquals(Method method1, Method method2) {

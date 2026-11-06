@@ -21,6 +21,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -43,7 +44,8 @@ import static org.mockito.Mockito.when;
  * Unit tests for ScannerEngine class.
  * Tests the core functionality of scanning and registering annotation handlers.
  */
-class ScannerEngineTest extends AnnotationTestBase {
+
+public class ScannerEngineTest extends AnnotationTestBase {
 
     private ScannerEngine scannerEngine;
     private Configuration config;

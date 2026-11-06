@@ -22,6 +22,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -30,6 +31,7 @@ import org.redisson.api.RedissonClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.event.EventListener;
 import com.socketio4j.socketio.store.event.EventMessage;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -51,6 +53,8 @@ public class RedisPubSubEventStore implements EventStore {
     private final ConcurrentMap<Integer, RTopic> activeSubTopics = new ConcurrentHashMap<>();
     private final ConcurrentMap<EventType, RTopic> activePubTopics = new ConcurrentHashMap<>();
 
+    private final SocketIOMetrics metrics;
+
     private static final Logger log = LoggerFactory.getLogger(RedisPubSubEventStore.class);
 
     // ----------------------------------------------------------------------
@@ -62,24 +66,38 @@ public class RedisPubSubEventStore implements EventStore {
      * @param redissonSub
      * @param eventStoreMode
      * @param nodeId
+     * @param metrics
      */
     public RedisPubSubEventStore(@NotNull RedissonClient redissonPub,
                               @NotNull RedissonClient redissonSub,
                               @Nullable EventStoreMode eventStoreMode,
-                              @Nullable Long nodeId) {
+                              @Nullable Long nodeId,
+                              @Nullable SocketIOMetrics metrics) {
         Objects.requireNonNull(redissonPub, "redissonPub is null");
         Objects.requireNonNull(redissonSub, "redissonSub is null");
 
         this.redissonPub = redissonPub;
         this.redissonSub = redissonSub;
         if (nodeId == null) {
-            nodeId = getNodeId();
+            nodeId = ThreadLocalRandom.current().nextLong(Long.MAX_VALUE);
         }
         this.nodeId = nodeId;
         if (eventStoreMode == null) {
             eventStoreMode = EventStoreMode.MULTI_CHANNEL;
         }
         this.eventStoreMode = eventStoreMode;
+        if (metrics != null) {
+            this.metrics = metrics;
+        } else {
+            this.metrics = SocketIOMetrics.noop();
+        }
+    }
+
+    public RedisPubSubEventStore(@NotNull RedissonClient redissonPub,
+                              @NotNull RedissonClient redissonSub,
+                              @Nullable EventStoreMode eventStoreMode,
+                              @Nullable Long nodeId) {
+        this(redissonPub, redissonSub, eventStoreMode, nodeId, SocketIOMetrics.noop());
     }
 
     @Override
@@ -89,18 +107,31 @@ public class RedisPubSubEventStore implements EventStore {
     @Override
     public void publish0(EventType type, EventMessage msg) {
         msg.setNodeId(nodeId);
-        RTopic topic = activePubTopics.computeIfAbsent(type, k -> {
-            String topicName = getStreamName(k);
-            return redissonPub.getTopic(topicName);
+        String topicName = getStreamName(type);
+        RTopic topic = activePubTopics.computeIfAbsent(type, k -> redissonPub.getTopic(topicName));
+        topic.publishAsync(msg).whenComplete((count, ex) -> {
+            if (ex != null) {
+                log.error("Failed to publish event {} on topic {}", msg, topicName, ex);
+                metrics.eventPublishFailed(extractNamespace(msg));
+            }
         });
-        topic.publish(msg);
+    }
+
+    @Override
+    public SocketIOMetrics getMetrics() {
+        return this.metrics;
+    }
+
+    @Override
+    public Long getNodeId() {
+        return this.nodeId;
     }
 
     @Override
     public <T extends EventMessage> void subscribe0(EventType type, final EventListener<T> listener, Class<T> clazz) {
         RTopic topic = redissonSub.getTopic(getStreamName(type));
         int regId = topic.addListener(clazz, (channel, msg) -> {
-            if (!nodeId.equals(msg.getNodeId())) {
+            if (!Objects.equals(this.nodeId, msg.getNodeId())) {
                 listener.onMessage(msg);
             }
         });
@@ -154,6 +185,7 @@ public class RedisPubSubEventStore implements EventStore {
         // -------------------------
         private Long nodeId;
         private EventStoreMode eventStoreMode = EventStoreMode.MULTI_CHANNEL;
+        private SocketIOMetrics metrics = SocketIOMetrics.noop();
 
         // -------------------------
         // Constructors
@@ -183,6 +215,15 @@ public class RedisPubSubEventStore implements EventStore {
             return this;
         }
 
+        public Builder metrics(@Nullable SocketIOMetrics metrics) {
+            if (metrics != null) {
+                this.metrics = metrics;
+            } else {
+                this.metrics = SocketIOMetrics.noop();
+            }
+            return this;
+        }
+
         // -------------------------
         // Build
         // -------------------------
@@ -192,7 +233,8 @@ public class RedisPubSubEventStore implements EventStore {
                     redissonPub,
                     redissonSub,
                     eventStoreMode,
-                    nodeId
+                    nodeId,
+                    metrics
             );
         }
     }

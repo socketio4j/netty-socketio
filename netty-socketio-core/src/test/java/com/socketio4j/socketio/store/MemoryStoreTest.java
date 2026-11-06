@@ -124,4 +124,14 @@ public class MemoryStoreTest extends AbstractStoreTest {
         assertTrue(setTime < 1000, "Set operations took too long: " + setTime + "ms");
         assertTrue(getTime < 1000, "Get operations took too long: " + getTime + "ms");
     }
+
+    @Test
+    public void testMemoryStoreSessionExpirationAndCleanup() {
+        store.set("sessionData", "userData");
+        assertTrue(store.has("sessionData"));
+
+        store.del("sessionData");
+        assertFalse(store.has("sessionData"), "Key should be deleted from memory store");
+        assertNull(store.get("sessionData"), "Deleted key should return null");
+    }
 }

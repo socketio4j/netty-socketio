@@ -21,10 +21,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.socketio4j.socketio.metrics.SocketIOMetrics;
 import com.socketio4j.socketio.store.Store;
 import com.socketio4j.socketio.store.event.BaseStoreFactory;
 import com.socketio4j.socketio.store.event.EventStore;
@@ -51,6 +53,24 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
 
     private final HazelcastInstance hazelcastClient;
     private final EventStore eventStore;
+    private final String keyPrefix;
+
+    /**
+     * Creates a {@code HazelcastStoreFactory} using the provided Hazelcast instance,
+     * a caller-supplied {@link EventStore}, and session map prefix.
+     *
+     * @param hazelcastClient non-null Hazelcast instance
+     * @param eventStore      non-null event store implementation
+     * @param keyPrefix       optional prefix for session store maps
+     * @throws NullPointerException if either client or store argument is {@code null}
+     */
+    public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient,
+                                 @NotNull EventStore eventStore,
+                                 @Nullable String keyPrefix) {
+        this.hazelcastClient = Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
+        this.eventStore = Objects.requireNonNull(eventStore, "eventStore cannot be null");
+        this.keyPrefix = keyPrefix;
+    }
 
     /**
      * Creates a {@code HazelcastStoreFactory} using the provided Hazelcast instance and
@@ -64,8 +84,20 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
      */
     public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient,
                                  @NotNull EventStore eventStore) {
-        this.hazelcastClient = Objects.requireNonNull(hazelcastClient, "hazelcastClient cannot be null");
-        this.eventStore = Objects.requireNonNull(eventStore, "eventStore cannot be null");
+        this(hazelcastClient, eventStore, null);
+    }
+
+    /**
+     * Creates a {@code HazelcastStoreFactory} using default Hazelcast-backed event distribution
+     * with metrics tracking.
+     *
+     * @param hazelcastClient non-null Hazelcast instance
+     * @param metrics         metrics instance, or null for no-op metrics
+     */
+    public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient,
+                                 @Nullable SocketIOMetrics metrics) {
+        this(hazelcastClient,
+             new HazelcastPubSubEventStore(hazelcastClient, hazelcastClient, null, null, null, metrics));
     }
 
     /**
@@ -79,12 +111,14 @@ public class HazelcastStoreFactory extends BaseStoreFactory {
      * @param hazelcastClient non-null Hazelcast instance
      */
     public HazelcastStoreFactory(@NotNull HazelcastInstance hazelcastClient) {
-        this(hazelcastClient,
-             new HazelcastPubSubEventStore(hazelcastClient, hazelcastClient, null, null, null));
+        this(hazelcastClient, (SocketIOMetrics) null);
     }
 
     @Override
     public Store createStore(UUID sessionId) {
+        if (keyPrefix != null && !keyPrefix.isEmpty()) {
+            return new HazelcastStore(sessionId, hazelcastClient, keyPrefix);
+        }
         return new HazelcastStore(sessionId, hazelcastClient);
     }
 

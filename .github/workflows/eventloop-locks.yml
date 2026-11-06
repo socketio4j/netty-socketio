@@ -1,0 +1,41 @@
+name: Event-loop lock safety
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  locking:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        java: ['17', '21', '25']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+          cache: maven
+
+      - name: Run shared event-loop safety gate
+        run: bash verification/locking/check.sh
+
+      - name: Retain evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eventloop-locks-java-${{ matrix.java }}
+          path: |
+            ${{ runner.temp }}/**/surefire-reports/**
+            ${{ runner.temp }}/**/lock-count
+            ${{ runner.temp }}/**/negative-count
+            ${{ runner.temp }}/**/static-negative.log

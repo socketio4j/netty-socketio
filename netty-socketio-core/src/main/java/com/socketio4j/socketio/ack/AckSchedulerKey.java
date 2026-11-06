@@ -18,8 +18,10 @@ package com.socketio4j.socketio.ack;
 
 import java.util.UUID;
 
+import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.scheduler.SchedulerKey;
 
+@Internal
 public class AckSchedulerKey extends SchedulerKey {
 
     private final long index;

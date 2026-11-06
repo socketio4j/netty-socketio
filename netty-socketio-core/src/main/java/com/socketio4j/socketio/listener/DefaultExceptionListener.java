@@ -16,7 +16,11 @@
  */
 package com.socketio4j.socketio.listener;
 
+import java.io.EOFException;
+import java.io.IOException;
+import java.nio.channels.ClosedChannelException;
 import java.util.List;
+import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,9 +59,48 @@ public class DefaultExceptionListener extends ExceptionListenerAdapter {
     }
 
     @Override
-    public boolean exceptionCaught(ChannelHandlerContext ctx, Throwable e) throws Exception {
-        log.error(e.getMessage(), e);
+    public boolean exceptionCaught(ChannelHandlerContext ctx, Throwable e) {
+        logException(e);
         return true;
+    }
+
+    private void logException(Throwable t) {
+        if (log.isDebugEnabled()) {
+            log.debug("Exception caught", t);
+            return;
+        }
+
+        if (!isExpectedDisconnect(t)) {
+            log.error("Unhandled exception", t);
+        }
+    }
+
+    private boolean isExpectedDisconnect(Throwable t) {
+        while (t != null) {
+            if (t instanceof ClosedChannelException
+                    || t instanceof EOFException) {
+                return true;
+            }
+
+            if (t instanceof IOException) {
+                String msg = t.getMessage();
+                if (msg != null) {
+                    msg = msg.toLowerCase(Locale.ROOT);
+                    if (msg.contains("connection reset")
+                            || msg.contains("broken pipe")
+                            || msg.contains("connection aborted")
+                            || msg.contains("connection closed")
+                            || msg.contains("forcibly closed")
+                            || msg.contains("software caused connection abort")) {
+                        return true;
+                    }
+                }
+            }
+
+            t = t.getCause();
+        }
+
+        return false;
     }
 
     @Override

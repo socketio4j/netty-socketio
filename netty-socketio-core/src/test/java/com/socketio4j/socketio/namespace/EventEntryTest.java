@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Test class for EventEntry functionality and thread safety.
  */
-class EventEntryTest extends BaseNamespaceTest {
+public class EventEntryTest extends AbstractNamespaceTestSupport {
 
     private EventEntry<String> eventEntry;
     private static final String TEST_DATA = "testData";
@@ -111,14 +111,10 @@ class EventEntryTest extends BaseNamespaceTest {
                 executeConcurrentOperations(
                         taskCount,
                         () -> {
-                            try {
-                                DataListener<String> listener = (client, data, ackRequest) -> {
-                                };
-                                assertNotNull(listener);
-                                eventEntry.addListener(listener);
-                            } catch (Exception e) {
-                                // Log exception but continue
-                            }
+                            DataListener<String> listener = (client, data, ackRequest) -> {
+                            };
+                            assertNotNull(listener);
+                            eventEntry.addListener(listener);
                         });
 
         waitForCompletion(addLatch);
@@ -133,21 +129,17 @@ class EventEntryTest extends BaseNamespaceTest {
                 executeConcurrentOperations(
                         taskCount,
                         () -> {
-                            try {
-                                Queue<DataListener<String>> retrievedListeners = eventEntry.getListeners();
-                                assertNotNull(retrievedListeners);
-                                assertTrue(retrievedListeners.size() >= taskCount);
+                            Queue<DataListener<String>> retrievedListeners = eventEntry.getListeners();
+                            assertNotNull(retrievedListeners);
+                            assertTrue(retrievedListeners.size() >= taskCount);
 
-                                // Verify we can iterate over listeners safely
-                                int count = 0;
-                                for (DataListener<String> listener : retrievedListeners) {
-                                    assertNotNull(listener);
-                                    count++;
-                                }
-                                assertTrue(count >= taskCount);
-                            } catch (Exception e) {
-                                // Log exception but continue
+                            // Verify we can iterate over listeners safely
+                            int count = 0;
+                            for (DataListener<String> listener : retrievedListeners) {
+                                assertNotNull(listener);
+                                count++;
                             }
+                            assertTrue(count >= taskCount);
                         });
 
         waitForCompletion(retrieveLatch);

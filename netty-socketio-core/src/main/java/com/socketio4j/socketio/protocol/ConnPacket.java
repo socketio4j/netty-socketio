@@ -18,6 +18,9 @@ package com.socketio4j.socketio.protocol;
 
 import java.util.UUID;
 
+import com.socketio4j.socketio.annotation.Internal;
+
+@Internal
 public class ConnPacket {
 
     private final UUID sid;

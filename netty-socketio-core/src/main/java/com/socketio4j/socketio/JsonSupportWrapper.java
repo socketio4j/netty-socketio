@@ -43,8 +43,12 @@ class JsonSupportWrapper implements JsonSupport {
         try {
             return delegate.readAckArgs(src, callback);
         } catch (Exception e) {
-            src.reset();
-            log.error("Can't read ack args: {} for type: {}", src.readLine(), callback.getResultClass(), e);
+            String raw = safeResetAndReadLine(src);
+            Class<?> resultClass = null;
+            if (callback != null) {
+                resultClass = callback.getResultClass();
+            }
+            log.error("Can't read ack args: {} for type: {}", raw, resultClass, e);
             throw new IOException(e);
         }
     }
@@ -54,9 +58,21 @@ class JsonSupportWrapper implements JsonSupport {
         try {
             return delegate.readValue(namespaceName, src, valueType);
         } catch (Exception e) {
-            src.reset();
-            log.error("Can't read value: {} for type: {}", src.readLine(), valueType, e);
+            String raw = safeResetAndReadLine(src);
+            log.error("Can't read value: {} for type: {}", raw, valueType, e);
             throw new IOException(e);
+        }
+    }
+
+    private String safeResetAndReadLine(ByteBufInputStream src) {
+        if (src == null) {
+            return null;
+        }
+        try {
+            src.reset();
+            return src.readLine();
+        } catch (Exception ignored) {
+            return "<unavailable>";
         }
     }
 

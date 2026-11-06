@@ -1,1 +1,78 @@
-{}
+{
+  "$schema": "https://fundingjson.org/schema/v1.1.0.json",
+  "version": "v1.1.0",
+  "entity": {
+    "type": "organisation",
+    "role": "maintainer",
+    "name": "SocketIO4j",
+    "email": "sanjomo@socketio4j.org",
+    "description": "SocketIO4j is an open-source developer community maintaining Netty-SocketIO, a Java implementation of the Socket.IO server protocol built on Netty. The project supports real-time, bidirectional communication and integrations across the Java ecosystem. Community funding sustains maintenance, security improvements, protocol interoperability, compatibility testing, documentation, and project infrastructure.",
+    "webpageUrl": {
+      "url": "https://www.socketio4j.org"
+    }
+  },
+  "projects": [
+    {
+      "guid": "socketio4j",
+      "name": "SocketIO4j (Netty-SocketIO)",
+      "description": "SocketIO4j is a free and open-source Socket.IO server implementation for Java, powered by Netty. It enables real-time, bidirectional communication through WebSocket and HTTP long-polling transports. The project focuses on protocol compatibility, low-latency messaging, high concurrency, dependable clustering, security, and integration with Java frameworks including Spring Boot, Quarkus, and Micronaut. Contributions support bug fixes, compatibility testing, performance benchmarking, documentation, infrastructure, and sustainable long-term maintenance.",
+      "webpageUrl": {
+        "url": "https://www.socketio4j.org"
+      },
+      "repositoryUrl": {
+        "url": "https://github.com/socketio4j/netty-socketio"
+      },
+      "licenses": [
+        "spdx:Apache-2.0"
+      ],
+      "tags": [
+        "java",
+        "netty",
+        "socket-io",
+        "websocket",
+        "realtime",
+        "networking",
+        "server",
+        "developer-tools",
+        "open-source",
+        "messaging"
+      ]
+    }
+  ],
+  "funding": {
+    "channels": [
+      {
+        "guid": "socketio4j-open-collective",
+        "type": "payment-provider",
+        "address": "https://opencollective.com/socketio4j",
+        "description": "Support SocketIO4j through its Open Collective page. Visit the page for currently available payment methods and contribution options."
+      }
+    ],
+    "plans": [
+      {
+        "guid": "one-time-support",
+        "status": "active",
+        "name": "One-time contribution",
+        "description": "Make a one-time contribution of any amount to help fund maintenance, bug fixes, security improvements, compatibility tests, and project infrastructure.",
+        "amount": 0,
+        "currency": "USD",
+        "frequency": "one-time",
+        "channels": [
+          "socketio4j-open-collective"
+        ]
+      },
+      {
+        "guid": "monthly-sponsorship",
+        "status": "active",
+        "name": "Monthly sponsorship",
+        "description": "Provide recurring support for sustainable development of SocketIO4j, including protocol updates, interoperability testing, performance optimization, documentation, and community maintenance.",
+        "amount": 0,
+        "currency": "USD",
+        "frequency": "monthly",
+        "channels": [
+          "socketio4j-open-collective"
+        ]
+      }
+    ]
+  }
+}

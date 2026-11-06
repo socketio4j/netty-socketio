@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# SocketIO4J - Commit Message Convention Validator
+# Enforces Conventional Commits format: <type>(<scope>): <subject>
+# ==============================================================================
+set -euo pipefail
+
+COMMIT_MSG_FILE="$1"
+FIRST_LINE=$(head -n 1 "$COMMIT_MSG_FILE")
+
+# Allow merge commits or fixup/squash commits
+if [[ "$FIRST_LINE" =~ ^(Merge|fixup!|squash!) ]]; then
+    exit 0
+fi
+
+# Regex for Conventional Commits
+PATTERN="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_.-]+\))?: .+"
+
+if ! [[ "$FIRST_LINE" =~ $PATTERN ]]; then
+    echo -e "\033[0;31m❌ [FAIL] Invalid commit message format!\033[0m"
+    echo -e "Message received: \033[1m$FIRST_LINE\033[0m"
+    echo -e "\nCommit messages must follow Conventional Commits specification:"
+    echo -e "  \033[36m<type>(<scope>): <description>\033[0m"
+    echo -e "\nAllowed types:"
+    echo -e "  \033[32mfeat\033[0m     : New features"
+    echo -e "  \033[32mfix\033[0m      : Bug fixes"
+    echo -e "  \033[32mdocs\033[0m     : Documentation changes"
+    echo -e "  \033[32mstyle\033[0m    : Formatting, whitespace, import order"
+    echo -e "  \033[32mrefactor\033[0m : Code refactoring without behavioral change"
+    echo -e "  \033[32mperf\033[0m     : Performance improvements"
+    echo -e "  \033[32mtest\033[0m     : Adding or fixing tests"
+    echo -e "  \033[32mbuild\033[0m    : Build system or external dependencies"
+    echo -e "  \033[32mci\033[0m       : CI/CD configuration files and scripts"
+    echo -e "  \033[32mchore\033[0m    : General repository maintenance"
+    echo -e "  \033[32mrevert\033[0m   : Reverts a previous commit"
+    echo -e "\nExample:"
+    echo -e "  feat: enforce Netty event loop safety and lock audit CI gate"
+    echo -e "  fix(ssl): precompute client authentication flag"
+    exit 1
+fi

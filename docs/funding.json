@@ -1,0 +1,61 @@
+{
+  "$schema": "https://fundingjson.org/schema/v1.1.0.json",
+  "version": "v1.1.0",
+  "entity": {
+    "type": "organisation",
+    "role": "maintainer",
+    "name": "SocketIO4j",
+    "email": "sanjomo@socketio4j.org",
+    "description": "SocketIO4j is an open-source organisation maintaining Netty-SocketIO, a Java Socket.IO server implementation built on Netty. Contributions help sustain ongoing maintenance, security updates, protocol compatibility, performance improvements, interoperability testing, documentation, and community support.",
+    "webpageUrl": {
+      "url": "https://www.socketio4j.org"
+    }
+  },
+  "projects": [
+    {
+      "guid": "netty-socketio",
+      "name": "Netty-SocketIO (SocketIO4j)",
+      "description": "An open-source Socket.IO server for Java built on Netty, supporting real-time bidirectional communication and integrations with Java application frameworks. Funding supports long-term maintenance, testing across Socket.IO client versions, performance optimisation, bug fixes, documentation, and infrastructure.",
+      "webpageUrl": {
+        "url": "https://www.socketio4j.org"
+      },
+      "repositoryUrl": {
+        "url": "https://github.com/socketio4j/netty-socketio"
+      },
+      "licenses": ["spdx:Apache-2.0"],
+      "tags": ["java", "socketio", "netty", "realtime", "websocket", "open-source", "server", "networking"]
+    }
+  ],
+  "funding": {
+    "channels": [
+      {
+        "guid": "open-collective",
+        "type": "payment-provider",
+        "address": "https://opencollective.com/socketio4j",
+        "description": "Support SocketIO4j through its Open Collective page."
+      }
+    ],
+    "plans": [
+      {
+        "guid": "one-time-support",
+        "status": "active",
+        "name": "One-time contribution",
+        "description": "Make a one-time contribution of any amount to help sustain SocketIO4j development and maintenance.",
+        "amount": 100,
+        "currency": "USD",
+        "frequency": "one-time",
+        "channels": ["open-collective"]
+      },
+      {
+        "guid": "monthly-support",
+        "status": "active",
+        "name": "Monthly sponsorship",
+        "description": "Provide recurring monthly support for ongoing maintenance, testing, documentation, and project infrastructure.",
+        "amount": 100,
+        "currency": "USD",
+        "frequency": "monthly",
+        "channels": ["open-collective"]
+      }
+    ]
+  }
+}

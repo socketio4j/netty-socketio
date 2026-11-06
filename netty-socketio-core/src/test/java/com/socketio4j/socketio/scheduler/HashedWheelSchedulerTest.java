@@ -42,8 +42,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 
+
 @DisplayName("HashedWheelScheduler Tests")
-class HashedWheelSchedulerTest {
+public class HashedWheelSchedulerTest {
 
     private AutoCloseable autoCloseableMocks;
 
@@ -79,6 +80,7 @@ class HashedWheelSchedulerTest {
         autoCloseableMocks.close();
     }
 
+    
     @Nested
     @DisplayName("Constructor Tests")
     class ConstructorTests {
@@ -117,6 +119,7 @@ class HashedWheelSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Update Tests")
     class UpdateTests {
@@ -143,6 +146,7 @@ class HashedWheelSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Schedule Tests")
     class ScheduleTests {
@@ -239,6 +243,7 @@ class HashedWheelSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("ScheduleCallback Tests")
     class ScheduleCallbackTests {
@@ -325,6 +330,7 @@ class HashedWheelSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Cancel Tests")
     class CancelTests {
@@ -400,6 +406,7 @@ class HashedWheelSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Shutdown Tests")
     class ShutdownTests {
@@ -427,6 +434,7 @@ class HashedWheelSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Concurrency Tests")
     class ConcurrencyTests {
@@ -507,6 +515,7 @@ class HashedWheelSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Edge Cases Tests")
     class EdgeCasesTests {
@@ -605,6 +614,40 @@ class HashedWheelSchedulerTest {
 
             assertThatThrownBy(() -> scheduler.scheduleCallback(key, runnable, 100, null))
                     .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        @DisplayName("Should execute callback directly when ctx is null")
+        void shouldExecuteCallbackDirectlyWhenCtxIsNull() throws InterruptedException {
+            HashedWheelScheduler uninitializedScheduler = new HashedWheelScheduler();
+            try {
+                CountDownLatch latch = new CountDownLatch(1);
+                SchedulerKey key = new SchedulerKey(SchedulerKey.Type.PING, "null-ctx-session");
+
+                uninitializedScheduler.scheduleCallback(key, latch::countDown, 10, TimeUnit.MILLISECONDS);
+
+                boolean completed = latch.await(2, TimeUnit.SECONDS);
+                assertThat(completed).isTrue();
+            } finally {
+                uninitializedScheduler.shutdown();
+            }
+        }
+
+        @Test
+        @DisplayName("Should not execute new schedules after shutdown")
+        void shouldNotScheduleAfterShutdown() throws InterruptedException {
+            HashedWheelScheduler shutdownScheduler = new HashedWheelScheduler();
+            shutdownScheduler.shutdown();
+
+            AtomicBoolean executed = new AtomicBoolean(false);
+            SchedulerKey key = new SchedulerKey(SchedulerKey.Type.PING, "shutdown-test");
+
+            shutdownScheduler.schedule(key, () -> executed.set(true), 10, TimeUnit.MILLISECONDS);
+            shutdownScheduler.schedule(() -> executed.set(true), 10, TimeUnit.MILLISECONDS);
+            shutdownScheduler.scheduleCallback(key, () -> executed.set(true), 10, TimeUnit.MILLISECONDS);
+
+            Thread.sleep(50);
+            assertThat(executed.get()).isFalse();
         }
     }
 }

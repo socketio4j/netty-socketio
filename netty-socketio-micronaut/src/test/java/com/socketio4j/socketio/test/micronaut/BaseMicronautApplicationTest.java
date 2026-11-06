@@ -16,11 +16,14 @@
  */
 package com.socketio4j.socketio.test.micronaut;
 
+
+
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 
 /**
  * Test class demonstrating the usage of Netty Socket.IO with Micronaut.
  */
+
 @MicronautTest
 public abstract class BaseMicronautApplicationTest {
 }

@@ -44,8 +44,9 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 
+
 @DisplayName("HashedWheelTimeoutScheduler Tests")
-class HashedWheelTimeoutSchedulerTest {
+public class HashedWheelTimeoutSchedulerTest {
 
     @Mock
     private ChannelHandlerContext mockCtx;
@@ -78,6 +79,7 @@ class HashedWheelTimeoutSchedulerTest {
         closeableMocks.close();
     }
 
+    
     @Nested
     @DisplayName("Constructor Tests")
     class ConstructorTests {
@@ -116,6 +118,7 @@ class HashedWheelTimeoutSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Update Tests")
     class UpdateTests {
@@ -142,6 +145,7 @@ class HashedWheelTimeoutSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Schedule Tests")
     class ScheduleTests {
@@ -238,6 +242,7 @@ class HashedWheelTimeoutSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("ScheduleCallback Tests")
     class ScheduleCallbackTests {
@@ -324,6 +329,7 @@ class HashedWheelTimeoutSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Timeout Replacement Tests")
     class TimeoutReplacementTests {
@@ -414,6 +420,7 @@ class HashedWheelTimeoutSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Cancel Tests")
     class CancelTests {
@@ -489,6 +496,7 @@ class HashedWheelTimeoutSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Shutdown Tests")
     class ShutdownTests {
@@ -528,6 +536,7 @@ class HashedWheelTimeoutSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Concurrency Tests")
     class ConcurrencyTests {
@@ -656,6 +665,7 @@ class HashedWheelTimeoutSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Edge Cases Tests")
     class EdgeCasesTests {
@@ -756,6 +766,7 @@ class HashedWheelTimeoutSchedulerTest {
         }
     }
 
+    
     @Nested
     @DisplayName("Multithreaded Safety Tests")
     class MultithreadedSafetyTests {
@@ -844,6 +855,23 @@ class HashedWheelTimeoutSchedulerTest {
             // Wait for all threads to complete
             for (Thread thread : threads) {
                 thread.join(1000);
+            }
+        }
+
+        @Test
+        @DisplayName("Should execute callback directly when ctx is null")
+        void shouldExecuteCallbackDirectlyWhenCtxIsNull() throws InterruptedException {
+            HashedWheelTimeoutScheduler uninitializedScheduler = new HashedWheelTimeoutScheduler();
+            try {
+                CountDownLatch latch = new CountDownLatch(1);
+                SchedulerKey key = new SchedulerKey(SchedulerKey.Type.PING, "null-ctx-session");
+
+                uninitializedScheduler.scheduleCallback(key, latch::countDown, 10, TimeUnit.MILLISECONDS);
+
+                boolean completed = latch.await(2, TimeUnit.SECONDS);
+                assertThat(completed).isTrue();
+            } finally {
+                uninitializedScheduler.shutdown();
             }
         }
     }

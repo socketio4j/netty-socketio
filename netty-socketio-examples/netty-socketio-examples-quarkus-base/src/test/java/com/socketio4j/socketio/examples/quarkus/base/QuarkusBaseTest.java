@@ -28,7 +28,9 @@ public class QuarkusBaseTest {
     public static class TestProfile implements QuarkusTestProfile {
         @Override
         public Map<String, String> getConfigOverrides() {
-            return new HashMap<>();
+            Map<String, String> map = new HashMap<>();
+            map.put("netty-socket-io.port", "0");
+            return map;
         }
     }
 
@@ -47,7 +49,8 @@ public class QuarkusBaseTest {
         await().atMost(10, TimeUnit.SECONDS)
                 .until(() -> socketIOServer != null && socketIOServer.isStarted());
 
-        socket = IO.socket("http://localhost:9201");
+        int port = socketIOServer.getConfiguration().getPort();
+        socket = IO.socket("http://localhost:" + port);
         socket.connect();
 
         await().atMost(5, TimeUnit.SECONDS)

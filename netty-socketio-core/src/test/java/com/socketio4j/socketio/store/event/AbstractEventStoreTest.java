@@ -20,9 +20,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 import org.testcontainers.containers.GenericContainer;
 
 import com.socketio4j.socketio.protocol.Packet;
@@ -37,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Abstract base class for PubSub store tests
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public abstract class AbstractEventStoreTest {
 
     protected EventStore publisherStore;  // store for publishing messages
@@ -47,8 +50,10 @@ public abstract class AbstractEventStoreTest {
 
     @BeforeEach
     public void setUp() throws Exception {
-        container = createContainer();
-        if (container != null) {
+        if (container == null) {
+            container = createContainer();
+        }
+        if (container != null && !container.isRunning()) {
             container.start();
         }
         publisherStore = createEventStore(publisherNodeId);
@@ -63,9 +68,22 @@ public abstract class AbstractEventStoreTest {
         if (subscriberStore != null) {
             subscriberStore.shutdown();
         }
+        closeClients();
+    }
+
+    @AfterAll
+    public void stopContainer() {
         if (container != null && container.isRunning()) {
             container.stop();
         }
+    }
+
+    /**
+     * Subclasses close the transport clients that back their event stores
+     * after each test. The container itself remains alive until {@link
+     * #stopContainer()} so its startup cost is paid only once per class.
+     */
+    protected void closeClients() {
     }
 
     /**

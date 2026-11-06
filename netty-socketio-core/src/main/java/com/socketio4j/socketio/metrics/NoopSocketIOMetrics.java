@@ -39,6 +39,11 @@ final class NoopSocketIOMetrics implements SocketIOMetrics {
     }
 
     @Override
+    public void eventPublishFailed(String namespace) {
+
+    }
+
+    @Override
     public void eventSent(String namespace, int recipients) {
 
     }

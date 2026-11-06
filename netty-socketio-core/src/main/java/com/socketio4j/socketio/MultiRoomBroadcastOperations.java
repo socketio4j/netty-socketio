@@ -43,7 +43,9 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
             return clients;
         }
         for (BroadcastOperations b : this.broadcastOperations) {
-            clients.addAll(b.getClients());
+            if (b != null && b.getClients() != null) {
+                clients.addAll(b.getClients());
+            }
         }
         return clients;
     }
@@ -51,18 +53,22 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
     @Override
     public <T> void send(Packet packet, BroadcastAckCallback<T> ackCallback) {
         if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
+            if (ackCallback != null) {
+                ackCallback.loopFinished();
+            }
             return;
         }
-        for (BroadcastOperations b : this.broadcastOperations) {
-            b.send(packet, ackCallback);
+        for (SocketIOClient client : getClients()) {
+            client.send(packet, ackCallback.createClientCallback(client));
         }
+        ackCallback.loopFinished();
     }
 
     @Override
     public void sendEvent(String name, SocketIOClient excludedClient, Object... data) {
-        Predicate<SocketIOClient> excludePredicate = socketIOClient -> Objects.equals(
-                socketIOClient.getSessionId(), excludedClient.getSessionId()
-        );
+        Predicate<SocketIOClient> excludePredicate = socketIOClient ->
+                excludedClient != null && socketIOClient != null
+                        && Objects.equals(socketIOClient.getSessionId(), excludedClient.getSessionId());
         sendEvent(name, excludePredicate, data);
     }
 
@@ -71,37 +77,48 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
         if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
             return;
         }
+        Set<SocketIOClient> sentClients = new HashSet<>();
+        Predicate<SocketIOClient> dedupPredicate = client -> {
+            if (excludePredicate != null && excludePredicate.test(client)) {
+                return true;
+            }
+            return !sentClients.add(client);
+        };
         for (BroadcastOperations b : this.broadcastOperations) {
-            b.sendEvent(name, excludePredicate, data);
+            if (b != null) {
+                b.sendEvent(name, dedupPredicate, data);
+            }
         }
     }
 
     @Override
     public <T> void sendEvent(String name, Object data, BroadcastAckCallback<T> ackCallback) {
-        if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
-            return;
-        }
-        for (BroadcastOperations b : this.broadcastOperations) {
-            b.sendEvent(name, data, ackCallback);
-        }
+        sendEvent(name, data, (Predicate<SocketIOClient>) null, ackCallback);
     }
 
     @Override
     public <T> void sendEvent(String name, Object data, SocketIOClient excludedClient, BroadcastAckCallback<T> ackCallback) {
-        Predicate<SocketIOClient> excludePredicate = socketIOClient -> Objects.equals(
-                socketIOClient.getSessionId(), excludedClient.getSessionId()
-        );
+        Predicate<SocketIOClient> excludePredicate = socketIOClient ->
+                excludedClient != null && socketIOClient != null
+                        && Objects.equals(socketIOClient.getSessionId(), excludedClient.getSessionId());
         sendEvent(name, data, excludePredicate, ackCallback);
     }
 
     @Override
     public <T> void sendEvent(String name, Object data, Predicate<SocketIOClient> excludePredicate, BroadcastAckCallback<T> ackCallback) {
         if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
+            if (ackCallback != null) {
+                ackCallback.loopFinished();
+            }
             return;
         }
-        for (BroadcastOperations b : this.broadcastOperations) {
-            b.sendEvent(name, data, excludePredicate, ackCallback);
+        for (SocketIOClient client : getClients()) {
+            if (excludePredicate != null && excludePredicate.test(client)) {
+                continue;
+            }
+            client.sendEvent(name, ackCallback.createClientCallback(client), data);
         }
+        ackCallback.loopFinished();
     }
 
     @Override
@@ -109,8 +126,14 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
         if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
             return;
         }
+        Set<SocketIOClient> sentClients = new HashSet<>();
+        Predicate<SocketIOClient> dedupPredicate = client -> !sentClients.add(client);
         for (BroadcastOperations b : this.broadcastOperations) {
-            b.send(packet);
+            if (b instanceof SingleRoomBroadcastOperations) {
+                ((SingleRoomBroadcastOperations) b).send(packet, dedupPredicate);
+            } else if (b != null) {
+                b.send(packet);
+            }
         }
     }
 
@@ -119,18 +142,13 @@ public class MultiRoomBroadcastOperations implements BroadcastOperations {
         if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
             return;
         }
-        for (BroadcastOperations b : this.broadcastOperations) {
-            b.disconnect();
+        for (SocketIOClient client : getClients()) {
+            client.disconnect();
         }
     }
 
     @Override
     public void sendEvent(String name, Object... data) {
-        if (this.broadcastOperations == null || this.broadcastOperations.isEmpty()) {
-            return;
-        }
-        for (BroadcastOperations b : this.broadcastOperations) {
-            b.sendEvent(name, data);
-        }
+        sendEvent(name, (Predicate<SocketIOClient>) null, data);
     }
 }
