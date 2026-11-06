@@ -67,11 +67,13 @@ class BackendReconnectIntegrationTest {
 
             CountDownLatch subDisconnected = new CountDownLatch(1);
             CountDownLatch subReconnected = new CountDownLatch(1);
+            CountDownLatch subResubscribed = new CountDownLatch(1);
             Options subOptions = new Options.Builder().server(url).connectionTimeout(Duration.ofSeconds(5))
                     .maxReconnects(-1).reconnectWait(Duration.ofMillis(100))
                     .connectionListener((connection, event) -> {
                         if (event == ConnectionListener.Events.DISCONNECTED) subDisconnected.countDown();
                         if (event == ConnectionListener.Events.RECONNECTED) subReconnected.countDown();
+                        if (event == ConnectionListener.Events.RESUBSCRIBED) subResubscribed.countDown();
                     }).build();
             try (Connection publisherConnection = Nats.connect(pubOptions);
                     Connection subscriberConnection = Nats.connect(subOptions)) {
@@ -93,6 +95,7 @@ class BackendReconnectIntegrationTest {
                     assertTrue(subDisconnected.await(10, TimeUnit.SECONDS), "Subscriber must observe broker loss");
                     assertTrue(pubReconnected.await(15, TimeUnit.SECONDS), "Publisher must actually reconnect");
                     assertTrue(subReconnected.await(15, TimeUnit.SECONDS), "Subscriber must actually reconnect");
+                    assertTrue(subResubscribed.await(15, TimeUnit.SECONDS), "Subscriber must restore subscriptions");
                     subscriberConnection.flush(Duration.ofSeconds(5));
                     publisherConnection.flush(Duration.ofSeconds(5));
                     publish(publisher, "after-restart");
