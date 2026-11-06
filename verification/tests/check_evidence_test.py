@@ -29,6 +29,13 @@ class EvidenceGateTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.inspect('<testsuite tests="2"><testcase name="case"/></testsuite>')
 
+    def test_rejects_missing_or_invalid_declared_count(self):
+        for count in ('', ' tests="-1"', ' tests="-2"', ' tests="invalid"'):
+            for classname in ('Test', 'Test$Nested'):
+                with self.subTest(count=count, classname=classname), self.assertRaises(ValueError):
+                    self.inspect('<testsuite' + count + '><testcase name="case" classname="'
+                                 + classname + '"/></testsuite>')
+
     def test_accepts_nested_container_report_counts(self):
         self.assertEqual(1, self.inspect('<testsuite tests="0"><testcase name="case" classname="Test$Nested"/></testsuite>')[0])
 

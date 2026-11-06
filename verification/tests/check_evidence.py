@@ -18,6 +18,8 @@ def inspect_reports(directory):
         root = ET.parse(path).getroot()
         entries = root.findall("testcase")
         declared = int(root.get("tests", "-1"))
+        if declared < 0:
+            raise ValueError("JUnit test count is missing or negative: " + str(path))
         has_nested = any("$" in (c.get("classname") or "") for c in entries)
         if declared != len(entries) and not (has_nested and len(entries) >= declared):
             raise ValueError("JUnit count disagrees with case entries: " + str(path))

@@ -23,11 +23,13 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
@@ -40,12 +42,16 @@ import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.SocketSslConfig;
 import com.socketio4j.socketio.TestResourceCleanup;
+import com.socketio4j.socketio.listener.DefaultExceptionListener;
+
+import io.netty.channel.ChannelHandlerContext;
 
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -125,6 +131,14 @@ class TlsPeerVerificationTest {
         config.setPort(0);
         config.setNeedClientAuth(mutual);
         config.setSocketSslConfig(ssl);
+        CompletableFuture<Throwable> serverFailure = new CompletableFuture<>();
+        config.setExceptionListener(new DefaultExceptionListener() {
+            @Override
+            public boolean exceptionCaught(ChannelHandlerContext ctx, Throwable error) {
+                serverFailure.complete(error);
+                return super.exceptionCaught(ctx, error);
+            }
+        });
         SocketIOServer server = new SocketIOServer(config);
         OkHttpClient.Builder http = new OkHttpClient.Builder().connectTimeout(5, TimeUnit.SECONDS)
                 .readTimeout(5, TimeUnit.SECONDS).retryOnConnectionFailure(false);
@@ -154,11 +168,23 @@ class TlsPeerVerificationTest {
                             .readTree(body.substring(1)).get("sid"));
                 }
             } else {
-                assertThrows(IOException.class, () -> {
+                IOException failure = assertThrows(IOException.class, () -> {
                     try (Response response = client.newCall(request).execute()) {
                         throw new AssertionError("Peer authentication unexpectedly accepted HTTP " + response.code());
                     }
                 });
+                Throwable cause = failure;
+                while (!(cause instanceof SSLException) && cause.getCause() != null) {
+                    cause = cause.getCause();
+                }
+                if (!(cause instanceof SSLException)) {
+                    // OpenSSL can reset the connection before the client reads its TLS alert.
+                    cause = serverFailure.get(5, TimeUnit.SECONDS);
+                    while (!(cause instanceof SSLException) && cause.getCause() != null) {
+                        cause = cause.getCause();
+                    }
+                }
+                assertInstanceOf(SSLException.class, cause, "Peer rejection must be a TLS failure");
             }
         } finally {
             TestResourceCleanup.runAll("TLS peer verification cleanup", server::stop, () -> {
