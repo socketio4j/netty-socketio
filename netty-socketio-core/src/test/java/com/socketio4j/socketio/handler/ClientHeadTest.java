@@ -376,7 +376,7 @@ public class ClientHeadTest {
 
         assertEquals(0, state.getPacketsQueue().size());
         state.getPacketsQueue().add(p1);
-        state.getPacketsQueue().offer(p2);
+        assertTrue(state.getPacketsQueue().offer(p2));
         state.getPacketsQueue().add(p3);
         assertEquals(3, state.getPacketsQueue().size());
 

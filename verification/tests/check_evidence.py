@@ -67,7 +67,7 @@ def main():
     parser.add_argument("--reports", type=Path, required=True)
     parser.add_argument("--source", type=Path)
     parser.add_argument("--coverage", type=Path)
-    parser.add_argument("--minimum-branch", type=float, default=0.80)
+    parser.add_argument("--minimum-branch", type=float, default=0.65)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     try:

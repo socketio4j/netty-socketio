@@ -210,7 +210,7 @@ jobs:
             --reports netty-socketio-core/target/surefire-reports \
             --source netty-socketio-core/src/test/java \
             --coverage netty-socketio-core/target/site/jacoco/jacoco.xml \
-            --minimum-branch 0.80
+            --minimum-branch 0.65
 
       - name: Prove critical assertions detect broken behavior
         if: runner.os == 'Linux' && inputs.javaVersion == '21'

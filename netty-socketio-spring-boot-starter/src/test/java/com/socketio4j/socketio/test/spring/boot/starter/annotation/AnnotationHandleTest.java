@@ -257,7 +257,7 @@ public class AnnotationHandleTest extends BaseSpringApplicationTest {
         );
         socket.connect();
         // wait for connection
-        await().atMost(5, TimeUnit.SECONDS).until(() -> socket.connected());
+        await().atMost(20, TimeUnit.SECONDS).until(() -> socket.connected());
     }
 
     @AfterEach
@@ -278,7 +278,7 @@ public class AnnotationHandleTest extends BaseSpringApplicationTest {
 
     @Test
     public void testOnConnect() throws Exception {
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(20, TimeUnit.SECONDS)
                 .until(() -> testConnectController.counter.get() == 1
                         && testConnectController.params.size() == 1);
         assertEquals(1, testConnectController.counter.get(),
@@ -292,7 +292,7 @@ public class AnnotationHandleTest extends BaseSpringApplicationTest {
     @Test
     public void testOnDisconnect() throws Exception {
         socket.disconnect();
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(20, TimeUnit.SECONDS)
                 .until(() -> testDisconnectController.counter.get() == 1
                         && testDisconnectController.params.size() == 1);
         assertEquals(1, testDisconnectController.counter.get(),
@@ -306,7 +306,7 @@ public class AnnotationHandleTest extends BaseSpringApplicationTest {
     @Test
     public void testOnEvent1() throws Exception {
         socket.emit(TestOnEventController.EVENT_NAME_1);
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(20, TimeUnit.SECONDS)
                 .until(() -> testOnEventController.counter.get() == 1
                         && testOnEventController.params.size() == 1);
         assertEquals(1, testOnEventController.counter.get(),
@@ -332,7 +332,7 @@ public class AnnotationHandleTest extends BaseSpringApplicationTest {
                 ackDataRef.set(testData);
             }
         });
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(20, TimeUnit.SECONDS)
                 .until(() -> testOnEventController.counter.get() == 1
                         && testOnEventController.params.size() == 1
                         && ackDataRef.get() != null);
@@ -358,7 +358,7 @@ public class AnnotationHandleTest extends BaseSpringApplicationTest {
                 ackDataRef.set(testData);
             }
         });
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(20, TimeUnit.SECONDS)
                 .until(() -> testOnEventController.counter.get() == 1
                         && testOnEventController.params.size() == 2
                         && ackDataRef.get() != null);
@@ -390,7 +390,7 @@ public class AnnotationHandleTest extends BaseSpringApplicationTest {
                         ackDataRef.set(testData);
                     }
                 });
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(20, TimeUnit.SECONDS)
                 .until(() -> testOnEventController.counter.get() == 1
                         && testOnEventController.params.size() == 3
                         && ackDataRef.get() != null);

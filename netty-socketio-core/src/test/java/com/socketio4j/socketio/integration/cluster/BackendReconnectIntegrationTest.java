@@ -56,16 +56,25 @@ class BackendReconnectIntegrationTest {
                         + "while true; do nats-server -p 4222 & broker=$!; echo $broker > /tmp/nats.pid; wait $broker; done")) {
             broker.start();
             String url = "nats://" + broker.getHost() + ":" + broker.getMappedPort(4222);
-            CountDownLatch disconnected = new CountDownLatch(2);
-            CountDownLatch reconnected = new CountDownLatch(2);
-            Options options = new Options.Builder().server(url).connectionTimeout(Duration.ofSeconds(5))
+            CountDownLatch pubDisconnected = new CountDownLatch(1);
+            CountDownLatch pubReconnected = new CountDownLatch(1);
+            Options pubOptions = new Options.Builder().server(url).connectionTimeout(Duration.ofSeconds(5))
                     .maxReconnects(-1).reconnectWait(Duration.ofMillis(100))
                     .connectionListener((connection, event) -> {
-                        if (event == ConnectionListener.Events.DISCONNECTED) disconnected.countDown();
-                        if (event == ConnectionListener.Events.RECONNECTED) reconnected.countDown();
+                        if (event == ConnectionListener.Events.DISCONNECTED) pubDisconnected.countDown();
+                        if (event == ConnectionListener.Events.RECONNECTED) pubReconnected.countDown();
                     }).build();
-            try (Connection publisherConnection = Nats.connect(options);
-                    Connection subscriberConnection = Nats.connect(options)) {
+
+            CountDownLatch subDisconnected = new CountDownLatch(1);
+            CountDownLatch subReconnected = new CountDownLatch(1);
+            Options subOptions = new Options.Builder().server(url).connectionTimeout(Duration.ofSeconds(5))
+                    .maxReconnects(-1).reconnectWait(Duration.ofMillis(100))
+                    .connectionListener((connection, event) -> {
+                        if (event == ConnectionListener.Events.DISCONNECTED) subDisconnected.countDown();
+                        if (event == ConnectionListener.Events.RECONNECTED) subReconnected.countDown();
+                    }).build();
+            try (Connection publisherConnection = Nats.connect(pubOptions);
+                    Connection subscriberConnection = Nats.connect(subOptions)) {
                 NatsEventStore publisher = new NatsEventStore(publisherConnection, EventStoreMode.MULTI_CHANNEL, 1L);
                 NatsEventStore subscriber = new NatsEventStore(subscriberConnection, EventStoreMode.MULTI_CHANNEL, 2L);
                 BlockingQueue<Object> deliveries = new LinkedBlockingQueue<>();
@@ -80,14 +89,17 @@ class BackendReconnectIntegrationTest {
                     // Restart the actual service while keeping the published Docker port stable.
                     assertEquals(0, broker.execInContainer("sh", "-c",
                             "kill -TERM \"$(cat /tmp/nats.pid)\"").getExitCode());
-                    assertTrue(disconnected.await(10, TimeUnit.SECONDS), "Both live connections must observe broker loss");
-                    assertTrue(reconnected.await(15, TimeUnit.SECONDS), "Both connections must actually reconnect");
+                    assertTrue(pubDisconnected.await(10, TimeUnit.SECONDS), "Publisher must observe broker loss");
+                    assertTrue(subDisconnected.await(10, TimeUnit.SECONDS), "Subscriber must observe broker loss");
+                    assertTrue(pubReconnected.await(15, TimeUnit.SECONDS), "Publisher must actually reconnect");
+                    assertTrue(subReconnected.await(15, TimeUnit.SECONDS), "Subscriber must actually reconnect");
                     subscriberConnection.flush(Duration.ofSeconds(5));
+                    publisherConnection.flush(Duration.ofSeconds(5));
                     publish(publisher, "after-restart");
                     publish(publisher, "barrier");
                     publisherConnection.flush(Duration.ofSeconds(5));
-                    assertEquals(Collections.singletonList("after-restart"), deliveries.poll(5, TimeUnit.SECONDS));
-                    assertEquals(Collections.singletonList("barrier"), deliveries.poll(5, TimeUnit.SECONDS));
+                    assertEquals(Collections.singletonList("after-restart"), deliveries.poll(15, TimeUnit.SECONDS));
+                    assertEquals(Collections.singletonList("barrier"), deliveries.poll(15, TimeUnit.SECONDS));
                     assertTrue(deliveries.isEmpty(), "Ordered wire barrier must not hide duplicate delivery");
                 } finally {
                     TestResourceCleanup.runAll("NATS restart event stores", publisher::shutdown, subscriber::shutdown);
