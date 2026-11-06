@@ -280,7 +280,7 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
         }
         ClientHead clientHead = clientsBox.get(sessionId);
         if (clientHead != null && clientHead.getNamespaces().isEmpty()) {
-            clientsBox.removeClient(sessionId);
+            clientsBox.removeClient(sessionId, clientHead);
             clientHead.disconnect();
         }
         log.info("Client with sessionId: {} was disconnected", sessionId);
