@@ -239,6 +239,7 @@ public class AckCallbacksTest extends AbstractSharedSocketIOIntegrationTest {
             }
         });
 
+        AtomicReference<Map<String, Object>> expectedResponse = new AtomicReference<>();
         String complexAckEventName = generateEventName("complexAck");
         String complexAckTestData = generateTestData();
         
@@ -256,6 +257,7 @@ public class AckCallbacksTest extends AbstractSharedSocketIOIntegrationTest {
                 metadata.put("count", 3);
                 response.put("metadata", metadata);
                 
+                expectedResponse.set(response);
                 ackRequest.sendAckData(response);
                 eventLatch.countDown();
             }
@@ -284,22 +286,12 @@ public class AckCallbacksTest extends AbstractSharedSocketIOIntegrationTest {
         assertNotNull(ackData.get(), "Acknowledgment data should not be null");
         assertEquals(1, ackData.get().length, "Acknowledgment should have 1 parameter");
         
-        // Handle both Map and JSONObject types
-        Object responseObj = ackData.get()[0];
-        assertNotNull(responseObj, "Response object should not be null");
-        
-        if (responseObj instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> response = (Map<String, Object>) responseObj;
-            assertEquals("success", response.get("status"), "Status should match");
-            assertNotNull(response.get("timestamp"), "Timestamp should not be null");
-            assertNotNull(response.get("data"), "Data array should not be null");
-            assertNotNull(response.get("metadata"), "Metadata should not be null");
-        } else {
-            // For JSONObject or other types, we'll just verify the object is not null
-            // The exact structure verification would require JSONObject parsing
-            assertNotNull(responseObj, "Response should be a valid object");
-        }
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        Object value = ackData.get()[0];
+        com.fasterxml.jackson.databind.JsonNode actual = value instanceof org.json.JSONObject
+                ? mapper.readTree(value.toString()) : mapper.valueToTree(value);
+        assertEquals(mapper.valueToTree(expectedResponse.get()), actual,
+                "Complex ACK must preserve every field, array element and nested value");
 
         // Cleanup
         client.disconnect();
@@ -433,8 +425,8 @@ public class AckCallbacksTest extends AbstractSharedSocketIOIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should handle acknowledgment timeout scenarios")
-    public void testAckTimeout() throws Exception {
+    @DisplayName("Default automatic ACK mode sends exactly one empty response")
+    public void testAutomaticEmptyAckWhenListenerDoesNotReply() throws Exception {
         // Test acknowledgment timeout when server doesn't respond
         CountDownLatch connectLatch = new CountDownLatch(1);
         AtomicReference<SocketIOClient> connectedClient = new AtomicReference<>();
@@ -468,23 +460,15 @@ public class AckCallbacksTest extends AbstractSharedSocketIOIntegrationTest {
         // Send event with acknowledgment and expect timeout
         CountDownLatch ackLatch = new CountDownLatch(1);
         AtomicReference<Object[]> ackData = new AtomicReference<>();
-        AtomicReference<Exception> ackError = new AtomicReference<>();
 
         client.emit(noAckEventName, new Object[]{noAckTestData}, args -> {
             ackData.set(args);
             ackLatch.countDown();
         });
 
-        // Wait for acknowledgment (should timeout)
-        boolean ackReceived = ackLatch.await(3, TimeUnit.SECONDS);
-        
-        // In this implementation, the acknowledgment might still be received as an empty response
-        // This test verifies the behavior when no explicit acknowledgment is sent
-        if (ackReceived) {
-            // If acknowledgment is received, it should be empty or null
-            assertTrue(ackData.get() == null || ackData.get().length == 0, 
-                "Acknowledgment should be empty when server doesn't send explicit ACK");
-        }
+        assertTrue(ackLatch.await(3, TimeUnit.SECONDS), "Default AUTO mode must send an ACK");
+        assertNotNull(ackData.get());
+        assertEquals(0, ackData.get().length, "Automatic ACK must contain no arguments");
 
         // Cleanup
         client.disconnect();

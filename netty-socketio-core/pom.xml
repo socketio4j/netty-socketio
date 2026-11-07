@@ -263,6 +263,7 @@
           <!-- Suites are manual aggregation entry points. Running them during
                normal discovery duplicates the classes they select. -->
           <excludes>
+            <exclude>**/*$*</exclude>
             <exclude>**/*Suite.java</exclude>
             <!-- These four classes run together in the execution below so
                  they can share one rigorously-reset single-node fixture. -->
@@ -314,7 +315,9 @@
                 <include>**/store/event/HazelcastRingBufferEventStoreTest.java</include>
                 <include>**/store/event/RedisPubSubEventStoreTest.java</include>
               </includes>
-              <excludes combine.self="override" />
+              <excludes combine.self="override">
+                <exclude>**/*$*</exclude>
+              </excludes>
             </configuration>
           </execution>
           <execution>
@@ -337,7 +340,9 @@
                 <include>**/integration/protocol/*Test.java</include>
                 <include>**/AbruptDisconnectBinaryUploadIntegrationTest.java</include>
               </includes>
-              <excludes combine.self="override" />
+              <excludes combine.self="override">
+                <exclude>**/*$*</exclude>
+              </excludes>
             </configuration>
           </execution>
         </executions>

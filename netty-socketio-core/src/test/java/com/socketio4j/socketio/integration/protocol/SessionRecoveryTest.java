@@ -40,15 +40,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Test class for SocketIO session recovery functionality.
- * Tests session recovery and reconnection scenarios as specified in SocketIO protocol v5.
+ * Tests explicit reconnection; it does not claim state recovery or packet replay.
  */
 
-@DisplayName("Session Recovery Tests - SocketIO Protocol Session Recovery & Reconnection")
+@DisplayName("Explicit reconnection lifecycle tests")
 public class SessionRecoveryTest extends AbstractSharedSocketIOIntegrationTest {
 
     @Test
-    @DisplayName("Should recover session after client disconnection")
-    public void testSessionRecoveryAfterDisconnection() throws Exception {
+    @DisplayName("Should reconnect after client disconnection")
+    public void testExplicitReconnectionAfterDisconnection() throws Exception {
         // Test session recovery after client disconnection
         AtomicReference<SocketIOClient> connectedClient = new AtomicReference<>();
         AtomicReference<Boolean> disconnected = new AtomicReference<>(false);
@@ -118,8 +118,8 @@ public class SessionRecoveryTest extends AbstractSharedSocketIOIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should handle session recovery for multiple clients")
-    public void testSessionRecoveryWithMultipleClients() throws Exception {
+    @DisplayName("Should reconnect for multiple clients")
+    public void testExplicitReconnectionWithMultipleClients() throws Exception {
         // Test session recovery with multiple clients
         AtomicReference<SocketIOClient> connectedClient1 = new AtomicReference<>();
         AtomicReference<SocketIOClient> connectedClient2 = new AtomicReference<>();
@@ -195,8 +195,8 @@ public class SessionRecoveryTest extends AbstractSharedSocketIOIntegrationTest {
     }
 
     @Test
-    @DisplayName("Should recover session in custom namespace")
-    public void testSessionRecoveryWithCustomNamespace() throws Exception {
+    @DisplayName("Should reconnect in custom namespace")
+    public void testExplicitReconnectionWithCustomNamespace() throws Exception {
         // Test session recovery with custom namespace
         AtomicReference<SocketIOClient> connectedClient = new AtomicReference<>();
         AtomicReference<Boolean> reconnected = new AtomicReference<>(false);

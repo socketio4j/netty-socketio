@@ -16,180 +16,124 @@
  */
 package com.socketio4j.socketio.integration.resilience;
 
-import java.io.IOException;
-import java.net.ServerSocket;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import com.socketio4j.socketio.AckRequest;
 import com.socketio4j.socketio.Configuration;
-import com.socketio4j.socketio.SocketIOClient;
 import com.socketio4j.socketio.SocketIOServer;
+import com.socketio4j.socketio.TestResourceCleanup;
 import com.socketio4j.socketio.Transport;
-import com.socketio4j.socketio.listener.DataListener;
 
-import io.socket.client.Ack;
 import io.socket.client.IO;
 import io.socket.client.Socket;
 
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Production-readiness test: High-Concurrency Room Membership Churn.
- *
- * <p>Verifies thread safety of namespace room collections when 20 clients concurrently
- * join and leave multiple rooms at high frequency while server broadcasts fire simultaneously.
- */
+/** Concurrent membership mutations with wire barriers and exact recipient assertions. */
 public class RoomMembershipChurnTest {
-
-    private static final Logger log = LoggerFactory.getLogger(RoomMembershipChurnTest.class);
-
-    private static final int CLIENT_COUNT = 20;
-    private static final int CHURN_CYCLES = 15;
-    private static final long TIMEOUT_SECS = 45L;
-
-    private SocketIOServer server;
-    private int port;
-    private final List<Socket> clients = new CopyOnWriteArrayList<>();
-
-    @AfterEach
-    public void tearDown() {
-        for (Socket socket : clients) {
-            if (socket != null) {
-                try {
-                    socket.off();
-                    socket.disconnect();
-                } catch (Exception e) {
-                    log.warn("Error disconnecting client: {}", e.getMessage());
-                }
-            }
-        }
-        clients.clear();
-
-        if (server != null) {
-            try {
-                server.stop();
-            } catch (Exception e) {
-                log.warn("Error stopping server: {}", e.getMessage());
-            }
-        }
-    }
-
-    private static int findAvailablePort() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            socket.setReuseAddress(true);
-            return socket.getLocalPort();
-        } catch (IOException e) {
-            throw new RuntimeException("Could not find available TCP port", e);
-        }
-    }
-
     @Test
-    @DisplayName("Room Churn Test: High-Frequency Concurrent Join/Leave under Broadcast Traffic")
-    public void testHighFrequencyRoomChurn() throws Exception {
-        port = findAvailablePort();
-
+    void broadcastsReachExactlyTheMembersAfterConcurrentJoinAndLeave() throws Exception {
         Configuration config = new Configuration();
         config.setHostname("127.0.0.1");
-        config.setPort(port);
+        config.setPort(0);
         config.setTransports(Transport.WEBSOCKET);
-
-        server = new SocketIOServer(config);
-
-        CopyOnWriteArrayList<String> churnFailures = new CopyOnWriteArrayList<>();
-        AtomicInteger serverBroadcasts = new AtomicInteger(0);
-
-        server.addEventListener("join-dynamic", String.class, new DataListener<String>() {
-            @Override
-            public void onData(SocketIOClient client, String room, AckRequest ackSender) {
-                client.joinRoom(room);
-                if (ackSender.isAckRequested()) ackSender.sendAckData("JOINED");
-            }
+        SocketIOServer server = new SocketIOServer(config);
+        List<Socket> clients = new ArrayList<>();
+        List<List<String>> deliveries = new ArrayList<>();
+        server.addEventListener("join-dynamic", String.class, (client, room, ack) -> {
+            client.joinRoom(room);
+            ack.sendAckData("JOINED");
         });
-
-        server.addEventListener("leave-dynamic", String.class, new DataListener<String>() {
-            @Override
-            public void onData(SocketIOClient client, String room, AckRequest ackSender) {
-                client.leaveRoom(room);
-                if (ackSender.isAckRequested()) ackSender.sendAckData("LEFT");
-            }
+        server.addEventListener("leave-dynamic", String.class, (client, room, ack) -> {
+            client.leaveRoom(room);
+            ack.sendAckData("LEFT");
         });
-
-        server.start();
-
-        CountDownLatch connectLatch = new CountDownLatch(CLIENT_COUNT);
-
-        for (int i = 0; i < CLIENT_COUNT; i++) {
-            IO.Options opts = new IO.Options();
-            opts.forceNew = true;
-            opts.transports = new String[]{ "websocket" };
-
-            Socket socket = IO.socket("http://127.0.0.1:" + port, opts);
-            clients.add(socket);
-
-            socket.on(Socket.EVENT_CONNECT, args -> connectLatch.countDown());
-            socket.connect();
-        }
-
-        assertTrue(connectLatch.await(TIMEOUT_SECS, TimeUnit.SECONDS), "Clients failed to connect");
-
-        ExecutorService executor = Executors.newFixedThreadPool(CLIENT_COUNT);
-        CountDownLatch completionLatch = new CountDownLatch(CLIENT_COUNT);
-
-        for (int i = 0; i < CLIENT_COUNT; i++) {
-            final Socket socket = clients.get(i);
-            final int clientIdx = i;
-
-            executor.submit(() -> {
-                try {
-                    for (int cycle = 0; cycle < CHURN_CYCLES; cycle++) {
-                        String roomName = "churn-room-" + (cycle % 5);
-
-                        CountDownLatch joinAck = new CountDownLatch(1);
-                        socket.emit("join-dynamic", new Object[]{ roomName }, new Ack() {
-                            @Override
-                            public void call(Object... args) { joinAck.countDown(); }
-                        });
-                        joinAck.await(5, TimeUnit.SECONDS);
-
-                        // Broadcast while clients are in room
-                        if (clientIdx == 0) {
-                            server.getRoomOperations(roomName).sendEvent("churn-broadcast", "data-" + cycle);
-                            serverBroadcasts.incrementAndGet();
-                        }
-
-                        CountDownLatch leaveAck = new CountDownLatch(1);
-                        socket.emit("leave-dynamic", new Object[]{ roomName }, new Ack() {
-                            @Override
-                            public void call(Object... args) { leaveAck.countDown(); }
-                        });
-                        leaveAck.await(5, TimeUnit.SECONDS);
-                    }
-                } catch (Exception e) {
-                    churnFailures.add("Churn error: " + e.getMessage());
-                } finally {
-                    completionLatch.countDown();
+        try {
+            server.start();
+            CountDownLatch connected = new CountDownLatch(20);
+            for (int i = 0; i < 20; i++) {
+                IO.Options options = new IO.Options();
+                options.forceNew = true;
+                options.reconnection = false;
+                options.transports = new String[]{"websocket"};
+                Socket client = IO.socket("http://127.0.0.1:" + config.getPort(), options);
+                clients.add(client);
+                List<String> received = new CopyOnWriteArrayList<>();
+                deliveries.add(received);
+                client.on("churn-broadcast", args -> received.add(String.valueOf(args[0])));
+                client.on(Socket.EVENT_CONNECT, args -> connected.countDown());
+                client.connect();
+            }
+            assertTrue(connected.await(10, TimeUnit.SECONDS));
+            for (int cycle = 0; cycle < 15; cycle++) {
+                String room = "churn-room-" + (cycle % 5);
+                // Emit all mutations before waiting: server event loops process the clients concurrently.
+                List<Runnable> joins = new ArrayList<>();
+                for (Socket client : clients) {
+                    joins.add(emitCheckedAck(client, "join-dynamic", room, "JOINED"));
                 }
-            });
+                joins.forEach(Runnable::run);
+                List<Runnable> leaves = new ArrayList<>();
+                for (int i = 0; i < clients.size(); i += 2) {
+                    leaves.add(emitCheckedAck(clients.get(i), "leave-dynamic", room, "LEFT"));
+                }
+                leaves.forEach(Runnable::run);
+                CountDownLatch roundEnded = new CountDownLatch(clients.size());
+                for (Socket client : clients) {
+                    client.once("round-end", args -> roundEnded.countDown());
+                }
+                String token = "round-" + cycle;
+                server.getRoomOperations(room).sendEvent("churn-broadcast", token);
+                // Same outbound client queue: receipt proves all earlier broadcasts were consumed.
+                server.getBroadcastOperations().sendEvent("round-end", token);
+                assertTrue(roundEnded.await(5, TimeUnit.SECONDS), "Every client must observe the wire barrier");
+                for (int i = 0; i < clients.size(); i++) {
+                    assertEquals(i % 2 == 0 ? Collections.emptyList() : Collections.singletonList(token),
+                            deliveries.get(i), "Wrong recipients, duplicates or out-of-order delivery in " + token);
+                    deliveries.get(i).clear();
+                }
+                leaves.clear();
+                for (int i = 1; i < clients.size(); i += 2) {
+                    leaves.add(emitCheckedAck(clients.get(i), "leave-dynamic", room, "LEFT"));
+                }
+                leaves.forEach(Runnable::run);
+                assertTrue(server.getAllClients().stream().noneMatch(client -> client.getAllRooms().contains(room)),
+                        "Last leave must remove every membership before the next round");
+            }
+            clients.forEach(Socket::disconnect);
+            await().atMost(5, TimeUnit.SECONDS).until(() -> server.getAllClients().isEmpty());
+        } finally {
+            List<TestResourceCleanup.ThrowingAction> cleanup = new ArrayList<>();
+            for (Socket client : clients) {
+                cleanup.add(() -> { client.off(); client.disconnect(); client.close(); });
+            }
+            cleanup.add(server::stop);
+            TestResourceCleanup.runAll("room churn cleanup", cleanup.toArray(new TestResourceCleanup.ThrowingAction[0]));
         }
+    }
 
-        executor.shutdown();
-        boolean finished = completionLatch.await(TIMEOUT_SECS, TimeUnit.SECONDS);
-
-        assertTrue(finished, "Room churn threads timed out");
-        assertTrue(churnFailures.isEmpty(), () -> "Churn failures detected: " + churnFailures);
-        assertTrue(serverBroadcasts.get() > 0, "Server broadcasts should have executed");
+    private static Runnable emitCheckedAck(Socket client, String event, String room, String expected) {
+        CountDownLatch acked = new CountDownLatch(1);
+        AtomicReference<Object[]> response = new AtomicReference<>();
+        client.emit(event, new Object[]{room}, args -> { response.set(args); acked.countDown(); });
+        return () -> {
+            try {
+                assertTrue(acked.await(5, TimeUnit.SECONDS), "Missing " + event + " ACK");
+                assertArrayEquals(new Object[]{expected}, response.get());
+            } catch (InterruptedException error) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError("Interrupted waiting for membership ACK", error);
+            }
+        };
     }
 }

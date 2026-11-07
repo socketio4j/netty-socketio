@@ -160,15 +160,20 @@ public abstract class AbstractStoreTest {
         final int threadCount = 10;
         final int operationsPerThread = 100;
         Thread[] threads = new Thread[threadCount];
+        java.util.Queue<Throwable> workerFailures = new java.util.concurrent.ConcurrentLinkedQueue<>();
 
         for (int i = 0; i < threadCount; i++) {
             final int threadId = i;
             threads[i] = new Thread(() -> {
+                try {
                 for (int j = 0; j < operationsPerThread; j++) {
                     String key = "thread" + threadId + "_key" + j;
                     String value = "value" + threadId + "_" + j;
                     store.set(key, value);
                     Assertions.assertThat((String) store.get(key)).isEqualTo(value);
+                }
+                } catch (Throwable failure) {
+                    workerFailures.add(failure);
                 }
             });
         }
@@ -180,7 +185,13 @@ public abstract class AbstractStoreTest {
 
         // Wait for all threads to complete
         for (Thread thread : threads) {
-            thread.join();
+            thread.join(10_000);
+            Assertions.assertThat(thread.isAlive()).isFalse();
+        }
+        if (!workerFailures.isEmpty()) {
+            AssertionError failure = new AssertionError("Store worker failed");
+            workerFailures.forEach(failure::addSuppressed);
+            throw failure;
         }
 
         // Verify all values were set correctly

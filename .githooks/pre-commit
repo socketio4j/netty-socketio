@@ -427,6 +427,40 @@ else
                     FAILED_GATES=$(( FAILED_GATES + 1 ))
                 fi
             fi
+
+            # Sub-Gate 8.5: Mandatory Full Reactor Test Execution (mvn test)
+            TEST_STAGED=$(echo "$STAGED_FILES" | grep -E '(\.java$|(^|/)pom\.xml$)' || true)
+            if [ "$GATE8_STATUS" != "FAILED" ] && [ -n "$TEST_STAGED" ]; then
+                if [ "${PRE_COMMIT_SKIP_TESTS:-0}" = "1" ]; then
+                    echo -e "  ${BLUE}• [8.5]${NC} ${YELLOW}PRE_COMMIT_SKIP_TESTS=1 detected. Skipping test execution.${NC}"
+                else
+                    echo -e "  ${BLUE}• [8.5]${NC} Running mandatory full reactor test suite (mvn test)..."
+                    TEST_START=$SECONDS
+
+                    DOCKER_FLAG=""
+                    if ! docker info > /dev/null 2>&1; then
+                        DOCKER_FLAG="-Dsocketio.skip.docker=true"
+                        echo -e "    ${DIM}ℹ Docker is not running: container-backed tests will be skipped.${NC}"
+                    fi
+
+                    if ! bash .githooks/check-test-prerequisites.sh; then
+                        GATE8_STATUS="FAILED"
+                        FAILED_GATES=$(( FAILED_GATES + 1 ))
+                    elif TEST_OUTPUT=$($MVN_CMD --batch-mode test -Dsocketio.test.forkCount=1 -Dsocketio.test.reuseForks=true $DOCKER_FLAG 2>&1); then
+                        TEST_TIME=$(( SECONDS - TEST_START ))
+                        echo -e "    ${GREEN}✔ [PASS]${NC} All reactor tests passed (${TEST_TIME}s)."
+                    else
+                        TEST_TIME=$(( SECONDS - TEST_START ))
+                        echo -e "    ${RED}❌ [FAIL] Test execution failed (${TEST_TIME}s):${NC}"
+                        echo "$TEST_OUTPUT" | grep -E "(\[ERROR\] Failures:|\[ERROR\] Errors:|<<< FAILURE!|<<< ERROR!|There are test failures)" | head -n 25 | while IFS= read -r terr; do
+                            echo -e "       ${RED}✗${NC} $terr"
+                        done
+                        echo -e "    ${YELLOW}💡 Remediation:${NC} Run ${BOLD}mvn test $DOCKER_FLAG${NC} to reproduce and fix failures."
+                        GATE8_STATUS="FAILED"
+                        FAILED_GATES=$(( FAILED_GATES + 1 ))
+                    fi
+                fi
+            fi
         fi
     fi
 fi

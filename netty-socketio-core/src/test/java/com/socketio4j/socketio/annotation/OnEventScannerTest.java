@@ -568,11 +568,15 @@ public class OnEventScannerTest extends AnnotationTestBase {
         scanner.addListener(mockNamespace, testHandler, method, annotation);
 
         // Verify that the handler was registered
-        verify(mockNamespace, times(1)).addEventListener(eq("withClientAndAck"), eq(String.class), any());
-        
-        // Verify that the handler was registered but not called yet
-        assertFalse(testHandler.eventWithClientAndAckCalled);
-        assertEquals(0, testHandler.eventWithClientAndAckCallCount);
+        org.mockito.ArgumentCaptor<com.socketio4j.socketio.listener.DataListener<String>> captured =
+                org.mockito.ArgumentCaptor.forClass(com.socketio4j.socketio.listener.DataListener.class);
+        verify(mockNamespace).addEventListener(eq("withClientAndAck"), eq(String.class), captured.capture());
+        captured.getValue().onData(mockClient, "wire-data", mockAckRequest);
+        assertTrue(testHandler.eventWithClientAndAckCalled);
+        assertEquals(1, testHandler.eventWithClientAndAckCallCount);
+        assertEquals("wire-data", testHandler.eventWithClientAndAckLastData);
+        assertEquals(mockClient, testHandler.eventWithClientAndAckLastClient);
+        assertEquals(mockAckRequest, testHandler.eventWithClientAndAckLastAck);
     }
 
     @Test

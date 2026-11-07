@@ -579,44 +579,38 @@ public class HashedWheelTimeoutSchedulerTest {
         @Test
         @DisplayName("Should handle concurrent timeout replacement")
         @Timeout(value = 10, unit = TimeUnit.SECONDS)
-        void shouldHandleConcurrentTimeoutReplacement() throws InterruptedException {
-            // Given
-            int threadCount = 5;
-            CountDownLatch startLatch = new CountDownLatch(1);
-            CountDownLatch completionLatch = new CountDownLatch(threadCount);
-            AtomicInteger executionCount = new AtomicInteger(0);
-            SchedulerKey sharedKey = new SchedulerKey(SchedulerKey.Type.PING, "shared-session");
-            List<Thread> threads = new ArrayList<>(threadCount);
-
-            // When
-            for (int i = 0; i < threadCount; i++) {
-                final int threadId = i;
-                Thread thread = new Thread(() -> {
-                    try {
-                        startLatch.await();
-                        // All threads try to schedule with the same key
-                        scheduler.schedule(sharedKey, () -> {
-                            executionCount.incrementAndGet();
-                            completionLatch.countDown();
-                        }, 200 + threadId * 50, TimeUnit.MILLISECONDS);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                });
-                threads.add(thread);
-                thread.start();
+        void shouldHandleConcurrentTimeoutReplacement() throws Exception {
+            SchedulerKey key = new SchedulerKey(SchedulerKey.Type.PING, "shared-session");
+            java.util.concurrent.ExecutorService workers = java.util.concurrent.Executors.newFixedThreadPool(5);
+            CountDownLatch start = new CountDownLatch(1);
+            AtomicInteger replacedExecutions = new AtomicInteger();
+            List<java.util.concurrent.Future<?>> futures = new ArrayList<>();
+            try {
+                for (int i = 0; i < 5; i++) {
+                    futures.add(workers.submit(() -> {
+                        start.await();
+                        scheduler.schedule(key, replacedExecutions::incrementAndGet, 1, TimeUnit.DAYS);
+                        return null;
+                    }));
+                }
+                start.countDown();
+                for (java.util.concurrent.Future<?> future : futures) {
+                    future.get(2, TimeUnit.SECONDS);
+                }
+                CountDownLatch winner = new CountDownLatch(1);
+                AtomicInteger winnerExecutions = new AtomicInteger();
+                scheduler.schedule(key, () -> {
+                    winnerExecutions.incrementAndGet();
+                    winner.countDown();
+                }, 0, TimeUnit.MILLISECONDS);
+                assertThat(winner.await(2, TimeUnit.SECONDS)).isTrue();
+                scheduler.shutdown();
+                assertThat(winnerExecutions.get()).isEqualTo(1);
+                assertThat(replacedExecutions.get()).isZero();
+            } finally {
+                workers.shutdownNow();
+                assertThat(workers.awaitTermination(2, TimeUnit.SECONDS)).isTrue();
             }
-
-            startLatch.countDown();
-
-            // Then
-            boolean completed = completionLatch.await(5, TimeUnit.SECONDS);
-            for (Thread thread : threads) {
-                thread.join();
-            }
-            // Due to replacement, the exact count depends on timing and implementation
-            // We just verify that the test completes without hanging
-            assertThat(executionCount.get()).isGreaterThanOrEqualTo(0);
         }
 
         @Test
