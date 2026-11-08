@@ -284,20 +284,7 @@ public class ClientHead {
         if (maxPending > 0 && queue.size() >= maxPending) {
             log.warn("Session {} exceeded max pending packets ({}) on transport {}; disconnecting slow consumer",
                     sessionId, maxPending, transport);
-            List<Channel> openChannels = new ArrayList<>();
-            for (TransportState transportState : channels.values()) {
-                Channel openChannel = transportState.getChannel();
-                if (openChannel != null) {
-                    openChannels.add(openChannel);
-                }
-            }
-            onChannelDisconnect();
-            for (TransportState transportState : channels.values()) {
-                transportState.getPacketsQueue().clear();
-            }
-            for (Channel openChannel : openChannels) {
-                openChannel.close();
-            }
+            disconnect();
             return null;
         }
 
