@@ -31,6 +31,7 @@ import com.socketio4j.socketio.DisconnectableHub;
 import com.socketio4j.socketio.HandshakeData;
 import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.ack.AckManager;
+import com.socketio4j.socketio.messages.OutPacketMessage;
 import com.socketio4j.socketio.namespace.Namespace;
 import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketType;
@@ -46,8 +47,6 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.Attribute;
 import io.netty.util.CharsetUtil;
-
-import com.socketio4j.socketio.messages.OutPacketMessage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -318,6 +317,7 @@ public class ClientHeadTest {
         Attribute<Boolean> writeOnceAttr = mock(Attribute.class);
         when(channel.attr(EncoderHandler.WRITE_ONCE)).thenReturn(writeOnceAttr);
         when(channel.isActive()).thenReturn(true);
+        when(channel.isOpen()).thenReturn(true);
         when(channel.isWritable()).thenReturn(false);
 
         clientHead.bindChannel(channel, Transport.WEBSOCKET);
@@ -335,8 +335,86 @@ public class ClientHeadTest {
         assertEquals(3, clientHead.getPacketsQueue(Transport.WEBSOCKET).size());
         assertTrue(clientHead.isConnected());
 
-        // 4th packet exceeds maxPendingPackets(3) -> disconnects slow consumer
+        // 4th packet exceeds maxPendingPackets(3) -> disconnects slow consumer, clears queue, and closes zombie channel
         clientHead.send(new Packet(PacketType.MESSAGE), Transport.WEBSOCKET);
         assertFalse(clientHead.isConnected(), "Client must be disconnected when pending queue exceeds limit");
+        assertEquals(0, clientHead.getPacketsQueue(Transport.WEBSOCKET).size(),
+                "Pending queue must be cleared when slow consumer is disconnected");
+        verify(channel).close();
+    }
+
+    @Test
+    void shouldCountOnlySuccessfulRemoveIfRemovals() {
+        java.util.Queue<Packet> queue = new TransportState().getPacketsQueue();
+        Packet packet = new Packet(PacketType.NOOP);
+        queue.add(packet);
+        assertFalse(queue.removeIf(candidate -> {
+            assertEquals(packet, queue.poll());
+            return true;
+        }));
+        queue.add(new Packet(PacketType.PING));
+        assertEquals(1, queue.size());
+        assertFalse(queue.removeIf(candidate -> false));
+        assertEquals(1, queue.size());
+    }
+
+    @Test
+    void shouldTrackProbePongSeparatelyFromUpgrade() {
+        clientHead.beginUpgrade();
+        assertTrue(clientHead.isUpgradeInProgress());
+        assertFalse(clientHead.isProbePongComplete());
+        clientHead.completeProbePong();
+        assertTrue(clientHead.isProbePongComplete());
+        clientHead.failUpgrade();
+        assertFalse(clientHead.isUpgradeInProgress());
+        assertFalse(clientHead.isProbePongComplete());
+    }
+
+    @Test
+    void shouldPreserveSharedQueueUntilDeferredCloseCompletes() {
+        Channel channel = mock(Channel.class);
+        EmbeddedChannel promiseChannel = new EmbeddedChannel();
+        io.netty.channel.DefaultChannelPromise closeWrite =
+                new io.netty.channel.DefaultChannelPromise(promiseChannel);
+        when(channel.isWritable()).thenReturn(true);
+        when(channel.isActive()).thenReturn(true);
+        when(channel.writeAndFlush(any(OutPacketMessage.class))).thenReturn(closeWrite);
+        clientHead.bindChannel(channel, Transport.WEBSOCKET);
+        clientHead.upgradeCurrentTransport(Transport.WEBSOCKET);
+
+        clientHead.disconnectWithProtocolClose();
+
+        assertEquals(PacketType.CLOSE, clientHead.getPacketsQueue(Transport.WEBSOCKET).peek().getType());
+        closeWrite.setSuccess();
+        promiseChannel.runPendingTasks();
+        assertTrue(clientHead.getPacketsQueue(Transport.WEBSOCKET).isEmpty());
+        promiseChannel.finishAndReleaseAll();
+    }
+
+    @Test
+    void testTransportStateCountingQueueOperationsMaintainExactSize() {
+        TransportState state = new TransportState();
+        Packet p1 = new Packet(PacketType.PING);
+        Packet p2 = new Packet(PacketType.PONG);
+        Packet p3 = new Packet(PacketType.NOOP);
+
+        assertEquals(0, state.getPacketsQueue().size());
+        state.getPacketsQueue().add(p1);
+        state.getPacketsQueue().offer(p2);
+        state.getPacketsQueue().add(p3);
+        assertEquals(3, state.getPacketsQueue().size());
+
+        assertTrue(state.getPacketsQueue().removeIf(p -> p.getType() == PacketType.NOOP));
+        assertEquals(2, state.getPacketsQueue().size());
+
+        assertEquals(p1, state.getPacketsQueue().poll());
+        assertEquals(1, state.getPacketsQueue().size());
+
+        assertTrue(state.getPacketsQueue().remove(p2));
+        assertEquals(0, state.getPacketsQueue().size());
+
+        state.getPacketsQueue().add(p1);
+        state.clearPacketsQueue();
+        assertEquals(0, state.getPacketsQueue().size());
     }
 }

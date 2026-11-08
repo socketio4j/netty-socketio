@@ -143,6 +143,31 @@ class PollingTransportTest {
     }
 
     @Test
+    void shouldReleaseReboundPollOnlyAfterProbePongCompletes() {
+        UUID sessionId = UUID.randomUUID();
+        ClientsBox clientsBox = mock(ClientsBox.class);
+        ClientHead client = mock(ClientHead.class);
+        AuthorizeHandler authorizeHandler = mock(AuthorizeHandler.class);
+        io.netty.channel.ChannelHandlerContext context = mock(io.netty.channel.ChannelHandlerContext.class);
+        EmbeddedChannel channel = new EmbeddedChannel();
+        when(context.channel()).thenReturn(channel);
+        when(clientsBox.get(sessionId)).thenReturn(client);
+        when(client.tryBindPollingChannel(channel)).thenReturn(true);
+        when(client.isUpgradeInProgress()).thenReturn(true);
+        PollingTransport transport = new PollingTransport(null, authorizeHandler, clientsBox);
+        try {
+            transport.onGet(sessionId, context, null);
+            verify(client, never()).send(any(com.socketio4j.socketio.protocol.Packet.class), eq(Transport.POLLING));
+
+            when(client.isProbePongComplete()).thenReturn(true);
+            transport.onGet(sessionId, context, null);
+            verify(client).send(any(com.socketio4j.socketio.protocol.Packet.class), eq(Transport.POLLING));
+        } finally {
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    @Test
     void shouldCloseOutstandingV4PollWhenAnotherGetIsRejected() throws Exception {
         UUID sessionId = UUID.randomUUID();
         ClientsBox clientsBox = new ClientsBox();
