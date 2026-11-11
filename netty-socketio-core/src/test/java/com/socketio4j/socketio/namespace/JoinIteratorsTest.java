@@ -43,11 +43,45 @@ public class JoinIteratorsTest {
         for (Integer integer : iterators) {
             mainList.add(integer);
         }
-        assertEquals(list1.size() + list2.size(), mainList.size());
+        assertEquals(Arrays.asList(1, 2, 3, 4), mainList);
         mainList.removeAll(list1);
         mainList.removeAll(list2);
         assertTrue(mainList.isEmpty());
 
+    }
+
+    @Test
+    void emptyInputsAndExhaustionFollowIteratorContract() {
+        CompositeIterable<Integer> values = new CompositeIterable<>(java.util.Collections.emptyList(),
+                Arrays.asList(1), java.util.Collections.emptyList(), Arrays.asList(2), java.util.Collections.emptyList());
+        java.util.Iterator<Integer> iterator = values.iterator();
+        assertTrue(iterator.hasNext());
+        assertTrue(iterator.hasNext());
+        assertEquals(Integer.valueOf(1), iterator.next());
+        assertEquals(Integer.valueOf(2), iterator.next());
+        org.junit.jupiter.api.Assertions.assertFalse(iterator.hasNext());
+        org.junit.jupiter.api.Assertions.assertThrows(java.util.NoSuchElementException.class, iterator::next);
+        java.util.Iterator<Integer> empty = new CompositeIterable<Integer>(java.util.Collections.emptyList()).iterator();
+        org.junit.jupiter.api.Assertions.assertFalse(empty.hasNext());
+        org.junit.jupiter.api.Assertions.assertThrows(java.util.NoSuchElementException.class, empty::next);
+    }
+
+    @Test
+    void removeTargetsTheLastReturnedIteratorEvenWhenHasNextMovesToAnotherInput() {
+        List<Integer> first = new ArrayList<>(Arrays.asList(1));
+        List<Integer> second = new ArrayList<>(Arrays.asList(2));
+        java.util.Iterator<Integer> iterator = new CompositeIterable<Integer>(first, second).iterator();
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, iterator::remove);
+        assertEquals(Integer.valueOf(1), iterator.next());
+        assertTrue(iterator.hasNext());
+        iterator.remove();
+        assertTrue(first.isEmpty());
+        assertEquals(Arrays.asList(2), second);
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, iterator::remove);
+        assertEquals(Integer.valueOf(2), iterator.next());
+        org.junit.jupiter.api.Assertions.assertFalse(iterator.hasNext());
+        iterator.remove();
+        assertTrue(second.isEmpty());
     }
 
 }

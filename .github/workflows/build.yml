@@ -188,7 +188,11 @@ jobs:
                              -Dio.netty.leakDetection.level=PARANOID"
           DOCKER_FLAG=""
           if ! docker info >/dev/null 2>&1; then
-            echo "WARNING: Docker daemon is not reachable on this runner. Setting -Dsocketio.skip.docker=true"
+            if [ "${{ runner.os }}" = "Linux" ]; then
+              echo "ERROR: Docker is mandatory on the Linux verification lane."
+              exit 1
+            fi
+            echo "Docker unavailable on optional platform; Linux remains the mandatory backend gate."
             DOCKER_FLAG="-Dsocketio.skip.docker=true"
           else
             echo "Docker daemon is active and reachable. Running full test suite including Testcontainers."
@@ -196,4 +200,30 @@ jobs:
           mvn --batch-mode --errors --fail-at-end -T 1C \
             -Dsocketio.test.forkCount=1C \
             -Dsocketio.test.reuseForks=true \
-            -Dsocketio.interop.versions=${{ inputs.interopVersions }} $DOCKER_FLAG verify
+            -Pcoverage -Dsocketio.interop.versions=${{ inputs.interopVersions }} $DOCKER_FLAG verify
+
+      - name: Validate complete first-attempt core evidence
+        if: runner.os == 'Linux'
+        run: |
+          python3 verification/tests/check_evidence_test.py
+          python3 verification/tests/check_evidence.py \
+            --reports netty-socketio-core/target/surefire-reports \
+            --source netty-socketio-core/src/test/java \
+            --coverage netty-socketio-core/target/site/jacoco/jacoco.xml \
+            --minimum-branch 0.65
+
+      - name: Prove critical assertions detect broken behavior
+        if: runner.os == 'Linux' && inputs.javaVersion == '21'
+        run: python3 verification/tests/negative_controls.py --output netty-socketio-core/target/assertion-controls
+
+      - name: Upload test and coverage evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-evidence-${{ inputs.os }}-java-${{ inputs.javaVersion }}
+          path: |
+            **/target/surefire-reports/**
+            **/target/site/jacoco/**
+            **/target/jacoco.exec
+            **/target/assertion-controls/**
+          if-no-files-found: error

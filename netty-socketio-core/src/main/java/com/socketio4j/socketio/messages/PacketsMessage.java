@@ -29,11 +29,21 @@ public class PacketsMessage implements ReferenceCounted {
     private final ClientHead client;
     private final ByteBuf content;
     private final Transport transport;
+    private final boolean textWebSocketFrame;
 
     public PacketsMessage(ClientHead client, ByteBuf content, Transport transport) {
+        this(client, content, transport, false);
+    }
+
+    public PacketsMessage(ClientHead client, ByteBuf content, Transport transport, boolean textWebSocketFrame) {
         this.client = client;
         this.content = content;
         this.transport = transport;
+        this.textWebSocketFrame = textWebSocketFrame;
+    }
+
+    public boolean isTextWebSocketFrame() {
+        return textWebSocketFrame;
     }
 
     public Transport getTransport() {

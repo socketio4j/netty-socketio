@@ -62,13 +62,10 @@ public abstract class AbstractEventStoreTest {
 
     @AfterEach
     public void tearDown() throws Exception {
-        if (publisherStore != null) {
-            publisherStore.shutdown();
-        }
-        if (subscriberStore != null) {
-            subscriberStore.shutdown();
-        }
-        closeClients();
+        com.socketio4j.socketio.TestResourceCleanup.runAll("event store teardown",
+                () -> { if (publisherStore != null) publisherStore.shutdown(); },
+                () -> { if (subscriberStore != null) subscriberStore.shutdown(); },
+                this::closeClients);
     }
 
     @AfterAll

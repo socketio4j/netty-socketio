@@ -33,6 +33,7 @@ import com.socketio4j.socketio.store.hazelcast.HazelcastPubSubEventStore;
 @ResourceLock("EMBEDDED_HAZELCAST")
 public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
 
+    private final java.util.List<HazelcastInstance> clients = new java.util.ArrayList<>();
     private HazelcastInstance hazelcastPub;
     private HazelcastInstance hazelcastSub;
 
@@ -53,18 +54,19 @@ public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
                 .addAddress(hz.getHazelcastAddress());   // ALWAYS localhost:mappedPort
 
         hazelcastPub = HazelcastClient.newHazelcastClient(config);
+        clients.add(hazelcastPub);
         hazelcastSub = HazelcastClient.newHazelcastClient(config);
+        clients.add(hazelcastSub);
 
         return new HazelcastPubSubEventStore.Builder(hazelcastPub, hazelcastSub).nodeId(nodeId).build();
     }
 
     @Override
     protected void closeClients() {
-        if (hazelcastPub != null) {
-            hazelcastPub.shutdown();
-        }
-        if (hazelcastSub != null) {
-            hazelcastSub.shutdown();
-        }
+        java.util.List<com.socketio4j.socketio.TestResourceCleanup.ThrowingAction> actions = new java.util.ArrayList<>();
+        for (HazelcastInstance client : clients) actions.add(client::shutdown);
+        clients.clear();
+        com.socketio4j.socketio.TestResourceCleanup.runAll("event store clients",
+                actions.toArray(new com.socketio4j.socketio.TestResourceCleanup.ThrowingAction[0]));
     }
 }

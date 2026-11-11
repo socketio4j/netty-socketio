@@ -310,4 +310,27 @@ public class NamespaceRoomManagementTest extends AbstractNamespaceTestSupport {
         // Verify all operations completed successfully
         assertTrue(bulkLatch.getCount() == 0);
     }
+    @Test
+    void roomBroadcastChecksExactRecipientsAndPayload() {
+        namespace.getRoomOperations(ROOM_NAME_1).sendEvent("room-event", "exact-value");
+        org.mockito.ArgumentCaptor<com.socketio4j.socketio.protocol.Packet> sent =
+                org.mockito.ArgumentCaptor.forClass(com.socketio4j.socketio.protocol.Packet.class);
+        org.mockito.Mockito.verify(mockClient1).send(sent.capture());
+        org.mockito.Mockito.verify(mockClient2).send(org.mockito.ArgumentMatchers.same(sent.getValue()));
+        org.mockito.Mockito.verify(mockClient3, org.mockito.Mockito.never()).send(org.mockito.ArgumentMatchers.any());
+        assertEquals("room-event", sent.getValue().getName());
+        assertEquals(Collections.singletonList("exact-value"), sent.getValue().getData());
+        org.mockito.ArgumentCaptor<com.socketio4j.socketio.store.event.DispatchMessage> dispatch =
+                org.mockito.ArgumentCaptor.forClass(com.socketio4j.socketio.store.event.DispatchMessage.class);
+        org.mockito.Mockito.verify(eventStore).publish(
+                org.mockito.ArgumentMatchers.eq(com.socketio4j.socketio.store.event.EventType.DISPATCH), dispatch.capture());
+        assertEquals(NAMESPACE_NAME, dispatch.getValue().getNamespace());
+        assertEquals(ROOM_NAME_1, dispatch.getValue().getRoom());
+        namespace.leaveRoom(ROOM_NAME_1, CLIENT_2_SESSION_ID);
+        org.mockito.Mockito.clearInvocations(mockClient1, mockClient2, mockClient3);
+        namespace.getRoomOperations(ROOM_NAME_1).sendEvent("after-leave", "next");
+        org.mockito.Mockito.verify(mockClient1).send(org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verifyNoInteractions(mockClient2, mockClient3);
+    }
+
 }

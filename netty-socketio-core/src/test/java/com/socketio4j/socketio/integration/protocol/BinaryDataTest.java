@@ -15,94 +15,52 @@
  * limitations under the License.
  */
 package com.socketio4j.socketio.integration.protocol;
-import com.socketio4j.socketio.integration.protocol.AbstractSocketIOIntegrationTest;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.Queue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.json.JSONArray;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-
-import com.socketio4j.socketio.SocketIOClient;
-
 import io.socket.client.Socket;
-import io.socket.parser.Packet;
-import io.socket.parser.Parser;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * Test class for SocketIO binary data transmission functionality.
- * Tests BINARY_EVENT and BINARY_ACK packet types as specified in SocketIO protocol v5.
- */
-
-@DisplayName("Binary Data Tests - SocketIO Protocol BINARY_EVENT & BINARY_ACK")
 public class BinaryDataTest extends AbstractSharedSocketIOIntegrationTest {
-    private static final Field SOCKET_IO_SEND_BUFFER;
-    private static final Method EMIT_BUFFERED;
-
-    static {
-        try {
-            SOCKET_IO_SEND_BUFFER = Socket.class.getDeclaredField("sendBuffer");
-            SOCKET_IO_SEND_BUFFER.setAccessible(true);
-        } catch (NoSuchFieldException e) {
-            throw new RuntimeException("Failed to access sendBuffer field in Socket class", e);
-        }
-        try {
-            EMIT_BUFFERED = Socket.class.getDeclaredMethod("emitBuffered");
-            EMIT_BUFFERED.setAccessible(true);
-        } catch (NoSuchMethodException e) {
-            throw new RuntimeException("Failed to access emitBuffered method in Socket class", e);
-        }
-    }
-
-    private String binaryEventName;
-
     @Test
-    @DisplayName("Should transmit binary data from client to server using BINARY_EVENT")
-    public void testBinaryEventTransmission() throws Exception {
-        // Test sending binary data from client to server
-        binaryEventName = generateEventName("binary");
-        AtomicReference<SocketIOClient> connectedClient = new AtomicReference<>();
-        AtomicReference<Object> receivedData = new AtomicReference<>();
-
-        getServer().addConnectListener(connectedClient::set);
-
-        getServer().addEventListener(
-                binaryEventName, Object.class,
-                (client, data, ackRequest) -> {
-                    receivedData.set(data);
-                }
-        );
-
-        // Connect client
+    void binaryEventAndAckPreserveAllByteValues() throws Exception {
+        String event = generateEventName("binary");
+        byte[] payload = new byte[256];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) i;
+        }
+        AtomicReference<byte[]> received = new AtomicReference<>();
+        AtomicReference<Object[]> response = new AtomicReference<>();
+        CountDownLatch connected = new CountDownLatch(1);
+        CountDownLatch acked = new CountDownLatch(1);
+        getServer().addEventListener(event, byte[].class, (client, data, ack) -> {
+            received.set(data);
+            ack.sendAckData(data);
+        });
         Socket client = createClient();
-        client.connect();
-
-        // Wait for connection
-        await().atMost(10, SECONDS)
-                .until(() -> connectedClient.get() != null);
-
-        // Send binary data through reflection to access private sendBuffer
-        String testData = generateTestData();
-
-        Queue<Packet<JSONArray>> sendBuffer = (Queue<Packet<JSONArray>>) SOCKET_IO_SEND_BUFFER.get(client);
-        sendBuffer.add(new Packet<>(Parser.BINARY_EVENT, new JSONArray().put(binaryEventName).put(testData)));
-        EMIT_BUFFERED.invoke(client);
-
-        // Wait for data to be received
-        await().atMost(10, SECONDS)
-                .until(() -> receivedData.get() != null);
-
-        // Verify data integrity
-        assertNotNull(receivedData.get());
-        assertEquals(testData, receivedData.get());
+        try {
+            client.on(Socket.EVENT_CONNECT, args -> connected.countDown());
+            client.connect();
+            assertTrue(connected.await(5, TimeUnit.SECONDS));
+            client.emit(event, new Object[]{payload}, args -> {
+                response.set(args);
+                acked.countDown();
+            });
+            assertTrue(acked.await(5, TimeUnit.SECONDS), "Actual binary ACK must arrive");
+            assertArrayEquals(payload, received.get());
+            assertEquals(1, response.get().length);
+            assertTrue(response.get()[0] instanceof byte[]);
+            assertArrayEquals(payload, (byte[]) response.get()[0]);
+        } finally {
+            client.disconnect();
+            client.close();
+        }
     }
 }

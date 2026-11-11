@@ -114,7 +114,8 @@ public class WebSocketTransport extends ChannelInboundHandlerAdapter {
 
             // WebSocketFrame is reference-counted and will be released below.
             // Retain its content since we pass it further down the pipeline.
-            PacketsMessage packetsMessage = new PacketsMessage(client, frame.content().retain(), Transport.WEBSOCKET);
+            PacketsMessage packetsMessage = new PacketsMessage(client, frame.content().retain(),
+                    Transport.WEBSOCKET, msg instanceof TextWebSocketFrame);
             try {
                 firePacketsMessageToPacketHandler(ctx, packetsMessage);
             } finally {

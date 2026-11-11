@@ -16,131 +16,72 @@
  */
 package com.socketio4j.socketio.integration.resilience;
 
-import java.io.IOException;
-import java.net.ServerSocket;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.WebSocket;
-import okhttp3.WebSocketListener;
-import okio.ByteString;
-
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.socketio4j.socketio.Configuration;
 import com.socketio4j.socketio.SocketIOServer;
 import com.socketio4j.socketio.Transport;
+import com.socketio4j.socketio.integration.RawWebSocketClient;
+import com.socketio4j.socketio.listener.ExceptionListenerAdapter;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import io.netty.channel.ChannelHandlerContext;
 
-/**
- * Production-readiness test: Malformed Protocol Framing Chaos & Resilience Test.
- *
- * <p>Sends corrupted Engine.IO frames, oversized attachment length headers, and invalid UTF-8 bytes
- * over raw WebSocket channels, verifying that Netty pipeline handlers catch errors safely without
- * crashing or causing memory leaks.
- */
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+/** Each malformed stimulus must reach the parser and trigger an observed rejection. */
 public class ProtocolChaosBoundaryTest {
-
-    private static final Logger log = LoggerFactory.getLogger(ProtocolChaosBoundaryTest.class);
-
-    private static final long TIMEOUT_SECS = 15L;
-
-    private SocketIOServer server;
-    private int port;
-    private WebSocket okWebSocket;
-
-    @AfterEach
-    public void tearDown() {
-        if (okWebSocket != null) {
-            try {
-                okWebSocket.close(1000, "test-teardown");
-            } catch (Exception e) {
-                log.warn("Error closing WebSocket: {}", e.getMessage());
-            }
-        }
-
-        if (server != null) {
-            try {
-                server.stop();
-            } catch (Exception e) {
-                log.warn("Error stopping server: {}", e.getMessage());
-            }
-        }
-    }
-
-    private static int findAvailablePort() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            socket.setReuseAddress(true);
-            return socket.getLocalPort();
-        } catch (IOException e) {
-            throw new RuntimeException("Could not find available TCP port", e);
-        }
-    }
-
-    @Test
-    @DisplayName("Protocol Chaos Boundary: Malformed Packets Handled Gracefully")
-    public void testMalformedProtocolFramesHandledGracefully() throws Exception {
-        port = findAvailablePort();
-
+    @ParameterizedTest
+    @ValueSource(strings = {"99999invalid_packet_type", "40{invalid_json_auth_payload",
+            "459999999999999999999999-[\"bad\"]"})
+    void rejectsMalformedFramesAndServesAFreshClient(String malformed) throws Exception {
         Configuration config = new Configuration();
         config.setHostname("127.0.0.1");
-        config.setPort(port);
+        config.setPort(0);
         config.setTransports(Transport.WEBSOCKET);
-
-        server = new SocketIOServer(config);
-        server.start();
-
-        OkHttpClient okClient = new OkHttpClient.Builder()
-                .connectTimeout(5, TimeUnit.SECONDS)
-                .readTimeout(5, TimeUnit.SECONDS)
-                .build();
-
-        Request request = new Request.Builder()
-                .url("ws://127.0.0.1:" + port + "/socket.io/?EIO=4&transport=websocket")
-                .build();
-
-        CountDownLatch handshakeLatch = new CountDownLatch(1);
-        AtomicBoolean serverCrashed = new AtomicBoolean(false);
-
-        okWebSocket = okClient.newWebSocket(request, new WebSocketListener() {
+        BlockingQueue<Throwable> rejected = new LinkedBlockingQueue<>();
+        config.setExceptionListener(new ExceptionListenerAdapter() {
             @Override
-            public void onMessage(WebSocket webSocket, String text) {
-                if (text.startsWith("0")) { // Engine.IO OPEN packet
-                    handshakeLatch.countDown();
-                }
+            public void onAuthException(Throwable error, com.socketio4j.socketio.SocketIOClient client) {
+                rejected.add(error);
             }
 
             @Override
-            public void onFailure(WebSocket webSocket, Throwable t, okhttp3.Response response) {
-                log.warn("WebSocket failure (expected on malformed frame): {}", t.getMessage());
+            public boolean exceptionCaught(ChannelHandlerContext ctx, Throwable error) {
+                rejected.add(error);
+                return true;
             }
         });
-
-        assertTrue(handshakeLatch.await(TIMEOUT_SECS, TimeUnit.SECONDS), "Raw EIO v4 WebSocket handshake failed");
-
-        // 1. Send malformed Engine.IO packet (invalid packet type number)
-        okWebSocket.send("99999invalid_packet_type");
-
-        // 2. Send corrupted Socket.IO CONNECT frame with broken JSON
-        okWebSocket.send("40{invalid_json_auth_payload");
-
-        // 3. Send binary payload frame with invalid attachment header bytes
-        okWebSocket.send(ByteString.of(new byte[]{(byte) 0xFF, (byte) 0xFF, (byte) 0xFF}));
-
-        // 4. Send valid Engine.IO PING packet to verify server Netty pipeline is still healthy
-        CountDownLatch pongLatch = new CountDownLatch(1);
-        okWebSocket.close(1000, "normal-close");
-
-        // Verify server is still running and healthy
-        assertFalse(serverCrashed.get(), "Server must remain active and healthy after processing chaos payload");
+        SocketIOServer server = new SocketIOServer(config);
+        AtomicInteger healthEvents = new AtomicInteger();
+        server.addEventListener("health", String.class, (client, data, ack) -> {
+            healthEvents.incrementAndGet();
+            ack.sendAckData(data);
+        });
+        try {
+            server.start();
+            try (RawWebSocketClient bad = new RawWebSocketClient(config.getPort(), true)) {
+                bad.send(malformed);
+                assertNotNull(rejected.poll(5, TimeUnit.SECONDS),
+                        "Malformed frame must be observed and rejected by the real parser: " + malformed);
+                assertEquals(0, healthEvents.get());
+            }
+            await().atMost(5, TimeUnit.SECONDS).until(() -> server.getAllClients().isEmpty());
+            try (RawWebSocketClient healthy = new RawWebSocketClient(config.getPort(), true)) {
+                healthy.assertHealthExchange("after-rejection");
+                assertEquals(1, healthEvents.get());
+                assertEquals(0, rejected.size(), "Healthy exchange must not cause another parser error");
+            }
+            await().atMost(5, TimeUnit.SECONDS).until(() -> server.getAllClients().isEmpty());
+        } finally {
+            server.stop();
+        }
     }
 }

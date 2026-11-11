@@ -189,17 +189,10 @@ public class EventEntryTest extends AbstractNamespaceTestSupport {
      */
     @Test
     void testEdgeCasesAndBoundaries() {
-        // Test adding null listener (may or may not be allowed by ConcurrentLinkedQueue)
         int initialSize = eventEntry.getListeners().size();
-        try {
-            eventEntry.addListener(null);
-            // If no exception, verify it was added
-            Queue<DataListener<String>> listeners = eventEntry.getListeners();
-            assertTrue(listeners.size() > initialSize);
-        } catch (Exception e) {
-            // If exception is thrown, that's also acceptable behavior
-            assertNotNull(e);
-        }
+        org.junit.jupiter.api.Assertions.assertThrows(NullPointerException.class,
+                () -> eventEntry.addListener(null));
+        assertEquals(initialSize, eventEntry.getListeners().size(), "Rejected listener must not mutate the collection");
 
         // Test adding many listeners
         int largeCount = 1000;

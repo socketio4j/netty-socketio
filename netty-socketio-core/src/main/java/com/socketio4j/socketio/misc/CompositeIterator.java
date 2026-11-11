@@ -25,6 +25,7 @@ public class CompositeIterator<T> implements Iterator<T> {
 
     private final Iterator<Iterator<T>> listIterator;
     private Iterator<T> currentIterator;
+    private Iterator<T> lastReturnedIterator;
     
     public CompositeIterator(Iterator<Iterator<T>> listIterator) {
         this.currentIterator = null;
@@ -48,12 +49,20 @@ public class CompositeIterator<T> implements Iterator<T> {
 
     @Override
     public T next() {
-        hasNext();
-        return currentIterator.next();
+        if (!hasNext()) {
+            throw new java.util.NoSuchElementException();
+        }
+        T value = currentIterator.next();
+        lastReturnedIterator = currentIterator;
+        return value;
     }
 
     @Override
     public void remove() {
-        currentIterator.remove();
+        if (lastReturnedIterator == null) {
+            throw new IllegalStateException("next() must precede remove()");
+        }
+        lastReturnedIterator.remove();
+        lastReturnedIterator = null;
     }
 }

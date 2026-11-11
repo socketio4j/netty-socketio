@@ -178,6 +178,9 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
      */
     protected void addSocketioHandlers(ChannelPipeline pipeline) {
         pipeline.addLast(HTTP_REQUEST_DECODER, new HttpRequestDecoder(configuration.getHttpDecoderConfig()));
+        // The aggregator writes its own 413 responses from its context. Outbound
+        // handlers must precede it so those responses are encoded on the wire.
+        pipeline.addLast(HTTP_ENCODER, new HttpResponseEncoder());
         pipeline.addLast(HTTP_AGGREGATOR, new HttpObjectAggregator(configuration.getMaxHttpContentLength()) {
             @Override
             protected Object newContinueResponse(HttpMessage start, int maxContentLength,
@@ -186,7 +189,6 @@ public class SocketIOChannelInitializer extends ChannelInitializer<Channel> impl
             }
 
         });
-        pipeline.addLast(HTTP_ENCODER, new HttpResponseEncoder());
 
         if (configuration.isHttpCompression()) {
             pipeline.addLast(HTTP_COMPRESSION, new HttpContentCompressor());

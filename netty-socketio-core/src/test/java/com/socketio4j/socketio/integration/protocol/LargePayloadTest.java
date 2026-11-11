@@ -171,7 +171,7 @@ public class LargePayloadTest extends AbstractSharedSocketIOIntegrationTest {
 
         @SuppressWarnings("unchecked")
         java.util.Map<String, Object> receivedMap = (java.util.Map<String, Object>) receivedData.get();
-        assertEquals(10, receivedMap.size(), "Received map should have 10 fields");
+        assertEquals(largeObject, receivedMap, "Every object field must survive transmission");
 
         client.disconnect();
     }
@@ -222,7 +222,7 @@ public class LargePayloadTest extends AbstractSharedSocketIOIntegrationTest {
         }
 
         // Send large array data
-        client.emit("largeArrayEvent", largeArray);
+        client.emit("largeArrayEvent", new Object[]{new org.json.JSONArray(largeArray)});
 
         // Wait for data to be received
         await().atMost(30, SECONDS)
@@ -231,18 +231,8 @@ public class LargePayloadTest extends AbstractSharedSocketIOIntegrationTest {
         // Verify data integrity
         assertNotNull(receivedData.get(), "Large array data should be received");
 
-        // The data might be received as a List instead of an array
-        if (receivedData.get() instanceof java.util.List) {
-            @SuppressWarnings("unchecked")
-            java.util.List<Object> receivedList = (java.util.List<Object>) receivedData.get();
-            assertEquals(100, receivedList.size(), "Received list should have 100 elements");
-        } else if (receivedData.get() instanceof Object[]) {
-            Object[] receivedArray = (Object[]) receivedData.get();
-            assertEquals(100, receivedArray.length, "Received array should have 100 elements");
-        } else {
-            // For now, just verify that we received some data
-            assertNotNull(receivedData.get(), "Large array data should be received");
-        }
+        assertEquals(java.util.Arrays.asList(largeArray), receivedData.get(),
+                "Every array element and its order must survive transmission");
 
         client.disconnect();
     }

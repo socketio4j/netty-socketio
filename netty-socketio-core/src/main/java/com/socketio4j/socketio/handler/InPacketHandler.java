@@ -74,6 +74,20 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         int packetsProcessed = 0;
         while (content.isReadable()) {
             try {
+                // A pending Socket.IO binary event must not consume Engine.IO
+                // probe/heartbeat text as an attachment. Preserve the actual
+                // WebSocket frame type: binary bytes may themselves be "2probe".
+                if (message.isTextWebSocketFrame() && client.getLastBinaryPacket() != null
+                        && isTransportControl(content)) {
+                    PacketType type = PacketType.valueOf(content.readByte() - '0');
+                    Packet control = new Packet(type);
+                    if (type == PacketType.PING || type == PacketType.PONG) {
+                        control.setData(content.toString(CharsetUtil.UTF_8));
+                    }
+                    content.skipBytes(content.readableBytes());
+                    packetListener.onTransportPacket(control, client, message.getTransport());
+                    continue;
+                }
                 Packet packet = decoder.decodePackets(content, client, message.getTransport());
                 if (packet == null) {
                     continue;
@@ -179,6 +193,13 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
             log.debug("Completed processing {} packets for client: {}", packetsProcessed, client.getSessionId());
         }
     }
+
+    private static boolean isTransportControl(ByteBuf content) {
+        byte type = content.getByte(content.readerIndex());
+        return type == '2' || type == '3'
+                || (content.readableBytes() == 1 && (type == '1' || type == '5' || type == '6'));
+    }
+
     private static Object toConnectErrorPayload(ClientHead client, Object errorData) {
 
         if (client.getEngineIOVersion() == EngineIOVersion.V4) {

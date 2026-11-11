@@ -115,6 +115,7 @@ async function runCase(browser, browserInfo, version, transport) {
 
         await page.waitForFunction(
             () => window.TEST_RESULT !== undefined,
+            null,
             {
                 timeout: 30000
             });

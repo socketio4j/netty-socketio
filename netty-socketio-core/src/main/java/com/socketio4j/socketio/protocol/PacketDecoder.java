@@ -518,6 +518,9 @@ public class PacketDecoder {
         boolean hasAttachments = attachmentsDividerIndex != -1;
         if (hasAttachments && (PacketType.BINARY_EVENT.equals(innerType)
                 || PacketType.BINARY_ACK.equals(innerType))) {
+            if (attachmentsDividerIndex == 0) {
+                throw new IllegalArgumentException("Missing binary attachment count");
+            }
             long attachments = readLong(frame, attachmentsDividerIndex);
             if (attachments < 0 || attachments > MAX_ATTACHMENTS) {
                 throw new IllegalArgumentException("Invalid binary attachment count: " + attachments);

@@ -102,7 +102,7 @@ class AckCallbackTest {
 
         @Test
         @DisplayName("Should keep the configured timeout")
-        void shouldKeepConfiguredTimeout() {
+        void shouldKeepConfiguredTimeoutForVoid() {
             VoidAckCallback callback = new VoidAckCallback(15) {
                 @Override
                 protected void onSuccess() {
