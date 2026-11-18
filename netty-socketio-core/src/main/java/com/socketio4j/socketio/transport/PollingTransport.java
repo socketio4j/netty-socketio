@@ -165,6 +165,12 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
                 return;
             }
             if (queryDecoder.parameters().containsKey("disconnect")) {
+                ClientHead client = clientsBox.get(sessionId);
+                if (client == null) {
+                    log.error("{} is not registered. Closing connection", sessionId);
+                    sendError(ctx);
+                    return;
+                }
                 client.onChannelDisconnect();
                 ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId));
             } else if (HttpMethod.POST.equals(req.method())) {
