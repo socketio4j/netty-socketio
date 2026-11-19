@@ -179,6 +179,8 @@ jobs:
       # --- Build + Tests ---
       - name: Build Project
         timeout-minutes: 120
+        env:
+          INTEROP_VERSIONS: ${{ inputs.interopVersions }}
         run: |
           export MAVEN_OPTS="-Xms256m -Xmx512m \
                              -XX:+UseG1GC \
@@ -196,4 +198,4 @@ jobs:
           mvn --batch-mode --errors --fail-at-end -T 1C \
             -Dsocketio.test.forkCount=1C \
             -Dsocketio.test.reuseForks=true \
-            -Dsocketio.interop.versions=${{ inputs.interopVersions }} $DOCKER_FLAG verify
+            -Dsocketio.interop.versions=$INTEROP_VERSIONS $DOCKER_FLAG verify
