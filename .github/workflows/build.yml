@@ -191,6 +191,8 @@ jobs:
       # --- Build + Tests ---
       - name: Build Project
         timeout-minutes: 120
+        env:
+          INTEROP_VERSIONS: ${{ inputs.interopVersions }}
         run: |
           export MAVEN_OPTS="-Xms256m -Xmx512m \
                              -XX:+UseG1GC \
