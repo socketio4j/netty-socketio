@@ -78,8 +78,10 @@ public class ByteBufLeakTest {
     private final java.util.List<ByteBuf> ownedAllocations = new java.util.ArrayList<>();
     private ByteBufAllocator allocator;
 
+    /** Executes tracking allocator. */
     private ByteBufAllocator trackingAllocator(boolean direct) {
         return new io.netty.buffer.AbstractByteBufAllocator(direct) {
+            /** Executes new heap buffer. */
             @Override
             protected ByteBuf newHeapBuffer(int initial, int maximum) {
                 ByteBuf buffer = io.netty.buffer.UnpooledByteBufAllocator.DEFAULT.heapBuffer(initial, maximum);
@@ -87,6 +89,7 @@ public class ByteBufLeakTest {
                 return buffer;
             }
 
+            /** Executes new direct buffer. */
             @Override
             protected ByteBuf newDirectBuffer(int initial, int maximum) {
                 ByteBuf buffer = io.netty.buffer.UnpooledByteBufAllocator.DEFAULT.directBuffer(initial, maximum);
@@ -94,6 +97,7 @@ public class ByteBufLeakTest {
                 return buffer;
             }
 
+            /** Executes is direct buffer pooled. */
             @Override
             public boolean isDirectBufferPooled() {
                 return false;
@@ -140,6 +144,7 @@ public class ByteBufLeakTest {
         leakDetails.set("");
     }
 
+    /** Initializes test fixtures before each test. */
     @BeforeEach
     public void setUp() {
         leakDetected.set(false);
@@ -160,6 +165,7 @@ public class ByteBufLeakTest {
         when(clientHead.getSessionId()).thenReturn(UUID.randomUUID());
     }
 
+    /** Cleans up resources after test execution. */
     @AfterEach
     public void tearDown() throws Exception {
         if (closeableMocks != null) {
@@ -171,6 +177,7 @@ public class ByteBufLeakTest {
         assertFalse(leakDetected.get(), leakDetails::get);
     }
 
+    /** Verifies test encoder decoder cycles zero leaks. */
     @Test
     public void testEncoderDecoderCyclesZeroLeaks() throws IOException {
         for (int i = 0; i < 2000; i++) {
@@ -183,6 +190,7 @@ public class ByteBufLeakTest {
 
             ByteBuf encodedBuffer = Unpooled.buffer();
             encoder.encodePacket(EngineIOVersion.V4, packet, encodedBuffer, allocator, false);
+            assertFalse(ownedAllocations.isEmpty(), "Encoder must allocate through the tracking allocator");
 
             assertNotNull(encodedBuffer);
 
@@ -195,6 +203,7 @@ public class ByteBufLeakTest {
         }
     }
 
+    /** Verifies test batch polling cycles zero leaks. */
     @Test
     public void testBatchPollingCyclesZeroLeaks() throws IOException {
         for (int i = 0; i < 1000; i++) {
@@ -214,6 +223,7 @@ public class ByteBufLeakTest {
 
             ByteBuf batchBuf = Unpooled.buffer();
             encoder.encodePackets(EngineIOVersion.V4, queue, batchBuf, allocator, 10);
+            assertFalse(ownedAllocations.isEmpty(), "Encoder must allocate through the tracking allocator");
 
             assertNotNull(batchBuf);
 
@@ -225,6 +235,7 @@ public class ByteBufLeakTest {
         }
     }
 
+    /** Verifies test direct buffer encoder decoder cycles zero leaks. */
     @Test
     public void testDirectBufferEncoderDecoderCyclesZeroLeaks() throws IOException {
         Configuration directConfig = new Configuration();
@@ -241,6 +252,7 @@ public class ByteBufLeakTest {
 
             ByteBuf directBuffer = Unpooled.directBuffer();
             directEncoder.encodePacket(EngineIOVersion.V4, packet, directBuffer, directAllocator, false);
+            assertFalse(ownedAllocations.isEmpty(), "Encoder must allocate through the tracking allocator");
             assertNotNull(directBuffer);
 
             Packet decodedPacket = decoder.decodePackets(directBuffer, clientHead, Transport.POLLING);
@@ -251,6 +263,7 @@ public class ByteBufLeakTest {
         }
     }
 
+    /** Verifies test actual netty leak detection. */
     @Test
     public void testActualNettyLeakDetection() throws InterruptedException {
         ignoreGlobalLeak.set(true);

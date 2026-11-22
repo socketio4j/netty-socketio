@@ -47,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Independent wire transcripts and exact configured-limit boundaries. */
 public class ProtocolWireBoundaryTest {
+    /** Executes configuration. */
     private static Configuration configuration() {
         Configuration config = new Configuration();
         config.setHostname("127.0.0.1");
@@ -56,6 +57,7 @@ public class ProtocolWireBoundaryTest {
         return config;
     }
 
+    /** Executes request. */
     private static String request(int port, String sid, String body, int expectedStatus) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) new URL("http://127.0.0.1:" + port
                 + "/socket.io/?EIO=4&transport=polling" + (sid == null ? "" : "&sid=" + sid)).openConnection();
@@ -87,6 +89,7 @@ public class ProtocolWireBoundaryTest {
         }
     }
 
+    /** Executes polling session. */
     private static String pollingSession(int port) throws Exception {
         String open = request(port, null, null, 200);
         String sid = new ObjectMapper().readTree(open.substring(1)).get("sid").asText();
@@ -95,6 +98,7 @@ public class ProtocolWireBoundaryTest {
         return sid;
     }
 
+    /** Verifies pending binary attachment and ack survive the probe and upgrade. */
     @Test
     void pendingBinaryAttachmentAndAckSurviveTheProbeAndUpgrade() throws Exception {
         Configuration config = configuration();
@@ -134,6 +138,7 @@ public class ProtocolWireBoundaryTest {
         }
     }
 
+    /** Verifies abrupt socket close releases an actually pending binary source. */
     @Test
     void abruptSocketCloseReleasesAnActuallyPendingBinarySource() throws Exception {
         Configuration config = configuration();
@@ -166,6 +171,7 @@ public class ProtocolWireBoundaryTest {
         }
     }
 
+    /** Executes polling payload limit is enforced at the exact byte boundary. */
     @ParameterizedTest
     @ValueSource(ints = {1_023, 1_024, 1_025})
     void pollingPayloadLimitIsEnforcedAtTheExactByteBoundary(int wireBytes) throws Exception {

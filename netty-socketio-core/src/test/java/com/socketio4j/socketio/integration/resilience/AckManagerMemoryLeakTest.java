@@ -87,6 +87,7 @@ public class AckManagerMemoryLeakTest {
         }
     }
 
+    /** Verifies test ack timeout purge no memory leak. */
     @Test
     @DisplayName("ACK Timeout Purge: Expired Server ACK Callbacks Purge Cleanly")
     public void testAckTimeoutPurgeNoMemoryLeak() throws Exception {
@@ -106,6 +107,7 @@ public class AckManagerMemoryLeakTest {
         AtomicInteger timeoutCount = new AtomicInteger(0);
 
         server.addConnectListener(new ConnectListener() {
+            /** Executes on connect. */
             @Override
             public void onConnect(SocketIOClient client) {
                 serverClient.set(client);
@@ -114,6 +116,7 @@ public class AckManagerMemoryLeakTest {
                 // Send 5 events requiring ACKs with short 1-second timeout
                 for (int i = 0; i < 5; i++) {
                     client.sendEvent("ack-leak-test", new AckCallback<String>(String.class, 1) {
+                        /** Executes on success. */
                         @Override
                         public void onSuccess(String result) {
                             successCount.incrementAndGet();

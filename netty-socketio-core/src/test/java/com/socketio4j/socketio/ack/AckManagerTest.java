@@ -57,6 +57,7 @@ class AckManagerTest {
         private final List<SchedulerKey> cancelled = new java.util.concurrent.CopyOnWriteArrayList<>();
         private final List<Runnable> callbacks = new java.util.concurrent.CopyOnWriteArrayList<>();
 
+        /** Executes update. */
         @Override
         public void update(ChannelHandlerContext ctx) {
         }
@@ -435,11 +436,13 @@ class AckManagerTest {
         assertThat(ackManager.getCallback(sessionId, index)).isNull();
     }
 
+    /** Verifies should handle null packet data in multi type on ack. */
     @Test
     @DisplayName("Should handle null packet data safely in MultiTypeAckCallback")
     void shouldHandleNullPacketDataInMultiTypeOnAck() {
         AtomicReference<MultiTypeArgs> received = new AtomicReference<>();
         MultiTypeAckCallback callback = new MultiTypeAckCallback(String.class) {
+            /** Executes on success. */
             @Override
             public void onSuccess(MultiTypeArgs args) {
                 received.set(args);
@@ -456,6 +459,7 @@ class AckManagerTest {
         assertThat(received.get().getArgs()).isEmpty();
         assertThat(ackManager.getCallback(sessionId, index)).isNull();
     }
+    /** Verifies ack timeout and disconnect have exactly one terminal outcome. */
     @Test
     @org.junit.jupiter.api.Timeout(10)
     void ackTimeoutAndDisconnectHaveExactlyOneTerminalOutcome() throws Exception {

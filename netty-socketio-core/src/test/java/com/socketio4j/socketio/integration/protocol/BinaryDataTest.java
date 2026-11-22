@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class BinaryDataTest extends AbstractSharedSocketIOIntegrationTest {
+    /** Verifies binary event and ack preserve all byte values. */
     @Test
     void binaryEventAndAckPreserveAllByteValues() throws Exception {
         String event = generateEventName("binary");

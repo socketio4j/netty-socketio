@@ -130,6 +130,7 @@ public class ConnPacketTest extends BaseProtocolTest {
         assertNotEquals(connPacket1.getSid(), connPacket3.getSid());
     }
 
+    /** Verifies test conn packet with generated uuids. */
     @Test
     public void testConnPacketWithGeneratedUUIDs() {
         // Test with multiple randomly generated UUIDs
@@ -142,6 +143,7 @@ public class ConnPacketTest extends BaseProtocolTest {
         }
     }
 
+    /** Verifies test conn packet hash code. */
     @Test
     public void testConnPacketHashCode() {
         UUID sid = UUID.randomUUID();
@@ -151,6 +153,7 @@ public class ConnPacketTest extends BaseProtocolTest {
         assertEquals(hashCode, connPacket.hashCode(), "Hash code must remain stable for the same instance");
     }
 
+    /** Verifies test conn packet serialization. */
     @Test
     public void testConnPacketSerialization() throws Exception {
         UUID sid = UUID.randomUUID();

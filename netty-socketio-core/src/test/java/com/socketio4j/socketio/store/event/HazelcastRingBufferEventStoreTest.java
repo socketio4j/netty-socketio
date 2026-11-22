@@ -37,11 +37,13 @@ public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
     private HazelcastInstance hazelcastPub;
     private HazelcastInstance hazelcastSub;
 
+    /** Executes create container. */
     @Override
     protected GenericContainer<?> createContainer() {
         return new CustomizedHazelcastContainer().withReuse(false);  // This is now single-server safe
     }
 
+    /** Executes create event store. */
     @Override
     protected EventStore createEventStore(Long nodeId) throws Exception {
         CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
@@ -61,6 +63,7 @@ public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
         return new HazelcastPubSubEventStore.Builder(hazelcastPub, hazelcastSub).nodeId(nodeId).build();
     }
 
+    /** Cleans up resources after test execution. */
     @Override
     protected void closeClients() {
         java.util.List<com.socketio4j.socketio.TestResourceCleanup.ThrowingAction> actions = new java.util.ArrayList<>();

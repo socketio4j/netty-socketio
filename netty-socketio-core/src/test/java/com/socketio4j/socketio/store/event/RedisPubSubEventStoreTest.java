@@ -35,11 +35,13 @@ public class RedisPubSubEventStoreTest extends AbstractEventStoreTest {
     private RedissonClient redissonPub;
     private RedissonClient redissonSub;
 
+    /** Executes create container. */
     @Override
     protected GenericContainer<?> createContainer() {
         return new CustomizedRedisContainer();
     }
 
+    /** Executes create event store. */
     @Override
     protected EventStore createEventStore(Long nodeId) throws Exception {
         CustomizedRedisContainer customizedRedisContainer = (CustomizedRedisContainer) container;
@@ -54,6 +56,7 @@ public class RedisPubSubEventStoreTest extends AbstractEventStoreTest {
         return new RedisPubSubEventStore(redissonPub, redissonSub, EventStoreMode.MULTI_CHANNEL, nodeId);
     }
 
+    /** Cleans up resources after test execution. */
     @Override
     protected void closeClients() {
         java.util.List<com.socketio4j.socketio.TestResourceCleanup.ThrowingAction> actions = new java.util.ArrayList<>();

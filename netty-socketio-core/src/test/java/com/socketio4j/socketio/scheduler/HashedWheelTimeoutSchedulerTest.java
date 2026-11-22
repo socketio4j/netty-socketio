@@ -576,6 +576,7 @@ public class HashedWheelTimeoutSchedulerTest {
             assertThat(executionCount.get()).isEqualTo(threadCount);
         }
 
+        /** Verifies should handle concurrent timeout replacement. */
         @Test
         @DisplayName("Should handle concurrent timeout replacement")
         @Timeout(value = 10, unit = TimeUnit.SECONDS)

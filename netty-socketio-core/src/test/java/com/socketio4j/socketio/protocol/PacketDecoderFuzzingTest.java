@@ -58,6 +58,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
     @Mock
     private ClientHead clientHead;
 
+    /** Initializes test fixtures before each test. */
     @BeforeEach
     @Override
     public void setUp() {
@@ -69,18 +70,21 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
         when(clientHead.getSessionId()).thenReturn(UUID.randomUUID());
         when(ackManager.getCallback(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong()))
                 .thenAnswer(invocation -> new com.socketio4j.socketio.AckCallback<Object>(Object.class) {
+                    /** Executes on success. */
                     @Override
                     public void onSuccess(Object result) {
                     }
                 });
     }
 
+    /** Cleans up resources after test execution. */
     @AfterEach
     @Override
     public void tearDown() throws Exception {
         closeableMocks.close();
     }
 
+    /** Verifies test fuzz random byte arrays. */
     @Test
     @org.junit.jupiter.api.Timeout(10)
     void testFuzzRandomByteArrays() {
@@ -105,6 +109,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
         }
     }
 
+    /** Verifies test truncated json payloads. */
     @Test
     void testTruncatedJsonPayloads() {
         String[] truncatedInputs = {
@@ -126,6 +131,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
         }
     }
 
+    /** Verifies test malformed header dividers. */
     @Test
     void testMalformedHeaderDividers() {
         String[] malformedHeaders = {
@@ -147,6 +153,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
         }
     }
 
+    /** Verifies test invalid outer packet type bytes. */
     @ParameterizedTest(name = "Fuzz Invalid Outer Packet Type Byte {0}")
     @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
     void testInvalidOuterPacketTypeBytes(EngineIOVersion version) {
@@ -160,6 +167,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
         }
     }
 
+    /** Executes legacy error body has an explicit string fallback contract. */
     @Test
     void legacyErrorBodyHasAnExplicitStringFallbackContract() throws IOException {
         ByteBuf buffer = Unpooled.copiedBuffer("44/admin,legacy-error", CharsetUtil.UTF_8);
@@ -173,6 +181,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
         }
     }
 
+    /** Executes assert expected parsing exception. */
     private static void assertExpectedParsingException(Exception exception) {
         assertTrue(exception instanceof IOException
                         || exception instanceof IllegalArgumentException

@@ -27,11 +27,13 @@ public class CompositeIterator<T> implements Iterator<T> {
     private Iterator<T> currentIterator;
     private Iterator<T> lastReturnedIterator;
     
+    /** Executes composite iterator. */
     public CompositeIterator(Iterator<Iterator<T>> listIterator) {
         this.currentIterator = null;
         this.listIterator = listIterator;
     }
 
+    /** Executes has next. */
     @Override
     public boolean hasNext() {
         if (currentIterator == null || !currentIterator.hasNext()) {
@@ -47,6 +49,7 @@ public class CompositeIterator<T> implements Iterator<T> {
         return true; // can only be reached when currentIterator.hasNext() is true
     }
 
+    /** Executes next. */
     @Override
     public T next() {
         if (!hasNext()) {
@@ -57,6 +60,7 @@ public class CompositeIterator<T> implements Iterator<T> {
         return value;
     }
 
+    /** Verifies remove. */
     @Override
     public void remove() {
         if (lastReturnedIterator == null) {

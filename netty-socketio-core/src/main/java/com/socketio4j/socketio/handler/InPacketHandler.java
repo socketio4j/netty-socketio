@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.AuthTokenResult;
+import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.listener.ExceptionListener;
 import com.socketio4j.socketio.messages.PacketsMessage;
@@ -34,6 +35,7 @@ import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketDecoder;
 import com.socketio4j.socketio.protocol.PacketType;
 import com.socketio4j.socketio.transport.NamespaceClient;
+import com.socketio4j.socketio.transport.PollingTransport;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler.Sharable;
@@ -61,6 +63,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         this.exceptionListener = exceptionListener;
     }
 
+    /** Executes channel read0. */
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, PacketsMessage message)
                 throws Exception {
@@ -149,7 +152,10 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                         // CONNECT before any other packet on a namespace. Do not let
                         // an unconnected client emit events or ACKs into application code.
                         client.disconnectWithProtocolClose();
-                        ctx.close();
+                        if (message.getTransport() != Transport.POLLING
+                                || ctx.pipeline().get(PollingTransport.class) == null) {
+                            ctx.close();
+                        }
                         return;
                     }
                     log.debug("Can't find namespace client in namespace: {}, sessionId: {} probably it was disconnected.", ns.getName(), client.getSessionId());
@@ -194,12 +200,14 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         }
     }
 
+    /** Executes is transport control. */
     private static boolean isTransportControl(ByteBuf content) {
         byte type = content.getByte(content.readerIndex());
         return type == '2' || type == '3'
                 || (content.readableBytes() == 1 && (type == '1' || type == '5' || type == '6'));
     }
 
+    /** Executes to connect error payload. */
     private static Object toConnectErrorPayload(ClientHead client, Object errorData) {
 
         if (client.getEngineIOVersion() == EngineIOVersion.V4) {

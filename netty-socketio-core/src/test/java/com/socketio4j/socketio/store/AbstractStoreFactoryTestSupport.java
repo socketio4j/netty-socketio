@@ -107,12 +107,14 @@ public abstract class AbstractStoreFactoryTestSupport {
         assertEquals(map, sameMap, "Getting map with same name should return same instance");
     }
 
+    /** Verifies test event store creation. */
     @Test
     public void testEventStoreCreation() {
         EventStore eventStore = storeFactory.eventStore();
         assertNotNull(eventStore, "EventStore should not be null");
     }
 
+    /** Verifies test shutdown. */
     @Test
     public void testShutdown() {
         UUID sessionId = UUID.randomUUID();

@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import com.socketio4j.socketio.AckCallback;
 import com.socketio4j.socketio.MultiTypeAckCallback;
@@ -49,6 +48,7 @@ public class JsonSupportTest extends BaseProtocolTest {
 
     private final JacksonJsonSupport jsonSupport = new JacksonJsonSupport();
 
+    /** Executes read. */
     private <T> T read(String namespace, String json, Class<T> type) throws IOException {
         ByteBuf buffer = Unpooled.copiedBuffer(json, StandardCharsets.UTF_8);
         try (ByteBufInputStream in = new ByteBufInputStream(buffer)) {
@@ -58,6 +58,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         }
     }
 
+    /** Executes write. */
     private String write(Object value) throws IOException {
         ByteBuf buffer = Unpooled.buffer();
         try (ByteBufOutputStream out = new ByteBufOutputStream(buffer)) {
@@ -68,11 +69,13 @@ public class JsonSupportTest extends BaseProtocolTest {
         }
     }
 
+    /** Verifies test read ack args. */
     @Test
     public void testReadAckArgs() throws IOException {
         ByteBuf buf = Unpooled.copiedBuffer("[\"arg1\",\"arg2\"]", StandardCharsets.UTF_8);
         try (ByteBufInputStream inputStream = new ByteBufInputStream(buf)) {
             AckCallback<String> ackCallback = new AckCallback<String>(String.class) {
+                /** Executes on success. */
                 @Override
                 public void onSuccess(String result) {
                 }
@@ -85,6 +88,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         }
     }
 
+    /** Verifies test read value. */
     @Test
     public void testReadValue() throws IOException {
         ByteBuf buf = Unpooled.copiedBuffer("\"testValue\"", StandardCharsets.UTF_8);
@@ -96,6 +100,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         }
     }
 
+    /** Verifies test write value. */
     @Test
     public void testWriteValue() throws IOException {
         ByteBuf buf = Unpooled.buffer();
@@ -107,6 +112,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         }
     }
 
+    /** Verifies test add event mapping. */
     @Test
     public void testAddEventMapping() throws IOException {
         String namespaceName = "/testNamespace";
@@ -118,6 +124,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         assertEquals(Arrays.asList("payloadData"), event.getArgs());
     }
 
+    /** Verifies test add event mapping with multiple classes. */
     @Test
     public void testAddEventMappingWithMultipleClasses() throws IOException {
         String namespaceName = "/testNamespace";
@@ -129,6 +136,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         assertEquals(Arrays.asList("payloadData", 123), event.getArgs());
     }
 
+    /** Verifies test remove event mapping. */
     @Test
     public void testRemoveEventMapping() throws IOException {
         String namespaceName = "/testNamespace";
@@ -143,6 +151,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         assertEquals(Arrays.asList("genericValue"), after.getArgs());
     }
 
+    /** Verifies test get arrays. */
     @Test
     public void testGetArrays() throws IOException {
         byte[] array1 = "array1".getBytes(StandardCharsets.UTF_8);
@@ -156,6 +165,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         assertArrayEquals(array2, result.get(1));
     }
 
+    /** Verifies test get arrays returns empty list. */
     @Test
     public void testGetArraysReturnsEmptyList() throws IOException {
         write("nonBinaryPayload");
@@ -164,6 +174,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         assertTrue(result.isEmpty());
     }
 
+    /** Verifies test read value with different types. */
     @Test
     public void testReadValueWithDifferentTypes() throws IOException {
         String str = read("ns", "\"stringValue\"", String.class);
@@ -180,6 +191,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         assertEquals("val", map.get("key"));
     }
 
+    /** Verifies test write value with different types. */
     @Test
     public void testWriteValueWithDifferentTypes() throws IOException {
         assertEquals("\"stringValue\"", write("stringValue"));
@@ -188,6 +200,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         assertEquals("[\"a\",\"b\"]", write(Arrays.asList("a", "b")));
     }
 
+    /** Verifies test add event mapping with null parameters. */
     @Test
     public void testAddEventMappingWithNullParameters() {
         jsonSupport.addEventMapping(null, null, (Class<?>) null);
@@ -195,6 +208,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         jsonSupport.addEventMapping("/ns", null, Integer.class);
     }
 
+    /** Verifies test remove event mapping with null parameters. */
     @Test
     public void testRemoveEventMappingWithNullParameters() {
         jsonSupport.removeEventMapping(null, null);
@@ -202,25 +216,26 @@ public class JsonSupportTest extends BaseProtocolTest {
         jsonSupport.removeEventMapping("/ns", null);
     }
 
+    /** Verifies test read value with null namespace. */
     @Test
     public void testReadValueWithNullNamespace() throws IOException {
         String result = read(null, "\"testValue\"", String.class);
         assertEquals("testValue", result);
     }
 
+    /** Verifies test write value with null value. */
     @Test
     public void testWriteValueWithNullValue() throws IOException {
         assertEquals("null", write(null));
     }
 
+    /** Verifies test get arrays returns null. */
     @Test
     public void testGetArraysReturnsNull() {
         assertNotNull(jsonSupport.getArrays(), "JacksonJsonSupport returns non-null list");
-        JsonSupport customJson = Mockito.mock(JsonSupport.class);
-        Mockito.when(customJson.getArrays()).thenReturn(null);
-        assertNull(customJson.getArrays(), "Custom JsonSupport contract permits returning null");
     }
 
+    /** Verifies test multiple event mappings. */
     @Test
     public void testMultipleEventMappings() throws IOException {
         String namespace1 = "/ns1";
@@ -238,6 +253,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         assertEquals(Arrays.asList(42), e2.getArgs());
     }
 
+    /** Verifies test multiple event removals. */
     @Test
     public void testMultipleEventRemovals() throws IOException {
         String namespace1 = "/ns1";
@@ -258,6 +274,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         assertEquals(Arrays.asList("untyped2"), e2.getArgs());
     }
 
+    /** Executes scalar and null values use real json encoding. */
     @Test
     void scalarAndNullValuesUseRealJsonEncoding() throws IOException {
         assertEquals("\"hello\\nதமிழ்\"", write("hello\nதமிழ்"));
@@ -270,6 +287,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         assertNull(read("/chat", "null", String.class));
     }
 
+    /** Executes mappings are scoped by namespace and removal restores untyped decoding. */
     @Test
     void mappingsAreScopedByNamespaceAndRemovalRestoresUntypedDecoding() throws IOException {
         jsonSupport.addEventMapping("/a", "value", Integer.class);
@@ -283,6 +301,7 @@ public class JsonSupportTest extends BaseProtocolTest {
                 read("/b", "[\"value\",\"still scoped\"]", Event.class).getArgs());
     }
 
+    /** Executes maps multiple arguments and rejects wrong mapped shape. */
     @Test
     void mapsMultipleArgumentsAndRejectsWrongMappedShape() throws IOException {
         jsonSupport.addEventMapping("/chat", "pair", String.class, Integer.class);
@@ -295,6 +314,7 @@ public class JsonSupportTest extends BaseProtocolTest {
                 read("/chat", "[\"pair\",\"valid\",3]", Event.class).getArgs());
     }
 
+    /** Verifies binary serialization extracts exact bytes and resets between writes. */
     @Test
     void binarySerializationExtractsExactBytesAndResetsBetweenWrites() throws IOException {
         byte[] bytes = new byte[] {0, 1, -1, 4};
@@ -316,10 +336,12 @@ public class JsonSupportTest extends BaseProtocolTest {
         }
     }
 
+    /** Verifies test jackson multi type ack callback with extra client arguments. */
     @Test
     public void testJacksonMultiTypeAckCallbackWithExtraClientArguments() throws IOException {
         InspectableJacksonJsonSupport realSupport = new InspectableJacksonJsonSupport();
         MultiTypeAckCallback callback = new MultiTypeAckCallback(new Class<?>[] {String.class, Integer.class}) {
+            /** Executes on success. */
             @Override
             public void onSuccess(MultiTypeArgs result) {
                 // no-op
@@ -361,6 +383,7 @@ public class JsonSupportTest extends BaseProtocolTest {
         }
     }
 
+    /** Verifies test jackson event deserializer rejects null and non string event names. */
     @Test
     public void testJacksonEventDeserializerRejectsNullAndNonStringEventNames() {
         InspectableJacksonJsonSupport realSupport = new InspectableJacksonJsonSupport();

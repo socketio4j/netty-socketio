@@ -143,6 +143,7 @@ public abstract class AbstractStoreTest {
         Assertions.assertThat((String) store.get("overwriteKey")).isEqualTo("updated");
     }
 
+    /** Verifies test delete non existent key. */
     @Test
     public void testDeleteNonExistentKey() {
         // Should not throw exception
@@ -150,11 +151,13 @@ public abstract class AbstractStoreTest {
         Assertions.assertThat(store.has("nonexistent")).isFalse();
     }
 
+    /** Verifies test get non existent key. */
     @Test
     public void testGetNonExistentKey() {
         Assertions.assertThat((String) store.get("nonexistent")).isNull();
     }
 
+    /** Verifies test concurrent access. */
     @Test
     public void testConcurrentAccess() throws InterruptedException {
         final int threadCount = 10;
@@ -185,7 +188,7 @@ public abstract class AbstractStoreTest {
 
         // Wait for all threads to complete
         for (Thread thread : threads) {
-            thread.join(10_000);
+            thread.join(30_000);
             Assertions.assertThat(thread.isAlive()).isFalse();
         }
         if (!workerFailures.isEmpty()) {

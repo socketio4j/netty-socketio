@@ -14,6 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 const { chromium, firefox, webkit } = require("playwright");
 
 const HTTP_PORT = process.env.HTTP_PORT || "8080";
@@ -42,6 +45,10 @@ const ALL_VERSIONS = [
     "4.8.3"
 ];
 
+/**
+ * Resolves the list of Socket.IO client versions to execute from
+ * SOCKETIO_INTEROP_VERSIONS, falling back to ALL_VERSIONS.
+ */
 function resolveVersions() {
     const configured = process.env.SOCKETIO_INTEROP_VERSIONS;
     if (!configured) {
@@ -70,6 +77,9 @@ const transports = [
     "websocket"
 ];
 
+/**
+ * Runs a single browser interop matrix case for the given version and transport.
+ */
 async function runCase(browser, browserInfo, version, transport) {
 
     console.log();
@@ -146,12 +156,16 @@ async function runCase(browser, browserInfo, version, transport) {
     }
 }
 
+/**
+ * Launches a Playwright browser family and runs all configured version and transport cases.
+ */
 async function runBrowser(browserInfo) {
 
     let failures = 0;
     const launchOptions = {
         headless: true
     };
+    let firefoxHomeDir = null;
     if (browserInfo.name === "Chromium") {
         launchOptions.args = [
             "--no-sandbox",
@@ -159,17 +173,41 @@ async function runBrowser(browserInfo) {
             "--disable-dev-shm-usage",
             "--disable-gpu"
         ];
+    } else if (browserInfo.name === "Firefox" && process.platform === "darwin") {
+        // Isolate macOS NSApplicationSupportDirectory from the user's home directory
+        // so headless Firefox does not block on the modal profileMissing dialog in
+        // sandboxed environments where ~/Library/Application Support/Firefox is read-only.
+        firefoxHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "playwright-ff-home-"));
+        launchOptions.env = {
+            ...process.env,
+            CFFIXED_USER_HOME: firefoxHomeDir
+        };
     }
-    const browser = await browserInfo.type.launch(launchOptions);
 
+    let browser = null;
     try {
+        browser = await browserInfo.type.launch(launchOptions);
         for (const version of versions) {
             for (const transport of transports) {
                 failures += await runCase(browser, browserInfo, version, transport);
             }
         }
     } finally {
-        await browser.close();
+        if (browser !== null) {
+            await browser.close();
+        }
+        if (firefoxHomeDir !== null) {
+            try {
+                fs.rmSync(firefoxHomeDir, {
+                    recursive: true,
+                    force: true,
+                    maxRetries: 5,
+                    retryDelay: 100
+                });
+            } catch (_) {
+                // Ignore transient cleanup race if a child process exits asynchronously.
+            }
+        }
     }
 
     return failures;

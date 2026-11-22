@@ -141,6 +141,7 @@ public class TransportUpgradeIsolationTest {
         }
     }
 
+    /** Verifies test mid stream transport upgrade. */
     @Test
     @DisplayName("Mid-Stream Transport Upgrade: Polling to WebSocket under Traffic")
     public void testMidStreamTransportUpgrade() throws Exception {
@@ -162,6 +163,7 @@ public class TransportUpgradeIsolationTest {
         CopyOnWriteArrayList<String> upgradeFailures = new CopyOnWriteArrayList<>();
 
         server.addEventListener("register-client", String.class, new DataListener<String>() {
+            /** Executes on data. */
             @Override
             public void onData(SocketIOClient client, String cliCode, AckRequest ackSender) {
                 sessionToCliCodeMap.put(client.getSessionId(), cliCode);
@@ -172,6 +174,7 @@ public class TransportUpgradeIsolationTest {
         });
 
         server.addEventListener("echo-upgrade", EchoMessage.class, new DataListener<EchoMessage>() {
+            /** Executes on data. */
             @Override
             public void onData(SocketIOClient client, EchoMessage data, AckRequest ackSender) {
                 String expectedCode = sessionToCliCodeMap.get(client.getSessionId());
@@ -257,6 +260,7 @@ public class TransportUpgradeIsolationTest {
                         final int currentSeq = seq;
 
                         clientSocket.emit("echo-upgrade", new Object[]{ payload }, new Ack() {
+                            /** Executes call. */
                             @Override
                             public void call(Object... ackArgs) {
                                 try {

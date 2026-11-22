@@ -558,6 +558,7 @@ public class OnEventScannerTest extends AnnotationTestBase {
         assertFalse(multiMethodHandler.regularMethodCalled);
     }
 
+    /** Verifies test handler method parameter passing. */
     @Test
     void testHandlerMethodParameterPassing() throws Exception {
         // Test that the handler method receives the correct parameters

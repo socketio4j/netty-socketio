@@ -20,17 +20,23 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
+import java.security.Principal;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509TrustManager;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -62,6 +68,7 @@ class TlsPeerVerificationTest {
     @TempDir
     static Path certificates;
 
+    /** Executes generate test identities. */
     @BeforeAll
     static void generateTestIdentities() throws Exception {
         for (String identity : new String[]{"server", "trusted-client", "untrusted-client"}) {
@@ -90,6 +97,7 @@ class TlsPeerVerificationTest {
         }
     }
 
+    /** Executes identity. */
     private static KeyStore identity(String name) throws Exception {
         KeyStore store = KeyStore.getInstance("PKCS12");
         try (InputStream input = Files.newInputStream(certificates.resolve(name + ".p12"))) {
@@ -98,6 +106,7 @@ class TlsPeerVerificationTest {
         return store;
     }
 
+    /** Executes trust. */
     private static KeyStore trust(String identity) throws Exception {
         KeyStore store = KeyStore.getInstance("PKCS12");
         store.load(null, PASSWORD);
@@ -114,6 +123,7 @@ class TlsPeerVerificationTest {
         "true, trusted-client, true, localhost, true",
         "true, untrusted-client, true, localhost, false"
     })
+    /** Verifies verifies server and client identity. */
     void verifiesServerAndClientIdentity(boolean mutual, String clientIdentity, boolean trustedServer,
                                         String host, boolean accepted) throws Exception {
         SocketSslConfig ssl = new SocketSslConfig();
@@ -133,6 +143,7 @@ class TlsPeerVerificationTest {
         config.setSocketSslConfig(ssl);
         CompletableFuture<Throwable> serverFailure = new CompletableFuture<>();
         config.setExceptionListener(new DefaultExceptionListener() {
+            /** Executes exception caught. */
             @Override
             public boolean exceptionCaught(ChannelHandlerContext ctx, Throwable error) {
                 serverFailure.complete(error);
@@ -146,7 +157,56 @@ class TlsPeerVerificationTest {
         if (!clientIdentity.equals("none")) {
             KeyManagerFactory factory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             factory.init(identity(clientIdentity), PASSWORD);
-            keys = factory.getKeyManagers();
+            X509ExtendedKeyManager delegate = (X509ExtendedKeyManager) factory.getKeyManagers()[0];
+            keys = new KeyManager[]{new X509ExtendedKeyManager() {
+                /** Executes get client aliases. */
+                @Override
+                public String[] getClientAliases(String keyType, Principal[] issuers) {
+                    return delegate.getClientAliases(keyType, issuers);
+                }
+
+                /** Executes choose client alias. */
+                @Override
+                public String chooseClientAlias(String[] keyType, Principal[] issuers, Socket socket) {
+                    return clientIdentity;
+                }
+
+                /** Executes choose engine client alias. */
+                @Override
+                public String chooseEngineClientAlias(String[] keyType, Principal[] issuers, SSLEngine engine) {
+                    return clientIdentity;
+                }
+
+                /** Executes get server aliases. */
+                @Override
+                public String[] getServerAliases(String keyType, Principal[] issuers) {
+                    return delegate.getServerAliases(keyType, issuers);
+                }
+
+                /** Executes choose server alias. */
+                @Override
+                public String chooseServerAlias(String keyType, Principal[] issuers, Socket socket) {
+                    return delegate.chooseServerAlias(keyType, issuers, socket);
+                }
+
+                /** Executes choose engine server alias. */
+                @Override
+                public String chooseEngineServerAlias(String keyType, Principal[] issuers, SSLEngine engine) {
+                    return delegate.chooseEngineServerAlias(keyType, issuers, engine);
+                }
+
+                /** Executes get certificate chain. */
+                @Override
+                public X509Certificate[] getCertificateChain(String alias) {
+                    return delegate.getCertificateChain(alias);
+                }
+
+                /** Executes get private key. */
+                @Override
+                public PrivateKey getPrivateKey(String alias) {
+                    return delegate.getPrivateKey(alias);
+                }
+            }};
         }
         TrustManagerFactory trusts = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         trusts.init(trustedServer ? trust("server") : (KeyStore) null);

@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** A connected raw peer withholds PONG; no client disconnect API is called. */
 public class ClientHeartbeatTimeoutReapTest {
+    /** Verifies reaps only the peer that withholds pong. */
     @Test
     void reapsOnlyThePeerThatWithholdsPong() throws Exception {
         Configuration config = new Configuration();
@@ -45,15 +46,20 @@ public class ClientHeartbeatTimeoutReapTest {
         config.setPingInterval(200);
         config.setPingTimeout(600);
         SocketIOServer server = new SocketIOServer(config);
+        java.util.concurrent.CountDownLatch connected = new java.util.concurrent.CountDownLatch(2);
         java.util.concurrent.CountDownLatch reaped = new java.util.concurrent.CountDownLatch(1);
         AtomicReference<UUID> disconnected = new AtomicReference<>();
         server.addDisconnectListener(client -> { disconnected.set(client.getSessionId()); reaped.countDown(); });
-        server.addConnectListener(client -> client.joinRoom("heartbeat-room"));
+        server.addConnectListener(client -> {
+            client.joinRoom("heartbeat-room");
+            connected.countDown();
+        });
         server.addEventListener("health", String.class, (client, data, ack) -> ack.sendAckData(data));
         try {
             server.start();
             try (RawWebSocketClient healthy = new RawWebSocketClient(config.getPort(), true);
                     RawWebSocketClient stalled = new RawWebSocketClient(config.getPort(), false)) {
+                assertTrue(connected.await(5, TimeUnit.SECONDS), "Both peers must complete namespace connect listener");
                 UUID stalledId = UUID.fromString(stalled.sessionId());
                 SocketIOClient stalledClient = server.getClient(stalledId);
                 assertTrue(stalledClient.getAllRooms().contains("heartbeat-room"));

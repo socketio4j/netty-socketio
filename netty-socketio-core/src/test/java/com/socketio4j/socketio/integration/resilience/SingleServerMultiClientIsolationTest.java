@@ -16,8 +16,6 @@
  */
 package com.socketio4j.socketio.integration.resilience;
 
-import java.io.IOException;
-import java.net.ServerSocket;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -169,15 +167,6 @@ public class SingleServerMultiClientIsolationTest {
         }
     }
 
-    private static int findAvailablePort() {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            socket.setReuseAddress(true);
-            return socket.getLocalPort();
-        } catch (IOException e) {
-            throw new RuntimeException("Could not find an available TCP port", e);
-        }
-    }
-
     // ── Test Cases ────────────────────────────────────────────────────────────
 
     @Test
@@ -186,6 +175,7 @@ public class SingleServerMultiClientIsolationTest {
         runMultiClientIsolationTest(Transport.POLLING);
     }
 
+    /** Verifies test web socket transport strict isolation. */
     @Test
     @DisplayName("Rigorous Parallel Multi-Client Isolation Test: WebSocket (Upgrade Disabled)")
     public void testWebSocketTransportStrictIsolation() throws Exception {
@@ -195,11 +185,9 @@ public class SingleServerMultiClientIsolationTest {
     // ── Core Test Runner ──────────────────────────────────────────────────────
 
     private void runMultiClientIsolationTest(Transport targetTransport) throws Exception {
-        port = findAvailablePort();
-
         Configuration config = new Configuration();
         config.setHostname("127.0.0.1");
-        config.setPort(port);
+        config.setPort(0);
         config.setTransports(targetTransport);
         config.setAllowCustomRequests(true);
 
@@ -257,6 +245,7 @@ public class SingleServerMultiClientIsolationTest {
         });
 
         server.start();
+        port = config.getPort();
 
         // Dedicated HTTP client with expanded concurrency capacity for 25 simultaneous polling connections
         Dispatcher dispatcher = new Dispatcher();

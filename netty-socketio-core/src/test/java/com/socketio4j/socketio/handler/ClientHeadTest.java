@@ -182,6 +182,7 @@ public class ClientHeadTest {
         websocketChannel.finishAndReleaseAll();
     }
 
+    /** Verifies should schedule independent timeouts for poll flush listeners. */
     @Test
     void shouldScheduleIndependentTimeoutsForPollFlushListeners() {
         Runnable firstListener = mock(Runnable.class);
@@ -284,6 +285,7 @@ public class ClientHeadTest {
         lateChannel.finishAndReleaseAll();
     }
 
+    /** Verifies test disconnect during enqueue preserves other packets. */
     @Test
     void testDisconnectDuringEnqueuePreservesOtherPackets() {
         ClientHead sendingClient = spy(clientHead);
@@ -304,6 +306,7 @@ public class ClientHeadTest {
         assertEquals(disconnect, queue.poll());
     }
 
+    /** Verifies test send checks channel writability. */
     @Test
     void testSendChecksChannelWritability() {
         Channel channel = mock(Channel.class);
@@ -414,6 +417,7 @@ public class ClientHeadTest {
         promiseChannel.finishAndReleaseAll();
     }
 
+    /** Verifies test transport state counting queue operations maintain exact size. */
     @Test
     void testTransportStateCountingQueueOperationsMaintainExactSize() {
         TransportState state = new TransportState();

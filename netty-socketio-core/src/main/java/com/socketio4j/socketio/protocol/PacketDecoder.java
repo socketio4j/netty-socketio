@@ -503,6 +503,7 @@ public class PacketDecoder {
         return packet;
     }
 
+    /** Executes parse header. */
     private void parseHeader(ByteBuf frame, Packet packet, PacketType innerType) {
         if (innerType == PacketType.CONNECT
                 || innerType == PacketType.DISCONNECT

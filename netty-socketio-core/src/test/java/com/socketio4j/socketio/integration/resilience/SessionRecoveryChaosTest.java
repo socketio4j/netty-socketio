@@ -109,6 +109,7 @@ public class SessionRecoveryChaosTest {
         }
     }
 
+    /** Executes find available port. */
     private static int findAvailablePort() {
         try (ServerSocket socket = new ServerSocket(0)) {
             socket.setReuseAddress(true);
@@ -118,6 +119,7 @@ public class SessionRecoveryChaosTest {
         }
     }
 
+    /** Verifies test explicit reconnect between acknowledged batches. */
     @Test
     @DisplayName("Explicit reconnect between acknowledged traffic batches")
     public void testExplicitReconnectBetweenAcknowledgedBatches() throws Exception {
@@ -178,6 +180,7 @@ public class SessionRecoveryChaosTest {
             payload.put("seq", 1);
 
             socket.emit("chaos-event", new Object[]{ payload }, new Ack() {
+                /** Executes call. */
                 @Override
                 public void call(Object... args) {
                     if (args.length != 1 || !"ACK-1".equals(args[0])) failures.add("Incorrect first-phase ACK");
@@ -208,6 +211,7 @@ public class SessionRecoveryChaosTest {
             payload.put("seq", 2);
 
             socket.emit("chaos-event", new Object[]{ payload }, new Ack() {
+                /** Executes call. */
                 @Override
                 public void call(Object... args) {
                     if (args.length != 1 || !"ACK-2".equals(args[0])) failures.add("Incorrect second-phase ACK");

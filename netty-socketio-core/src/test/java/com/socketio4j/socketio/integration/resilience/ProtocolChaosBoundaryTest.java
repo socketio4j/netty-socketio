@@ -41,6 +41,7 @@ public class ProtocolChaosBoundaryTest {
     @ParameterizedTest
     @ValueSource(strings = {"99999invalid_packet_type", "40{invalid_json_auth_payload",
             "459999999999999999999999-[\"bad\"]"})
+    /** Verifies rejects malformed frames and serves afresh client. */
     void rejectsMalformedFramesAndServesAFreshClient(String malformed) throws Exception {
         Configuration config = new Configuration();
         config.setHostname("127.0.0.1");
@@ -48,11 +49,13 @@ public class ProtocolChaosBoundaryTest {
         config.setTransports(Transport.WEBSOCKET);
         BlockingQueue<Throwable> rejected = new LinkedBlockingQueue<>();
         config.setExceptionListener(new ExceptionListenerAdapter() {
+            /** Executes on auth exception. */
             @Override
             public void onAuthException(Throwable error, com.socketio4j.socketio.SocketIOClient client) {
                 rejected.add(error);
             }
 
+            /** Executes exception caught. */
             @Override
             public boolean exceptionCaught(ChannelHandlerContext ctx, Throwable error) {
                 rejected.add(error);

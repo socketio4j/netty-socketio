@@ -196,8 +196,18 @@ public class EncoderHandler extends ChannelOutboundHandlerAdapter {
             }
         }
 
+        if (msg instanceof XHRPostMessage) {
+            // Release the per-session polling POST guard before flushing the
+            // "ok" response bytes to the socket so a sequential POST from the
+            // client arriving on another EventLoop cannot observe a stale lock.
+            promise.trySuccess();
+            channel.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT).addListener(ChannelFutureListener.CLOSE);
+            return;
+        }
+
         channel.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT, promise).addListener(ChannelFutureListener.CLOSE);
     }
+    /** Executes send error. */
     private void sendError(HttpErrorMessage errorMsg, ChannelHandlerContext ctx, ChannelPromise promise) throws IOException {
         if (log.isDebugEnabled()) {
             log.debug("Sending HTTP error response, sessionId: {}, status: {}", 

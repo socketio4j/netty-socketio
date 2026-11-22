@@ -45,25 +45,30 @@ public final class RawWebSocketClient implements AutoCloseable {
     private final WebSocket socket;
     private final String sessionId;
 
+    /** Executes raw web socket client. */
     public RawWebSocketClient(int port, boolean respondToPing) throws Exception {
         this(port, respondToPing, null);
     }
 
+    /** Executes raw web socket client. */
     public RawWebSocketClient(int port, boolean respondToPing, String existingSession) throws Exception {
         socket = http.newWebSocket(new Request.Builder()
                 .url("ws://127.0.0.1:" + port + "/socket.io/?EIO=4&transport=websocket"
                         + (existingSession == null ? "" : "&sid=" + existingSession)).build(),
                 new WebSocketListener() {
+                    /** Executes on open. */
                     @Override
                     public void onOpen(WebSocket peer, Response response) {
                         opened.countDown();
                     }
 
+                    /** Executes on message. */
                     @Override
                     public void onMessage(WebSocket peer, ByteString bytes) {
                         binaryFrames.add(bytes.toByteArray());
                     }
 
+                    /** Executes on message. */
                     @Override
                     public void onMessage(WebSocket peer, String text) {
                         frames.add(text);
@@ -74,6 +79,7 @@ public final class RawWebSocketClient implements AutoCloseable {
                         }
                     }
 
+                    /** Executes on failure. */
                     @Override
                     public void onFailure(WebSocket peer, Throwable error, Response response) {
                         failure.compareAndSet(null, error);
@@ -95,24 +101,29 @@ public final class RawWebSocketClient implements AutoCloseable {
         }
     }
 
+    /** Executes await binary frame. */
     public byte[] awaitBinaryFrame() throws InterruptedException {
         byte[] bytes = binaryFrames.poll(5, TimeUnit.SECONDS);
         org.junit.jupiter.api.Assertions.assertNotNull(bytes, "Expected a real binary frame");
         return bytes;
     }
 
+    /** Executes session id. */
     public String sessionId() {
         return sessionId;
     }
 
+    /** Executes send. */
     public void send(String frame) {
         assertTrue(socket.send(frame), "Raw peer rejected text write: " + frame);
     }
 
+    /** Executes send. */
     public void send(byte[] frame) {
         assertTrue(socket.send(ByteString.of(frame)), "Raw peer rejected binary write");
     }
 
+    /** Executes await frame. */
     public String awaitFrame(Predicate<String> expected) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         List<String> observed = new ArrayList<>();
@@ -132,12 +143,14 @@ public final class RawWebSocketClient implements AutoCloseable {
         throw new AssertionError("Expected wire frame was not received; frames=" + observed);
     }
 
+    /** Executes assert health exchange. */
     public void assertHealthExchange(String nonce) throws Exception {
         send("427[\"health\",\"" + nonce + "\"]");
         assertTrue(awaitFrame(frame -> frame.startsWith("437")).equals("437[\"" + nonce + "\"]"),
                 "Health ACK must preserve id and payload");
     }
 
+    /** Executes close. */
     @Override
     public void close() {
         socket.cancel();

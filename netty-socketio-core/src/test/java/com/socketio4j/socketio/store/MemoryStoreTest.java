@@ -125,6 +125,7 @@ public class MemoryStoreTest extends AbstractStoreTest {
         assertTrue(getTime < 1000, "Get operations took too long: " + getTime + "ms");
     }
 
+    /** Verifies test memory store explicit deletion. */
     @Test
     public void testMemoryStoreExplicitDeletion() {
         store.set("sessionData", "userData");

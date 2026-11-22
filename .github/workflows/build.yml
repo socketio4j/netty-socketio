@@ -116,6 +116,18 @@ jobs:
           docker info || true
 
       # --- Set up Docker on Windows via WSL2 ---
+      - name: Cap WSL2 memory on Windows
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: bash
+        run: |
+          cat <<'EOF' > "$USERPROFILE/.wslconfig"
+          [wsl2]
+          memory=4GB
+          processors=2
+          swap=2GB
+          EOF
+
       - name: Set up WSL on Windows
         if: runner.os == 'Windows'
         continue-on-error: true
@@ -197,8 +209,12 @@ jobs:
           else
             echo "Docker daemon is active and reachable. Running full test suite including Testcontainers."
           fi
+          FORK_COUNT="1C"
+          if [ "${{ runner.os }}" != "Linux" ]; then
+            FORK_COUNT="1"
+          fi
           mvn --batch-mode --errors --fail-at-end -T 1C \
-            -Dsocketio.test.forkCount=1C \
+            -Dsocketio.test.forkCount=$FORK_COUNT \
             -Dsocketio.test.reuseForks=true \
             -Pcoverage -Dsocketio.interop.versions=${{ inputs.interopVersions }} $DOCKER_FLAG verify
 

@@ -258,6 +258,7 @@ public class ClientHead {
         }, configuration.getPingInterval(), TimeUnit.MILLISECONDS);
     }
 
+    /** Executes schedule ping timeout. */
     public void schedulePingTimeout() {
         cancelPingTimeout();
         SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, sessionId);

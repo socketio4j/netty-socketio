@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Concurrent membership mutations with wire barriers and exact recipient assertions. */
 public class RoomMembershipChurnTest {
+    /** Verifies broadcasts reach exactly the members after concurrent join and leave. */
     @Test
     void broadcastsReachExactlyTheMembersAfterConcurrentJoinAndLeave() throws Exception {
         Configuration config = new Configuration();
@@ -122,6 +123,7 @@ public class RoomMembershipChurnTest {
         }
     }
 
+    /** Executes emit checked ack. */
     private static Runnable emitCheckedAck(Socket client, String event, String room, String expected) {
         CountDownLatch acked = new CountDownLatch(1);
         AtomicReference<Object[]> response = new AtomicReference<>();

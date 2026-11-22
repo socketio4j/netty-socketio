@@ -310,6 +310,7 @@ public class NamespaceRoomManagementTest extends AbstractNamespaceTestSupport {
         // Verify all operations completed successfully
         assertTrue(bulkLatch.getCount() == 0);
     }
+    /** Verifies room broadcast checks exact recipients and payload. */
     @Test
     void roomBroadcastChecksExactRecipientsAndPayload() {
         namespace.getRoomOperations(ROOM_NAME_1).sendEvent("room-event", "exact-value");

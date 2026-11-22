@@ -231,6 +231,7 @@ public class UTF8CharsScannerTest extends BaseProtocolTest {
         buffer.release();
     }
 
+    /** Verifies test get actual length performance. */
     @Test
     public void testGetActualLengthPerformance() {
         // Performance test with large string

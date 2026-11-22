@@ -29,7 +29,8 @@ CONTROLS = [
     ("ack-timeout-retains-callback", "AckManagerMemoryLeakTest", MAIN + "ack/AckManager.java",
      "return ackEntry.removeCallback(index);", "return ackEntry.getAckCallback(index);"),
     ("slow-consumer-retains-queue", "ClientHeadTest", MAIN + "handler/ClientHead.java",
-     "transportState.getPacketsQueue().clear();", "// Deliberately retain the disconnected consumer queue."),
+     "if (state.getPacketsQueue() != deferredQueue) {\n                state.clearPacketsQueue();\n            }",
+     "// Deliberately retain the disconnected consumer queue."),
     ("accept-missing-attachment-count", "PacketDecoderFuzzingTest", MAIN + "protocol/PacketDecoder.java",
      'throw new IllegalArgumentException("Missing binary attachment count");',
      "// Deliberately accept an empty attachment count."),
@@ -37,6 +38,7 @@ CONTROLS = [
 
 
 def run_case(work, selection, log_path):
+    """Execute the selected JUnit test class in the temporary workspace and summarize XML outcomes."""
     reports = work / "netty-socketio-core/target/surefire-reports"
     shutil.rmtree(reports, ignore_errors=True)
     command = ["mvn", "--batch-mode", "--no-transfer-progress", "-f",
@@ -62,6 +64,7 @@ def run_case(work, selection, log_path):
 
 
 def main():
+    """Verify baseline test passage and confirm each negative-control mutation triggers an assertion failure."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

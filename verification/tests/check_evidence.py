@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 def inspect_reports(directory):
+    """Validate JUnit XML reports in directory and return (case_count, owner_classes)."""
     files = sorted(directory.rglob("TEST-*.xml"))
     if not files:
         raise ValueError("No JUnit reports: " + str(directory))
@@ -17,7 +18,10 @@ def inspect_reports(directory):
     for path in files:
         root = ET.parse(path).getroot()
         entries = root.findall("testcase")
-        declared = int(root.get("tests", "-1"))
+        try:
+            declared = int(root.get("tests", "-1"))
+        except ValueError:
+            declared = -1
         if declared < 0:
             raise ValueError("JUnit test count is missing or negative: " + str(path))
         has_nested = any("$" in (c.get("classname") or "") for c in entries)
@@ -40,6 +44,7 @@ def inspect_reports(directory):
 
 
 def expected_core_classes(source):
+    """Discover concrete JUnit test class names under the given Java test source root."""
     expected = set()
     for path in source.rglob("*Test.java"):
         text = path.read_text()
@@ -63,6 +68,7 @@ def expected_core_classes(source):
 
 
 def main():
+    """Run the CLI evidence check against JUnit reports, expected test classes, and JaCoCo coverage."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reports", type=Path, required=True)
     parser.add_argument("--source", type=Path)

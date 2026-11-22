@@ -31,10 +31,12 @@ public class PacketsMessage implements ReferenceCounted {
     private final Transport transport;
     private final boolean textWebSocketFrame;
 
+    /** Executes packets message. */
     public PacketsMessage(ClientHead client, ByteBuf content, Transport transport) {
         this(client, content, transport, false);
     }
 
+    /** Executes packets message. */
     public PacketsMessage(ClientHead client, ByteBuf content, Transport transport, boolean textWebSocketFrame) {
         this.client = client;
         this.content = content;
@@ -42,10 +44,12 @@ public class PacketsMessage implements ReferenceCounted {
         this.textWebSocketFrame = textWebSocketFrame;
     }
 
+    /** Executes is text web socket frame. */
     public boolean isTextWebSocketFrame() {
         return textWebSocketFrame;
     }
 
+    /** Executes get transport. */
     public Transport getTransport() {
         return transport;
     }

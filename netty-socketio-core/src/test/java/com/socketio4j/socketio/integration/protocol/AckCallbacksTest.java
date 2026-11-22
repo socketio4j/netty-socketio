@@ -223,6 +223,7 @@ public class AckCallbacksTest extends AbstractSharedSocketIOIntegrationTest {
         client.close();
     }
 
+    /** Verifies test ack with complex data types. */
     @Test
     @DisplayName("Should handle acknowledgment with complex data types")
     public void testAckWithComplexDataTypes() throws Exception {
@@ -232,6 +233,7 @@ public class AckCallbacksTest extends AbstractSharedSocketIOIntegrationTest {
         AtomicReference<SocketIOClient> connectedClient = new AtomicReference<>();
 
         getServer().addConnectListener(new ConnectListener() {
+            /** Executes on connect. */
             @Override
             public void onConnect(SocketIOClient client) {
                 connectedClient.set(client);
@@ -244,6 +246,7 @@ public class AckCallbacksTest extends AbstractSharedSocketIOIntegrationTest {
         String complexAckTestData = generateTestData();
         
         getServer().addEventListener(complexAckEventName, String.class, new DataListener<String>() {
+            /** Executes on data. */
             @Override
             public void onData(SocketIOClient client, String data, AckRequest ackRequest) {
                 // Create complex acknowledgment data
@@ -424,6 +427,7 @@ public class AckCallbacksTest extends AbstractSharedSocketIOIntegrationTest {
         client.close();
     }
 
+    /** Verifies test automatic empty ack when listener does not reply. */
     @Test
     @DisplayName("Default automatic ACK mode sends exactly one empty response")
     public void testAutomaticEmptyAckWhenListenerDoesNotReply() throws Exception {

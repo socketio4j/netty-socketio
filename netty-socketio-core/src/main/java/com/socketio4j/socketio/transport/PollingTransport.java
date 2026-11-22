@@ -47,6 +47,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
@@ -242,22 +243,30 @@ public class PollingTransport extends ChannelInboundHandlerAdapter {
             }
         }
 
-        // release POST response before message processing
-        ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId))
-                .addListener(future -> client.releasePollingPost());
+        boolean postAcknowledged = false;
+        try {
+            ChannelHandlerContext codecCtx = ctx.pipeline().context(HttpRequestDecoder.class);
+            if (codecCtx == null) {
+                codecCtx = ctx.pipeline().context(WebSocket13FrameDecoder.class);
+            }
+            if (codecCtx == null) {
+                codecCtx = ctx.pipeline().context(HttpServerCodec.class);
+            }
+            PacketsMessage packetsMessage = new PacketsMessage(client, content, Transport.POLLING);
+            if (codecCtx != null) {
+                codecCtx.fireChannelRead(packetsMessage);
+            } else {
+                ctx.pipeline().fireChannelRead(packetsMessage);
+            }
 
-        ChannelHandlerContext codecCtx = ctx.pipeline().context(HttpRequestDecoder.class);
-        if (codecCtx == null) {
-            codecCtx = ctx.pipeline().context(WebSocket13FrameDecoder.class);
-        }
-        if (codecCtx == null) {
-            codecCtx = ctx.pipeline().context(HttpServerCodec.class);
-        }
-        PacketsMessage packetsMessage = new PacketsMessage(client, content, Transport.POLLING);
-        if (codecCtx != null) {
-            codecCtx.fireChannelRead(packetsMessage);
-        } else {
-            ctx.pipeline().fireChannelRead(packetsMessage);
+            ChannelPromise postPromise = ctx.channel().newPromise();
+            postPromise.addListener(future -> client.releasePollingPost());
+            postAcknowledged = true;
+            ctx.channel().writeAndFlush(new XHRPostMessage(origin, sessionId), postPromise);
+        } finally {
+            if (!postAcknowledged) {
+                client.releasePollingPost();
+            }
         }
     }
 

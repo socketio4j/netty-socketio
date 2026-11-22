@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class JoinIteratorsTest {
 
+    /** Verifies test iterator. */
     @Test
     public void testIterator() {
         List<Integer> list1 = Arrays.asList(1, 2);
@@ -50,6 +51,7 @@ public class JoinIteratorsTest {
 
     }
 
+    /** Verifies empty inputs and exhaustion follow iterator contract. */
     @Test
     void emptyInputsAndExhaustionFollowIteratorContract() {
         CompositeIterable<Integer> values = new CompositeIterable<>(java.util.Collections.emptyList(),
@@ -66,6 +68,7 @@ public class JoinIteratorsTest {
         org.junit.jupiter.api.Assertions.assertThrows(java.util.NoSuchElementException.class, empty::next);
     }
 
+    /** Verifies remove targets the last returned iterator even when has next moves to another input. */
     @Test
     void removeTargetsTheLastReturnedIteratorEvenWhenHasNextMovesToAnotherInput() {
         List<Integer> first = new ArrayList<>(Arrays.asList(1));

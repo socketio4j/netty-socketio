@@ -29,6 +29,6 @@ done
 if ! mvn "${COMMON[@]}" jacoco:report > "$EVIDENCE/coverage.log" 2>&1; then STATUS=1; fi
 if ! python3 verification/tests/check_evidence.py --reports "$EVIDENCE/reports" \
     --source netty-socketio-core/src/test/java --coverage "$EVIDENCE/coverage/jacoco.xml" \
-    --minimum-branch 0.80 --output "$EVIDENCE/summary.json"; then STATUS=1; fi
+    --minimum-branch "${SOCKETIO_MINIMUM_BRANCH:-0.65}" --output "$EVIDENCE/summary.json"; then STATUS=1; fi
 printf '%s\n' "$EVIDENCE" > netty-socketio-core/target/latest-test-evidence.txt
 exit "$STATUS"

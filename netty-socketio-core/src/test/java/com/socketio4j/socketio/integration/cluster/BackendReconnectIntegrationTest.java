@@ -47,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** Actual service restart; steady-state mocks cannot satisfy this contract. */
 @ResourceLock("EMBEDDED_NATS")
 class BackendReconnectIntegrationTest {
+    /** Verifies nats resubscribes existing event store after broker process restart. */
     @Test
     void natsResubscribesExistingEventStoreAfterBrokerProcessRestart() throws Exception {
         try (GenericContainer<?> broker = new GenericContainer<>(DockerImageName.parse("nats:2.10-alpine"))
@@ -111,6 +112,7 @@ class BackendReconnectIntegrationTest {
         }
     }
 
+    /** Executes publish. */
     private static void publish(NatsEventStore store, String value) {
         Packet packet = new Packet(PacketType.MESSAGE);
         packet.setSubType(PacketType.EVENT);

@@ -46,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("Explicit reconnection lifecycle tests")
 public class SessionRecoveryTest extends AbstractSharedSocketIOIntegrationTest {
 
+    /** Verifies test explicit reconnection after disconnection. */
     @Test
     @DisplayName("Should reconnect after client disconnection")
     public void testExplicitReconnectionAfterDisconnection() throws Exception {
@@ -117,6 +118,7 @@ public class SessionRecoveryTest extends AbstractSharedSocketIOIntegrationTest {
         client.disconnect();
     }
 
+    /** Verifies test explicit reconnection with multiple clients. */
     @Test
     @DisplayName("Should reconnect for multiple clients")
     public void testExplicitReconnectionWithMultipleClients() throws Exception {
@@ -194,6 +196,7 @@ public class SessionRecoveryTest extends AbstractSharedSocketIOIntegrationTest {
         client2.disconnect();
     }
 
+    /** Verifies test explicit reconnection with custom namespace. */
     @Test
     @DisplayName("Should reconnect in custom namespace")
     public void testExplicitReconnectionWithCustomNamespace() throws Exception {
