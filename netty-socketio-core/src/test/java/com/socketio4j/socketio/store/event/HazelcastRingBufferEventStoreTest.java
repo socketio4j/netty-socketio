@@ -33,14 +33,17 @@ import com.socketio4j.socketio.store.hazelcast.HazelcastPubSubEventStore;
 @ResourceLock("EMBEDDED_HAZELCAST")
 public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
 
+    private final java.util.List<HazelcastInstance> clients = new java.util.ArrayList<>();
     private HazelcastInstance hazelcastPub;
     private HazelcastInstance hazelcastSub;
 
+    /** Executes create container. */
     @Override
     protected GenericContainer<?> createContainer() {
         return new CustomizedHazelcastContainer().withReuse(false);  // This is now single-server safe
     }
 
+    /** Executes create event store. */
     @Override
     protected EventStore createEventStore(Long nodeId) throws Exception {
         CustomizedHazelcastContainer hz = (CustomizedHazelcastContainer) container;
@@ -53,18 +56,20 @@ public class HazelcastRingBufferEventStoreTest extends AbstractEventStoreTest {
                 .addAddress(hz.getHazelcastAddress());   // ALWAYS localhost:mappedPort
 
         hazelcastPub = HazelcastClient.newHazelcastClient(config);
+        clients.add(hazelcastPub);
         hazelcastSub = HazelcastClient.newHazelcastClient(config);
+        clients.add(hazelcastSub);
 
         return new HazelcastPubSubEventStore.Builder(hazelcastPub, hazelcastSub).nodeId(nodeId).build();
     }
 
+    /** Cleans up resources after test execution. */
     @Override
     protected void closeClients() {
-        if (hazelcastPub != null) {
-            hazelcastPub.shutdown();
-        }
-        if (hazelcastSub != null) {
-            hazelcastSub.shutdown();
-        }
+        java.util.List<com.socketio4j.socketio.TestResourceCleanup.ThrowingAction> actions = new java.util.ArrayList<>();
+        for (HazelcastInstance client : clients) actions.add(client::shutdown);
+        clients.clear();
+        com.socketio4j.socketio.TestResourceCleanup.runAll("event store clients",
+                actions.toArray(new com.socketio4j.socketio.TestResourceCleanup.ThrowingAction[0]));
     }
 }

@@ -53,10 +53,11 @@ class AckManagerTest {
      */
     private static class RecordingScheduler implements CancelableScheduler {
 
-        private final List<SchedulerKey> scheduled = new ArrayList<>();
-        private final List<SchedulerKey> cancelled = new ArrayList<>();
-        private final List<Runnable> callbacks = new ArrayList<>();
+        private final List<SchedulerKey> scheduled = new java.util.concurrent.CopyOnWriteArrayList<>();
+        private final List<SchedulerKey> cancelled = new java.util.concurrent.CopyOnWriteArrayList<>();
+        private final List<Runnable> callbacks = new java.util.concurrent.CopyOnWriteArrayList<>();
 
+        /** Executes update. */
         @Override
         public void update(ChannelHandlerContext ctx) {
         }
@@ -435,11 +436,13 @@ class AckManagerTest {
         assertThat(ackManager.getCallback(sessionId, index)).isNull();
     }
 
+    /** Verifies should handle null packet data in multi type on ack. */
     @Test
     @DisplayName("Should handle null packet data safely in MultiTypeAckCallback")
     void shouldHandleNullPacketDataInMultiTypeOnAck() {
         AtomicReference<MultiTypeArgs> received = new AtomicReference<>();
         MultiTypeAckCallback callback = new MultiTypeAckCallback(String.class) {
+            /** Executes on success. */
             @Override
             public void onSuccess(MultiTypeArgs args) {
                 received.set(args);
@@ -456,4 +459,48 @@ class AckManagerTest {
         assertThat(received.get().getArgs()).isEmpty();
         assertThat(ackManager.getCallback(sessionId, index)).isNull();
     }
+    /** Verifies ack timeout and disconnect have exactly one terminal outcome. */
+    @Test
+    @org.junit.jupiter.api.Timeout(10)
+    void ackTimeoutAndDisconnectHaveExactlyOneTerminalOutcome() throws Exception {
+        java.util.concurrent.ExecutorService workers = java.util.concurrent.Executors.newFixedThreadPool(3);
+        try {
+            for (int iteration = 0; iteration < 50; iteration++) {
+                RecordingScheduler timer = new RecordingScheduler();
+                AckManager manager = new AckManager(timer);
+                UUID session = UUID.randomUUID();
+                SocketIOClient peer = mock(SocketIOClient.class);
+                when(peer.getSessionId()).thenReturn(session);
+                java.util.concurrent.atomic.AtomicInteger success = new java.util.concurrent.atomic.AtomicInteger();
+                java.util.concurrent.atomic.AtomicInteger timedOutCount = new java.util.concurrent.atomic.AtomicInteger();
+                AtomicReference<String> received = new AtomicReference<>();
+                long id = manager.registerAck(session, new AckCallback<String>(String.class, 1) {
+                    @Override
+                    public void onSuccess(String value) { received.set(value); success.incrementAndGet(); }
+                    @Override
+                    public void onTimeout() { timedOutCount.incrementAndGet(); }
+                });
+                java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+                java.util.List<java.util.concurrent.Future<?>> outcomes = new ArrayList<>();
+                outcomes.add(workers.submit(() -> { start.await(); manager.onAck(peer,
+                        ackPacket(id, Collections.singletonList("exact-value"))); return null; }));
+                outcomes.add(workers.submit(() -> { start.await(); timer.callbacks.get(0).run(); return null; }));
+                outcomes.add(workers.submit(() -> { start.await(); manager.onDisconnect(session); return null; }));
+                start.countDown();
+                for (java.util.concurrent.Future<?> outcome : outcomes) outcome.get(2, TimeUnit.SECONDS);
+                assertThat(success.get() + timedOutCount.get()).isEqualTo(1);
+                if (success.get() == 1) assertThat(received.get()).isEqualTo("exact-value");
+                assertThat(manager.getAckCallbacksCount(session)).isZero();
+                assertThat(manager.getAckEntriesCount()).isZero();
+                manager.onAck(peer, ackPacket(id, Collections.singletonList("late-duplicate")));
+                timer.fireAll();
+                assertThat(success.get() + timedOutCount.get()).isEqualTo(1);
+                assertThat(manager.getAckEntriesCount()).isZero();
+            }
+        } finally {
+            workers.shutdownNow();
+            assertThat(workers.awaitTermination(2, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
 }

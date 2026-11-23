@@ -48,6 +48,7 @@ public abstract class AbstractEventStoreTest {
     protected Long publisherNodeId = 2L;   // publisher's nodeId
     protected Long subscriberNodeId = 1L;  // subscriber's nodeId
 
+    /** Initializes test fixtures before each test. */
     @BeforeEach
     public void setUp() throws Exception {
         if (container == null) {
@@ -60,15 +61,13 @@ public abstract class AbstractEventStoreTest {
         subscriberStore = createEventStore(subscriberNodeId);
     }
 
+    /** Cleans up resources after test execution. */
     @AfterEach
     public void tearDown() throws Exception {
-        if (publisherStore != null) {
-            publisherStore.shutdown();
-        }
-        if (subscriberStore != null) {
-            subscriberStore.shutdown();
-        }
-        closeClients();
+        com.socketio4j.socketio.TestResourceCleanup.runAll("event store teardown",
+                () -> { if (publisherStore != null) publisherStore.shutdown(); },
+                () -> { if (subscriberStore != null) subscriberStore.shutdown(); },
+                this::closeClients);
     }
 
     @AfterAll

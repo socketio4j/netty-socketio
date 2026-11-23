@@ -31,14 +31,17 @@ import com.socketio4j.socketio.store.redis_pubsub.RedisPubSubEventStore;
 
 public class RedisPubSubEventStoreTest extends AbstractEventStoreTest {
 
+    private final java.util.List<RedissonClient> clients = new java.util.ArrayList<>();
     private RedissonClient redissonPub;
     private RedissonClient redissonSub;
 
+    /** Executes create container. */
     @Override
     protected GenericContainer<?> createContainer() {
         return new CustomizedRedisContainer();
     }
 
+    /** Executes create event store. */
     @Override
     protected EventStore createEventStore(Long nodeId) throws Exception {
         CustomizedRedisContainer customizedRedisContainer = (CustomizedRedisContainer) container;
@@ -47,17 +50,19 @@ public class RedisPubSubEventStoreTest extends AbstractEventStoreTest {
                 .setAddress("redis://" + customizedRedisContainer.getHost() + ":" + customizedRedisContainer.getRedisPort());
         
         redissonPub = Redisson.create(config);
+        clients.add(redissonPub);
         redissonSub = Redisson.create(config);
+        clients.add(redissonSub);
         return new RedisPubSubEventStore(redissonPub, redissonSub, EventStoreMode.MULTI_CHANNEL, nodeId);
     }
 
+    /** Cleans up resources after test execution. */
     @Override
     protected void closeClients() {
-        if (redissonPub != null) {
-            redissonPub.shutdown();
-        }
-        if (redissonSub != null) {
-            redissonSub.shutdown();
-        }
+        java.util.List<com.socketio4j.socketio.TestResourceCleanup.ThrowingAction> actions = new java.util.ArrayList<>();
+        for (RedissonClient client : clients) actions.add(client::shutdown);
+        clients.clear();
+        com.socketio4j.socketio.TestResourceCleanup.runAll("event store clients",
+                actions.toArray(new com.socketio4j.socketio.TestResourceCleanup.ThrowingAction[0]));
     }
 }

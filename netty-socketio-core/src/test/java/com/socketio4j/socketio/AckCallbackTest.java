@@ -82,11 +82,13 @@ class AckCallbackTest {
     @DisplayName("VoidAckCallback Tests")
     class VoidAckCallbackTests {
 
+        /** Verifies should delegate on success. */
         @Test
         @DisplayName("Should delegate onSuccess to the no argument variant")
         void shouldDelegateOnSuccess() {
             AtomicInteger invocations = new AtomicInteger();
             VoidAckCallback callback = new VoidAckCallback() {
+                /** Executes on success. */
                 @Override
                 protected void onSuccess() {
                     invocations.incrementAndGet();
@@ -100,10 +102,12 @@ class AckCallbackTest {
             assertThat(callback.getTimeout()).isEqualTo(-1);
         }
 
+        /** Verifies should keep configured timeout for void. */
         @Test
         @DisplayName("Should keep the configured timeout")
-        void shouldKeepConfiguredTimeout() {
+        void shouldKeepConfiguredTimeoutForVoid() {
             VoidAckCallback callback = new VoidAckCallback(15) {
+                /** Executes on success. */
                 @Override
                 protected void onSuccess() {
                 }

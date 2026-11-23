@@ -143,6 +143,7 @@ public abstract class AbstractStoreTest {
         Assertions.assertThat((String) store.get("overwriteKey")).isEqualTo("updated");
     }
 
+    /** Verifies test delete non existent key. */
     @Test
     public void testDeleteNonExistentKey() {
         // Should not throw exception
@@ -150,25 +151,32 @@ public abstract class AbstractStoreTest {
         Assertions.assertThat(store.has("nonexistent")).isFalse();
     }
 
+    /** Verifies test get non existent key. */
     @Test
     public void testGetNonExistentKey() {
         Assertions.assertThat((String) store.get("nonexistent")).isNull();
     }
 
+    /** Verifies test concurrent access. */
     @Test
     public void testConcurrentAccess() throws InterruptedException {
         final int threadCount = 10;
         final int operationsPerThread = 100;
         Thread[] threads = new Thread[threadCount];
+        java.util.Queue<Throwable> workerFailures = new java.util.concurrent.ConcurrentLinkedQueue<>();
 
         for (int i = 0; i < threadCount; i++) {
             final int threadId = i;
             threads[i] = new Thread(() -> {
+                try {
                 for (int j = 0; j < operationsPerThread; j++) {
                     String key = "thread" + threadId + "_key" + j;
                     String value = "value" + threadId + "_" + j;
                     store.set(key, value);
                     Assertions.assertThat((String) store.get(key)).isEqualTo(value);
+                }
+                } catch (Throwable failure) {
+                    workerFailures.add(failure);
                 }
             });
         }
@@ -180,7 +188,13 @@ public abstract class AbstractStoreTest {
 
         // Wait for all threads to complete
         for (Thread thread : threads) {
-            thread.join();
+            thread.join(30_000);
+            Assertions.assertThat(thread.isAlive()).isFalse();
+        }
+        if (!workerFailures.isEmpty()) {
+            AssertionError failure = new AssertionError("Store worker failed");
+            workerFailures.forEach(failure::addSuppressed);
+            throw failure;
         }
 
         // Verify all values were set correctly

@@ -279,10 +279,10 @@ public class NamespaceEventHandlingTest extends AbstractNamespaceTestSupport {
         namespace.onConnect(mockClient);
         assertEquals(1, connectListenerCallCount.get());
         assertTrue(connectListenerCallCount.get() > 0);
-        // Note: onConnect doesn't automatically add client to namespace in this implementation
-        // assertTrue(namespace.getAllClients().contains(mockClient));
-        // assertEquals(1, namespace.getAllClients().size());
-        // assertEquals(mockClient, namespace.getClient(CLIENT_SESSION_ID));
+        assertTrue(namespace.getAllClients().isEmpty(), "Listener notification must not fabricate membership");
+        namespace.addClient(mockClient);
+        assertEquals(mockClient, namespace.getClient(CLIENT_SESSION_ID));
+        assertEquals(1, namespace.getAllClients().size());
 
         namespace.onPing(mockClient);
         assertEquals(1, pingListenerCallCount.get());

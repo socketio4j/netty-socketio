@@ -141,6 +141,7 @@ public class TransportUpgradeIsolationTest {
         }
     }
 
+    /** Verifies test mid stream transport upgrade. */
     @Test
     @DisplayName("Mid-Stream Transport Upgrade: Polling to WebSocket under Traffic")
     public void testMidStreamTransportUpgrade() throws Exception {
@@ -154,11 +155,15 @@ public class TransportUpgradeIsolationTest {
         server = new SocketIOServer(config);
 
         Map<UUID, String> sessionToCliCodeMap = new ConcurrentHashMap<>();
+        java.util.Set<String> observedServerIds = ConcurrentHashMap.newKeySet();
+        java.util.Set<String> observedAckIds = ConcurrentHashMap.newKeySet();
+        java.util.Set<String> initiallyPolling = ConcurrentHashMap.newKeySet();
         AtomicInteger serverVerifiedCount = new AtomicInteger(0);
         AtomicInteger clientAckSuccessCount = new AtomicInteger(0);
         CopyOnWriteArrayList<String> upgradeFailures = new CopyOnWriteArrayList<>();
 
         server.addEventListener("register-client", String.class, new DataListener<String>() {
+            /** Executes on data. */
             @Override
             public void onData(SocketIOClient client, String cliCode, AckRequest ackSender) {
                 sessionToCliCodeMap.put(client.getSessionId(), cliCode);
@@ -169,6 +174,7 @@ public class TransportUpgradeIsolationTest {
         });
 
         server.addEventListener("echo-upgrade", EchoMessage.class, new DataListener<EchoMessage>() {
+            /** Executes on data. */
             @Override
             public void onData(SocketIOClient client, EchoMessage data, AckRequest ackSender) {
                 String expectedCode = sessionToCliCodeMap.get(client.getSessionId());
@@ -177,6 +183,9 @@ public class TransportUpgradeIsolationTest {
                     return;
                 }
 
+                if (!observedServerIds.add(data.getCliCode() + ":" + data.getSeq())) {
+                    upgradeFailures.add("Duplicate server delivery for " + data.getCliCode() + ":" + data.getSeq());
+                }
                 serverVerifiedCount.incrementAndGet();
 
                 AckResponse response = new AckResponse();
@@ -208,6 +217,12 @@ public class TransportUpgradeIsolationTest {
 
             Socket socket = IO.socket("http://127.0.0.1:" + port, opts);
             clients.add(socket);
+            socket.io().on(io.socket.client.Manager.EVENT_TRANSPORT, args -> {
+                io.socket.engineio.client.Transport transport = (io.socket.engineio.client.Transport) args[0];
+                if ("polling".equals(transport.name)) {
+                    initiallyPolling.add(cliCode);
+                }
+            });
 
             socket.on(Socket.EVENT_CONNECT, args -> {
                 connectLatch.countDown();
@@ -245,12 +260,16 @@ public class TransportUpgradeIsolationTest {
                         final int currentSeq = seq;
 
                         clientSocket.emit("echo-upgrade", new Object[]{ payload }, new Ack() {
+                            /** Executes call. */
                             @Override
                             public void call(Object... ackArgs) {
                                 try {
                                     if (ackArgs.length > 0) {
                                         JSONObject resp = (JSONObject) ackArgs[0];
-                                        if (cliCode.equals(resp.optString("cliCode")) && currentSeq == resp.optInt("seq")) {
+                                        if (cliCode.equals(resp.optString("cliCode")) && currentSeq == resp.optInt("seq")
+                                                && "ACK".equals(resp.optString("ack"))
+                                                && randomMsg.equals(resp.optString("echoMsg"))
+                                                && observedAckIds.add(cliCode + ":" + currentSeq)) {
                                             clientAckSuccessCount.incrementAndGet();
                                         } else {
                                             upgradeFailures.add("ACK mismatch during upgrade: " + resp);
@@ -280,6 +299,12 @@ public class TransportUpgradeIsolationTest {
         assertTrue(acksFinished, "Upgrade ACKs timed out");
         assertTrue(upgradeFailures.isEmpty(), () -> "Upgrade failures:\n" + String.join("\n", upgradeFailures));
 
+        assertEquals(CLIENT_COUNT, initiallyPolling.size(), "Every peer must actually start on polling");
+        org.awaitility.Awaitility.await().atMost(10, TimeUnit.SECONDS).until(() ->
+                server.getAllClients().stream().allMatch(client -> client.getTransport() == com.socketio4j.socketio.Transport.WEBSOCKET));
+        assertEquals(CLIENT_COUNT, server.getAllClients().size());
+        assertEquals(TOTAL_EXPECTED_MESSAGES, observedServerIds.size());
+        assertEquals(TOTAL_EXPECTED_MESSAGES, observedAckIds.size());
         assertEquals(TOTAL_EXPECTED_MESSAGES, serverVerifiedCount.get());
         assertEquals(TOTAL_EXPECTED_MESSAGES, clientAckSuccessCount.get());
     }

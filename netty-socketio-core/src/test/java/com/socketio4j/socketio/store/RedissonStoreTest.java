@@ -58,6 +58,7 @@ public class RedissonStoreTest extends AbstractStoreTest {
         return new RedisStore(sessionId, redissonClient);
     }
 
+    /** Cleans up resources after test execution. */
     @Override
     protected void cleanupStore() {
         if (redissonClient != null) {
@@ -67,6 +68,7 @@ public class RedissonStoreTest extends AbstractStoreTest {
     }
 
 
+    /** Verifies test redisson specific features. */
     @Test
     public void testRedissonSpecificFeatures() {
         // Test that the store is actually using Redisson
@@ -77,8 +79,9 @@ public class RedissonStoreTest extends AbstractStoreTest {
         assertEquals("ttlValue", store.get("ttlKey"));
     }
 
+    /** Verifies test redis value remains until explicit deletion. */
     @Test
-    public void testRedisDataPersistence() {
+    public void testRedisValueRemainsUntilExplicitDeletion() {
         // Test that data persists across operations
         store.set("persistentKey", "persistentValue");
         assertEquals("persistentValue", store.get("persistentKey"));

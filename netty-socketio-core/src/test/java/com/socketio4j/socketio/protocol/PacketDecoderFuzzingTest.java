@@ -58,6 +58,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
     @Mock
     private ClientHead clientHead;
 
+    /** Initializes test fixtures before each test. */
     @BeforeEach
     @Override
     public void setUp() {
@@ -67,15 +68,25 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
 
         when(clientHead.getEngineIOVersion()).thenReturn(EngineIOVersion.V4);
         when(clientHead.getSessionId()).thenReturn(UUID.randomUUID());
+        when(ackManager.getCallback(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(invocation -> new com.socketio4j.socketio.AckCallback<Object>(Object.class) {
+                    /** Executes on success. */
+                    @Override
+                    public void onSuccess(Object result) {
+                    }
+                });
     }
 
+    /** Cleans up resources after test execution. */
     @AfterEach
     @Override
     public void tearDown() throws Exception {
         closeableMocks.close();
     }
 
+    /** Verifies test fuzz random byte arrays. */
     @Test
+    @org.junit.jupiter.api.Timeout(10)
     void testFuzzRandomByteArrays() {
         long[] seeds = {42L, 73L, 101L, 211L, 503L, 997L, 2027L, 7919L};
         for (long seed : seeds) {
@@ -88,6 +99,7 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
                 try {
                     // Decoder should either parse or reject the input with a protocol parsing exception.
                     decoder.decodePackets(buffer, clientHead, Transport.POLLING);
+                    assertTrue(buffer.readerIndex() > 0, "Accepted or ignored bytes must make parser progress");
                 } catch (Exception expected) {
                     assertExpectedParsingException(expected);
                 } finally {
@@ -97,29 +109,29 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
         }
     }
 
+    /** Verifies test truncated json payloads. */
     @Test
     void testTruncatedJsonPayloads() {
         String[] truncatedInputs = {
                 "42[\"event_name\",",
                 "42/admin,123[\"event\",{\"key\":",
                 "40/admin,{\"auth\":",
-                "43/admin,999[\"ack\",",
-                "44/admin,{\"message\":"
+                "43/admin,999[\"ack\","
         };
 
         for (String truncated : truncatedInputs) {
             ByteBuf buffer = Unpooled.copiedBuffer(truncated, CharsetUtil.UTF_8);
             try {
-                decoder.decodePackets(buffer, clientHead);
-            } catch (Exception e) {
-                // Expected handled parsing exception for truncated payloads
-                assertExpectedParsingException(e);
+                Exception error = assertThrows(Exception.class, () -> decoder.decodePackets(buffer, clientHead),
+                        "Truncated JSON must be rejected: " + truncated);
+                assertExpectedParsingException(error);
             } finally {
                 buffer.release();
             }
         }
     }
 
+    /** Verifies test malformed header dividers. */
     @Test
     void testMalformedHeaderDividers() {
         String[] malformedHeaders = {
@@ -132,15 +144,16 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
         for (String header : malformedHeaders) {
             ByteBuf buffer = Unpooled.copiedBuffer(header, CharsetUtil.UTF_8);
             try {
-                decoder.decodePackets(buffer, clientHead);
-            } catch (Exception e) {
-                assertExpectedParsingException(e);
+                Exception error = assertThrows(Exception.class, () -> decoder.decodePackets(buffer, clientHead),
+                        "Malformed header must be rejected: " + header);
+                assertExpectedParsingException(error);
             } finally {
                 buffer.release();
             }
         }
     }
 
+    /** Verifies test invalid outer packet type bytes. */
     @ParameterizedTest(name = "Fuzz Invalid Outer Packet Type Byte {0}")
     @EnumSource(value = EngineIOVersion.class, names = {"V2", "V3", "V4"})
     void testInvalidOuterPacketTypeBytes(EngineIOVersion version) {
@@ -154,6 +167,21 @@ public class PacketDecoderFuzzingTest extends BaseProtocolTest {
         }
     }
 
+    /** Executes legacy error body has an explicit string fallback contract. */
+    @Test
+    void legacyErrorBodyHasAnExplicitStringFallbackContract() throws IOException {
+        ByteBuf buffer = Unpooled.copiedBuffer("44/admin,legacy-error", CharsetUtil.UTF_8);
+        try {
+            Packet packet = decoder.decodePackets(buffer, clientHead);
+            org.junit.jupiter.api.Assertions.assertEquals(PacketType.ERROR, packet.getSubType());
+            org.junit.jupiter.api.Assertions.assertEquals("/admin", packet.getNsp());
+            org.junit.jupiter.api.Assertions.assertEquals("legacy-error", packet.getData());
+        } finally {
+            buffer.release();
+        }
+    }
+
+    /** Executes assert expected parsing exception. */
     private static void assertExpectedParsingException(Exception exception) {
         assertTrue(exception instanceof IOException
                         || exception instanceof IllegalArgumentException

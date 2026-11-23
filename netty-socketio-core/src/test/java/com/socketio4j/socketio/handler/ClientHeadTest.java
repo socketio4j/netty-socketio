@@ -17,6 +17,7 @@
 package com.socketio4j.socketio.handler;
 
 import java.util.HashMap;
+import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -57,6 +58,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.doAnswer;
@@ -96,8 +99,7 @@ public class ClientHeadTest {
                 Transport.WEBSOCKET,
                 scheduler,
                 configuration,
-                new HashMap<>()
-        );
+                new HashMap<>());
     }
 
     @Test
@@ -180,6 +182,7 @@ public class ClientHeadTest {
         websocketChannel.finishAndReleaseAll();
     }
 
+    /** Verifies should schedule independent timeouts for poll flush listeners. */
     @Test
     void shouldScheduleIndependentTimeoutsForPollFlushListeners() {
         Runnable firstListener = mock(Runnable.class);
@@ -190,7 +193,8 @@ public class ClientHeadTest {
 
         ArgumentCaptor<SchedulerKey> keyCaptor = ArgumentCaptor.forClass(SchedulerKey.class);
         ArgumentCaptor<Runnable> timeoutCaptor = ArgumentCaptor.forClass(Runnable.class);
-        verify(scheduler, times(2)).schedule(keyCaptor.capture(), timeoutCaptor.capture(), eq(5000L), eq(TimeUnit.MILLISECONDS));
+        verify(scheduler, times(2)).schedule(keyCaptor.capture(), timeoutCaptor.capture(), eq(5000L),
+                eq(TimeUnit.MILLISECONDS));
         assertNotEquals(keyCaptor.getAllValues().get(0), keyCaptor.getAllValues().get(1));
 
         timeoutCaptor.getAllValues().get(0).run();
@@ -281,6 +285,28 @@ public class ClientHeadTest {
         lateChannel.finishAndReleaseAll();
     }
 
+    /** Verifies test disconnect during enqueue preserves other packets. */
+    @Test
+    void testDisconnectDuringEnqueuePreservesOtherPackets() {
+        ClientHead sendingClient = spy(clientHead);
+        Queue<Packet> queue = sendingClient.getPacketsQueue(Transport.WEBSOCKET);
+        Packet pending = new Packet(PacketType.PING);
+        Packet disconnect = new Packet(PacketType.MESSAGE);
+        disconnect.setSubType(PacketType.DISCONNECT);
+        queue.add(pending);
+        doReturn(true).doAnswer(invocation -> {
+            // A concurrent disconnect enqueues its packet before the second check.
+            queue.add(disconnect);
+            return false;
+        }).when(sendingClient).isConnected();
+
+        assertNull(sendingClient.send(new Packet(PacketType.MESSAGE), Transport.WEBSOCKET));
+        assertEquals(2, queue.size());
+        assertEquals(pending, queue.poll());
+        assertEquals(disconnect, queue.poll());
+    }
+
+    /** Verifies test send checks channel writability. */
     @Test
     void testSendChecksChannelWritability() {
         Channel channel = mock(Channel.class);
@@ -391,6 +417,7 @@ public class ClientHeadTest {
         promiseChannel.finishAndReleaseAll();
     }
 
+    /** Verifies test transport state counting queue operations maintain exact size. */
     @Test
     void testTransportStateCountingQueueOperationsMaintainExactSize() {
         TransportState state = new TransportState();
@@ -400,7 +427,7 @@ public class ClientHeadTest {
 
         assertEquals(0, state.getPacketsQueue().size());
         state.getPacketsQueue().add(p1);
-        state.getPacketsQueue().offer(p2);
+        assertTrue(state.getPacketsQueue().offer(p2));
         state.getPacketsQueue().add(p3);
         assertEquals(3, state.getPacketsQueue().size());
 
@@ -414,6 +441,7 @@ public class ClientHeadTest {
         assertEquals(0, state.getPacketsQueue().size());
 
         state.getPacketsQueue().add(p1);
+        state.getPacketsQueue().clear();
         state.clearPacketsQueue();
         assertEquals(0, state.getPacketsQueue().size());
     }

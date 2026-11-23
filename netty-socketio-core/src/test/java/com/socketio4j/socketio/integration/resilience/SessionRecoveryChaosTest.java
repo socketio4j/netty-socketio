@@ -109,6 +109,7 @@ public class SessionRecoveryChaosTest {
         }
     }
 
+    /** Executes find available port. */
     private static int findAvailablePort() {
         try (ServerSocket socket = new ServerSocket(0)) {
             socket.setReuseAddress(true);
@@ -118,9 +119,10 @@ public class SessionRecoveryChaosTest {
         }
     }
 
+    /** Verifies test explicit reconnect between acknowledged batches. */
     @Test
-    @DisplayName("Session Recovery Chaos Test: Abrupt Network Blip Recovery")
-    public void testAbruptNetworkBlipRecovery() throws Exception {
+    @DisplayName("Explicit reconnect between acknowledged traffic batches")
+    public void testExplicitReconnectBetweenAcknowledgedBatches() throws Exception {
         port = findAvailablePort();
 
         Configuration config = new Configuration();
@@ -178,8 +180,10 @@ public class SessionRecoveryChaosTest {
             payload.put("seq", 1);
 
             socket.emit("chaos-event", new Object[]{ payload }, new Ack() {
+                /** Executes call. */
                 @Override
                 public void call(Object... args) {
+                    if (args.length != 1 || !"ACK-1".equals(args[0])) failures.add("Incorrect first-phase ACK");
                     phase1AckLatch.countDown();
                 }
             });
@@ -191,7 +195,7 @@ public class SessionRecoveryChaosTest {
         for (int i = 0; i < CLIENT_COUNT / 2; i++) {
             Socket s = clients.get(i);
             s.on(Socket.EVENT_CONNECT, args -> reconnectLatch.countDown());
-            s.disconnect(); // Abrupt disconnect
+            s.disconnect(); // Deliberate graceful disconnect; not a simulated network failure
             s.connect();    // Immediate reconnect
         }
 
@@ -207,8 +211,10 @@ public class SessionRecoveryChaosTest {
             payload.put("seq", 2);
 
             socket.emit("chaos-event", new Object[]{ payload }, new Ack() {
+                /** Executes call. */
                 @Override
                 public void call(Object... args) {
+                    if (args.length != 1 || !"ACK-2".equals(args[0])) failures.add("Incorrect second-phase ACK");
                     phase2AckLatch.countDown();
                 }
             });

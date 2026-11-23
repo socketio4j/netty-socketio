@@ -142,6 +142,52 @@ class PollingTransportTest {
         }
     }
 
+    /** Verifies should release post lock before encoder flushes ok response. */
+    @Test
+    void shouldReleasePostLockBeforeEncoderFlushesOkResponse() throws Exception {
+        UUID sessionId = UUID.randomUUID();
+        ClientsBox clientsBox = new ClientsBox();
+        DisconnectableHub hub = mock(DisconnectableHub.class);
+        Configuration configuration = new Configuration();
+        HandshakeData handshake = mock(HandshakeData.class);
+        when(handshake.getHttpHeaders()).thenReturn(new DefaultHttpHeaders());
+        ClientHead client = new ClientHead(sessionId, mock(AckManager.class), hub, mock(StoreFactory.class),
+                handshake, clientsBox, Transport.POLLING, mock(CancelableScheduler.class),
+                configuration, new HashMap<>());
+        clientsBox.addClient(client);
+        EncoderHandler encoder = new EncoderHandler(configuration,
+                new PacketEncoder(configuration, new JacksonJsonSupport()));
+        PollingTransport transport = new PollingTransport(null, mock(AuthorizeHandler.class), clientsBox);
+        AtomicReference< Boolean > lockReleasedBeforeSocketFlush = new AtomicReference<>(false);
+        EmbeddedChannel channel = new EmbeddedChannel(new ChannelOutboundHandlerAdapter() {
+            /** Executes write. */
+            @Override
+            public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                if (msg instanceof io.netty.handler.codec.http.LastHttpContent) {
+                    if (client.tryAcquirePollingPost()) {
+                        client.releasePollingPost();
+                        lockReleasedBeforeSocketFlush.set(true);
+                    }
+                }
+                super.write(ctx, msg, promise);
+            }
+        }, encoder, transport);
+        try {
+            String uri = "/socket.io/?EIO=4&transport=polling&sid=" + sessionId;
+            channel.writeInbound(new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, uri,
+                    Unpooled.copiedBuffer("42[\"ping\"]", StandardCharsets.UTF_8)));
+
+            PacketsMessage packets = channel.readInbound();
+            assertThat(packets).isNotNull();
+            packets.getContent().release();
+            assertThat(lockReleasedBeforeSocketFlush.get()).isTrue();
+            assertThat(client.isConnected()).isTrue();
+        } finally {
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    /** Verifies should release rebound poll only after probe pong completes. */
     @Test
     void shouldReleaseReboundPollOnlyAfterProbePongCompletes() {
         UUID sessionId = UUID.randomUUID();

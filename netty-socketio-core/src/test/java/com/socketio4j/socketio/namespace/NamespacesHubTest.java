@@ -170,14 +170,8 @@ public class NamespacesHubTest extends AbstractNamespaceTestSupport {
         // Test empty string
         assertNull(namespacesHub.get(""));
 
-        // Test null (if allowed)
-        try {
-            namespacesHub.get(null);
-            // If no exception, test behavior
-        } catch (Exception e) {
-            // If exception is thrown, that's acceptable
-            assertNotNull(e);
-        }
+        org.junit.jupiter.api.Assertions.assertThrows(NullPointerException.class, () -> namespacesHub.get(null));
+
     }
 
     /**
@@ -293,16 +287,10 @@ public class NamespacesHubTest extends AbstractNamespaceTestSupport {
      */
     @Test
     void testEdgeCasesAndBoundaries() {
-        // Test creating namespace with empty name
-        try {
-            Namespace emptyNamespace = namespacesHub.create("");
-            if (emptyNamespace != null) {
-                assertEquals("", emptyNamespace.getName());
-            }
-        } catch (Exception e) {
-            // If exception is thrown, that's acceptable
-            assertNotNull(e);
-        }
+        Namespace emptyNamespace = namespacesHub.create("");
+        assertNotNull(emptyNamespace);
+        assertEquals("", emptyNamespace.getName());
+        assertSame(emptyNamespace, namespacesHub.get(""));
 
         // Test creating namespace with very long name
         StringBuilder longNameBuilder = new StringBuilder();

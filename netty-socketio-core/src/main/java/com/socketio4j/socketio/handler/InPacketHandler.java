@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.socketio4j.socketio.AuthTokenResult;
+import com.socketio4j.socketio.Transport;
 import com.socketio4j.socketio.annotation.Internal;
 import com.socketio4j.socketio.listener.ExceptionListener;
 import com.socketio4j.socketio.messages.PacketsMessage;
@@ -34,6 +35,7 @@ import com.socketio4j.socketio.protocol.Packet;
 import com.socketio4j.socketio.protocol.PacketDecoder;
 import com.socketio4j.socketio.protocol.PacketType;
 import com.socketio4j.socketio.transport.NamespaceClient;
+import com.socketio4j.socketio.transport.PollingTransport;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler.Sharable;
@@ -61,6 +63,7 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         this.exceptionListener = exceptionListener;
     }
 
+    /** Executes channel read0. */
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, PacketsMessage message)
                 throws Exception {
@@ -74,6 +77,20 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
         int packetsProcessed = 0;
         while (content.isReadable()) {
             try {
+                // A pending Socket.IO binary event must not consume Engine.IO
+                // probe/heartbeat text as an attachment. Preserve the actual
+                // WebSocket frame type: binary bytes may themselves be "2probe".
+                if (message.isTextWebSocketFrame() && client.getLastBinaryPacket() != null
+                        && isTransportControl(content)) {
+                    PacketType type = PacketType.valueOf(content.readByte() - '0');
+                    Packet control = new Packet(type);
+                    if (type == PacketType.PING || type == PacketType.PONG) {
+                        control.setData(content.toString(CharsetUtil.UTF_8));
+                    }
+                    content.skipBytes(content.readableBytes());
+                    packetListener.onTransportPacket(control, client, message.getTransport());
+                    continue;
+                }
                 Packet packet = decoder.decodePackets(content, client, message.getTransport());
                 if (packet == null) {
                     continue;
@@ -135,7 +152,10 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
                         // CONNECT before any other packet on a namespace. Do not let
                         // an unconnected client emit events or ACKs into application code.
                         client.disconnectWithProtocolClose();
-                        ctx.close();
+                        if (message.getTransport() != Transport.POLLING
+                                || ctx.pipeline().get(PollingTransport.class) == null) {
+                            ctx.close();
+                        }
                         return;
                     }
                     log.debug("Can't find namespace client in namespace: {}, sessionId: {} probably it was disconnected.", ns.getName(), client.getSessionId());
@@ -179,6 +199,15 @@ public class InPacketHandler extends SimpleChannelInboundHandler<PacketsMessage>
             log.debug("Completed processing {} packets for client: {}", packetsProcessed, client.getSessionId());
         }
     }
+
+    /** Executes is transport control. */
+    private static boolean isTransportControl(ByteBuf content) {
+        byte type = content.getByte(content.readerIndex());
+        return type == '2' || type == '3'
+                || (content.readableBytes() == 1 && (type == '1' || type == '5' || type == '6'));
+    }
+
+    /** Executes to connect error payload. */
     private static Object toConnectErrorPayload(ClientHead client, Object errorData) {
 
         if (client.getEngineIOVersion() == EngineIOVersion.V4) {

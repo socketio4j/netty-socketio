@@ -107,12 +107,14 @@ public abstract class AbstractStoreFactoryTestSupport {
         assertEquals(map, sameMap, "Getting map with same name should return same instance");
     }
 
+    /** Verifies test event store creation. */
     @Test
     public void testEventStoreCreation() {
         EventStore eventStore = storeFactory.eventStore();
         assertNotNull(eventStore, "EventStore should not be null");
     }
 
+    /** Verifies test shutdown. */
     @Test
     public void testShutdown() {
         UUID sessionId = UUID.randomUUID();
@@ -120,13 +122,7 @@ public abstract class AbstractStoreFactoryTestSupport {
         
         storeFactory.shutdown();
         
-        // After shutdown, createStore should still work (or throw exception depending on implementation)
-        // This tests that shutdown doesn't crash the factory
-        try {
-            storeFactory.createStore(UUID.randomUUID());
-        } catch (Exception e) {
-            // Expected exception in some implementations
-            assertNotNull(e, "Exception should be descriptive");
-        }
+        // Shutdown is an idempotent lifecycle operation. Unexpected failures must fail this test.
+        storeFactory.shutdown();
     }
 }

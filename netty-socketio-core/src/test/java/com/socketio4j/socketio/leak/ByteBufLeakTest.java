@@ -53,6 +53,8 @@ import io.netty.util.ResourceLeakDetectorFactory;
 import io.netty.util.ResourceLeakTracker;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -73,7 +75,35 @@ public class ByteBufLeakTest {
     private PacketDecoder decoder;
     private JsonSupport jsonSupport;
     private Configuration configuration;
+    private final java.util.List<ByteBuf> ownedAllocations = new java.util.ArrayList<>();
     private ByteBufAllocator allocator;
+
+    /** Executes tracking allocator. */
+    private ByteBufAllocator trackingAllocator(boolean direct) {
+        return new io.netty.buffer.AbstractByteBufAllocator(direct) {
+            /** Executes new heap buffer. */
+            @Override
+            protected ByteBuf newHeapBuffer(int initial, int maximum) {
+                ByteBuf buffer = io.netty.buffer.UnpooledByteBufAllocator.DEFAULT.heapBuffer(initial, maximum);
+                ownedAllocations.add(buffer);
+                return buffer;
+            }
+
+            /** Executes new direct buffer. */
+            @Override
+            protected ByteBuf newDirectBuffer(int initial, int maximum) {
+                ByteBuf buffer = io.netty.buffer.UnpooledByteBufAllocator.DEFAULT.directBuffer(initial, maximum);
+                ownedAllocations.add(buffer);
+                return buffer;
+            }
+
+            /** Executes is direct buffer pooled. */
+            @Override
+            public boolean isDirectBufferPooled() {
+                return false;
+            }
+        };
+    }
     private AutoCloseable closeableMocks;
 
     @Mock
@@ -114,6 +144,7 @@ public class ByteBufLeakTest {
         leakDetails.set("");
     }
 
+    /** Initializes test fixtures before each test. */
     @BeforeEach
     public void setUp() {
         leakDetected.set(false);
@@ -125,7 +156,7 @@ public class ByteBufLeakTest {
         configuration.setPreferDirectBuffer(false);
 
         jsonSupport = new JacksonJsonSupport();
-        allocator = Unpooled.buffer().alloc();
+        allocator = trackingAllocator(false);
 
         encoder = new PacketEncoder(configuration, jsonSupport);
         decoder = new PacketDecoder(jsonSupport, ackManager);
@@ -134,13 +165,19 @@ public class ByteBufLeakTest {
         when(clientHead.getSessionId()).thenReturn(UUID.randomUUID());
     }
 
+    /** Cleans up resources after test execution. */
     @AfterEach
     public void tearDown() throws Exception {
         if (closeableMocks != null) {
             closeableMocks.close();
         }
+        for (ByteBuf allocation : ownedAllocations) {
+            assertEquals(0, allocation.refCnt(), "Every codec-owned allocation must be released");
+        }
+        assertFalse(leakDetected.get(), leakDetails::get);
     }
 
+    /** Verifies test encoder decoder cycles zero leaks. */
     @Test
     public void testEncoderDecoderCyclesZeroLeaks() throws IOException {
         for (int i = 0; i < 2000; i++) {
@@ -153,6 +190,7 @@ public class ByteBufLeakTest {
 
             ByteBuf encodedBuffer = Unpooled.buffer();
             encoder.encodePacket(EngineIOVersion.V4, packet, encodedBuffer, allocator, false);
+            assertFalse(ownedAllocations.isEmpty(), "Encoder must allocate through the tracking allocator");
 
             assertNotNull(encodedBuffer);
 
@@ -160,10 +198,12 @@ public class ByteBufLeakTest {
             Packet decodedPacket = decoder.decodePackets(encodedBuffer, clientHead, Transport.POLLING);
             assertNotNull(decodedPacket);
 
-            encodedBuffer.release();
+            assertTrue(encodedBuffer.release(), "Test-owned buffer must have exactly one reference");
+            assertEquals(0, encodedBuffer.refCnt());
         }
     }
 
+    /** Verifies test batch polling cycles zero leaks. */
     @Test
     public void testBatchPollingCyclesZeroLeaks() throws IOException {
         for (int i = 0; i < 1000; i++) {
@@ -183,22 +223,25 @@ public class ByteBufLeakTest {
 
             ByteBuf batchBuf = Unpooled.buffer();
             encoder.encodePackets(EngineIOVersion.V4, queue, batchBuf, allocator, 10);
+            assertFalse(ownedAllocations.isEmpty(), "Encoder must allocate through the tracking allocator");
 
             assertNotNull(batchBuf);
 
             Packet decodedFirst = decoder.decodePackets(batchBuf, clientHead, Transport.POLLING);
             assertNotNull(decodedFirst);
 
-            batchBuf.release();
+            assertTrue(batchBuf.release(), "Test-owned buffer must have exactly one reference");
+            assertEquals(0, batchBuf.refCnt());
         }
     }
 
+    /** Verifies test direct buffer encoder decoder cycles zero leaks. */
     @Test
     public void testDirectBufferEncoderDecoderCyclesZeroLeaks() throws IOException {
         Configuration directConfig = new Configuration();
         directConfig.setPreferDirectBuffer(true);
         PacketEncoder directEncoder = new PacketEncoder(directConfig, jsonSupport);
-        ByteBufAllocator directAllocator = io.netty.buffer.UnpooledByteBufAllocator.DEFAULT;
+        ByteBufAllocator directAllocator = trackingAllocator(true);
 
         for (int i = 0; i < 1000; i++) {
             Packet packet = new Packet(PacketType.MESSAGE);
@@ -209,15 +252,18 @@ public class ByteBufLeakTest {
 
             ByteBuf directBuffer = Unpooled.directBuffer();
             directEncoder.encodePacket(EngineIOVersion.V4, packet, directBuffer, directAllocator, false);
+            assertFalse(ownedAllocations.isEmpty(), "Encoder must allocate through the tracking allocator");
             assertNotNull(directBuffer);
 
             Packet decodedPacket = decoder.decodePackets(directBuffer, clientHead, Transport.POLLING);
             assertNotNull(decodedPacket);
 
-            directBuffer.release();
+            assertTrue(directBuffer.release(), "Test-owned buffer must have exactly one reference");
+            assertEquals(0, directBuffer.refCnt());
         }
     }
 
+    /** Verifies test actual netty leak detection. */
     @Test
     public void testActualNettyLeakDetection() throws InterruptedException {
         ignoreGlobalLeak.set(true);
@@ -227,7 +273,7 @@ public class ByteBufLeakTest {
             testDetector.setLeakListener((resourceType, records) -> leakFired.set(true));
 
             // 1. Allocate a buffer and track it with Netty's detector without releasing
-            ByteBuf unreleased = allocator.buffer(64);
+            ByteBuf unreleased = io.netty.buffer.UnpooledByteBufAllocator.DEFAULT.heapBuffer(64);
             ResourceLeakTracker<ByteBuf> tracker = testDetector.track(unreleased);
             assertNotNull(tracker, "Tracker must be active under sampling rate 1");
 
@@ -241,7 +287,7 @@ public class ByteBufLeakTest {
                 Thread.sleep(50);
 
                 // Netty processes reference queues on subsequent track() calls
-                ByteBuf dummy = allocator.buffer(16);
+                ByteBuf dummy = io.netty.buffer.UnpooledByteBufAllocator.DEFAULT.heapBuffer(16);
                 ResourceLeakTracker<ByteBuf> dummyTracker = testDetector.track(dummy);
                 dummy.release();
                 if (dummyTracker != null) {

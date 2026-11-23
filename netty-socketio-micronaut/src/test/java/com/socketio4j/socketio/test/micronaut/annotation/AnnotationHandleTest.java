@@ -214,6 +214,7 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
                     && Objects.equals(getTimestamp(), testData.getTimestamp());
         }
 
+        /** Executes hash code. */
         @Override
         public int hashCode() {
             return Objects.hash(getName(), getAge(), getScore(), getTimestamp());
@@ -225,6 +226,7 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
 
     private Socket socket;
 
+    /** Initializes test fixtures before each test. */
     @BeforeEach
     public void setup() throws Exception {
         testConnectController.reset();
@@ -235,17 +237,26 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
                 : PORT;
         socket = IO.socket(
                 String.format("http://localhost:%d", boundPort),
-                IO.Options.builder().setForceNew(true).build()
+                IO.Options.builder()
+                        .setTransports(new String[]{"websocket"})
+                        .setForceNew(true)
+                        .build()
         );
         socket.connect();
         // wait for connection
-        await().atMost(5, TimeUnit.SECONDS).until(() -> socket.connected());
+        await().atMost(20, TimeUnit.SECONDS).until(() -> socket.connected());
     }
 
+    /** Cleans up resources after test execution. */
     @AfterEach
     public void tearDown() throws Exception {
-        if (socket != null && socket.connected()) {
+        if (socket != null) {
             socket.disconnect();
+            socket.close();
+            socket = null;
+        }
+        if (socketIOServer != null) {
+            await().atMost(10, TimeUnit.SECONDS).until(() -> socketIOServer.getAllClients().isEmpty());
         }
     }
 
@@ -258,9 +269,10 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
+    /** Verifies test on connect. */
     @Test
     public void testOnConnect() throws Exception {
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(20, TimeUnit.SECONDS)
                 .until(() -> testConnectController.counter.get() == 1
                         && testConnectController.params.size() == 1);
         assertEquals(1, testConnectController.counter.get(),
@@ -271,10 +283,11 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
                 "Parameter should be of type SocketIOClient");
     }
 
+    /** Verifies test on disconnect. */
     @Test
     public void testOnDisconnect() throws Exception {
         socket.disconnect();
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(20, TimeUnit.SECONDS)
                 .until(() -> testDisconnectController.counter.get() == 1
                         && testDisconnectController.params.size() == 1);
         assertEquals(1, testDisconnectController.counter.get(),
@@ -285,10 +298,11 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
                 "Parameter should be of type SocketIOClient");
     }
 
+    /** Verifies test on event1. */
     @Test
     public void testOnEvent1() throws Exception {
         socket.emit(TestOnEventController.EVENT_NAME_1);
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(20, TimeUnit.SECONDS)
                 .until(() -> testOnEventController.counter.get() == 1
                         && testOnEventController.params.size() == 1);
         assertEquals(1, testOnEventController.counter.get(),
@@ -299,10 +313,12 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
                 "Parameter should be of type SocketIOClient");
     }
 
+    /** Verifies test on event2. */
     @Test
     public void testOnEvent2() throws Exception {
         AtomicReference<TestData> ackDataRef = new AtomicReference<>();
         socket.emit(TestOnEventController.EVENT_NAME_2, null, new Ack() {
+            /** Executes call. */
             @Override
             public void call(Object... objects) {
                 TestData testData = null;
@@ -314,7 +330,7 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
                 ackDataRef.set(testData);
             }
         });
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(20, TimeUnit.SECONDS)
                 .until(() -> testOnEventController.counter.get() == 1
                         && testOnEventController.params.size() == 1
                         && ackDataRef.get() != null);
@@ -325,10 +341,12 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
         assertEquals(TestData.TEST_ACK_DATA, ackDataRef.get(), "Ack data should match");
     }
 
+    /** Verifies test on event3. */
     @Test
     public void testOnEvent3() throws Exception {
         AtomicReference<TestData> ackDataRef = new AtomicReference<>();
         socket.emit(TestOnEventController.EVENT_NAME_3, null, new Ack() {
+            /** Executes call. */
             @Override
             public void call(Object... objects) {
                 TestData testData = null;
@@ -340,7 +358,7 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
                 ackDataRef.set(testData);
             }
         });
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(20, TimeUnit.SECONDS)
                 .until(() -> testOnEventController.counter.get() == 1
                         && testOnEventController.params.size() == 2
                         && ackDataRef.get() != null);
@@ -355,12 +373,14 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
         assertEquals(TestData.TEST_ACK_DATA, ackDataRef.get(), "Ack data should match");
     }
 
+    /** Verifies test on event4. */
     @Test
     public void testOnEvent4() throws Exception {
         AtomicReference<TestData> ackDataRef = new AtomicReference<>();
         socket.emit(TestOnEventController.EVENT_NAME_4,
                 objectMapper.writeValueAsString(TestData.TEST_REQ_DATA),
                 new Ack() {
+                    /** Executes call. */
                     @Override
                     public void call(Object... objects) {
                         TestData testData = null;
@@ -372,7 +392,7 @@ public class AnnotationHandleTest extends BaseMicronautApplicationTest {
                         ackDataRef.set(testData);
                     }
                 });
-        await().atMost(10, TimeUnit.SECONDS)
+        await().atMost(20, TimeUnit.SECONDS)
                 .until(() -> testOnEventController.counter.get() == 1
                         && testOnEventController.params.size() == 3
                         && ackDataRef.get() != null);

@@ -258,6 +258,7 @@ public class ClientHead {
         }, configuration.getPingInterval(), TimeUnit.MILLISECONDS);
     }
 
+    /** Executes schedule ping timeout. */
     public void schedulePingTimeout() {
         cancelPingTimeout();
         SchedulerKey key = new SchedulerKey(Type.PING_TIMEOUT, sessionId);
@@ -271,6 +272,9 @@ public class ClientHead {
     }
 
     public @Nullable ChannelFuture send(Packet packet, Transport transport) {
+        if (!isConnected() && packet.getSubType() != PacketType.DISCONNECT) {
+            return null;
+        }
         TransportState state = channels.get(transport);
         if (state == null) {
             return null;
@@ -286,6 +290,10 @@ public class ClientHead {
         }
 
         queue.add(packet);
+        if (!isConnected() && packet.getSubType() != PacketType.DISCONNECT) {
+            queue.remove(packet);
+            return null;
+        }
 
         Channel channel = state.getChannel();
         if (channel == null

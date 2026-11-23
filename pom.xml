@@ -100,10 +100,47 @@
     <revapi.failOnUnresolvedArtifacts>true</revapi.failOnUnresolvedArtifacts>
     <revapi.failCriticality>error</revapi.failCriticality>
     <socketio.skip.docker>false</socketio.skip.docker>
+    <socketio.coverage.argLine></socketio.coverage.argLine>
+    <socketio.coverage.dataFile>${project.build.directory}/jacoco.exec</socketio.coverage.dataFile>
+    <socketio.coverage.reportDirectory>${project.reporting.outputDirectory}/jacoco</socketio.coverage.reportDirectory>
+    <socketio.test.reportsDirectory>${project.build.directory}/surefire-reports</socketio.test.reportsDirectory>
 
   </properties>
 
   <profiles>
+    <profile>
+      <id>coverage</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <version>0.8.13</version>
+            <configuration>
+              <dataFile>${socketio.coverage.dataFile}</dataFile>
+              <outputDirectory>${socketio.coverage.reportDirectory}</outputDirectory>
+            </configuration>
+            <executions>
+              <execution>
+                <id>coverage-agent</id>
+                <goals><goal>prepare-agent</goal></goals>
+                <configuration>
+                  <propertyName>socketio.coverage.argLine</propertyName>
+                  <append>true</append>
+                  <destFile>${socketio.coverage.dataFile}</destFile>
+                </configuration>
+              </execution>
+              <execution>
+                <id>coverage-report</id>
+                <phase>verify</phase>
+                <goals><goal>report</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
     <profile>
       <id>verify-eventloop-locks</id>
       <build>
@@ -681,10 +718,11 @@
           <useModulePath>false</useModulePath>
           <failIfNoTests>false</failIfNoTests>
           <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
-          <rerunFailingTestsCount>2</rerunFailingTestsCount>
-          <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+          <rerunFailingTestsCount>0</rerunFailingTestsCount>
+          <reportsDirectory>${socketio.test.reportsDirectory}</reportsDirectory>
           <forkedProcessTimeoutInSeconds>3600</forkedProcessTimeoutInSeconds>
           <argLine>
+            @{socketio.coverage.argLine}
             -Xms512m
             -Xmx1024m
             -XX:MaxDirectMemorySize=512m
