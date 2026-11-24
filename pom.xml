@@ -89,7 +89,7 @@
     <nats.version>2.26.4</nats.version>
     <micrometer-bom.version>1.17.2</micrometer-bom.version>
     <hll.version>1.6.0</hll.version>
-    <lz4.version>1.11.4</lz4.version>
+    <lz4.version>1.14.1</lz4.version>
     <okhttp.version>4.9.2</okhttp.version>
     <socketio.test.forkCount>1</socketio.test.forkCount>
     <socketio.test.reuseForks>true</socketio.test.reuseForks>
