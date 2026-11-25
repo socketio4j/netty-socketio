@@ -16,6 +16,7 @@
  */
 package com.socketio4j.socketio.store.redis_pubsub;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -112,11 +113,45 @@ public class RedisStoreFactory extends BaseStoreFactory {
 
     private final RedissonClient redisClient;
     private final EventStore eventStore;
+    private volatile String keyPrefix;
+    private volatile Duration sessionTtl;
+
+    /**
+     * Creates a {@code RedisStoreFactory} using the provided Redis client,
+     * user-supplied {@link EventStore}, optional key prefix, and optional session TTL.
+     *
+     * @param redisClient non-null Redis client
+     * @param eventStore  non-null event store implementation
+     * @param keyPrefix   optional key prefix for session maps, or null for default
+     * @param sessionTtl  optional session TTL, or null to preserve default no-expiry behavior
+     */
+    public RedisStoreFactory(@NotNull RedissonClient redisClient,
+                             @NotNull EventStore eventStore,
+                             @Nullable String keyPrefix,
+                             @Nullable Duration sessionTtl) {
+        this.redisClient = Objects.requireNonNull(redisClient, "redisClient cannot be null");
+        this.eventStore = Objects.requireNonNull(eventStore, "eventStore cannot be null");
+        this.keyPrefix = keyPrefix;
+        this.sessionTtl = sessionTtl;
+    }
+
+    /**
+     * Creates a {@code RedisStoreFactory} using the provided Redis client,
+     * user-supplied {@link EventStore}, and optional session TTL.
+     *
+     * @param redisClient non-null Redis client
+     * @param eventStore  non-null event store implementation
+     * @param sessionTtl  optional session TTL, or null to preserve default no-expiry behavior
+     */
+    public RedisStoreFactory(@NotNull RedissonClient redisClient,
+                             @NotNull EventStore eventStore,
+                             @Nullable Duration sessionTtl) {
+        this(redisClient, eventStore, null, sessionTtl);
+    }
 
     /**
      * Creates a {@code RedisStoreFactory} using the provided Redis client and
-     * user-supplied {@link EventStore}. Session data is stored via Redis, while the
-     * event store determines whether event propagation is local or distributed.
+     * user-supplied {@link EventStore}. Preserves default no-expiry behavior for session data.
      *
      * @apiNote Added in API version {@code 4.0.0}
      * 
@@ -124,40 +159,111 @@ public class RedisStoreFactory extends BaseStoreFactory {
      * @param eventStore  non-null event store implementation
      */
     public RedisStoreFactory(@NotNull RedissonClient redisClient,
-                                @NotNull EventStore eventStore) {
-        this.redisClient = Objects.requireNonNull(redisClient, "redisClient cannot be null");
-        this.eventStore = Objects.requireNonNull(eventStore, "eventStore cannot be null");
+                             @NotNull EventStore eventStore) {
+        this(redisClient, eventStore, null, null);
+    }
+
+    /**
+     * Creates a {@code RedisStoreFactory} using default Redis-backed event distribution,
+     * metrics tracking, and optional session TTL.
+     *
+     * @param redisClient non-null Redis client
+     * @param metrics     metrics instance, or null for no-op metrics
+     * @param sessionTtl  optional session TTL, or null to preserve default no-expiry behavior
+     */
+    public RedisStoreFactory(@NotNull RedissonClient redisClient,
+                             @Nullable SocketIOMetrics metrics,
+                             @Nullable Duration sessionTtl) {
+        this(redisClient,
+             new RedisPubSubEventStore(redisClient, redisClient, EventStoreMode.MULTI_CHANNEL, null, metrics),
+             sessionTtl);
     }
 
     /**
      * Creates a {@code RedisStoreFactory} using default Redis-backed event distribution
-     * with metrics tracking.
+     * with metrics tracking and default no-expiry behavior for session data.
      *
      * @param redisClient non-null Redis client
      * @param metrics     metrics instance, or null for no-op metrics
      */
     public RedisStoreFactory(@NotNull RedissonClient redisClient,
                              @Nullable SocketIOMetrics metrics) {
-        this(redisClient,
-             new RedisPubSubEventStore(redisClient, redisClient, EventStoreMode.MULTI_CHANNEL, null, metrics));
+        this(redisClient, metrics, (Duration) null);
     }
 
     /**
-     * Creates a {@code RedisStoreFactory} using default Redis-backed event distribution.
-     * Session data is stored in Redis, and events are propagated using {@link RedisPubSubEventStore}
-     * in {@link EventStoreMode#MULTI_CHANNEL} mode.
+     * Creates a {@code RedisStoreFactory} using default Redis-backed event distribution
+     * and optional session TTL.
+     *
+     * @param redisClient non-null Redis client
+     * @param sessionTtl  optional session TTL, or null to preserve default no-expiry behavior
+     */
+    public RedisStoreFactory(@NotNull RedissonClient redisClient,
+                             @Nullable Duration sessionTtl) {
+        this(redisClient, (SocketIOMetrics) null, sessionTtl);
+    }
+
+    /**
+     * Creates a {@code RedisStoreFactory} using default Redis-backed event distribution
+     * and optional key prefix and session TTL.
+     *
+     * @param redisClient non-null Redis client
+     * @param keyPrefix   optional key prefix for session maps, or null for default
+     * @param sessionTtl  optional session TTL, or null to preserve default no-expiry behavior
+     */
+    public RedisStoreFactory(@NotNull RedissonClient redisClient,
+                             @Nullable String keyPrefix,
+                             @Nullable Duration sessionTtl) {
+        this(redisClient,
+             new RedisPubSubEventStore(redisClient, redisClient, EventStoreMode.MULTI_CHANNEL, null, null),
+             keyPrefix,
+             sessionTtl);
+    }
+
+    /**
+     * Creates a {@code RedisStoreFactory} using default Redis-backed event distribution
+     * and default no-expiry behavior for sessions.
      *
      * @apiNote Added in API version {@code 4.0.0}
      * 
      * @param redisClient non-null Redis client
      */
     public RedisStoreFactory(@NotNull RedissonClient redisClient) {
-        this(redisClient, (SocketIOMetrics) null);
+        this(redisClient, (Duration) null);
+    }
+
+    @Nullable
+    public Duration getSessionTtl() {
+        return sessionTtl;
+    }
+
+    public void setSessionTtl(@Nullable Duration sessionTtl) {
+        this.sessionTtl = sessionTtl;
+    }
+
+    @Nullable
+    public String getKeyPrefix() {
+        return keyPrefix;
+    }
+
+    public void setKeyPrefix(@Nullable String keyPrefix) {
+        this.keyPrefix = keyPrefix;
     }
 
     @Override
     public Store createStore(UUID sessionId) {
-        return new RedisStore(sessionId, redisClient);
+        return createStore(sessionId, sessionTtl);
+    }
+
+    /**
+     * Creates a {@link RedisStore} for the given session with a custom TTL.
+     *
+     * @param sessionId non-null session identifier
+     * @param ttl       custom session TTL, or null for no expiry
+     * @return a new distributed RedisStore
+     */
+    public Store createStore(UUID sessionId, @Nullable Duration ttl) {
+        return new RedisStore(sessionId, redisClient, keyPrefix, ttl);
     }
 
     @Override

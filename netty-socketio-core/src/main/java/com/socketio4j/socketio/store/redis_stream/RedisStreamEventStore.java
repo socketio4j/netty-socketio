@@ -18,6 +18,7 @@ package com.socketio4j.socketio.store.redis_stream;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.redisson.api.RFuture;
 import org.redisson.api.RStream;
 import org.redisson.api.RedissonClient;
 import org.redisson.api.stream.StreamAddArgs;
@@ -91,6 +93,13 @@ public class RedisStreamEventStore implements EventStore {
 
     private final ConcurrentMap<EventType, ScheduledExecutorService> pollers =
             new ConcurrentHashMap<>();
+
+    // Stable per-type locks serialize poller replacement with callback processing.
+    private final ConcurrentMap<EventType, Object> pollerLocks = new ConcurrentHashMap<>();
+
+    private Object pollerLock(EventType type) {
+        return pollerLocks.computeIfAbsent(type, ignored -> new Object());
+    }
 
     private final SocketIOMetrics metrics;
 
@@ -239,83 +248,96 @@ public class RedisStreamEventStore implements EventStore {
 
         validateSubscribe(type);
 
-        listeners
-                .computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
-                .add(new ListenerRegistration<>(listener, clazz));
-
-        ensurePoller(type);
+        synchronized (pollerLock(type)) {
+            listeners.computeIfAbsent(type, k -> new ConcurrentLinkedQueue<>())
+                    .add(new ListenerRegistration<>(listener, clazz));
+            ensurePoller(type);
+        }
     }
 
+    // Called with the type's poller lock held.
     private void ensurePoller(EventType type) {
-
-        pollers.compute(type, (t, exec) -> {
-            if (exec == null || exec.isShutdown()) {
-
-                ScheduledExecutorService newExec =
-                        Executors.newSingleThreadScheduledExecutor(r -> {
-                            Thread th = new Thread(r);
-                            th.setName("socketio4j-redis-stream-" + t.name());
-                            th.setDaemon(true);
-                            return th;
-                        });
-
-                RStream<String, EventMessage> stream =
-                        subStreams.computeIfAbsent(
-                                t,
-                                k -> redissonSub.getStream(streamName(k))
-                        );
-                newExec.execute(() -> pollLoop(stream, t));
-                return newExec;
-
-            }
-            return exec;
-        });
-    }
-
-    private void pollLoop(RStream<String, EventMessage> stream, EventType type) {
-
-        if (!running.get() || Thread.currentThread().isInterrupted()) {
+        running.set(true);
+        ScheduledExecutorService exec = pollers.get(type);
+        if (exec != null && !exec.isShutdown()) {
             return;
         }
+        ScheduledExecutorService newExec = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread th = new Thread(r);
+            th.setName("socketio4j-redis-stream-" + type.name());
+            th.setDaemon(true);
+            return th;
+        });
+        RStream<String, EventMessage> stream = subStreams.computeIfAbsent(
+                type, k -> redissonSub.getStream(streamName(k)));
+        pollers.put(type, newExec);
+        newExec.execute(() -> pollLoop(stream, type, newExec));
+    }
 
-        stream.readAsync(
-                StreamReadArgs
-                        .greaterThan(offsets.get(type))
-                        .timeout(Duration.ofSeconds(10))
-                        .count(100)
-        ).whenComplete((records, err) -> {
+    private boolean isCurrentPoller(EventType type, ScheduledExecutorService exec) {
+        return running.get() && pollers.get(type) == exec && !exec.isShutdown();
+    }
 
-            if (err != null) {
-                if (!running.get() || isRedissonShutdown(err)) {
-                    log.debug("XREAD cancelled during store shutdown for {}", type);
-                    return;
-                }
-                log.error("XREAD failed {}", type, err);
-                scheduleRetry(stream, type);
+    private void pollLoop(RStream<String, EventMessage> stream, EventType type,
+                          ScheduledExecutorService exec) {
+        RFuture<Map<StreamMessageId, Map<String, EventMessage>>> read;
+        synchronized (pollerLock(type)) {
+            if (!isCurrentPoller(type, exec)) {
                 return;
             }
-
-            if (records != null && !records.isEmpty()) {
-                records.forEach((id, map) -> {
-                    if (map.isEmpty()) {
-                        offsets.put(type, id);
+            read = stream.readAsync(
+                    StreamReadArgs.greaterThan(offsets.get(type))
+                            .timeout(Duration.ofSeconds(10)).count(100)
+            );
+        }
+        read.whenComplete((records, err) -> {
+            synchronized (pollerLock(type)) {
+                if (!isCurrentPoller(type, exec)) {
+                    return;
+                }
+                if (err != null) {
+                    if (isRedissonShutdown(err)) {
+                        log.debug("XREAD cancelled during store shutdown for {}", type);
                         return;
                     }
-
-                    EventMessage msg = map.values().iterator().next();
-                    try {
-                        if (!Objects.equals(this.nodeId, msg.getNodeId())) {
-                            dispatch(type, msg, id);
+                    log.error("XREAD failed {}", type, err);
+                    exec.schedule(() -> pollLoop(stream, type, exec), 1, TimeUnit.SECONDS);
+                    return;
+                }
+            }
+            if (records != null) {
+                for (Map.Entry<StreamMessageId, Map<String, EventMessage>> record : records.entrySet()) {
+                    Queue<ListenerRegistration<? extends EventMessage>> regs;
+                    synchronized (pollerLock(type)) {
+                        if (!isCurrentPoller(type, exec)) {
+                            return;
                         }
-                    } finally {
+                        regs = listeners.get(type);
+                    }
+                    StreamMessageId id = record.getKey();
+                    Map<String, EventMessage> values = record.getValue();
+                    if (!values.isEmpty()) {
+                        EventMessage msg = values.values().iterator().next();
+                        try {
+                            if (msg != null && !nodeId.equals(msg.getNodeId())) {
+                                dispatch(type, msg, id, regs);
+                            }
+                        } catch (Exception e) {
+                            log.error("Failed to dispatch stream message {} for type {}", id, type, e);
+                        }
+                    }
+                    synchronized (pollerLock(type)) {
+                        if (!isCurrentPoller(type, exec)) {
+                            return;
+                        }
                         offsets.put(type, id);
                     }
-                });
+                }
             }
-
-            ScheduledExecutorService exec = pollers.get(type);
-            if (exec != null && running.get()) {
-                exec.execute(() -> pollLoop(stream, type));
+            synchronized (pollerLock(type)) {
+                if (isCurrentPoller(type, exec)) {
+                    exec.execute(() -> pollLoop(stream, type, exec));
+                }
             }
         });
     }
@@ -323,11 +345,12 @@ public class RedisStreamEventStore implements EventStore {
     private <T extends EventMessage> void dispatch(
             EventType type,
             EventMessage msg,
-            StreamMessageId id
+            StreamMessageId id,
+            Queue<ListenerRegistration<? extends EventMessage>> regs
     ) {
-
-        Queue<ListenerRegistration<? extends EventMessage>> regs =
-                listeners.get(type);
+        if (msg == null) {
+            return;
+        }
 
         if (regs == null) {
             return;
@@ -337,17 +360,14 @@ public class RedisStreamEventStore implements EventStore {
 
         for (ListenerRegistration<? extends EventMessage> reg : regs) {
             if (reg.getClazz().isInstance(msg)) {
-                ((ListenerRegistration<T>) reg)
-                        .getListener()
-                        .onMessage((T) msg);
+                try {
+                    ((ListenerRegistration<T>) reg)
+                            .getListener()
+                            .onMessage((T) msg);
+                } catch (Exception e) {
+                    log.error("Error executing listener for stream event type {}", type, e);
+                }
             }
-        }
-    }
-
-    private void scheduleRetry(RStream<String, EventMessage> stream, EventType type) {
-        ScheduledExecutorService exec = pollers.get(type);
-        if (exec != null && running.get()) {
-            exec.schedule(() -> pollLoop(stream, type), 1, TimeUnit.SECONDS);
         }
     }
 
@@ -358,25 +378,28 @@ public class RedisStreamEventStore implements EventStore {
     @Override
     public void unsubscribe0(EventType type) {
 
-        listeners.remove(type);
-
-        ScheduledExecutorService exec = pollers.remove(type);
-        if (exec != null) {
-            exec.shutdownNow();
-        }
-
-        if (listeners.isEmpty()) {
-            running.set(false);
+        synchronized (pollerLock(type)) {
+            listeners.remove(type);
+            ScheduledExecutorService exec = pollers.remove(type);
+            if (exec != null) {
+                exec.shutdownNow();
+            }
         }
     }
 
     @Override
     public void shutdown0() {
         running.set(false);
-        pollers.values().forEach(ScheduledExecutorService::shutdownNow);
-        pollers.clear();
-        listeners.clear();
-        offsets.clear();
+        for (EventType type : EventType.values()) {
+            synchronized (pollerLock(type)) {
+                ScheduledExecutorService exec = pollers.remove(type);
+                if (exec != null) {
+                    exec.shutdownNow();
+                }
+                listeners.remove(type);
+                offsets.remove(type);
+            }
+        }
         pubStreams.clear();
         subStreams.clear();
     }
